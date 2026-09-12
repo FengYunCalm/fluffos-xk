@@ -25367,7 +25367,7 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   ASSERT_NE(ihe, nullptr);
   ASSERT_TRUE(ihe->token & IHE_SIMUL);
   ASSERT_FALSE(ihe->token & IHE_ORPHAN);
-  ASSERT_EQ(ihe->dn.simul_num, snap.names[0].index);
+  ASSERT_EQ(ihe->dn.simul_num, snap.names[survivor_slot].index);
   ASSERT_EQ(ihe->sem_value, surv_sem_before);
   // The failed transaction's fresh name is inert residue (compile-time
   // rejection state, matching dropped-name semantics).
