@@ -29,6 +29,12 @@ union u {
   struct ref_t *ref;
   unsigned char *lvalue_byte;
   void (*error_handler)(void);
+
+  /* Per-instance state for index/range lvalues.  These values are owned by
+   * the stack slot (or by ref_t::index_sv after ref capture), not by a
+   * thread-local scratch sentinel. */
+  struct codepoint_lvalue_t *cp_lv;
+  struct range_lvalue_t *range_lv;
 };
 
 /*
@@ -49,6 +55,11 @@ struct ref_t {
   struct control_stack_t *csp;
   svalue_t *lvalue;
   svalue_t sv;
+  /* F_MAKE_REF transfers an indexed lvalue box here while sv keeps the
+   * referenced container alive. */
+  svalue_t index_sv;
+  svalue_t *codepoint_owner;
+  int32_t codepoint_index;
 };
 
 /* values for type field of svalue struct */
@@ -72,6 +83,19 @@ struct ref_t {
 #define T_FREED 0x2000u
 #define T_REF 0x4000u
 #define T_LVALUE_CODEPOINT 0x8000u /* UTF8 codepoint */
+
+struct codepoint_lvalue_t;
+struct range_lvalue_t;
+void free_indexed_lvalue(svalue_t *v);
+
+static inline bool is_stack_lvalue(const svalue_t *v) {
+  return v->type == T_LVALUE || v->type == T_LVALUE_BYTE ||
+         v->type == T_LVALUE_RANGE || v->type == T_LVALUE_CODEPOINT;
+}
+
+static inline svalue_t *lvalue_target(svalue_t *slot) {
+  return slot->type == T_LVALUE ? slot->u.lvalue : slot;
+}
 
 #define TYPE_MOD_ARRAY 0x8000u /* Pointer to a basic type */
 /* Note, the following restricts class_num to < 0x40 or 64   */
@@ -123,7 +147,8 @@ void int_free_svalue(svalue_t *);
  * double-free detection that depends on the bit being set keeps working.
  * (Upstream #1342.) */
 inline void free_svalue_maybe_refed(svalue_t *v) {
-  if (v->type & (T_STRING | T_REFED | T_ERROR_HANDLER)) {
+  if (v->type & (T_STRING | T_REFED | T_ERROR_HANDLER | T_LVALUE_CODEPOINT |
+                 T_LVALUE_RANGE)) {
     int_free_svalue(v);
   }
 }

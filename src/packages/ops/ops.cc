@@ -7,6 +7,24 @@
 
 #include "packages/ops/parse.h"
 
+namespace {
+class popped_lvalue_t {
+ public:
+  popped_lvalue_t() : target_(nullptr) {
+    slot_ = *sp--;
+    target_ = lvalue_target(&slot_);
+  }
+
+  ~popped_lvalue_t() { free_svalue(&slot_, "popped_lvalue_t"); }
+
+  svalue_t *target() const { return target_; }
+
+ private:
+  svalue_t slot_{};
+  svalue_t *target_;
+};
+}  // namespace
+
 void f_and() {
   if (sp->type == T_ARRAY && (sp - 1)->type == T_ARRAY) {
     sp--;
@@ -21,9 +39,8 @@ void f_and() {
 }
 
 void f_and_eq() {
-  svalue_t *argp;
-
-  argp = (sp--)->u.lvalue;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
   if (argp->type == T_ARRAY && sp->type == T_ARRAY) {
     sp->u.arr = argp->u.arr = intersect_array(argp->u.arr, sp->u.arr);
@@ -41,7 +58,8 @@ void f_and_eq() {
 }
 
 void f_div_eq() {
-  svalue_t *argp = (sp--)->u.lvalue;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
   switch (argp->type | sp->type) {
     case T_NUMBER: {
@@ -365,12 +383,13 @@ void f_lsh() {
 }
 
 void f_lsh_eq() {
-  svalue_t *argp;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
-  if ((argp = sp->u.lvalue)->type != T_NUMBER) {
+  if (argp->type != T_NUMBER) {
     error("Bad left type to <<=\n");
   }
-  if ((--sp)->type != T_NUMBER) {
+  if (sp->type != T_NUMBER) {
     error("Bad right type to <<=\n");
   }
   sp->u.number = argp->u.number <<= sp->u.number;
@@ -378,12 +397,13 @@ void f_lsh_eq() {
 }
 
 void f_mod_eq() {
-  svalue_t *argp;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
-  if ((argp = sp->u.lvalue)->type != T_NUMBER) {
+  if (argp->type != T_NUMBER) {
     error("Bad left type to %%=\n");
   }
-  if ((--sp)->type != T_NUMBER) {
+  if (sp->type != T_NUMBER) {
     error("Bad right type to %%=\n");
   }
   if (sp->u.number == 0) {
@@ -400,7 +420,8 @@ void f_mod_eq() {
 }
 
 void f_mult_eq() {
-  svalue_t *argp = (sp--)->u.lvalue;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
   switch (argp->type | sp->type) {
     case T_NUMBER: {
@@ -553,9 +574,8 @@ void f_or() {
 }
 
 void f_or_eq() {
-  svalue_t *argp;
-
-  argp = (sp--)->u.lvalue;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
   if (argp->type == T_ARRAY && sp->type == T_ARRAY) {
     argp->u.arr = sp->u.arr = union_array(argp->u.arr, sp->u.arr);
     sp->u.arr->ref++; /* because we put it in two places */
@@ -889,12 +909,13 @@ void f_rsh() {
 }
 
 void f_rsh_eq() {
-  svalue_t *argp;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
-  if ((argp = sp->u.lvalue)->type != T_NUMBER) {
+  if (argp->type != T_NUMBER) {
     error("Bad left type to >>=\n");
   }
-  if ((--sp)->type != T_NUMBER) {
+  if (sp->type != T_NUMBER) {
     error("Bad right type to >>=\n");
   }
   sp->u.number = argp->u.number >>= sp->u.number;
@@ -902,7 +923,8 @@ void f_rsh_eq() {
 }
 
 void f_sub_eq() {
-  svalue_t *argp = (sp--)->u.lvalue;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
   switch (argp->type | sp->type) {
     case T_NUMBER: {
@@ -937,16 +959,23 @@ void f_sub_eq() {
     }
 
     case T_LVALUE_BYTE | T_NUMBER: {
-      char c;
-
-      c = *global_lvalue_byte.u.lvalue_byte - sp->u.number;
-
-      if (global_lvalue_byte.subtype == 0 && c == '\0') {
+      LPC_INT result = *argp->u.lvalue_byte - sp->u.number;
+      if (result < 0 || result > 255) {
+        error("Buffer byte value out of range: must be 0..255.\n");
+      }
+      if (argp->subtype == 0 && result == '\0') {
         error("Strings cannot contain 0 bytes.\n");
       }
-      *global_lvalue_byte.u.lvalue_byte = c;
+      *argp->u.lvalue_byte = static_cast<unsigned char>(result);
+      sp->u.number = result;
+      sp->subtype = 0;
       break;
     }
+
+    case T_LVALUE_CODEPOINT | T_NUMBER:
+      sp->u.number = codepoint_lvalue_add(argp, -sp->u.number);
+      sp->subtype = 0;
+      break;
 
     default: {
       if (!(sp->type & (T_NUMBER | T_REAL | T_ARRAY))) {
@@ -1189,12 +1218,13 @@ void f_xor() {
 }
 
 void f_xor_eq() {
-  svalue_t *argp;
+  popped_lvalue_t lv;
+  svalue_t *argp = lv.target();
 
-  if ((argp = sp->u.lvalue)->type != T_NUMBER) {
+  if (argp->type != T_NUMBER) {
     error("Bad left type to ^=\n");
   }
-  if ((--sp)->type != T_NUMBER) {
+  if (sp->type != T_NUMBER) {
     error("Bad right type to ^=\n");
   }
   sp->u.number = argp->u.number ^= sp->u.number;

@@ -205,8 +205,10 @@ long vm_control_stack_depth();
 long vm_control_stack_capacity();
 bool vm_control_stack_thread_local_storage_ready();
 void unlink_string_svalue(svalue_t *);
-void copy_lvalue_range(svalue_t *);
-void assign_lvalue_range(svalue_t *);
+void copy_lvalue_range(svalue_t *lval, svalue_t *from);
+void assign_lvalue_range(svalue_t *lval, svalue_t *from);
+LPC_INT codepoint_lvalue_add(svalue_t *lval, LPC_INT delta);
+
 void debug_perror(const char *, const char *);
 
 #ifndef NO_SHADOWS

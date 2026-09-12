@@ -59,14 +59,15 @@ extern inline const char *access_to_name(int /*mode*/);
 extern inline const char *origin_to_name(int /*origin*/);
 
 template <typename F>
-void assign_lvalue_codepoint(F &&func);
+void assign_lvalue_codepoint(svalue_t *lval, F &&func);
+static void materialize_lvalue(svalue_t *dest, svalue_t *slot);
 
 static inline void replace_lvalue_with_value_on_stack(svalue_t *slot, const char *where) {
   svalue_t tmp;
   tmp.type = T_NUMBER;
   tmp.subtype = 0;
   tmp.u.number = 0;
-  assign_svalue_no_free(&tmp, slot->u.lvalue);
+  materialize_lvalue(&tmp, slot);
   free_svalue(slot, where);
   assign_svalue_no_free(slot, &tmp);
   free_svalue(&tmp, where);
@@ -78,23 +79,25 @@ static inline void assign_value_to_lvalue(svalue_t *lval, svalue_t *value, const
       if (value->type != T_NUMBER) {
         error("Illegal rhs to byte lvalue\n");
       }
-      char c = static_cast<char>(value->u.number);
-
-      if (global_lvalue_byte.subtype == 0 && c == '\0') {
+      LPC_INT c = value->u.number;
+      if (c < 0 || c > 255) {
+        error("Buffer byte value out of range: must be 0..255.\n");
+      }
+      if (lval->subtype == 0 && c == '\0') {
         error("Strings cannot contain 0 bytes.\n");
       }
-      *global_lvalue_byte.u.lvalue_byte = c;
+      *lval->u.lvalue_byte = static_cast<unsigned char>(c);
       break;
     }
     case T_LVALUE_RANGE:
-      assign_lvalue_range(value);
+      assign_lvalue_range(lval, value);
       break;
     case T_LVALUE_CODEPOINT: {
       if (value->type != T_NUMBER) {
         error("Illegal rhs to char lvalue\n");
       }
       UChar32 newc = value->u.number;
-      assign_lvalue_codepoint([=](UChar32 /*unused*/) { return newc; });
+      assign_lvalue_codepoint(lval, [=](UChar32 /*unused*/) { return newc; });
       break;
     }
     default:
@@ -255,13 +258,19 @@ void kill_ref(ref_t *ref) {
    * counted owner (F_MAKE_REF, lvalue set) or an uncounted tag
    * (T_NUMBER / T_LVALUE_BYTE) for which this is a no-op. */
   free_svalue(&ref->sv, "kill_ref");
-  /* Clear the stale tag: when the last T_REF svalue holding this ref_t is
+  /* F_MAKE_REF of s[i] / b[i] / x[a..b] parks the box here so sv can
+   * still hold the container. */
+  free_svalue(&ref->index_sv, "kill_ref");
+  /* Clear the stale tags: when the last T_REF svalue holding this ref_t is
    * later freed, free_svalue() re-enters kill_ref, and the MAP_LOCKED
    * check above must not re-read the (possibly already deallocated)
    * mapping through ref->sv. */
   ref->sv.type = T_NUMBER;
   ref->sv.subtype = 0;
   ref->sv.u.number = 0;
+  ref->index_sv.type = T_NUMBER;
+  ref->index_sv.subtype = 0;
+  ref->index_sv.u.number = 0;
   if (ref->next) {
     ref->next->prev = ref->prev;
   }
@@ -293,6 +302,15 @@ ref_t *make_ref(void) {
   global_ref_list = ref;
   ref->csp = csp;
   ref->ref = 1;
+  ref->lvalue = nullptr;
+  ref->sv.type = T_NUMBER;
+  ref->sv.subtype = 0;
+  ref->sv.u.number = 0;
+  ref->index_sv.type = T_NUMBER;
+  ref->index_sv.subtype = 0;
+  ref->index_sv.u.number = 0;
+  ref->codepoint_owner = nullptr;
+  ref->codepoint_index = 0;
   return ref;
 }
 
@@ -674,13 +692,143 @@ FLUFFOS_VM_THREAD_LOCAL int lv_owner_type;
 FLUFFOS_VM_THREAD_LOCAL refed_t *lv_owner;
 FLUFFOS_VM_THREAD_LOCAL const char *lv_owner_str;
 
-// LVALUE points to an character(codepoint) in string
+struct codepoint_lvalue_t {
+  int32_t index;
+  svalue_t *owner;
+  std::unique_ptr<EGCSmartIterator> iter;
+};
+
+struct range_lvalue_t {
+  size_t ind1, ind2, size;
+  svalue_t *owner;
+};
+
+void free_indexed_lvalue(svalue_t *v) {
+  if (v->type == T_LVALUE_CODEPOINT) {
+    delete v->u.cp_lv;
+    v->u.cp_lv = nullptr;
+  } else if (v->type == T_LVALUE_RANGE) {
+    delete v->u.range_lv;
+    v->u.range_lv = nullptr;
+  }
+}
+
+class popped_lvalue_t {
+ public:
+  popped_lvalue_t() : slot_{} {}
+  ~popped_lvalue_t() { free_svalue(&slot_, "popped_lvalue"); }
+
+  svalue_t *target() {
+    slot_ = *sp--;
+    return lvalue_target(&slot_);
+  }
+
+ private:
+  svalue_t slot_;
+};
+
+static void arm_codepoint_lvalue(svalue_t *slot, svalue_t *owner, int32_t ind) {
+  UChar32 c = u8_egc_index_as_single_codepoint(owner->u.string, SVALUE_STRLEN(owner), ind);
+  if (c == -2 || c == 0) {
+    error("Index out of bounds in string index lvalue.\n");
+  } else if (c < 0) {
+    error("Indexed character is multi-codepoint.\n");
+  }
+  auto *box = new codepoint_lvalue_t;
+  box->index = ind;
+  box->owner = owner;
+  box->iter = std::make_unique<EGCSmartIterator>(owner->u.string, SVALUE_STRLEN(owner));
+  slot->type = T_LVALUE_CODEPOINT;
+  slot->subtype = 0;
+  slot->u.cp_lv = box;
+}
+
+static void arm_byte_lvalue(svalue_t *slot, unsigned char *p) {
+  slot->type = T_LVALUE_BYTE;
+  slot->subtype = 1;
+  slot->u.lvalue_byte = p;
+}
+
+// Legacy foreach state is kept until the foreach reference path is migrated;
+// index lvalues themselves never point at these sentinels.
 static FLUFFOS_VM_THREAD_LOCAL struct {
   int32_t index;
   svalue_t *owner;
   std::unique_ptr<EGCSmartIterator> iter;
 } global_lvalue_codepoint;
 static FLUFFOS_VM_THREAD_LOCAL svalue_t global_lvalue_codepoint_sv = {T_LVALUE_CODEPOINT};
+
+static void copy_range_lvalue_as_rvalue(svalue_t *dest, svalue_t *range_slot) {
+  auto *box = range_slot->u.range_lv;
+  if (!box || !box->owner) {
+    error("Reference is invalid.\n");
+  }
+  auto *owner = box->owner;
+  int ind1 = static_cast<int>(box->ind1);
+  int ind2 = static_cast<int>(box->ind2);
+  dest->subtype = 0;
+  switch (owner->type) {
+    case T_ARRAY:
+      owner->u.arr->ref++;
+      dest->type = T_ARRAY;
+      dest->u.arr = slice_array(owner->u.arr, ind1, ind2 - 1);
+      break;
+    case T_STRING: {
+      int n = std::max(0, ind2 - ind1);
+      auto *text = new_string(n, "copy_range_lvalue_as_rvalue");
+      memcpy(text, owner->u.string + ind1, n);
+      text[n] = '\0';
+      dest->type = T_STRING;
+      dest->subtype = STRING_MALLOC;
+      dest->u.string = text;
+      break;
+    }
+    case T_BUFFER: {
+      int n = std::max(0, ind2 - ind1);
+      auto *buffer = allocate_buffer(n);
+      memcpy(buffer->item, owner->u.buf->item + ind1, n);
+      dest->type = T_BUFFER;
+      dest->u.buf = buffer;
+      break;
+    }
+    default:
+      error("Range lvalue on illegal type\n");
+  }
+}
+
+static void materialize_lvalue(svalue_t *dest, svalue_t *slot) {
+  auto *target = lvalue_target(slot);
+  switch (target->type) {
+    case T_LVALUE_BYTE:
+      dest->type = T_NUMBER;
+      dest->subtype = 0;
+      dest->u.number = *target->u.lvalue_byte;
+      return;
+    case T_LVALUE_CODEPOINT: {
+      auto *cp = target->u.cp_lv;
+      if (cp) {
+        dest->type = T_NUMBER;
+        dest->subtype = 0;
+        dest->u.number = u8_egc_index_as_single_codepoint(
+            cp->owner->u.string, SVALUE_STRLEN(cp->owner), cp->index);
+      } else {
+        dest->type = T_NUMBER;
+        dest->subtype = 0;
+        dest->u.number = u8_egc_index_as_single_codepoint(
+            global_lvalue_codepoint.owner->u.string,
+            SVALUE_STRLEN(global_lvalue_codepoint.owner),
+            std::max<int32_t>(0, global_lvalue_codepoint.index - 1));
+      }
+      return;
+    }
+    case T_LVALUE_RANGE:
+      copy_range_lvalue_as_rvalue(dest, target);
+      return;
+    default:
+      assign_svalue_no_free(dest, target);
+      return;
+  }
+}
 
 /*
  * Compute the address of an array element.
@@ -690,7 +838,7 @@ void push_indexed_lvalue(int reverse) {
   svalue_t *lv;
 
   if (sp->type == T_LVALUE) {
-    lv = sp->u.lvalue;
+    lv = lvalue_target(sp);
     if (!reverse && lv->type == T_MAPPING) {
       sp--;
       if (!(lv = find_for_insert(lv->u.map, sp, 0))) {
@@ -727,12 +875,7 @@ void push_indexed_lvalue(int reverse) {
           error("Indexed character is multi-codepoint.\n");
         }
         unlink_string_svalue(lv);
-        sp->type = T_LVALUE;
-        sp->u.lvalue = &global_lvalue_codepoint_sv;
-        global_lvalue_codepoint.index = ind;
-        global_lvalue_codepoint.owner = lv;
-        global_lvalue_codepoint.iter =
-            std::make_unique<EGCSmartIterator>(lv->u.string, SVALUE_STRLEN(lv));
+        arm_codepoint_lvalue(sp, lv, ind);
 #ifdef REF_RESERVED_WORD
         lv_owner_type = T_STRING;
         lv_owner_str = lv->u.string;
@@ -747,10 +890,7 @@ void push_indexed_lvalue(int reverse) {
         if (ind >= lv->u.buf->size || ind < 0) {
           error("Buffer index out of bounds.\n");
         }
-        sp->type = T_LVALUE;
-        sp->u.lvalue = &global_lvalue_byte;
-        global_lvalue_byte.subtype = 1;
-        global_lvalue_byte.u.lvalue_byte = &lv->u.buf->item[ind];
+        arm_byte_lvalue(sp, &lv->u.buf->item[ind]);
 #ifdef REF_RESERVED_WORD
         lv_owner_type = T_BUFFER;
         lv_owner = reinterpret_cast<refed_t *>(lv->u.buf);
@@ -824,10 +964,8 @@ void push_indexed_lvalue(int reverse) {
         lv_owner_type = T_BUFFER;
         lv_owner = reinterpret_cast<refed_t *>(sp->u.buf);
 #endif
-        (--sp)->type = T_LVALUE;
-        sp->u.lvalue = &global_lvalue_byte;
-        global_lvalue_byte.subtype = 1;
-        global_lvalue_byte.u.lvalue_byte = (sp + 1)->u.buf->item + ind;
+        --sp;
+        arm_byte_lvalue(sp, (sp + 1)->u.buf->item + ind);
         break;
       }
 
@@ -857,13 +995,6 @@ void push_indexed_lvalue(int reverse) {
   }
 }
 
-static FLUFFOS_VM_THREAD_LOCAL struct lvalue_range {
-  size_t ind1, ind2, size;
-  svalue_t *owner;
-} global_lvalue_range;
-
-static FLUFFOS_VM_THREAD_LOCAL svalue_t global_lvalue_range_sv = {T_LVALUE_RANGE};
-
 static void push_lvalue_range(int code) {
   int32_t ind1, ind2;
   size_t size = 0;
@@ -871,7 +1002,7 @@ static void push_lvalue_range(int code) {
   std::unique_ptr<EGCSmartIterator> iter = nullptr;
 
   {
-    switch ((lv = global_lvalue_range.owner = sp->u.lvalue)->type) {
+    switch ((lv = lvalue_target(sp))->type) {
       case T_ARRAY:
         size = lv->u.arr->size;
         break;
@@ -936,21 +1067,25 @@ static void push_lvalue_range(int code) {
     }
   }
 
-  global_lvalue_range.ind1 = ind1;
-  global_lvalue_range.ind2 = ind2;
-  global_lvalue_range.size = size;
-  sp->type = T_LVALUE;
-  sp->u.lvalue = &global_lvalue_range_sv;
+  auto *box = new range_lvalue_t;
+  box->ind1 = static_cast<size_t>(ind1);
+  box->ind2 = static_cast<size_t>(ind2);
+  box->size = size;
+  box->owner = lv;
+  sp->type = T_LVALUE_RANGE;
+  sp->subtype = 0;
+  sp->u.range_lv = box;
 }
 
-void copy_lvalue_range(svalue_t *from) {
+void copy_lvalue_range(svalue_t *lval, svalue_t *from) {
   int ind1, ind2, size, fsize;
   svalue_t *owner;
+  range_lvalue_t *box = lval->u.range_lv;
 
-  ind1 = global_lvalue_range.ind1;
-  ind2 = global_lvalue_range.ind2;
-  size = global_lvalue_range.size;
-  owner = global_lvalue_range.owner;
+  ind1 = static_cast<int>(box->ind1);
+  ind2 = static_cast<int>(box->ind2);
+  size = static_cast<int>(box->size);
+  owner = box->owner;
 
   switch (owner->type) {
     case T_ARRAY: {
@@ -1096,48 +1231,82 @@ void copy_lvalue_range(svalue_t *from) {
 }
 
 template <typename F>
-void assign_lvalue_codepoint(F &&func) {
-  {
-    auto pos = global_lvalue_codepoint.index;
-
-    UChar32 c = u8_egc_index_as_single_codepoint(global_lvalue_codepoint.owner->u.string,
-                                                 SVALUE_STRLEN(global_lvalue_codepoint.owner), pos);
-    if (c < 0) {
-      error("Invalid string index, multi-codepoint character.\n");
+void assign_lvalue_codepoint(svalue_t *lval, F &&func) {
+  codepoint_lvalue_t legacy;
+  codepoint_lvalue_t *cp = lval->u.cp_lv;
+  if (!cp) {
+    /* The foreach implementation predates boxed index lvalues and uses a
+     * shared sentinel.  Adapt it at this boundary until foreach is migrated. */
+    if (lval != &global_lvalue_codepoint_sv || !global_lvalue_codepoint.owner) {
+      error("Reference is invalid.\n");
     }
-    auto old_len = U8_LENGTH(c);
-    DEBUG_CHECK(old_len == 0, "Invalid UTF-8 Codepoint: assign_lvalue_codepoint");
-
-    auto newc = func(c);
-    if (newc == 0) {
-      error("Strings cannot contain 0 byte.\n");
-    }
-    c = newc;
-    auto new_len = U8_LENGTH(c);
-    if (!new_len) {
-      error("Strings cannot contain invalid utf8 codepoint.\n");
-    }
-    auto res = new_string(SVALUE_STRLEN(global_lvalue_codepoint.owner) - old_len + new_len,
-                          "assign_lvalue_codepoint");
-    u8_copy_and_replace_codepoint_at(*global_lvalue_codepoint.iter, res, pos, c);
-
-    free_string_svalue(global_lvalue_codepoint.owner);
-
-    global_lvalue_codepoint.owner->u.string = res;
-    global_lvalue_codepoint.owner->subtype = STRING_MALLOC;
-    global_lvalue_codepoint.iter = std::make_unique<EGCSmartIterator>(
-        global_lvalue_codepoint.owner->u.string, SVALUE_STRLEN(global_lvalue_codepoint.owner));
+    // F_NEXT_FOREACH advances the shared cursor before entering the body;
+    // the reference therefore addresses the element immediately before it.
+    legacy.index = std::max<int32_t>(0, global_lvalue_codepoint.index - 1);
+    legacy.owner = global_lvalue_codepoint.owner;
+    legacy.iter = std::make_unique<EGCSmartIterator>(
+        legacy.owner->u.string, SVALUE_STRLEN(legacy.owner));
+    svalue_t boxed;
+    boxed.type = T_LVALUE_CODEPOINT;
+    boxed.subtype = 0;
+    boxed.u.cp_lv = &legacy;
+    assign_lvalue_codepoint(&boxed, std::forward<F>(func));
+    global_lvalue_codepoint.iter = std::move(legacy.iter);
+    return;
   }
+
+  auto pos = cp->index;
+  if (!cp->owner || cp->owner->type != T_STRING) {
+    error("Reference is invalid.\n");
+  }
+  /* Rebuild instead of resetting: reset() can retain stale ASCII/subrange
+   * state after an in-place replacement changes byte width. */
+  cp->iter = std::make_unique<EGCSmartIterator>(cp->owner->u.string,
+                                                 SVALUE_STRLEN(cp->owner));
+  UChar32 c = u8_egc_index_as_single_codepoint(cp->owner->u.string,
+                                               SVALUE_STRLEN(cp->owner), pos);
+  if (c == -2 || c == 0) {
+    error("Index out of bounds in string index lvalue.\n");
+  } else if (c < 0) {
+    error("Indexed character is multi-codepoint.\n");
+  }
+  auto old_len = U8_LENGTH(c);
+  DEBUG_CHECK(old_len == 0, "Invalid UTF-8 Codepoint: assign_lvalue_codepoint");
+
+  auto newc = func(c);
+  if (newc == 0) {
+    error("Strings cannot contain 0 byte.\n");
+  }
+  auto new_len = U8_LENGTH(newc);
+  if (!new_len) {
+    error("Strings cannot contain invalid utf8 codepoint.\n");
+  }
+  auto res = new_string(SVALUE_STRLEN(cp->owner) - old_len + new_len,
+                        "assign_lvalue_codepoint");
+  u8_copy_and_replace_codepoint_at(*cp->iter, res, pos, newc);
+
+  free_string_svalue(cp->owner);
+  cp->owner->u.string = res;
+  cp->owner->subtype = STRING_MALLOC;
+  cp->iter = std::make_unique<EGCSmartIterator>(cp->owner->u.string,
+                                                 SVALUE_STRLEN(cp->owner));
 }
 
-void assign_lvalue_range(svalue_t *from) {
+LPC_INT codepoint_lvalue_add(svalue_t *lval, LPC_INT delta) {
+  LPC_INT out = 0;
+  assign_lvalue_codepoint(lval, [&out, delta](UChar32 c) { return out = c + delta; });
+  return out;
+}
+
+void assign_lvalue_range(svalue_t *lval, svalue_t *from) {
   int ind1, ind2, size, fsize;
   svalue_t *owner;
+  range_lvalue_t *box = lval->u.range_lv;
 
-  ind1 = global_lvalue_range.ind1;
-  ind2 = global_lvalue_range.ind2;
-  size = global_lvalue_range.size;
-  owner = global_lvalue_range.owner;
+  ind1 = static_cast<int>(box->ind1);
+  ind2 = static_cast<int>(box->ind2);
+  size = static_cast<int>(box->size);
+  owner = box->owner;
 
   switch (owner->type) {
     case T_ARRAY: {
@@ -2304,10 +2473,10 @@ void eval_instruction(char *p) {
         }
         break;
       case F_INC:
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           error("Invalid Program: non-lvalue argument to ++\n");
         }
-        lval = (sp--)->u.lvalue;
+        lval = lvalue_target(sp);
         switch (lval->type) {
           case T_NUMBER:
             lval->u.number++;
@@ -2316,15 +2485,18 @@ void eval_instruction(char *p) {
             lval->u.real++;
             break;
           case T_LVALUE_BYTE:
-            ++*global_lvalue_byte.u.lvalue_byte;
+            if (*lval->u.lvalue_byte == 255) {
+              error("Buffer byte value out of range: must be 0..255.\n");
+            }
+            ++*lval->u.lvalue_byte;
             break;
-          case T_LVALUE_CODEPOINT: {
-            assign_lvalue_codepoint([](UChar32 c) { return c + 1; });
+          case T_LVALUE_CODEPOINT:
+            assign_lvalue_codepoint(lval, [](UChar32 c) { return c + 1; });
             break;
-          }
           default:
             error("++ of non-numeric argument\n");
         }
+        free_svalue(sp--, "F_INC");
         break;
       case F_WHILE_DEC: {
         svalue_t *s;
@@ -2358,7 +2530,21 @@ void eval_instruction(char *p) {
          * inside structures may not, however ...
          */
         ref = make_ref();
-        ref->lvalue = sp->u.lvalue;
+        if (sp->type == T_LVALUE_RANGE) {
+          error("Illegal to make reference to range\n");
+        }
+        if (sp->type == T_LVALUE_BYTE || sp->type == T_LVALUE_CODEPOINT) {
+          /* The index lvalue owns its per-instance state. Move the svalue
+           * into the ref before replacing the stack slot; sv below remains
+           * reserved for the container keep-alive. */
+          ref->index_sv = *sp;
+          ref->lvalue = &ref->index_sv;
+          sp->type = T_NUMBER;
+          sp->subtype = 0;
+          sp->u.number = 0;
+        } else {
+          ref->lvalue = sp->u.lvalue;
+        }
         if (op != F_GLOBAL_LVALUE && op != F_LOCAL_LVALUE && op != F_REF_LVALUE) {
           ref->sv.type = lv_owner_type;
           ref->sv.subtype = STRING_MALLOC; /* ignored if non-string */
@@ -2412,12 +2598,19 @@ void eval_instruction(char *p) {
           }
 
           if (reflval->type == T_LVALUE_BYTE) {
-            push_number(*global_lvalue_byte.u.lvalue_byte);
+            push_number(*reflval->u.lvalue_byte);
             break;
           } else if (reflval->type == T_LVALUE_CODEPOINT) {
-            push_number(u8_egc_index_as_single_codepoint(
-                global_lvalue_codepoint.owner->u.string,
-                SVALUE_STRLEN(global_lvalue_codepoint.owner), global_lvalue_codepoint.index));
+            if (reflval->u.cp_lv) {
+              auto *cp = reflval->u.cp_lv;
+              push_number(u8_egc_index_as_single_codepoint(
+                  cp->owner->u.string, SVALUE_STRLEN(cp->owner), cp->index));
+            } else {
+              push_number(u8_egc_index_as_single_codepoint(
+                  global_lvalue_codepoint.owner->u.string,
+                  SVALUE_STRLEN(global_lvalue_codepoint.owner),
+                  std::max<int32_t>(0, global_lvalue_codepoint.index - 1)));
+            }
             break;
           }
         }
@@ -2620,10 +2813,10 @@ void eval_instruction(char *p) {
         pc += offset;
         break;
       case F_LOR_EQ: {
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           error("Invalid Program: non-lvalue argument to ||=.");
         }
-        svalue_t *lval = sp->u.lvalue;
+        svalue_t *lval = lvalue_target(sp);
         if ((lval->type == T_NUMBER && !lval->u.number) ||
             (lval->type == T_REAL && !lval->u.real)) {
           pc += 2;
@@ -2635,10 +2828,10 @@ void eval_instruction(char *p) {
         break;
       }
       case F_LAND_EQ: {
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           error("Invalid Program: non-lvalue argument to &&=.");
         }
-        svalue_t *lval = sp->u.lvalue;
+        svalue_t *lval = lvalue_target(sp);
         if ((lval->type == T_NUMBER && !lval->u.number) ||
             (lval->type == T_REAL && !lval->u.real)) {
           replace_lvalue_with_value_on_stack(sp, "F_LAND_EQ");
@@ -2650,10 +2843,10 @@ void eval_instruction(char *p) {
         break;
       }
       case F_NULLISH_EQ: {
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           error("Invalid Program: non-lvalue argument to ?\?=.");
         }
-        svalue_t *lval = sp->u.lvalue;
+        svalue_t *lval = lvalue_target(sp);
         if (lval->type == T_NUMBER && !lval->u.number && (lval->subtype == T_UNDEFINED)) {
           pc += 2;
         } else {
@@ -2867,10 +3060,10 @@ void eval_instruction(char *p) {
         break;
       }
       case F_VOID_ADD_EQ:
-      case F_ADD_EQ:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to +=.");
-        lval = sp->u.lvalue;
-        sp--; /* points to the RHS */
+      case F_ADD_EQ: {
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to +=.");
+        popped_lvalue_t lvslot;
+        lval = lvslot.target();
         switch (lval->type) {
           case T_STRING:
             if (sp->type == T_STRING) {
@@ -2960,31 +3153,48 @@ void eval_instruction(char *p) {
             }
             break;
           case T_LVALUE_BYTE: {
-            char c;
-
             if (sp->type != T_NUMBER) {
               error("Bad right type to += of char lvalue.\n");
             }
-
-            c = *global_lvalue_byte.u.lvalue_byte + sp->u.number;
-
-            if (global_lvalue_byte.subtype == 0 && c == '\0') {
+            LPC_INT result = *lval->u.lvalue_byte + sp->u.number;
+            if (result < 0 || result > 255) {
+              error("Buffer byte value out of range: must be 0..255.\n");
+            }
+            if (lval->subtype == 0 && result == '\0') {
               error("Strings cannot contain 0 bytes.\n");
             }
-            *global_lvalue_byte.u.lvalue_byte = c;
+            *lval->u.lvalue_byte = static_cast<unsigned char>(result);
+            if (instruction == F_ADD_EQ) {
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = result;
+            }
+          } break;
+          case T_LVALUE_CODEPOINT: {
+            if (sp->type != T_NUMBER) {
+              error("Bad right type to += of char lvalue.\n");
+            }
+            LPC_INT result = codepoint_lvalue_add(lval, sp->u.number);
+            if (instruction == F_ADD_EQ) {
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = result;
+            }
           } break;
           default:
             bad_arg(1, instruction);
         }
 
-        if (instruction == F_ADD_EQ) { /* not void add_eq */
+        if (instruction == F_ADD_EQ && lval->type != T_LVALUE_BYTE &&
+            lval->type != T_LVALUE_CODEPOINT) { /* not void add_eq */
           assign_svalue_no_free(sp, lval);
-        } else {
+        } else if (instruction != F_ADD_EQ) {
           /*
            * but if (void)add_eq then no need to produce an
            * rvalue
            */
           sp--;
+        }
         }
         break;
       case F_AND:
@@ -3279,21 +3489,21 @@ void eval_instruction(char *p) {
       }
       case F_ASSIGN:
 #ifdef DEBUG
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           fatal("Bad argument to F_ASSIGN\n");
         }
 #endif
-        assign_value_to_lvalue(sp->u.lvalue, sp - 1, "F_ASSIGN");
-        sp--; /* ignore lvalue */
+        assign_value_to_lvalue(lvalue_target(sp), sp - 1, "F_ASSIGN");
+        free_svalue(sp--, "F_ASSIGN");
         /* rvalue is already in the correct place */
         break;
       case F_ASSIGN_VALUE: {
-        if (sp->type == T_LVALUE || (sp - 1)->type != T_LVALUE) {
+        if (is_stack_lvalue(sp) || !is_stack_lvalue(sp - 1)) {
           error("Invalid Program: bad stack for F_ASSIGN_VALUE.");
         }
         svalue_t *value = sp;
         svalue_t *lval_slot = sp - 1;
-        assign_value_to_lvalue(lval_slot->u.lvalue, value, "F_ASSIGN_VALUE");
+        assign_value_to_lvalue(lvalue_target(lval_slot), value, "F_ASSIGN_VALUE");
         free_svalue(lval_slot, "F_ASSIGN_VALUE");
         assign_svalue_no_free(lval_slot, value);
         free_svalue(sp--, "F_ASSIGN_VALUE");
@@ -3312,46 +3522,50 @@ void eval_instruction(char *p) {
           pc++;
         }
         break;
-      case F_VOID_ASSIGN:
+      case F_VOID_ASSIGN: {
 #ifdef DEBUG
-        if (sp->type != T_LVALUE) {
+        if (!is_stack_lvalue(sp)) {
           fatal("Bad argument to F_VOID_ASSIGN\n");
         }
 #endif
-        lval = (sp--)->u.lvalue;
+        popped_lvalue_t lvslot;
+        lval = lvslot.target();
         if (sp->type != T_INVALID) {
           switch (lval->type) {
             case T_LVALUE_BYTE: {
               if (sp->type != T_NUMBER) {
                 error("Illegal rhs to byte lvalue\n");
-              } else {
-                char c = (sp--)->u.number & 0xff;
-                *global_lvalue_byte.u.lvalue_byte = c;
               }
+              LPC_INT n = sp->u.number;
+              if (n < 0 || n > 255) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              *lval->u.lvalue_byte = static_cast<unsigned char>(n);
+              sp--;
               break;
             }
-            case T_LVALUE_RANGE: {
-              copy_lvalue_range(sp--);
+            case T_LVALUE_RANGE:
+              copy_lvalue_range(lval, sp--);
               break;
-            }
             case T_LVALUE_CODEPOINT: {
               if (sp->type != T_NUMBER) {
-                error("Illegal rhs to byte lvalue\n");
+                error("Illegal rhs to char lvalue\n");
               }
               UChar32 newc = sp->u.number;
-              assign_lvalue_codepoint([=](UChar32 c) { return newc; });
+              assign_lvalue_codepoint(lval, [=](UChar32) { return newc; });
               pop_stack();
               break;
             }
-            default: {
+            default:
               free_svalue(lval, "F_VOID_ASSIGN : 3");
               *lval = *sp--;
-            }
+              break;
           }
         } else {
           sp--;
         }
         break;
+      }
 #ifdef DEBUG
       case F_BREAK_POINT:
         break_point();
@@ -3470,48 +3684,71 @@ void eval_instruction(char *p) {
         push_number(1);
         break;
       case F_PRE_DEC:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to --.");
-        lval = sp->u.lvalue;
-        switch (lval->type) {
-          case T_NUMBER:
-            sp->type = T_NUMBER;
-            sp->subtype = 0;
-            sp->u.number = --(lval->u.number);
-            break;
-          case T_REAL:
-            sp->type = T_REAL;
-            sp->u.real = --(lval->u.real);
-            break;
-          case T_LVALUE_BYTE:
-            if (global_lvalue_byte.subtype == 0 && *global_lvalue_byte.u.lvalue_byte == '\x1') {
-              error("Strings cannot contain 0 bytes.\n");
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to --.");
+        {
+          popped_lvalue_t lvslot;
+          lval = lvslot.target();
+          STACK_INC;
+          switch (lval->type) {
+            case T_NUMBER:
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = --(lval->u.number);
+              break;
+            case T_REAL:
+              sp->type = T_REAL;
+              sp->u.real = --(lval->u.real);
+              break;
+            case T_LVALUE_BYTE:
+              if (*lval->u.lvalue_byte == 0) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              if (lval->subtype == 0 && *lval->u.lvalue_byte == '\x1') {
+                error("Strings cannot contain 0 bytes.\n");
+              }
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = --(*lval->u.lvalue_byte);
+              break;
+            case T_LVALUE_CODEPOINT: {
+              LPC_INT newval = 0;
+              assign_lvalue_codepoint(lval, [&newval](UChar32 c) { return newval = --c; });
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = newval;
+              break;
             }
-            sp->type = T_NUMBER;
-            sp->subtype = 0;
-            sp->u.number = --(*global_lvalue_byte.u.lvalue_byte);
-            break;
-          default:
-            error("-- of non-numeric argument\n");
+            default:
+              error("-- of non-numeric argument\n");
+          }
+
         }
         break;
       case F_DEC:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to --.");
-        lval = (sp--)->u.lvalue;
-        switch (lval->type) {
-          case T_NUMBER:
-            lval->u.number--;
-            break;
-          case T_REAL:
-            lval->u.real--;
-            break;
-          case T_LVALUE_BYTE:
-            --(*global_lvalue_byte.u.lvalue_byte);
-            break;
-          case T_LVALUE_CODEPOINT:
-            assign_lvalue_codepoint([](UChar32 c) { return c - 1; });
-            break;
-          default:
-            error("-- of non-numeric argument\n");
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to --.");
+        {
+          popped_lvalue_t lvslot;
+          lval = lvslot.target();
+          switch (lval->type) {
+            case T_NUMBER:
+              lval->u.number--;
+              break;
+            case T_REAL:
+              lval->u.real--;
+              break;
+            case T_LVALUE_BYTE:
+              if (*lval->u.lvalue_byte == 0) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              --(*lval->u.lvalue_byte);
+              break;
+            case T_LVALUE_CODEPOINT:
+              assign_lvalue_codepoint(lval, [](UChar32 c) { return c - 1; });
+              break;
+            default:
+              error("-- of non-numeric argument\n");
+          }
+
         }
         break;
       case F_DIVIDE: {
@@ -3594,28 +3831,41 @@ void eval_instruction(char *p) {
         break;
       }
       case F_PRE_INC:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to ++.");
-        lval = sp->u.lvalue;
-        switch (lval->type) {
-          case T_NUMBER:
-            sp->type = T_NUMBER;
-            sp->subtype = 0;
-            sp->u.number = ++lval->u.number;
-            break;
-          case T_REAL:
-            sp->type = T_REAL;
-            sp->u.real = ++lval->u.real;
-            break;
-          case T_LVALUE_BYTE:
-            sp->type = T_NUMBER;
-            sp->subtype = 0;
-            sp->u.number = ++*global_lvalue_byte.u.lvalue_byte;
-            break;
-          case T_LVALUE_CODEPOINT:
-            assign_lvalue_codepoint([](UChar32 c) { return ++c; });
-            break;
-          default:
-            error("++ of non-numeric argument\n");
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to ++.");
+        {
+          popped_lvalue_t lvslot;
+          lval = lvslot.target();
+          STACK_INC;
+          switch (lval->type) {
+            case T_NUMBER:
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = ++lval->u.number;
+              break;
+            case T_REAL:
+              sp->type = T_REAL;
+              sp->u.real = ++lval->u.real;
+              break;
+            case T_LVALUE_BYTE:
+              if (*lval->u.lvalue_byte == 255) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = ++*lval->u.lvalue_byte;
+              break;
+            case T_LVALUE_CODEPOINT: {
+              LPC_INT newval = 0;
+              assign_lvalue_codepoint(lval, [&newval](UChar32 c) { return newval = ++c; });
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = newval;
+              break;
+            }
+            default:
+              error("++ of non-numeric argument\n");
+          }
+
         }
         break;
       case F_MEMBER: {
@@ -3942,53 +4192,85 @@ void eval_instruction(char *p) {
         pop_stack();
         break;
       case F_POST_DEC:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to --.");
-        lval = sp->u.lvalue;
-        switch (lval->type) {
-          case T_NUMBER:
-            sp->type = T_NUMBER;
-            sp->u.number = lval->u.number--;
-            sp->subtype = 0;
-            break;
-          case T_REAL:
-            sp->type = T_REAL;
-            sp->u.real = lval->u.real--;
-            break;
-          case T_LVALUE_BYTE:
-            sp->type = T_NUMBER;
-            sp->subtype = 0;
-            sp->u.number = (*global_lvalue_byte.u.lvalue_byte)--;
-            break;
-          case T_LVALUE_CODEPOINT:
-            assign_lvalue_codepoint([](UChar32 c) { return --c; });
-            break;
-          default:
-            error("-- of non-numeric argument\n");
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to --.");
+        {
+          popped_lvalue_t lvslot;
+          lval = lvslot.target();
+          STACK_INC;
+          switch (lval->type) {
+            case T_NUMBER:
+              sp->type = T_NUMBER;
+              sp->u.number = lval->u.number--;
+              sp->subtype = 0;
+              break;
+            case T_REAL:
+              sp->type = T_REAL;
+              sp->u.real = lval->u.real--;
+              break;
+            case T_LVALUE_BYTE:
+              if (*lval->u.lvalue_byte == 0) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = (*lval->u.lvalue_byte)--;
+              break;
+            case T_LVALUE_CODEPOINT: {
+              LPC_INT oldval = 0;
+              assign_lvalue_codepoint(lval, [&oldval](UChar32 c) {
+                oldval = c;
+                return --c;
+              });
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = oldval;
+              break;
+            }
+            default:
+              error("-- of non-numeric argument\n");
+          }
+
         }
         break;
       case F_POST_INC:
-        if (sp->type != T_LVALUE) error("Invalid Program: non-lvalue argument to ++.");
-        lval = sp->u.lvalue;
-        switch (lval->type) {
-          case T_NUMBER:
-            sp->type = T_NUMBER;
-            sp->u.number = lval->u.number++;
-            sp->subtype = 0;
-            break;
-          case T_REAL:
-            sp->type = T_REAL;
-            sp->u.real = lval->u.real++;
-            break;
-          case T_LVALUE_BYTE:
-            sp->type = T_NUMBER;
-            sp->u.number = (*global_lvalue_byte.u.lvalue_byte)++;
-            sp->subtype = 0;
-            break;
-          case T_LVALUE_CODEPOINT:
-            assign_lvalue_codepoint([](UChar32 c) { return c++; });
-            break;
-          default:
-            error("++ of non-numeric argument\n");
+        if (!is_stack_lvalue(sp)) error("Invalid Program: non-lvalue argument to ++.");
+        {
+          popped_lvalue_t lvslot;
+          lval = lvslot.target();
+          STACK_INC;
+          switch (lval->type) {
+            case T_NUMBER:
+              sp->type = T_NUMBER;
+              sp->u.number = lval->u.number++;
+              sp->subtype = 0;
+              break;
+            case T_REAL:
+              sp->type = T_REAL;
+              sp->u.real = lval->u.real++;
+              break;
+            case T_LVALUE_BYTE:
+              if (*lval->u.lvalue_byte == 255) {
+                error("Buffer byte value out of range: must be 0..255.\n");
+              }
+              sp->type = T_NUMBER;
+              sp->u.number = (*lval->u.lvalue_byte)++;
+              sp->subtype = 0;
+              break;
+            case T_LVALUE_CODEPOINT: {
+              LPC_INT oldval = 0;
+              assign_lvalue_codepoint(lval, [&oldval](UChar32 c) {
+                oldval = c;
+                return ++c;
+              });
+              sp->type = T_NUMBER;
+              sp->subtype = 0;
+              sp->u.number = oldval;
+              break;
+            }
+            default:
+              error("++ of non-numeric argument\n");
+          }
+
         }
         break;
       case F_GLOBAL_LVALUE: {
@@ -4220,7 +4502,7 @@ void eval_instruction(char *p) {
         int type = sp->u.number;
         pop_stack();
         if (sp->type != type && !(sp->type == T_NUMBER && sp->u.number == 0) &&
-            !(sp->type == T_LVALUE)) {
+            !is_stack_lvalue(sp)) {
           error("Trying to put %s in %s\n", type_name(sp->type), type_name(type));
         }
         break;
