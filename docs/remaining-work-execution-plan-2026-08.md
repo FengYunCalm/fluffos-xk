@@ -4,14 +4,14 @@
 
 本方案承接实现提交 `e7044bf3` 与证据绑定提交 `bbfb6445`，只覆盖尚未完成的延期架构、当前证据补齐、外部发布门禁和生产规模验证。
 
-当前本地状态：
+本次执行启动时的本地状态：
 
-- `main` 相对 `origin/main` ahead 2 commits，工作区干净。
-- Debug、portable Release、ASan、UBSan、TSan CTest 均为 449/449。
-- LPC testsuite、isolated testsuite、include_list 定向测试和 Clang 18.1.3 libFuzzer 已通过。
-- `check-evidence.py` 因没有当前 evidence envelope 而 fail-closed；不能宣称 release-ready。
+- `main` 与 `origin/main` 同步，工作区干净；当前 `HEAD` 为 `c6aba24514267e3b8f5b4ca01db2ecf4847878e7`。
+- 本地 canonical build 目录和 current evidence 尚未刷新；历史 449/449、LPC、isolated testsuite、include_list 和 Clang libFuzzer 数字不继承。
+- `check-evidence.py` 在空 `docs/evidence` 报告集上 fail-closed；不能宣称 `release-ready`。
+- 当前本地 GCC 为 13.3；Clang、Docker daemon、cosign/syft/trivy 和生产容量环境不可用，相关门禁保持 `unverified` 或 `external-required`。
+- 只读 GitHub 查询可达，但 `main` 未启用 branch protection，且 `c6aba245` 的最新 CI 矩阵包含失败 job；这不能替代本次提交的 current evidence。
 - Promise/`T_PROMISE`、stack-lvalue、external-handle 和完整 object-store migration 尚无兼容本地 VM 的实现基座。
-- GitHub、registry、签名/provenance、Docker、跨平台和生产容量环境尚未执行。
 
 最终只有在所有硬门禁拥有当前、可复现、机器可验证证据时才能标记 `release-ready`；否则使用 `blocked`、`unverified` 或 `external-required`。
 

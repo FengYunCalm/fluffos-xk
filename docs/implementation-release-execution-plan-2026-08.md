@@ -2,7 +2,7 @@
 
 > **文档用途**：这是基于当前 checkout、历史审计上下文和 `docs/upstream-absorption-plan-d07e7641-735bd31f.md` 汇总后的统一执行方案，目标读者可以是能力较弱但能够执行命令、阅读源码和记录结果的模型。
 >
-> **当前状态**：本地实现、定向/全量验证和文档更新已完成；本地原子提交由本次任务收尾，不执行推送、发布或外部系统变更。Promise/`T_PROMISE`、stack-lvalue ABI 和 external-handle 仍按独立设计延期。
+> **当前状态**：以当前 checkout 和本次执行生成的 current evidence 为准；历史测试数字、外部状态和未复现结论不继承。Promise/`T_PROMISE`、stack-lvalue ABI、external-handle 及完整 object-store migration 仍按独立设计延期。
 >
 > **事实优先级**：当前工作区和可重跑验证结果 > 本文档中的历史证据记录 > 旧审计报告和上游提交说明。没有当前命令输出就不能写成“已通过”；没有读取 upstream patch 就不能写成“已兼容”。本轮逐 hunk 取证范围采用 `6cf257ce..735bd31f`（左边界不含 `6cf257ce`，共 37 个候选提交）；`6cf257ce` 本身只作为依赖升级基线另行记录，不能漏算也不能把左边界误当成已吸收。
 
@@ -38,22 +38,23 @@
 ### 1.1 Git 基线
 
 - 当前分支契约：`main...origin/main`。
-- 当前 `HEAD`：`d07e7641fb8895a29e68de9af1a08677b75dd77b`。
-- upstream 目标：`735bd31fcd07aa3ec55cd6b0dca2f664544682eb`。
+- 当前 `HEAD`：`c6aba24514267e3b8f5b4ca01db2ecf4847878e7`。
+- upstream 目标：`735bd31f`（完整对象仅存在于 upstream partial-clone refs，不作为当前 checkout 的 commit 证据）。
 - merge base：`277d0b1cbc4350844d9aff07a604dfa519650d9e`。
 - `735bd31f` 的父提交：`7c808c8b`。
 - 不得把 `master` 假设当作已存在的本地事实；当前本地可见主线是 `main`。
 
 ### 1.2 当前工作区改动
 
-已执行并保存结果：
+执行前只读复核确认：
 
 ```text
 git status --short --branch -> main...origin/main
 git diff --check            -> 无输出
+git ls-files -u            -> 无输出
 ```
 
-`cmake --preset dev-debug`、Debug 下 `driver/lpcc/lpc_tests` 构建和 ASan 下对应构建均通过；Debug 重点 GTest 单测 10 项中 9 项通过，`DriverTest.TestSimulEfunReloadCreateFailureRollback` 在 `recompile.cc:242` assertion 中止，ASan 复现同一 assertion。ASan `recompile_special_targets` 打印 `8 special reload checks ok` 后仍 SIGSEGV；具体发生阶段和原始栈尚未定位。完整 CTest、portable Release 全量、UBSan、TSan、完整 LPC suite、真实 libFuzzer、长期/容量、live GitHub/registry、签名和 provenance 尚未取得当前证据。
+构建目录和 current evidence 必须在本执行批次重新生成；历史 Debug/Release/ASan/UBSan/TSan、LPC、fuzz、容量和发布数字仅保留为审计线索，不能直接写成当前通过。当前本地可用编译器为 GCC 13.3；Clang、Docker daemon、签名工具和生产环境证据分别按 `unverified` 或 `external-required` 处理。
 
 已知改动：
 
@@ -62,13 +63,13 @@ git diff --check            -> 无输出
    - 原因：`base/std.h` 提供构建配置宏 `DEBUGMALLOC_EXTENSIONS`；`program.h` 在该宏下向 `program_t` 增加 `extra_ref` 和 `extra_func_ref`。如果编译器翻译单元看到该宏而布局模块没有看到，两个翻译单元会使用不同的结构偏移，合法的 `program_t` 会被错误解释。
    - 该修复没有改变 layout digest 算法、inheritance 语义或 migration 语义。
 2. `docs/upstream-absorption-plan-d07e7641-735bd31f.md`
-   - 未跟踪的用户输入，必须保留，不覆盖、不删除。
+   - 已存在于当前 checkout；它是 upstream 取证计划，不是已吸收实现。
 3. 临时 layout 诊断文件
    - 已确认不具备稳定的正式测试契约并删除；不得未经判断提交临时文件。
 4. `docs/implementation-release-execution-plan-2026-08.md`
    - 本统一方案文档。
 
-临时 `fprintf()` 诊断已经移除。当前没有提交或推送，不得执行 `reset --hard`、批量清理或覆盖未知来源的未跟踪文件。
+临时 `fprintf()` 诊断已经移除。不得执行 `reset --hard`、批量清理或覆盖未知来源的未跟踪文件。
 
 ### 1.3 不可继承的历史假设
 
