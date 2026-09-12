@@ -117,7 +117,8 @@ cmake --build --preset ubsan --target driver lpcc lpc_tests --parallel 4
 ctest --test-dir build-ubsan --output-on-failure
 
 cmake --preset tsan
-cmake --build --preset tsan --target driver lpcc lpc_tests --parallel 4
+# TSan-instrumented generators also need the ASLR workaround on WSL2/Ubuntu.
+setarch x86_64 -R cmake --build --preset tsan --target driver lpcc lpc_tests --parallel 2
 setarch x86_64 -R ctest --test-dir build-tsan --output-on-failure
 ```
 
