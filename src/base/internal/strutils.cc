@@ -47,14 +47,30 @@ std::string u8_sanitize(std::string_view src) { return utf8::replace_invalid(src
 // Search "needle' in 'haystack', making sure it matches EGC boundary, returning byte offset.
 int32_t u8_egc_find_as_offset(EGCIterator &iter, const char *needle, size_t needle_len,
                               bool reverse) {
+  if (!iter.ok()) return -1;
+
   const char *haystack = iter.data();
-  size_t const haystack_len = iter.len() == -1 ? strlen(haystack) : iter.len();
+  int32_t const raw_len = iter.len();
+  if (raw_len < -1) return -1;
+  size_t const haystack_len = raw_len == -1 ? strlen(haystack) : static_cast<size_t>(raw_len);
 
   // no way
   if (needle_len > haystack_len) {
     return -1;
   }
-  if (!iter.ok()) return -1;
+
+  // Every byte in a CR-free ASCII string is a grapheme boundary. Avoid ICU
+  // for both forward and reverse delimiter walks.
+  if (iter.is_ascii()) {
+    for (size_t i = 0; i < needle_len; i++) {
+      auto c = static_cast<unsigned char>(needle[i]);
+      if (c >= 0x80u || c == '\r') return -1;
+    }
+    std::string_view const hay(haystack, haystack_len);
+    std::string_view const ndl(needle, needle_len);
+    auto pos = reverse ? hay.rfind(ndl) : hay.find(ndl);
+    return pos == std::string_view::npos ? -1 : static_cast<int32_t>(pos);
+  }
 
   // fast track ascii string search upto 4 characters.
   if (!reverse) {
@@ -67,11 +83,14 @@ int32_t u8_egc_find_as_offset(EGCIterator &iter, const char *needle, size_t need
       if (i == 3) is_all_ascii = false;
     }
     if (is_all_ascii) {
-      // strstr doesn't follow haystack_len, so we may overrun, wasting some cycles.
+      // strstr ignores the counted length; require the complete needle to
+      // fit inside it because callers may have trimmed the trailing suffix.
       const auto *res = strstr(haystack, needle);
       auto ret = res == nullptr ? -1 : (decltype(haystack))res - haystack;
-      if (ret >= haystack_len) ret = -1;
-      return ret;
+      if (ret < 0 || static_cast<size_t>(ret) > haystack_len - needle_len) {
+        return -1;
+      }
+      return static_cast<int32_t>(ret);
     }
   }
 
@@ -151,6 +170,7 @@ void u8_copy_and_replace_codepoint_at(EGCSmartIterator &iter, char *dst, int32_t
 int32_t u8_offset_to_egc_index(EGCIterator &iter, int32_t offset) {
   if (offset <= 0) return offset;
   if (!iter.ok()) return -1;
+  if (iter.is_ascii()) return offset > iter.len() ? -1 : offset;
 
   int idx = -1;
   int pos = 0;
@@ -525,17 +545,17 @@ size_t u8_width(const char *src, int len) {
 
 std::vector<std::string_view> u8_egc_split(const char *src, int32_t slen) {
   std::vector<std::string_view> result;
-  result.reserve(16);
+  if (slen <= 0) return result;
 
   EGCSmartIterator iter(src, slen);
   if (!iter.ok()) return result;
 
-  iter->first();
-  auto start = iter->current();
-  while (iter->next() != icu::BreakIterator::DONE) {
-    auto size = iter->current() - start;
-    result.emplace_back(src + start, size);
-    start = iter->current();
+  result.reserve(iter.is_ascii() ? static_cast<size_t>(slen) : 16);
+  int32_t start = iter.first();
+  int32_t cur;
+  while ((cur = iter.next()) != icu::BreakIterator::DONE) {
+    result.emplace_back(src + start, cur - start);
+    start = cur;
   }
 
   return result;

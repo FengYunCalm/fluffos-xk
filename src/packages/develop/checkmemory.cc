@@ -197,12 +197,14 @@ static void mark_object(object_t *ob) {
   }
 #endif
 
-  if (ob->prog)
-    for (i = 0; i < static_cast<int>(ob->variables.count); i++) {
-      mark_svalue(&ob->variables.data[i]);
+  if (ob->variables.data) {
+    DO_MARK(ob->variables.data, TAG_OBJECT_VARIABLES);
+    if (ob->prog) {
+      obj_vars_mark(&ob->variables);
+    } else {
+      outbuf_addv(&out, "can't mark variables; %s is swapped.\n", ob->obname);
     }
-  else
-    outbuf_addv(&out, "can't mark variables; %s is swapped.\n", ob->obname);
+  }
 }
 
 static void mark_funp(funptr_t *fp);
@@ -806,7 +808,7 @@ void check_all_blocks(int flag) {
             {
               object_t *tmp = obj_list;
               while (tmp && tmp != ob) {
-                tmp = tmp->next_destruct;
+                tmp = tmp->next_all;
               }
               if (!tmp) {
                 tmp = obj_list_destruct;
@@ -818,7 +820,7 @@ void check_all_blocks(int flag) {
               if (!tmp) {
                 tmp = obj_list_dangling;
                 while (tmp && tmp != ob) {
-                  tmp = tmp->next_destruct;
+                  tmp = tmp->next_all;
                 }
                 if (tmp) outbuf_addv(&out, "WARNING: %s is dangling.\n", ob->obname);
               }
@@ -1027,6 +1029,7 @@ void check_all_blocks(int flag) {
           case TAG_PERMANENT: /* only save_object|resotre_object uses this */
             break;
             /* FIXME: need to account these. */
+          case TAG_REPLACE_OB: /* pending until the replace_programs() sweep */
           case TAG_INC_LIST:
           case TAG_IDENT_TABLE:
           case TAG_OBJ_TBL:

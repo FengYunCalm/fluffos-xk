@@ -293,10 +293,10 @@ GIT_NO_LAZY_FETCH=1 \
 | S3 | `aec12ca7` / #1298 | 默认参数 helper/直接调用填充 | `vm/internal/apply.cc` | `unknown` |
 | S4 | `2d317e45` | inline 默认参数填充栈损坏 | `vm/internal/apply.cc` | `unknown` |
 | S5 | `d9171788` | restore、FFI、master、refloop、socket/parser、math/matrix 等 umbrella 修复 | 按上游 patch 拆分 | `unknown` |
-| S6 | `4d5345f5` | preprocessor 递归与 DB 锁对称 | `tools/preprocessor.hpp`、`packages/db/db.cc` | `unknown` |
+| S6 | `4d5345f5` | preprocessor 递归与 DB 锁对称 | `src/tools/preprocessor.hpp`、`src/packages/db/db.cc` | `unknown` |
 | S7 | `948b49ed` | object refcount over-decrement | `vm/internal/base/object.cc`、`array.cc` | `unknown` |
 | S8 | `b0d3d297` / #1330 | remove_interactive/net_dead teardown 回归 | `testsuite/`、network teardown | `unknown` |
-| S9 | `f3e5bfa7` | 宏展开/lexer C 栈递归 | `tools/preprocessor.hpp`、`compiler/internal/lex.cc` | B：旧结构疑似未含 |
+| S9 | `f3e5bfa7` | 宏展开/lexer C 栈递归 | `src/tools/preprocessor.hpp`、`src/compiler/internal/lex.cc` | B：旧结构疑似未含 |
 | S10 | `8b0aee8a` | #if、parser、TLS、dead-code、aggregate umbrella 修复 | 按上游 patch 拆分 | `unknown` |
 | S11 | `d0549220` / `bf73c66e` | 未初始化 float 与 typed lvalue | `svalue.h`、`interpret.cc` | `unknown` |
 | S12 | `dca0eae0` / #1302 | 位运算残留 undefined subtype | `packages/ops/ops.cc` | `unknown` |

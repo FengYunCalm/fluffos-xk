@@ -1,0 +1,40 @@
+// A file with more than 65535 source lines must keep line lookup bounded.
+// The line table uses int words so an error in the generated object is
+// reported normally instead of indexing past the program's string table.
+
+#define GEN "/data/huge_line_table.c"
+
+private void build(int pad_lines) {
+  string chunk = "";
+  int i;
+
+  rm(GEN);
+  for (i = 0; i < 500; i++) chunk += "//\n";
+  for (i = 0; i < pad_lines / 500; i++) write_file(GEN, chunk);
+  for (i = 0; i < pad_lines % 500; i++) write_file(GEN, "//\n");
+  write_file(GEN, "int boom() { error(\"line table probe\"); }\n");
+  write_file(GEN, "int fine() { return 1; }\n");
+}
+
+private void probe(int pad_lines, string label) {
+  object ob;
+  mixed err;
+
+  build(pad_lines);
+  ob = load_object(GEN);
+  ASSERT2(ob, label + ": generated source compiles");
+  if (!ob) return;
+
+  err = catch(ob->boom());
+  ASSERT2(stringp(err) && strsrch(err, "line table probe") != -1,
+          label + ": error is reported without terminating the driver");
+  ASSERT_EQ(1, ob->fine());
+  destruct(ob);
+  rm(GEN);
+}
+
+void do_tests() {
+  probe(60000, "60000 lines");
+  probe(65536, "65536 lines");
+  probe(70003, "70003 lines");
+}

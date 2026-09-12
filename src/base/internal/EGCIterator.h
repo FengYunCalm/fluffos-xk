@@ -2,6 +2,7 @@
 #define FLUFFOS_SRC_BASE_INTERNAL_STRUTILS_CC_EGCSTRINGVIEW_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <cctype>
 #include <locale>
@@ -116,6 +117,9 @@ class EGCIterator {
   // Auto-vectorizes to a few bytes per cycle, against ICU's ~50 instructions
   // per cluster.
   static bool all_ascii(const char* src, int32_t slen) {
+    // Only -1 is the NUL-terminated convention; other negative lengths are
+    // invalid and must not make the empty scan look like ASCII.
+    if (slen < 0) return false;
     unsigned char acc = 0;
     unsigned char cr = 0;
     for (int32_t i = 0; i < slen; i++) {
@@ -166,16 +170,40 @@ class EGCIterator {
   static bool scan_is_ascii(const char* src, int32_t slen) { return all_ascii(src, slen); }
   [[nodiscard]] const char* data() const { return src_; }
   [[nodiscard]] int32_t len() const { return len_; }
-  void reset(const char* src, int32_t slen) {
+  // Virtual so derived iterators can invalidate cached cursor state when the
+  // range changes. Base construction intentionally dispatches to this base
+  // implementation, before derived members exist.
+  virtual void reset(const char* src, int32_t slen) {
+    const bool prev_ascii = ok_ && ascii_;
+    const char* const prev_src = src_;
+    const int32_t prev_len = len_;
+
     ok_ = false;
     icu_ready_ = false;
+    ascii_ = false;
     src_ = src;
     len_ = slen;
 
-    ascii_ = all_ascii(src, slen);
-    if (ascii_) {
+    if (slen < -1) return;
+
+    // A suffix or prefix of an already classified ASCII range is still
+    // ASCII. Compare as uintptr_t and check lengths first so this is safe on
+    // wasm32 as well as native builds.
+    if (prev_ascii && slen >= 0 && slen <= prev_len) {
+      const auto src_u = reinterpret_cast<uintptr_t>(src);
+      const auto prev_u = reinterpret_cast<uintptr_t>(prev_src);
+      if (src_u >= prev_u &&
+          src_u - prev_u <= static_cast<uintptr_t>(prev_len) - static_cast<uintptr_t>(slen)) {
+        ascii_ = true;
+        ok_ = true;
+        return;
+      }
+    }
+
+    if (slen >= 0 && all_ascii(src, slen)) {
       // Pure ASCII is always well-formed UTF-8; defer ICU until something
       // actually asks for the underlying break iterator.
+      ascii_ = true;
       ok_ = true;
       return;
     }

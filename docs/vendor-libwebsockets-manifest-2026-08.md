@@ -16,8 +16,8 @@
 | 文件 | 来源 commit | 内容 |
 |---|---|---|
 | `CMakeLists.txt` | master 后续 | 构建配置演进（含 lws 自身修复） |
-| `cmake/FindGit.cmake` | master 后续 | CMake 查找模块修复 |
-| `cmake/UseRPMTools.cmake` | master 后续 | RPM 工具模块修复 |
+| `src/thirdparty/libwebsockets/cmake/FindGit.cmake` | master 后续 | CMake 查找模块修复 |
+| `src/thirdparty/libwebsockets/cmake/UseRPMTools.cmake` | master 后续 | RPM 工具模块修复 |
 | `lib/jose/jwe/enc/aescbc.c` | master 后续 | jose 加密修复 |
 | `lib/jose/jwe/jwe.c` | master 后续 | jwe 修复 |
 | `lib/plat/unix/unix-sockets.c` | master 后续 | unix socket 层修复 |

@@ -134,10 +134,20 @@ def check_raw_digest(path: str, report: dict) -> list[str]:
     if not raw_name or not raw_digest:
         errors.append(f"{path}: raw_report and raw_sha256 must be set together")
         return errors
+    if not isinstance(raw_name, str):
+        errors.append(f"{path}: raw_report must be a file name in the envelope directory")
+        return errors
+    if os.path.basename(raw_name) != raw_name:
+        errors.append(f"{path}: raw_report must be a file name in the envelope directory")
+        return errors
     if not isinstance(raw_digest, str) or len(raw_digest) != 64:
         errors.append(f"{path}: raw_sha256 must be a 64-hex SHA-256")
         return errors
-    raw_path = os.path.join(os.path.dirname(path), raw_name)
+    report_dir = os.path.realpath(os.path.dirname(path))
+    raw_path = os.path.realpath(os.path.join(report_dir, raw_name))
+    if os.path.dirname(raw_path) != report_dir:
+        errors.append(f"{path}: bound raw report must remain in the envelope directory")
+        return errors
     if not os.path.isfile(raw_path):
         errors.append(f"{path}: bound raw report missing: {raw_path}")
         return errors
@@ -273,16 +283,21 @@ def main() -> int:
 
     paths = list(args.report)
     if args.reports_dir:
-        # Envelope directory scan: every JSON is an envelope EXCEPT files
-        # that an envelope binds as raw_report (those are verified via the
-        # SHA-256 binding inside check_raw_digest, not as envelopes).
+        # Envelope directory scan: every JSON is an envelope EXCEPT the
+        # schema supplied to the checker and files that an envelope binds as
+        # raw_report (those are verified via the SHA-256 binding inside
+        # check_raw_digest, not as envelopes).
+        schema_realpath = os.path.realpath(args.schema) if args.schema else ""
         raw_names = set()
         for root, _dirs, files in os.walk(args.reports_dir):
             for f in sorted(files):
                 if not f.endswith(".json"):
                     continue
+                candidate = os.path.join(root, f)
+                if schema_realpath and os.path.realpath(candidate) == schema_realpath:
+                    continue
                 try:
-                    with open(os.path.join(root, f), encoding="utf-8") as fp:
+                    with open(candidate, encoding="utf-8") as fp:
                         data = json.load(fp)
                 except (OSError, json.JSONDecodeError):
                     continue
@@ -290,8 +305,10 @@ def main() -> int:
                     raw_names.add(data["raw_report"])
         for root, _dirs, files in os.walk(args.reports_dir):
             for f in sorted(files):
-                if f.endswith(".json") and f not in raw_names:
-                    paths.append(os.path.join(root, f))
+                candidate = os.path.join(root, f)
+                if (f.endswith(".json") and f not in raw_names and
+                        (not schema_realpath or os.path.realpath(candidate) != schema_realpath)):
+                    paths.append(candidate)
 
     if not paths:
         print("FAIL: no reports to check (empty evidence gate)", file=sys.stderr)

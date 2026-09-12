@@ -88,4 +88,48 @@ void do_tests() {
   ASSERT_EQ(
       ({"lh15970183750", "abcdefghigk", "werert"}),
       explode("lh15970183750║abcdefghigk║werert", "║"));
+
+  // Many ASCII tokens exercise the iterator subrange fast path without
+  // exceeding the configured array limit.
+  {
+    int n = 8000;
+    string many = repeat_string("abcdefghij ", n);
+    mixed *parts = explode(many, " ");
+    ASSERT_EQ(n, sizeof(parts));
+    ASSERT_EQ("abcdefghij", parts[0]);
+    ASSERT_EQ("abcdefghij", parts[<1]);
+    ASSERT_EQ(many, implode(explode_reversible(many, " "), " "));
+  }
+
+  // Empty delimiters split grapheme clusters; ASCII input should not force
+  // an ICU walk for every byte.
+  {
+    int n = 8000;
+    string many = repeat_string("a", n);
+    mixed *chars = explode(many, "");
+    ASSERT_EQ(n, sizeof(chars));
+    ASSERT_EQ("a", chars[0]);
+    ASSERT_EQ("a", chars[<1]);
+    ASSERT_EQ(many, implode(chars, ""));
+  }
+
+  // A multi-byte delimiter must fit entirely inside the counted haystack;
+  // trailing-delimiter trimming leaves bytes beyond that range in the C
+  // string and must not let a strstr-based search consume them.
+  ASSERT_EQ(({ "ab-" }), explode("ab---", "--"));
+  ASSERT_EQ(({ "你-" }), explode("你---", "--"));
+  ASSERT_EQ(({ "你-", "" }), explode("你-----", "--"));
+  ASSERT_EQ(({ "你-", "", "" }), explode_reversible("你-----", "--"));
+  ASSERT_EQ("你-----", implode(explode_reversible("你-----", "--"), "--"));
+  ASSERT_EQ(({ "café text\n", "" }), explode("café text\n\n\n\n\n", "\n\n"));
+  ASSERT_EQ(({ "a\r\nb-", "" }), explode("a\r\nb-----", "--"));
+
+  {
+    int n = 8000;
+    string many = "x" + repeat_string(" ", n);
+    mixed *parts = explode(many, " ");
+    ASSERT_EQ(n, sizeof(parts));
+    ASSERT_EQ("x", parts[0]);
+    ASSERT_EQ("", parts[<1]);
+  }
 }

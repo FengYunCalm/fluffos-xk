@@ -633,14 +633,34 @@ void check_reqs() {
 }
 
 void complete_all_asyncio() {
+  // A callback may submit another request (for example, an async read from an
+  // async write callback), so one wait-and-dispatch pass is not sufficient.
+  // Also account for work already popped by a worker: reqs can be empty while
+  // current_works is still about to publish a finished request.
   while (true) {
-    std::lock_guard<std::mutex> const lock(reqs_lock);
+    {
+      std::lock_guard<std::mutex> const lock(reqs_lock);
+      if (!reqs.empty() || !current_works.empty()) {
+        std::this_thread::yield();
+        continue;
+      }
+    }
 
-    if (reqs.empty()) {
+    check_reqs();
+
+    bool pending = false;
+    {
+      std::lock_guard<std::mutex> const lock(reqs_lock);
+      pending = !reqs.empty() || !current_works.empty();
+    }
+    if (!pending) {
+      std::lock_guard<std::mutex> const lock(finished_reqs_lock);
+      pending = !finished_reqs.empty();
+    }
+    if (!pending && vm_owner_main_queue_total_depth() == 0) {
       break;
     }
   }
-  check_reqs();
 }
 
 int find_test_lfun_index(object_t *owner, const char *method) {

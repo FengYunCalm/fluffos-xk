@@ -1,0 +1,3 @@
+# Test-only TLS fixtures must never enter the Docker build context.
+testsuite/etc/cert.pem
+testsuite/etc/key.pem

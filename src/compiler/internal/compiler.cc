@@ -119,6 +119,9 @@ int locals_size = 0;
 int type_of_locals_size = 0;
 int current_number_of_locals = 0;
 int max_num_locals = 0;
+// __INIT is one frame assembled from all global initializers, so retain the
+// largest slot count seen across file-scope and function scopes.
+static int compile_max_num_locals = 0;
 
 /* This function has strput() semantics; see comments in simulate.c */
 char *get_two_types(char *where, char *end, int type1, int type2) {
@@ -144,7 +147,7 @@ void init_locals() {
   current_number_of_locals = max_num_locals = 0;
 }
 
-void free_all_local_names(int flag) {
+void release_local_names(int flag) {
   int i;
 
   for (i = 0; i < current_number_of_locals; i++) {
@@ -155,8 +158,12 @@ void free_all_local_names(int flag) {
     locals_ptr[i].ihe->dn.local_num = -1;
   }
   current_number_of_locals = 0;
-  max_num_locals = 0;
   symbol_record(OP_SYMBOL_FREE, current_file, current_line, "");
+}
+
+void free_all_local_names(int flag) {
+  release_local_names(flag);
+  max_num_locals = 0;
 }
 
 void deactivate_current_locals() {
@@ -233,6 +240,9 @@ int add_local_name(const char *str, int type, parse_node_t* optional_default_arg
   if (ihe->dn.local_num == -1) {
     ihe->sem_value++;
   }
+  if (max_num_locals + 1 > compile_max_num_locals) {
+    compile_max_num_locals = max_num_locals + 1;
+  }
   return ihe->dn.local_num = max_num_locals++;
 }
 
@@ -245,7 +255,8 @@ void reallocate_locals() {
                           unsigned short, TAG_LOCALS, "reallocate_locals:1");
   type_of_locals_ptr = type_of_locals + offset;
   offset = locals_ptr - locals;
-  locals = RESIZE(locals, locals_size, local_info_t, TAG_LOCALS, "reallocate_locals:2");
+  locals = RESIZE(locals, locals_size += max_local_variables, local_info_t, TAG_LOCALS,
+                  "reallocate_locals:2");
   locals_ptr = locals + offset;
 }
 
@@ -2233,7 +2244,8 @@ static void handle_functions() {
  * The program has been compiled. Prepare a 'program_t' to be returned.
  */
 static program_t *epilog(void) {
-  int size, i, lnsz, lnoff;
+  int size, i;
+  size_t lnsz, lnoff;
   char *p;
   int num_func;
   ident_hash_elem_t *ihe;
@@ -2272,11 +2284,12 @@ static program_t *epilog(void) {
     CREATE_RETURN(pn, nullptr);
     newnode = comp_trees[TREE_INIT];
     CREATE_TWO_VALUES(comp_trees[TREE_INIT], 0, newnode, pn);
-    fun = define_new_function(APPLY___INIT, 0, 0, DECL_HIDDEN | FUNC_STRICT_TYPES, TYPE_VOID);
+    fun = define_new_function(APPLY___INIT, 0, compile_max_num_locals,
+                              DECL_HIDDEN | FUNC_STRICT_TYPES, TYPE_VOID);
     pn = new_node_no_line();
     pn->kind = NODE_FUNCTION;
     pn->v.number = fun;
-    pn->l.number = 0;
+    pn->l.number = compile_max_num_locals;
     pn->r.expr = comp_trees[TREE_INIT];
     comp_trees[TREE_INIT] = pn;
   }
@@ -2332,6 +2345,11 @@ static program_t *epilog(void) {
     }
   }
 
+  // A_INCLUDES is compile-time storage historically kept outside NUMPAREAS.
+  // Persist it in the program allocation so include_list() can report the
+  // files that were actually opened, including nested includes.
+  size += align(mem_block[A_INCLUDES].current_size);
+
   num_func = mem_block[A_FUNCTIONS].current_size / sizeof(function_t);
 
   while (num_func && FUNC(func_index_map[num_func - 1])->address == ADDRESS_MAX) {
@@ -2370,21 +2388,24 @@ static program_t *epilog(void) {
   total_prog_block_size += size;
 
   /* Format is now:
-   * <short total size> <short line_info_offset> <file info> <line info>
+   * <int total size> <int line_info_offset> <file info> <line info>
    */
-  lnoff = 2 + (mem_block[A_FILE_INFO].current_size / sizeof(short));
-  lnsz = lnoff * sizeof(short) + mem_block[A_LINENUMBERS].current_size;
+  lnoff = 2 + static_cast<size_t>(mem_block[A_FILE_INFO].current_size) /
+                    sizeof(lpc_file_info_t);
+  lnsz = lnoff * sizeof(lpc_file_info_t) +
+         static_cast<size_t>(mem_block[A_LINENUMBERS].current_size);
 
-  prog->file_info = reinterpret_cast<unsigned short *>(DMALLOC(lnsz, TAG_LINENUMBERS, "epilog"));
+  prog->file_info = reinterpret_cast<lpc_file_info_t *>(
+      DMALLOC(lnsz, TAG_LINENUMBERS, "epilog"));
 
-  prog->file_info[0] = static_cast<unsigned short>(lnsz);
-  prog->file_info[1] = static_cast<unsigned short>(lnoff);
+  prog->file_info[0] = static_cast<lpc_file_info_t>(lnsz);
+  prog->file_info[1] = static_cast<lpc_file_info_t>(lnoff);
 
-  memcpy((reinterpret_cast<char *>(&prog->file_info[2])), mem_block[A_FILE_INFO].block,
+  memcpy(reinterpret_cast<char *>(&prog->file_info[2]), mem_block[A_FILE_INFO].block,
          mem_block[A_FILE_INFO].current_size);
 
   prog->line_info = reinterpret_cast<unsigned char *>(&prog->file_info[lnoff]);
-  memcpy((reinterpret_cast<char *>(&prog->file_info[lnoff])), mem_block[A_LINENUMBERS].block,
+  memcpy(reinterpret_cast<char *>(&prog->file_info[lnoff]), mem_block[A_LINENUMBERS].block,
          mem_block[A_LINENUMBERS].current_size);
 
   p += align(sizeof(program_t));
@@ -2480,6 +2501,14 @@ static program_t *epilog(void) {
     prog->inherit = nullptr;
   }
 
+  prog->include_names_size = mem_block[A_INCLUDES].current_size;
+  if (prog->include_names_size) {
+    prog->include_names = p;
+    copy_in(A_INCLUDES, &p);
+  } else {
+    prog->include_names = nullptr;
+  }
+
   prog->apply_lookup_table.reset(nullptr);
 
 #ifdef DEBUG
@@ -2536,6 +2565,7 @@ static void prolog(std::unique_ptr<LexStream> stream, const char *name) {
   num_parse_error = 0;
   global_modifiers = 0;
   var_defined = 0;
+  compile_max_num_locals = 0;
 
   /* Initialize memory blocks where the result of the compilation
    * will be stored.
@@ -2732,11 +2762,12 @@ void prepare_cases(parse_node_t *pn, int start) {
       save_file_info(current_file_id, current_line - current_line_saved);
       current_line_saved = current_line;
 
-      translate_absolute_line(
-          (*ce)->line, reinterpret_cast<unsigned short *>(mem_block[A_FILE_INFO].block), &fi1, &l1);
-      translate_absolute_line((*(ce - 1))->line,
-                              reinterpret_cast<unsigned short *>(mem_block[A_FILE_INFO].block),
-                              &fi2, &l2);
+      {
+        auto *fi_base = reinterpret_cast<lpc_file_info_t *>(mem_block[A_FILE_INFO].block);
+        auto *fi_end = fi_base + mem_block[A_FILE_INFO].current_size / sizeof(lpc_file_info_t);
+        translate_absolute_line((*ce)->line, fi_base, &fi1, &l1, fi_end);
+        translate_absolute_line((*(ce - 1))->line, fi_base, &fi2, &l2, fi_end);
+      }
       f1 = PROG_STRING(fi1 - 1);
       f2 = PROG_STRING(fi2 - 1);
 
@@ -2780,11 +2811,11 @@ void prepare_cases(parse_node_t *pn, int start) {
 }
 
 void save_file_info(int file_id, int lines) {
-  short fi[2];
+  lpc_file_info_t fi[2];
 
-  fi[0] = lines;
+  fi[0] = lines < 0 ? 0 : lines;
   fi[1] = file_id;
-  add_to_mem_block(A_FILE_INFO, (char *)&fi[0], sizeof(fi));
+  add_to_mem_block(A_FILE_INFO, reinterpret_cast<char *>(&fi[0]), sizeof(fi));
 }
 
 int add_program_file(const char *name, int top) {

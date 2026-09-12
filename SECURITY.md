@@ -4,9 +4,9 @@
 
 | Version | Supported |
 | --- | --- |
-| `master` (rolling) | ✅ Security fixes land on the latest code only |
+| `main` (rolling) | ✅ Security fixes land on the latest code only |
 
-Security fixes are applied to `master`; fork release tags are produced from
+Security fixes are applied to `main`; fork release tags are produced from
 the release workflow (see `RELEASE.md`) and receive fixes through the next
 candidate build. There is no separate LTS line.
 
@@ -17,8 +17,9 @@ candidate build. There is no separate LTS line.
 Use the platform's built-in private security reporting tools
 (GitHub: *Security* → *Report a vulnerability*) so the report stays
 private until a fix ships. If the platform tool is unavailable, contact the
-maintainer through the repository owner's public contact method and prefix
-the subject with `[SECURITY]`.
+maintainer through the
+[repository owner's public GitHub profile](https://github.com/FengYunCalm) and
+prefix the subject with `[SECURITY]`.
 
 Please include:
 
@@ -53,8 +54,8 @@ reporter until the fix is public.
   default. See `docs/multicore-production-gate.md` for the production gate
   contract.
 - `testsuite/etc/cert.pem` / `testsuite/etc/key.pem` are **test-only
-  fixtures**. They must never be packaged into release artifacts; release
-  packaging verifies this.
+  fixtures**. They are excluded by `.dockerignore` and must never be packaged
+  into release artifacts; release packaging verifies this.
 - `sys_reload_tls()` is a main-thread-only, master-authorized management
   operation: callers must pass `valid_sys_reload_tls()` on the master object
   and the call is rejected before any listener state is touched otherwise.

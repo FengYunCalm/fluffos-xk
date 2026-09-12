@@ -3,6 +3,9 @@
 #include "vm/internal/base/machine.h"
 
 #include <stdlib.h>  // for qsort
+#include <cstring>
+#include <string>
+#include <vector>
 
 #include "vm/internal/apply.h"
 #include "vm/internal/simulate.h"
@@ -384,11 +387,11 @@ char *implode_string(array_t *arr, const char *del, int del_len) {
   for (i = 0, num = 0; i < arr->size; i++) {
     if (arr->item[i].type == T_STRING) {
       if (num) {
-        strncpy(p, del, del_len);
+        memcpy(p, del, del_len);
         p += del_len;
       }
       size = SVALUE_STRLEN(&arr->item[i]);
-      strncpy(p, arr->item[i].u.string, size);
+      memcpy(p, arr->item[i].u.string, size);
       p += size;
       num++;
     }
@@ -2002,6 +2005,68 @@ array_t *inherit_list(object_t *ob) {
     ret->item[il].type = T_STRING;
     ret->item[il].subtype = STRING_MALLOC;
     ret->item[il].u.string = add_slash(pr->filename);
+  }
+  return ret;
+}
+
+/*
+ * Return the files this program actually opened for #include directives.
+ * Compiler storage is a packed sequence of NUL-terminated names; normalize
+ * the public spelling to one leading slash and remove duplicate opens while
+ * preserving first-seen order.
+ */
+array_t *include_list(object_t *ob) {
+  if (!ob || !ob->prog || !ob->prog->include_names || ob->prog->include_names_size <= 0) {
+    return &the_null_array;
+  }
+
+  const char *data = ob->prog->include_names;
+  const size_t total = static_cast<size_t>(ob->prog->include_names_size);
+  std::vector<std::string> names;
+  size_t offset = 0;
+  while (offset < total) {
+    const char *entry = data + offset;
+    const size_t remaining = total - offset;
+    const char *nul = static_cast<const char *>(memchr(entry, '\0', remaining));
+    if (!nul) {
+      // A program can only get here if its packed compiler metadata is
+      // corrupt. Do not read past the allocation or manufacture a path.
+      break;
+    }
+
+    size_t length = static_cast<size_t>(nul - entry);
+    while (length > 0 && *entry == '/') {
+      ++entry;
+      --length;
+    }
+    if (length > 0) {
+      std::string canonical("/");
+      canonical.append(entry, length);
+      bool seen = false;
+      for (const auto &existing : names) {
+        if (existing == canonical) {
+          seen = true;
+          break;
+        }
+      }
+      if (!seen) {
+        names.emplace_back(std::move(canonical));
+      }
+    }
+
+    offset += static_cast<size_t>(nul - (data + offset)) + 1;
+  }
+
+  if (names.empty()) {
+    return &the_null_array;
+  }
+  array_t *ret = allocate_empty_array(static_cast<int>(names.size()));
+  for (size_t i = 0; i < names.size(); ++i) {
+    ret->item[i].type = T_STRING;
+    ret->item[i].subtype = STRING_MALLOC;
+    // add_slash() owns the returned string; names[i] already has the public
+    // leading slash, so pass the component after it to avoid a double slash.
+    ret->item[i].u.string = add_slash(names[i].c_str() + 1);
   }
   return ret;
 }

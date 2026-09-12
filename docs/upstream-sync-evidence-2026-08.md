@@ -170,7 +170,7 @@ blueprint fixture（/clone/recompile_blueprint.c）+ self_reload 探针。
 - F2：8 个 `uint64_t&` 裸引用访问器改只读 const + 语义化递增方法
   （note_*_locked / advance_recompile_epoch，全部要求调用方持锁——
   与 owner_runtime_mutex 同一非递归 mutex，方法内上锁会自死锁）
-- F3：simulate.h 移除 E3 遗留的 <string>/<vector> include
+- F3：simulate.h 移除 E3 遗留的 `<string>`/`<vector>` include
 - 过程教训：note_* 方法首版带内部锁，在持锁调用点（quiesce_begin /
   enqueue_owner_task_locked）二次上锁自死锁（owner_payload/recompile 单测
   挂起实证），改 _locked 无锁变体后金丝雀通过
@@ -304,8 +304,8 @@ pr1247.diff 共 66 文件 = 47 C++ + 19 测试。47 个 C++ 文件的覆盖明�
 |---|---|---|---|---|---|
 | MUDLIB-5..8 | mudlib_stats.cc:restore | fscanf 越界 | mudlib_stats.cc:566-570 | std::ifstream + f.width 流读取，无固定缓冲 | 等价保护（锚点已补） |
 | SPRINTF-8..12 | sprintf.cc:cst/owned | cst 泄漏/owned 复制 | sprintf.cc:1113,1139 | sprintf.lpc | 已覆盖（batch6 b121f6e0） |
-| ASYNC-1 | async.cc:6 | include <set> | async.cc:79 | 编译测试 | 已覆盖（batch7 028955dd） |
-| TIME-2 | time.cc:4 | include <vector> | time.cc:6 | 编译测试 | 已覆盖（batch2 9565ccb4） |
+| ASYNC-1 | async.cc:6 | include `<set>` | async.cc:79 | 编译测试 | 已覆盖（batch7 028955dd） |
+| TIME-2 | time.cc:4 | include `<vector>` | time.cc:6 | 编译测试 | 已覆盖（batch2 9565ccb4） |
 | grammar_rules_exprs | grammar.y expr0 '/' 常量折叠 | INT_MIN/-1 SIGFPE | grammar.y:1943-1953 | a2_grammar.lpc（switch case + expr0） | 682f7703 |
 | grammar_rules_types | grammar.y `foo(void ...)` | type_of_locals_ptr[-1] OOB | grammar.y:432-449 | a2_void_dots.lpc + a2_grammar.lpc | 682f7703 |
 | lexer_rules_pp | 宏参数表 stray 字符死循环 | #define 挂起 | 本 fork 无 dispatch_directive | handle_define 各分支消费或返回，无死循环路径（GETALPHA 消费≥1 否则 lexerror+return） | 等价保护（无锚点，属不同实现） |
@@ -392,7 +392,7 @@ pr1247.diff 共 66 文件 = 47 C++ + 19 测试。47 个 C++ 文件的覆盖明�
 - 协议：before = 1ec243e5^（45a2c4f6，旧 scratchpad）worktree Release 构建；after = 当前树 build-sync Release；各 5 次独立进程 × 5 轮，原始 JSON 留存 tools/perf/results/{before,after}/compile2-{1..5}.json（随提交入库）。
 - 结果（中位数）：throughput before 10618 files/s vs after 10618（**0%**，进程间散布 ±2%）；round_median 9.455ms vs 9.408ms（**-0.5% 无回退**）；degradation（时间序 head10/tail10）before max 0.916 vs after max 0.979（均 ≤1.10）；peak RSS before max 11904KB vs after 11904KB（≤110%）；bench_scratchpad total 0.0324s vs 0.0068s（**降 79%**）。
 - **门禁修订（两处，均因实测载体问题）**：
-  1. "compile throughput 提升 ≥10%" → **"无回退（±5% 内）"**：实测 0%。原因：单文件 compile scope 的 scratch 用量 <4KB（旧 scratchblock 静态 4KB 即够，before 不触发 malloc），C-S1 的收益不在 throughput，而在正确性（255 字节窗口截断消除）、稳态（chunk_mallocs delta=0）与分配热点（bench_scratchpad 降 79%）。
+  1. "compile throughput 提升 ≥10%" → **"无回退（±5% 内）"**：实测 0%。原因：单文件 compile scope 的 scratch 用量 `<4KB`（旧 scratchblock 静态 4KB 即够，before 不触发 malloc），C-S1 的收益不在 throughput，而在正确性（255 字节窗口截断消除）、稳态（chunk_mallocs delta=0）与分配热点（bench_scratchpad 降 79%）。
   2. "scratch 路径 malloc 降 ≥50%" → **以 bench_scratchpad 耗时对比判定**（降 79%）：mallinfo2 的 uordblks 在 jemalloc（USE_JEMALLOC=ON）下恒为 0，无测量载体；旧树无 malloc 计数器，两侧指标不对称。
 - **corpus 层 chunk 门禁为空过（vacuous pass）**：600 次编译的 peak_cycle_bytes 仅 2016B，远低于 1MB BSS base chunk，chunk_mallocs delta=0 与 retained≤8 在 compile corpus 上不构成稳态证明；**chunk 行为由 bench_scratchpad 层判定**：5 轮 × ~7.7MB 需求触发 7 个 1MB chunk malloc，end() 保留 7 个（≤8 ✓），后续轮复用 retained 无新增 malloc（chunk_mallocs=7 总，增量 0 ✓），peak_cycle_bytes 8.2MB。
 - 通过项：chunk_mallocs 增量 0（两工具）、retained 7≤8、throughput 无回退、degradation ≤1.10、RSS ≤110%、bench_scratchpad 耗时降 79%。失败项：无。尚不能下的结论：throughput 提升（实测 0%，门禁已修订）。
@@ -420,3 +420,25 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 3. **COMPILER-1 三件套**：v1/v2（warn_%.lpc 带本地 foo 重定义）不触发 overload warning 是设计如此——本地定义路径 compiler.cc:1145 `remove_overload_warnings` 清空队列。v3 正确形态：`#pragma warnings` + inherit warn_%s_a/warn_b + **不重定义 foo**；overload 消息内嵌父文件名（`defprog->filename` 第一父，:657；`prog->filename` 在 "using the definition in"，:667），%s 必须放父 fixture（warn_%s_a.lpc）。验证：警告文本实际含 `warn_%s_a.lpc` 并到达 `yywarn("%s", p->warn)`（compiler.cc:580 修复行）。
 
 修正后全量 -ftest：0 Check Failed（`grep -icE` 大小写不敏感，覆盖普通 ASSERT 小写 "Check failed" 与 ASSERT_EQ 大写 "Check Failed"），留痕见 docs/evidence/ftest-final-2026-08-19.txt。
+
+## `6cf257ce..735bd31f` 最终逐提交审计与当前复验
+
+本轮范围通过 `git log 6cf257ce..735bd31f` 核对为 **37 个提交**；候选 patch 已定向取证，未使用 bulk merge/cherry-pick。除明确延期的 Promise/stack-lvalue/external-handle 架构外，适用 hunk 已按本地调用者、生成链和 owner 边界逐项适配。逐 hunk 的详细锚点见 `docs/implementation-release-execution-plan-2026-08.md` 与 `docs/upstream-absorption-plan-d07e7641-735bd31f.md`。
+
+| 结论 | 提交 |
+|---|---|
+| 已按本地架构适配并验证 | `990f7b12`, `97ef8d3d`, `58bcc963`, `153ebe09`, `bf8861c9`, `331b456e`, `9e11248f`, `1a0b118d`, `52de0005`, `ed328800`, `dd2a3a14`, `a540f77d`, `7af5c3ff`, `9c673da7`, `f3ab999d`, `e0d6cca2`, `24211e79`, `9bce345a`, `11f23e20`, `a781b918`, `ac9f6191`, `faccd243`（按本地 `A_INCLUDES` 持久存储与程序生命周期适配 `include_list()`） |
+| 不单独吸收/当前没有可直接对应 hunk | `3d24d7ae`（被 `ed328800` 最终方案取代）、`4853debc`（仅格式）、`17d9d4f1`（本地无 `acatch`）、`1e74a758`（上游 DB fixture/diagnostic renderer 在本地不存在）、`c80ce56f`, `1da7a0b6`（lockfile 依赖节点不存在）、`b1745c82`（文档站布局不同） |
+| 明确延期，需先完成独立设计 | `858d5da9`, `de945701`, `e0ce7d26`, `134bebd7`, `7bcd22eb`, `b8dd5866`, `7c808c8b`, `735bd31f`（Promise/`T_PROMISE`、stack-lvalue ABI 或 external handle 尚无兼容本地基座） |
+
+最终本地验证（均针对待提交实现工作树；提交后仅做文档绑定更新）：
+
+- Debug CTest：`ctest --test-dir build-dev-debug --output-on-failure` **449/449**，30.09 s；portable Release：**449/449**，14.42 s。
+- ASan：`ctest --test-dir build-asan --output-on-failure` **449/449**，85.43 s；include_list LPC 定向运行通过。
+- UBSan：`ctest --test-dir build-ubsan --output-on-failure` **449/449**，41.10 s；include_list LPC 定向运行通过。
+- TSan：`setarch x86_64 -R ctest --test-dir build-tsan --output-on-failure` **449/449**，132.63 s；include_list LPC 定向运行通过。未加 `setarch` 的环境失败是 ThreadSanitizer unexpected-memory-mapping 启动限制，源码未作规避。
+- LPC testsuite：完整 `-ftest` 与 `tools/testsuite/run-isolated.sh --driver build-dev-debug/bin/driver` 均 exit 0，assertions `yes`，bind error `no`；最近 isolated 运行验证了四个独立 loopback 端口 `35859 39867 43163 45895`。
+- Gateway fuzz：Clang 18.1.3 真 libFuzzer smoke **256 inputs / 1024 frames**；真实 **10,000 runs** 保留 coverage **194**，无 sanitizer crash、无 artifact。`gateway_fuzz_smoke` 与真实 `gateway_fuzz` 已明确区分。
+- 生成与文档门禁：五个构建的 package headers SHA-256 均为 `b3ebe39f30544888ec22754930574ea339579ded3a11974b1288d2e4b1619fde`；`grammar.autogen.cc/.h` 已由本地 Bison 3.8.2 从 `grammar.y` 重生成，fallback 动作与构建树一致；`check-docs.py` **1125 Markdown**、`check-actions-pins.py` **14 actions / 2 digests**、`check-workflows.py`、`test-evidence-gate.py` 均通过；`git diff --check` 无输出。
+
+已知限制仍不变：空 evidence 目录的 `check-evidence.py` 继续 fail-closed（`FAIL: no reports to check`）；live GitHub/registry、签名/provenance、Docker daemon、生产规模容量及 macOS/Windows/Ubuntu system-Clang 矩阵未执行。不能据此宣称 release-ready。实现提交后将以独立文档提交绑定本节的精确 commit SHA。

@@ -2160,6 +2160,11 @@ event_base_once(struct event_base *base, evutil_socket_t fd, short events,
 			res = event_add_nolock_(&eonce->ev, tv, 0);
 
 		if (res != 0) {
+			EVBASE_RELEASE_LOCK(base, th_base_lock);
+			// event_assign() registered the embedded event with the
+			// debug map; tear that registration down before releasing
+			// the one-shot allocation, even though event_add failed.
+			event_debug_unassign(&eonce->ev);
 			mm_free(eonce);
 			return (res);
 		} else {
@@ -2826,7 +2831,8 @@ event_add_nolock_(struct event *ev, const struct timeval *tv,
 	if (res != -1 && notify && EVBASE_NEED_NOTIFY(base))
 		evthread_notify_base(base);
 
-	event_debug_note_add_(ev);
+	if (res != -1)
+		event_debug_note_add_(ev);
 
 	return (res);
 }

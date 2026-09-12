@@ -120,9 +120,11 @@ struct RecompilePrepared {
   RecompileTargetKind kind{RecompileTargetKind::BlueprintFamily};
 
   // #1247 B-S3: per-target prepared migrations (parallel to targets, empty
-  // for exact-layout transactions and for kinds whose policy never
-  // migrates). Built in the fallible frozen segment, published inside
-  // commit_swap()'s no-fail segment, applied by prepare_target_state().
+  // for exact-layout BlueprintFamily transactions and for kinds whose policy
+  // never migrates). Master/SimulEfun policies still prepare identity
+  // migrations on exact layouts so __INIT sees the old state. Built in the
+  // fallible frozen segment, published inside commit_swap()'s no-fail segment,
+  // and applied by run_create().
   std::vector<std::unique_ptr<PreparedVariableMigration>> migrations;
 
   // simul_efun dispatch rebuild (v2): prepared in the allocatable frozen

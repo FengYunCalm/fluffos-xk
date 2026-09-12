@@ -33,15 +33,17 @@ KNOWN_PREFIXES = (
 )
 SHA_RE = re.compile(r"\b[0-9a-f]{40}\b")
 IGNORED_DIRS = (
-    "docs/efun",   # generated API docs with .html cross-refs
-    "docs/lpc",    # generated language reference with .html cross-refs
+    "docs/efun",          # generated API docs with .html cross-refs
+    "docs/lpc",           # generated language reference with .html cross-refs
+    "docs/node_modules",  # vendored package READMEs are not project docs
 )
 
-# Known-stale references in historical/archived docs (2026-06 era) that refer
-# to deleted reports, moved files or SHAs not in this checkout. They are
-# tracked here deliberately: T17 keeps current docs strict while historical
-# evidence stays readable. New violations in current docs must NOT be added
-# here; fix the reference instead.
+# Known-nonlocal references in historical, evidence, and planning docs that
+# refer to deleted reports, moved files, future artifacts, upstream-only paths,
+# or SHAs unavailable in this partial checkout. They are tracked here
+# deliberately: T17 keeps current implementation docs strict while historical
+# evidence and explicit plans stay readable. New violations in current docs
+# must NOT be added here; fix the reference instead.
 KNOWN_STALE = {
     "docs/codebase-audit-and-execution-plan-2026-08-09.md": {
         "docs/reports/multicore-mudlib-audit-2026-06-25.md",
@@ -68,6 +70,34 @@ KNOWN_STALE = {
     },
     "docs/driver/adding_efuns.md": {
         "src/packages/mypkg",
+    },
+    # The object is named in the plan as a promisor/upstream object, but is not
+    # hydrated in this checkout.
+    "docs/implementation-release-execution-plan-2026-08.md": {
+        "fbee17747bd5fd0b229e13d4da78bbc7912a0509",
+        "tools/lpc-syntax",
+    },
+    # These are future fuzz corpus directories required by the design; Git
+    # cannot represent their empty pre-populated state yet.
+    "docs/recompile-object-special-design-2026-08.md": {
+        "src/tests/fuzz/corpus/compile/",
+        "src/tests/fuzz/corpus/restore/",
+    },
+    # The upstream absorption plan names an upstream-only backend module.
+    "docs/upstream-absorption-plan-d07e7641-735bd31f.md": {
+        "src/backend_libevent.cc",
+    },
+    # These harnesses and metrics are specified future artifacts, not present
+    # production files in the current tree.
+    "docs/upstream-sync-optimization-plan-2026-08.md": {
+        "tools/upstream-sync-bench.sh",
+        "tools/analyze-upstream-sync-bench.py",
+        "tools/analyze-owner-scheduler-capacity.py",
+        "tools/upstream-sync-owner-metrics.json",
+    },
+    # Evidence from a removed local build directory is retained for history.
+    "docs/evidence/e3-v2-phase1-simul-efun-reload.md": {
+        "testsuite/../build-sync/bin/driver etc/config.recompile -ftest",
     },
 }
 IGNORED_FILES = set()
@@ -96,28 +126,43 @@ def resolve(repo: str, ref: str, base_dir: str = ""):
         return True
     if ref.startswith("$") or ref.startswith("<") or ref.startswith("{%"):
         return True  # template/placeholder
+    if re.search(r"<[^>\n]+>", ref):
+        return True  # embedded placeholder such as <candidate>
     if ref.endswith("*") or "*" in ref:
         return True  # glob pattern, not a literal path
     if ref.endswith(".html"):
         return True  # generated docs-site page, built at publish time
-    # Strip line/range suffixes ("file:12", "file.cc:52-60,75-100", "file.sh smoke").
+    # Strip line/range and symbol suffixes ("file:12", "file.cc:52-60",
+    # "file.cc:function").
     ref = re.sub(r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$", "", ref)
+    ref = re.sub(r":(?:[A-Za-z_][A-Za-z0-9_]*)(?:\(\))?$", "", ref)
     ref = re.sub(r"^(tools/[A-Za-z0-9_./-]+) .*$", r"\1", ref)
-    candidates = []
-    if not ref.startswith("/"):
-        if base_dir:
-            candidates.append(os.path.normpath(os.path.join(base_dir, ref)))
-    candidates += [
-        os.path.normpath(os.path.join(repo, ref)),
-        os.path.normpath(os.path.join(repo, "docs", ref)),
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return True
-    # Generated docs-site pages ship as .html next to the .md source.
-    for c in candidates:
-        if c.endswith(".md") and os.path.exists(c[:-3] + ".html"):
-            return True
+
+    # A compact reference such as path.{h,cc} denotes the two files in the
+    # repository, rather than a literal brace-bearing filename.
+    brace = re.search(r"\{([^{}]+)\}", ref)
+    if brace:
+        refs = [ref[:brace.start()] + part + ref[brace.end():]
+                for part in brace.group(1).split(",")]
+    else:
+        refs = [ref]
+
+    for resolved_ref in refs:
+        candidates = []
+        if not resolved_ref.startswith("/"):
+            if base_dir:
+                candidates.append(os.path.normpath(os.path.join(base_dir, resolved_ref)))
+        candidates += [
+            os.path.normpath(os.path.join(repo, resolved_ref)),
+            os.path.normpath(os.path.join(repo, "docs", resolved_ref)),
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                return True
+        # Generated docs-site pages ship as .html next to the .md source.
+        for c in candidates:
+            if c.endswith(".md") and os.path.exists(c[:-3] + ".html"):
+                return True
     return False
 
 

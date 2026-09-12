@@ -130,6 +130,7 @@
     },
     "raw_report": {
       "type": "string",
+      "pattern": "^[^/\\\\]+$",
       "description": "File name of the raw benchmark JSON this envelope wraps (same directory as the envelope)."
     },
     "raw_sha256": {

@@ -8,12 +8,12 @@ title: FluffOS_XK Documentation
 ## Current Project Status / 当前项目状态
 
 FluffOS_XK is a production-oriented FluffOS maintenance fork for modern LPC/MUD
-projects. The current `master` branch includes the completed owner/service
+projects. The current `main` branch includes the completed owner/service
 multicore runtime baseline, Runtime v4 hardening, LPC Modern Runtime contracts,
 source/session encoding boundaries, VM diagnostics, and benchmark/stress entry
 points.
 
-FluffOS_XK 是面向现代 LPC/MUD 项目的生产型 FluffOS 维护分支。当前 `master`
+FluffOS_XK 是面向现代 LPC/MUD 项目的生产型 FluffOS 维护分支。当前 `main`
 已经包含完成的 owner/service 多核基线、Runtime v4 加固、LPC Modern Runtime
 合同、源码/会话编码边界、VM 诊断以及 benchmark/stress 入口。
 
@@ -28,8 +28,8 @@ ObjectHandle route、owner future、commit proposal 或 service shard domain。
 
 ## Start Here / 推荐入口
 
-- [README / 项目说明](../README.md)
-- [README_CN / 中文说明](../README_CN.md)
+- [README / 项目说明](https://github.com/FengYunCalm/fluffos-xk/blob/main/README.md)
+- [README_CN / 中文说明](https://github.com/FengYunCalm/fluffos-xk/blob/main/README_CN.md)
 - [Engine Overview / 引擎概览](./fluffos-xk-overview.md)
 - [Build Guide / 构建指南](./build.md)
 - [Driver CLI](./cli/driver.md)

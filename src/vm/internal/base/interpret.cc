@@ -2282,7 +2282,7 @@ void eval_instruction(char *p) {
               break;
             case PUSH_LOCAL:
               lval = fp + (i & PUSH_MASK);
-              if ((fp - lval) >= csp->num_local_variables) {
+              if ((lval - fp) >= csp->num_local_variables) {
                 error("Invalid Program: op PUSH Tried to push non-existent local\n");
               }
               if ((lval->type == T_OBJECT) && (lval->u.ob->flags & O_DESTRUCTED)) {
@@ -2695,7 +2695,7 @@ void eval_instruction(char *p) {
         svalue_t *s;
 
         s = fp + EXTRACT_UCHAR(pc++);
-        if ((fp - s) >= csp->num_local_variables) {
+        if ((s - fp) >= csp->num_local_variables) {
           error("Invalid Program: op F_TRANSFER_LOCAL Tried to push non-existent local.");
         }
         if ((s->type == T_OBJECT) && (s->u.ob->flags & O_DESTRUCTED)) {
@@ -2710,7 +2710,7 @@ void eval_instruction(char *p) {
         svalue_t *s;
 
         s = fp + EXTRACT_UCHAR(pc++);
-        if ((fp - s) >= csp->num_local_variables)
+        if ((s - fp) >= csp->num_local_variables)
           error("Invalid Program: op F_LOCAL Tried to push non-existent local.");
 
         /*
@@ -2901,7 +2901,12 @@ void eval_instruction(char *p) {
               lval->subtype = 0;
               /* both sides are numbers, no freeing required */
             } else if (sp->type == T_REAL) {
-              lval->u.number += sp->u.real;
+              // A statically typed int lvalue has its RHS coerced by the
+              // compiler. This path is for a mixed/mapping/array lvalue, so
+              // preserve the fractional result instead of truncating it.
+              LPC_FLOAT result = lval->u.number + sp->u.real;
+              lval->type = T_REAL;
+              lval->u.real = result;
               lval->subtype = 0;
               /* both sides are numbers, no freeing required */
             } else {
@@ -3297,6 +3302,9 @@ void eval_instruction(char *p) {
       case F_VOID_ASSIGN_LOCAL:
         if (sp->type != T_INVALID) {
           lval = fp + EXTRACT_UCHAR(pc++);
+          if ((lval - fp) >= csp->num_local_variables) {
+            error("Invalid Program: op F_VOID_ASSIGN_LOCAL Tried to assign non-existent local.\n");
+          }
           free_svalue(lval, "F_VOID_ASSIGN_LOCAL");
           *lval = *sp--;
         } else {
@@ -3662,11 +3670,10 @@ void eval_instruction(char *p) {
               assign_svalue(v, &const0u);
             }
             assign_svalue(--sp, v); /* v will always have a value */
-            /* Drop the stack's ref WITHOUT the possible dealloc (matching
-             * push_indexed_lvalue's mapping branch): free_mapping() on a ref-1
-             * temporary (e.g. f()->key = v) would free the node the lvalue
-             * above points into before the assignment writes through it. */
-            m->ref--;
+            // This is an ordinary value index, so no lvalue retains a pointer
+            // into the mapping after the lookup. Release the consumed stack
+            // reference, including deallocation for a ref-one temporary.
+            free_mapping(m);
             break;
           }
           case T_BUFFER: {
@@ -4608,15 +4615,16 @@ void call_direct(object_t *ob, int offset, int origin, int num_arg) {
   call_program(current_prog, funp->address);
 }
 
-void translate_absolute_line(int abs_line, unsigned short *file_info, int *ret_file,
-                             int *ret_line) {
-  unsigned short *p1, *p2;
+void translate_absolute_line(int abs_line, lpc_file_info_t *file_info, int *ret_file,
+                             int *ret_line, lpc_file_info_t *end) {
+  lpc_file_info_t *p1, *p2;
   int file;
   int line_tmp = abs_line;
 
-  /* two passes: first, find out what file we're interested in */
+  /* two passes: first, find out what file we're interested in. A malformed
+   * zero-count entry must not let this walk run past the line table. */
   p1 = file_info;
-  while (line_tmp > *p1) {
+  while (line_tmp > *p1 && (end == nullptr || p1 + 2 < end)) {
     line_tmp -= *p1;
     p1 += 2;
   }
@@ -4676,7 +4684,8 @@ static int find_line(char *p, const program_t *progp, const char **ret_file, int
   COPY4(&abs_line, lns + 1);
 #endif
 
-  translate_absolute_line(abs_line, &progp->file_info[2], &file_idx, ret_line);
+  translate_absolute_line(abs_line, &progp->file_info[2], &file_idx, ret_line,
+                          &progp->file_info[progp->file_info[1]]);
 
   *ret_file = progp->strings[file_idx - 1];
   return 0;

@@ -445,13 +445,15 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
       send_initial_telnet_negotiations(user);
     }
 
-    event_base_once(
-        base, -1, EV_TIMEOUT,
-        [](evutil_socket_t /*fd*/, short /*what*/, void *arg) {
-          auto *user = reinterpret_cast<interactive_t *>(arg);
-          on_user_logon(user);
-        },
-        (void *)user, nullptr);
+    if (event_base_once(
+            base, -1, EV_TIMEOUT,
+            [](evutil_socket_t /*fd*/, short /*what*/, void *arg) {
+              auto *user = reinterpret_cast<interactive_t *>(arg);
+              on_user_logon(user);
+            },
+            (void *)user, nullptr) != 0) {
+      fatal("new_conn_handler: failed to schedule user logon");
+    }
   }
   debug(connections, ("new_conn_handler: end\n"));
 } /* new_conn_handler() */
@@ -968,14 +970,14 @@ void add_vmessage(object_t *who, const char *format, ...) {
   va_list args, args2;
   va_start(args, format);
   va_copy(args2, args);
-  static char buf[LARGEST_PRINTABLE_STRING + 1];
+  static thread_local char buf[LARGEST_PRINTABLE_STRING + 1];
   do {
     auto result = vsnprintf(buf, sizeof(buf), format, args);
     if (result < 0) {
       DEBUG_CHECK(result < 0, "Invalid format string: add_vmessage");
       break;
     }
-    if (result <= sizeof(buf)) {
+    if (static_cast<size_t>(result) < sizeof(buf)) {
       add_message(who, buf, result);
     } else {
       std::unique_ptr<char[]> const msg(new char[result + 1]);

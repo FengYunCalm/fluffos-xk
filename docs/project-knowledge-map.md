@@ -20,7 +20,7 @@ FluffOS_XK 是一个面向实际 MUD/LPC 运行项目的 FluffOS 维护分支。
 | 主语言 | C++17 / C11 |
 | 构建系统 | CMake，根入口为 `CMakeLists.txt`，核心入口为 `src/CMakeLists.txt` |
 | 运行时定位 | FluffOS LPC driver，面向 MUD mudlib |
-| 当前分支 | `master`，跟踪 `origin/master` |
+| 当前分支 | `main`，跟踪 `origin/main` |
 | 最近 HEAD | `24bd5f4f parser: bound debug output formatting`（审计基线 2026-08-09） |
 | 源码规模 | `src` 下约 2467 个文件 |
 | 文档规模 | `docs` 下约 956 个 Markdown 文件 |

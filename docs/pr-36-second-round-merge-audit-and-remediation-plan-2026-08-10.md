@@ -116,7 +116,7 @@ T16 的真实 300-player Pair、900 秒长稳态和外部环境容量验证可�
 #### 实施步骤
 
 1. 将所有以逻辑否定开头或包含复杂表达式的 `if` 改成完整 GitHub expression，并加引号或
-   使用 `${{ ... }}` 形式，确保 YAML 解析和 GitHub expression 解析都明确。
+   使用 `${&#123;&#123; ... &#125;&#125;}` 形式，确保 YAML 解析和 GitHub expression 解析都明确。
 2. 给矩阵每一项增加稳定的 `check_name`，job `name` 直接使用该字段。建议至少包括：
    - `Ubuntu GCC Debug`
    - `Ubuntu GCC RelWithDebInfo`
@@ -182,7 +182,7 @@ T16 的真实 300-player Pair、900 秒长稳态和外部环境容量验证可�
   `ghcr.io/fengyuncalm/fluffos_xk:*`。
 - `.github/workflows/docker-publish.yml:56` 检查 `/usr/local/bin/driver` 或 `/driver`；
   当前 `Dockerfile` 最终镜像的入口是 `/fluffos/bin/driver`。因此修复大小写后仍会在下一步失败。
-- `release.yml` 的手写 `ghcr.io/${{ github.repository }}` 也保留大小写，正式推广路径存在同类风险。
+- `release.yml` 的手写 `ghcr.io/${&#123;&#123; github.repository &#125;&#125;}` 也保留大小写，正式推广路径存在同类风险。
 
 #### 实施步骤
 
@@ -485,7 +485,7 @@ T16 的真实 300-player Pair、900 秒长稳态和外部环境容量验证可�
 9. concurrency 按 target SHA 分组，不同 SHA 同日仍可能同时计算并争用同一版本 tag。
 10. checksum 文件没有作为 release asset 上传；SBOM 只做 JSON 语法检查，没有在 release
     workflow 中执行 CycloneDX schema、组件完整性和 target SHA 绑定验证。
-11. `ghcr.io/${{ github.repository }}` 保留大小写。
+11. `ghcr.io/${&#123;&#123; github.repository &#125;&#125;}` 保留大小写。
 
 #### 目标 DAG
 

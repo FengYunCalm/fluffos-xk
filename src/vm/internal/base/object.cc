@@ -2087,7 +2087,8 @@ void free_object(object_t **ob, const char *const from) {
 void obj_vars_init(ObjectVariableBlock *block, const program_t *prog) {
   uint32_t count = prog ? prog->num_variables_total : 0;
   size_t size = (count > 0 ? count : 1) * sizeof(svalue_t);
-  block->data = reinterpret_cast<svalue_t *>(DMALLOC(size, TAG_OBJECT, "obj_vars_init"));
+  block->data = reinterpret_cast<svalue_t *>(
+      DMALLOC(size, TAG_OBJECT_VARIABLES, "obj_vars_init"));
   block->count = count;
   for (uint32_t i = 0; i < count; i++) {
     block->data[i] = const0u;

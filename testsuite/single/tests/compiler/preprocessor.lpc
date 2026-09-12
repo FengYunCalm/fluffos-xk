@@ -1,0 +1,126 @@
+// Regression coverage for the legacy lexer's directive scanner.
+// Directives use C phase-2/phase-3 ordering: a splice is removed before
+// comments are recognized, and comments are whitespace.
+#define ML(a) ((a) \
+    * 3)
+#define LONG_MACRO(x) do { \
+    x; \
+} while (0)
+#define foo(x) do { \
+    /* always */ \
+    n += (x); \
+} while (0)
+#define ADD(x, y) do { \
+    r += (x); \
+    r += (y); \
+} while (0) // this comment ends here
+#define BAR 10 \
+    + 5 // tail, no backslash
+#define GREET "hello" \
+    " world"
+#define INSIDE "hel\
+lo"
+#define CHAR_SLASH '/'
+#define STRING_MARKERS "a//b/*c"
+
+// Comments may separate the hash, keyword, name and payload.
+# /*c*/ define C_GAP_FOO 1
+#define/*c*/ C_GAP_BAR 2
+#define C_GAP_BAZ \
+    /*c*/ \
+    3
+
+// A comment delimiter may be split by a splice; it is still a comment.
+#define C_SPLICE_STAR 10 /\
+* eaten */ + 5
+#define C_SPLICE_LINE 1 // note \
+this line is not compiled
+#define SPLIT_BLOCK 7 /* comment
+across line */ + 8
+
+// Delimiters inside literals are data, not comments.
+#define CMT_STR "a/*b"
+#define CMT_STR2 "a//b"
+
+#if 1 /* active branch comment */
+#define IF_COMMENT 13
+#else
+#define IF_COMMENT 99
+#endif
+#if 0
+this is dead code and `#` is not a directive here
+# /* comment
+ */ else
+#define ELSE_VALUE 11
+#endif
+#if 0
+# /* same-line comment */
+else
+#define WRONG_AFTER_COMMENT 1
+#endif
+#define LIVE_VALUE 7
+
+void do_tests() {
+  ASSERT_EQ(21, ML(7));
+
+  int long_macro_v = 0;
+  LONG_MACRO(long_macro_v = 4);
+  ASSERT_EQ(4, long_macro_v);
+
+  int n = 0;
+  if (1)
+    foo(3);
+  else
+    foo(99);
+  ASSERT_EQ(3, n);
+  foo(4);
+  ASSERT_EQ(7, n);
+
+  int r = 0;
+  ADD(1, 2);
+  ASSERT_EQ(3, r);
+
+  ASSERT_EQ(15, BAR);
+  ASSERT_EQ("hello world", GREET);
+  ASSERT_EQ("hello", INSIDE);
+  ASSERT_EQ('/', CHAR_SLASH);
+  ASSERT_EQ("a//b/*c", STRING_MARKERS);
+  ASSERT_EQ(1, C_GAP_FOO);
+  ASSERT_EQ(2, C_GAP_BAR);
+  ASSERT_EQ(3, C_GAP_BAZ);
+  ASSERT_EQ(15, C_SPLICE_STAR);
+  ASSERT_EQ(1, C_SPLICE_LINE);
+  ASSERT_EQ(15, SPLIT_BLOCK);
+  ASSERT_EQ("a/*b", CMT_STR);
+  ASSERT_EQ("a//b", CMT_STR2);
+  ASSERT_EQ(13, IF_COMMENT);
+  ASSERT_EQ(7, LIVE_VALUE);
+  ASSERT_EQ(11, ELSE_VALUE);
+#ifdef DEAD_VALUE
+  error("dead branch leaked a macro");
+#endif
+#ifdef WRONG_AFTER_COMMENT
+  error("a comment must not make the next physical line a directive");
+#endif
+
+  // A comment is one whitespace character in a macro argument, not token
+  // pasting. The apostrophe in the comment must not open a char literal.
+#define MES(y) ("[" + y + "]")
+#define ARG_ID(x) (x)
+#define STR2(x) #x
+#define STR(x) STR2(x)
+  ASSERT_EQ("[AAA\nBBB\n]", MES("AAA\n" +
+    /* a comment with a guild's apostrophe in it */
+    "BBB\n"));
+  ASSERT_EQ("[AAA\nBBB\n]", MES("AAA\n" +  // another guild's apostrophe
+    "BBB\n"));
+  ASSERT_EQ("[ab]", MES("a" /* separates tokens */ + "b"));
+  ASSERT_EQ("[x]", MES /* comment before invocation */ ("x"));
+  ASSERT_EQ("a b", STR(a/* separates tokens */b));
+
+  int line_a = __LINE__;
+  ASSERT_EQ(1, ARG_ID(/* one
+                         two
+                         three */ 1));
+  ASSERT_EQ(4, __LINE__ - line_a);
+}

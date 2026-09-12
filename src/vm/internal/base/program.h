@@ -1,6 +1,7 @@
 #ifndef PROGRAM_H
 #define PROGRAM_H
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -162,6 +163,11 @@ typedef struct {
 #define ADDRESS_MAX UINT16_MAX
 #endif
 
+// file_info stores a two-word header followed by (line-count, file-id)
+// pairs. Keep the words wide enough for current_line and large programs.
+using lpc_file_info_t = int;
+static_assert(sizeof(lpc_file_info_t) == sizeof(int), "file_info words must be int-sized");
+
 struct function_t {
   const char *funcname;
   unsigned short type;
@@ -212,7 +218,8 @@ struct program_t {
 #endif
   char *program;            /* The binary instructions */
   unsigned char *line_info; /* Line number information */
-  unsigned short *file_info;
+  /* file_info[0] = total bytes; file_info[1] = line_info offset in words. */
+  lpc_file_info_t *file_info;
   int line_swap_index; /* Where line number info is swapped */
   function_t *function_table;
   unsigned short *function_flags; /* separate for alignment reasons */
@@ -222,6 +229,10 @@ struct program_t {
   char **variable_table;          /* variables defined by this program */
   unsigned short *variable_types; /* variables defined by this program */
   inherit_t *inherit;             /* List of inherited prgms */
+  // Packed NUL-terminated paths for files this program actually included.
+  // The main source file is omitted; storage lives in the program allocation.
+  char *include_names;
+  int include_names_size;
   int total_size;                 /* Sum of all data in this struct */
                                   /*
                                    * The types of function arguments are saved where 'argument_types'

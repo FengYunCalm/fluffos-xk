@@ -81,6 +81,15 @@ static const int TAG_MAP_NODE_BLOCK = (TAG_DATA + 46);
 static const int TAG_MAP_TBL = (TAG_DATA + 47);
 static const int TAG_BUFFER = (TAG_DATA + 48);
 static const int TAG_CLASS = (TAG_DATA + 49);
+// A queued replace_program record survives until the next VM cleanup sweep,
+// so it is not a per-apply temporary. Keep its tag distinct from the package
+// tags and the object-variable payload tag; check_memory() whitelists it as a
+// live driver-owned queue node.
+static const int TAG_REPLACE_OB = (TAG_PERMANENT + 54);
+// Variable blocks are svalue payloads, not object_t allocations. Keeping a
+// distinct tag lets debugmalloc mark their contents without interpreting the
+// payload as an object during check_memory().
+static const int TAG_OBJECT_VARIABLES = (TAG_DATA + 53);
 #ifdef PACKAGE_DB
 static const int TAG_DB = (TAG_PERMANENT + 50);
 #endif

@@ -87,10 +87,9 @@ class Tracer {
   static void end(const std::string_view&, const EventCategory& category);
 
   static inline void start(const char* file) {
-    // If there is already events, flush it out first.
-    if (is_enabled) {
-      collect();
-    }
+    // A trace that reached MAX_EVENTS disables tracing but leaves the buffer
+    // pending; collect() owns the empty-filename no-op check.
+    collect();
 #ifdef _WIN32
     QueryPerformanceCounter(&basetime);
 #else

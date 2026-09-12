@@ -337,6 +337,12 @@ void simul_efuns_activate(simul_efun_prepared_t *p) noexcept {
     activate_ident(ihe, sim_idx);
   }
 
+  // The identifier side table is only needed while activation resolves the
+  // stable hash entries. It is not part of the live dispatch-table state and
+  // must be released before handing ownership to the transaction.
+  if (p->idents) {
+    FREE(p->idents);
+  }
   // Ownership moved into the live tables; the old tables are held by
   // p->old_* until finish()/rollback() decides their fate.
   p->names = nullptr;

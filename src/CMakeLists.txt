@@ -355,6 +355,7 @@ set(TOOL_SRC
 
 set(GENERATRED_SOURCE
   "${CMAKE_CURRENT_BINARY_DIR}/packages.fullspec"
+  "${CMAKE_CURRENT_BINARY_DIR}/packages_missing_efuns.autogen.h"
   "${CMAKE_CURRENT_BINARY_DIR}/applies_table.autogen.cc"
   "${CMAKE_CURRENT_BINARY_DIR}/applies_table.autogen.h"
   "${CMAKE_CURRENT_BINARY_DIR}/efuns.autogen.cc"
@@ -373,7 +374,7 @@ add_custom_command(
 )
 
 add_custom_command(
-  OUTPUT "packages.fullspec"
+  OUTPUT "packages.fullspec" "packages_missing_efuns.autogen.h"
   COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_packages_genfiles.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
   DEPENDS "tools/build_packages_genfiles.sh" "base/internal/options_incl.h"
 )

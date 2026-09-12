@@ -169,8 +169,8 @@ deployment scripts, or project-specific secrets.
 
 ## Key References / 关键参考
 
-- [README / 项目说明](../README.md)
-- [README_CN / 中文说明](../README_CN.md)
+- [README / 项目说明](https://github.com/FengYunCalm/fluffos-xk/blob/main/README.md)
+- [README_CN / 中文说明](https://github.com/FengYunCalm/fluffos-xk/blob/main/README_CN.md)
 - [LPC Modern Runtime / LPC 现代运行时](./lpc-modern-runtime.md)
 - [Owner Multicore API / Owner 多核接口](./owner-multicore-api.md)
 - [Multicore Runtime v4 / 多核运行时 v4](./multicore-runtime-v4.md)

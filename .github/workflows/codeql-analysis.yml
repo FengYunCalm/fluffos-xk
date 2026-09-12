@@ -3,12 +3,12 @@ name: "CodeQL"
 on:
   workflow_dispatch:
   push:
-    branches: [master, v2019]
+    branches: [main, v2019]
     paths-ignore:
       - 'docs/**'
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [master]
+    branches: [main]
     paths-ignore:
       - 'docs/**'
   schedule:
@@ -16,7 +16,7 @@ on:
 
 jobs:
   analyze:
-    name: Analyze
+    name: Analyze (cpp)
     runs-on: ubuntu-latest
     permissions:
       actions: read

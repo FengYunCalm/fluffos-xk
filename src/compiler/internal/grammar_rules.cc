@@ -145,6 +145,10 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
   }
 #endif
   type = (flags << 16) | (type & 0xffff);
+  // A named function starts a fresh runtime frame. Clear any locals left by
+  // a preceding file-scope initializer without affecting __INIT's compile-
+  // wide high-water mark.
+  free_all_local_names(0);
   /* Handle type checking here so we know whether to typecheck
      'argument' */
   if (type & 0xffff) {

@@ -113,6 +113,11 @@ static int expand_depth = 0;
 char yytext[MAXLINE];
 char *outp;
 
+// A logical preprocessor directive can span several physical lines. Keep its
+// normalized spelling separate from yytext: the latter remains the bounded
+// scratch buffer used by ordinary token scanning and #if evaluation.
+static char directive_text[DEFMAX];
+
 typedef struct incstate_s {
   struct incstate_s *next;
   LexStream *stream;  // raw pointer because incstate_t is alloated using malloc
@@ -245,6 +250,9 @@ static linked_buf_t head_lbuf = {nullptr, TERM_START};
 static linked_buf_t *cur_lbuf;
 
 static void handle_define(char * /*yyt*/);
+namespace {
+static void capture_directive(char *);
+}
 static void free_defines(void);
 static void add_define(const char * /*name*/, int /*nargs*/, const char * /*exps*/);
 static void add_predefine(const char * /*name*/, int /*nargs*/, const char * /*exps*/);
@@ -822,8 +830,35 @@ static int skip_to(const char *token, const char *atoken) {
 
   for (nest = 0;;) {
     if ((c = *yyp++) == '#') {
-      while (is_wspace(c = *yyp++)) {
-        ;
+      // Comments between '#' and the directive keyword are whitespace. This
+      // mirrors capture_directive() for the skipped-branch scanner; without
+      // it `# /* comment */ else` is mistaken for an unknown directive and
+      // the following #endif is reported as unexpected.
+      for (;;) {
+        while (c != '\n' && is_wspace(c = *yyp++)) {
+          ;
+        }
+        if (c != '/' || *yyp != '*') break;
+        yyp++;
+        unsigned char previous = 0;
+        for (;;) {
+          c = *yyp++;
+          if (c == LEX_EOF) break;
+          if (c == '\n') {
+            current_line++;
+            total_lines++;
+            previous = 0;
+            if (yyp == last_nl + 1) {
+              outp = yyp;
+              refill_buffer();
+              yyp = outp;
+            }
+            continue;
+          }
+          if (previous == '*' && c == '/') break;
+          previous = c;
+        }
+        if (c == LEX_EOF) break;
       }
       startp = yyp - 1;
       for (p = b; !isspace(c) && c != LEX_EOF; c = *yyp++) {
@@ -2240,117 +2275,95 @@ int yylex() {
         return L_DOT;
       case '#':
         if (*(outp - 2) == '\n') {
-          char *sp = nullptr;
-          int quote;
+          char *sp;
 
-          while (is_wspace(c = *outp++)) {
-            ;
-          }
+          // Capture and normalize a complete logical directive. The final
+          // physical newline is consumed below to retain the old dispatch
+          // invariant; continuation and block-comment newlines were already
+          // accounted for by capture_directive().
+          capture_directive(directive_text);
+          sp = directive_text;
+          while (is_wspace(*sp)) sp++;
 
           yyp = yytext;
-
-          for (quote = 0;;) {
-            if (c == '"') {
-              quote ^= 1;
-            } else if (c == '/' && !quote) {
-              if (*outp == '*') {
-                outp++;
-                skip_comment();
-                c = *outp++;
-              } else if (*outp == '/') {
-                outp++;
-                skip_line();
-                c = *outp++;
-              }
-            }
-            if (!sp && isspace(c)) {
-              sp = yyp;
-            }
-            if (c == '\n' || c == LEX_EOF) {
+          while (*sp && !is_wspace(*sp)) {
+            if (yyp >= yytext + MAXLINE - 1) {
+              lexerror("Directive name too long");
               break;
             }
-            SAVEC;
-            c = *outp++;
-          }
-          if (sp) {
-            *sp++ = 0;
-            while (is_wspace(*sp)) {
-              sp++;
-            }
-          } else {
-            sp = yyp;
+            *yyp++ = *sp++;
           }
           *yyp = '\0';
-          // Deal with trailing \r
-          if (*(yyp - 1) == '\r') *(yyp - 1) = '\0';
+          while (is_wspace(*sp)) sp++;
+
+          c = static_cast<unsigned char>(*outp);
+          if (c != LEX_EOF) {
+            outp++;
+          }
           if (!strcmp("include", yytext)) {
             current_line++;
-            if (c == LEX_EOF) {
-              *(last_nl = --outp) = LEX_EOF;
-              outp[-1] = '\n';
-            }
             handle_include(sp, 0);
             break;
-          } else {
-            if (outp == last_nl + 1) {
-              refill_buffer();
-            }
-
-            if (strcmp("define", yytext) == 0) {
-              handle_define(sp);
-            } else if (strcmp("if", yytext) == 0) {
-              int cond;
-
-              *--outp = '\0';
-              add_input(sp);
-              cond = cond_get_exp(0);
-              if (*outp++) {
-                lexerror("Condition too complex in #if");
-                while (*outp++) {
-                  ;
-                }
-              } else {
-                handle_cond(cond);
-              }
-            } else if (strcmp("ifdef", yytext) == 0) {
-              deltrail(sp);
-              handle_cond(lookup_define(sp) != nullptr);
-            } else if (strcmp("ifndef", yytext) == 0) {
-              deltrail(sp);
-              handle_cond(lookup_define(sp) == nullptr);
-            } else if (strcmp("elif", yytext) == 0) {
-              handle_elif(sp);
-            } else if (strcmp("else", yytext) == 0) {
-              handle_else();
-            } else if (strcmp("endif", yytext) == 0) {
-              handle_endif();
-            } else if (strcmp("undef", yytext) == 0) {
-              defn_t *d;
-
-              deltrail(sp);
-              if ((d = lookup_define(sp))) {
-                if (d->flags & DEF_IS_PREDEF) {
-                  lexerror("Illegal to #undef a predefined value.");
-                } else {
-                  d->flags |= DEF_IS_UNDEFINED;
-                }
-              }
-            } else if (strcmp("echo", yytext) == 0) {
-              debug_message("%s\n", sp);
-            } else if (strcmp("error", yytext) == 0) {
-              yyerror("%s\n", yytext);
-            } else if (strcmp("warn", yytext) == 0) {
-              yywarn("%s\n", yytext);
-            } else if (strcmp("pragma", yytext) == 0) {
-              handle_pragma(sp);
-            } else if (strcmp("breakpoint", yytext) == 0) {
-              lex_breakpoint();
-            } else {
-              lexerror("Unrecognised # directive");
-            }
-            *--outp = '\n';
-            break;
           }
+
+          if (outp == last_nl + 1) {
+            refill_buffer();
+          }
+
+          if (strcmp("define", yytext) == 0) {
+            handle_define(sp);
+          } else if (strcmp("if", yytext) == 0) {
+            int cond;
+
+            *--outp = '\0';
+            add_input(sp);
+            cond = cond_get_exp(0);
+            if (*outp++) {
+              lexerror("Condition too complex in #if");
+              while (*outp++) {
+                ;
+              }
+            } else {
+              handle_cond(cond);
+            }
+          } else if (strcmp("ifdef", yytext) == 0) {
+            deltrail(sp);
+            handle_cond(lookup_define(sp) != nullptr);
+          } else if (strcmp("ifndef", yytext) == 0) {
+            deltrail(sp);
+            handle_cond(lookup_define(sp) == nullptr);
+          } else if (strcmp("elif", yytext) == 0) {
+            handle_elif(sp);
+          } else if (strcmp("else", yytext) == 0) {
+            handle_else();
+          } else if (strcmp("endif", yytext) == 0) {
+            handle_endif();
+          } else if (strcmp("undef", yytext) == 0) {
+            defn_t *d;
+
+            deltrail(sp);
+            if ((d = lookup_define(sp))) {
+              if (d->flags & DEF_IS_PREDEF) {
+                lexerror("Illegal to #undef a predefined value.");
+              } else {
+                d->flags |= DEF_IS_UNDEFINED;
+              }
+            }
+          } else if (strcmp("echo", yytext) == 0) {
+            debug_message("%s\n", sp);
+          } else if (strcmp("error", yytext) == 0) {
+            yyerror("%s\n", sp);
+          } else if (strcmp("warn", yytext) == 0) {
+            yywarn("%s\n", sp);
+          } else if (strcmp("pragma", yytext) == 0) {
+            handle_pragma(sp);
+          } else if (strcmp("breakpoint", yytext) == 0) {
+            lex_breakpoint();
+          } else {
+            lexerror("Unrecognised # directive");
+          }
+          *--outp = '\n';
+          break;
         } else {
           goto badlex;
         }
@@ -3501,10 +3514,13 @@ static int cmygetc() {
       switch (*outp++) {
         case '*':
           skip_comment();
-          break;
+          // Comments are whitespace in a macro argument. Returning a single
+          // space avoids token pasting in `a/*...*/b` while the next read
+          // still observes the newline after a // comment for line counting.
+          return ' ';
         case '/':
           skip_line();
-          break;
+          return ' ';
         default:
           outp--;
           return c;
@@ -3545,6 +3561,277 @@ static void refill_on_continuation() {
   nexpands = 0;
   current_line++;
 }
+
+namespace {
+enum class directive_scan_state_t {
+  kCode,
+  kBlockComment,
+  kLineComment,
+  kString,
+  kTemplate,
+};
+
+enum class directive_char_state_t {
+  kBody,
+  kEscape,
+  kHex,
+  kOctal,
+  kClose,
+};
+
+bool directive_is_hex(int c) {
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+         (c >= 'A' && c <= 'F');
+}
+
+bool directive_is_octal(int c) { return c >= '0' && c <= '7'; }
+
+// Capture one directive as a phase-2/phase-3 logical line. The old lexer
+// collected only through the first physical newline, so a block comment or a
+// comment-open split by a continuation could leak its tail into LPC code.
+// This small state machine keeps the old input-buffer architecture while
+// making splice-before-comment ordering explicit.
+struct directive_capture_t {
+  char *begin;
+  size_t size = 0;
+  directive_scan_state_t state = directive_scan_state_t::kCode;
+  directive_char_state_t char_state = directive_char_state_t::kBody;
+  char quote = 0;
+  bool escaped = false;
+  bool block_previous_star = false;
+  bool pending_slash = false;
+  bool replaying_candidate = false;
+  std::string char_candidate;
+
+  explicit directive_capture_t(char *buffer) : begin(buffer) { begin[0] = '\0'; }
+
+  void append(char c) {
+    if (size + 1 >= DEFMAX) {
+      lexerror("Preprocessor directive too long");
+      return;
+    }
+    begin[size++] = c;
+    begin[size] = '\0';
+  }
+
+  void append_space() { append(' '); }
+
+  void process_code_char(char c);
+
+  void replay_char_candidate() {
+    std::string candidate = std::move(char_candidate);
+    char_candidate.clear();
+    state = directive_scan_state_t::kCode;
+    char_state = directive_char_state_t::kBody;
+    replaying_candidate = true;
+    for (char candidate_char : candidate) {
+      process_code_char(candidate_char);
+    }
+    replaying_candidate = false;
+  }
+
+  void process_char_candidate_char(char c) {
+    if (char_state == directive_char_state_t::kHex) {
+      if (directive_is_hex(static_cast<unsigned char>(c))) {
+        char_candidate.push_back(c);
+        return;
+      }
+      if (c == '\'') {
+        char_candidate.push_back(c);
+        for (char candidate_char : char_candidate) append(candidate_char);
+        char_candidate.clear();
+        state = directive_scan_state_t::kCode;
+        char_state = directive_char_state_t::kBody;
+        return;
+      }
+      replay_char_candidate();
+      process_code_char(c);
+      return;
+    }
+    if (char_state == directive_char_state_t::kOctal) {
+      if (directive_is_octal(static_cast<unsigned char>(c))) {
+        char_candidate.push_back(c);
+        return;
+      }
+      if (c == '\'') {
+        char_candidate.push_back(c);
+        for (char candidate_char : char_candidate) append(candidate_char);
+        char_candidate.clear();
+        state = directive_scan_state_t::kCode;
+        char_state = directive_char_state_t::kBody;
+        return;
+      }
+      replay_char_candidate();
+      process_code_char(c);
+      return;
+    }
+    if (char_state == directive_char_state_t::kClose) {
+      if (c == '\'') {
+        char_candidate.push_back(c);
+        for (char candidate_char : char_candidate) append(candidate_char);
+        char_candidate.clear();
+        state = directive_scan_state_t::kCode;
+        char_state = directive_char_state_t::kBody;
+        return;
+      }
+      replay_char_candidate();
+      process_code_char(c);
+      return;
+    }
+
+    char_candidate.push_back(c);
+    if (char_state == directive_char_state_t::kBody) {
+      char_state = c == '\\' ? directive_char_state_t::kEscape
+                              : directive_char_state_t::kClose;
+    } else if (char_state == directive_char_state_t::kEscape) {
+      if (c == 'x') {
+        char_state = directive_char_state_t::kHex;
+      } else if (directive_is_octal(static_cast<unsigned char>(c))) {
+        char_state = directive_char_state_t::kOctal;
+      } else {
+        char_state = directive_char_state_t::kClose;
+      }
+    }
+  }
+
+  void process_block_char(char c) {
+    if (block_previous_star && c == '/') {
+      state = directive_scan_state_t::kCode;
+      block_previous_star = false;
+      return;
+    }
+    block_previous_star = c == '*';
+  }
+
+  void process_quote_char(char c) {
+    append(c);
+    if (escaped) {
+      escaped = false;
+    } else if (c == '\\') {
+      escaped = true;
+    } else if (c == quote) {
+      state = directive_scan_state_t::kCode;
+      quote = 0;
+    }
+  }
+
+  void process(char c) {
+    if (state == directive_scan_state_t::kBlockComment) {
+      process_block_char(c);
+      return;
+    }
+    if (state == directive_scan_state_t::kLineComment) {
+      return;
+    }
+    if (state == directive_scan_state_t::kString ||
+        state == directive_scan_state_t::kTemplate) {
+      process_quote_char(c);
+      return;
+    }
+    if (!char_candidate.empty()) {
+      process_char_candidate_char(c);
+      return;
+    }
+    process_code_char(c);
+  }
+
+  void finish_non_spliced_line() {
+    if (!char_candidate.empty()) {
+      replay_char_candidate();
+    }
+    if (pending_slash) {
+      append('/');
+      pending_slash = false;
+    }
+  }
+
+  bool in_block_comment() const {
+    return state == directive_scan_state_t::kBlockComment;
+  }
+};
+
+void directive_capture_t::process_code_char(char c) {
+  if (pending_slash) {
+    if (c == '*') {
+      pending_slash = false;
+      append_space();
+      state = directive_scan_state_t::kBlockComment;
+      block_previous_star = false;
+      return;
+    }
+    if (c == '/') {
+      pending_slash = false;
+      append_space();
+      state = directive_scan_state_t::kLineComment;
+      return;
+    }
+    append('/');
+    pending_slash = false;
+  }
+
+  if (c == '/') {
+    pending_slash = true;
+  } else if (c == '"' || c == '`') {
+    append(c);
+    quote = c;
+    escaped = false;
+    state = c == '"' ? directive_scan_state_t::kString
+                      : directive_scan_state_t::kTemplate;
+  } else if (c == '\'' && !replaying_candidate) {
+    char_candidate.clear();
+    char_candidate.push_back(c);
+    char_state = directive_char_state_t::kBody;
+  } else {
+    append(c);
+  }
+}
+
+// Read the directive after its leading '#'. The terminating physical newline
+// is deliberately left for yylex(), preserving its normal line accounting;
+// continuation and block-comment newlines are consumed and counted here.
+static void capture_directive(char *buffer) {
+  directive_capture_t capture(buffer);
+
+  for (;;) {
+    char *line_start = outp;
+    char *line_end = line_start;
+    while (*line_end != '\n' && static_cast<unsigned char>(*line_end) != LEX_EOF) {
+      line_end++;
+    }
+
+    bool has_newline = *line_end == '\n';
+    char *content_end = line_end;
+    if (content_end > line_start && content_end[-1] == '\r') {
+      content_end--;
+    }
+    bool splice = content_end > line_start && content_end[-1] == '\\';
+    char *process_end = splice ? content_end - 1 : content_end;
+    for (char *p = line_start; p < process_end; p++) {
+      if (*p != '\r') capture.process(*p);
+    }
+
+    if (!has_newline) {
+      capture.finish_non_spliced_line();
+      outp = line_end;
+      return;
+    }
+
+    if (!splice) capture.finish_non_spliced_line();
+    bool continue_directive = splice || capture.in_block_comment();
+    if (!continue_directive) {
+      // Do not consume the logical line terminator. The main lexer will
+      // advance current_line/total_lines exactly once on its next iteration.
+      outp = line_end;
+      return;
+    }
+
+    outp = line_end + 1;
+    current_line++;
+    total_lines++;
+    if (outp == last_nl + 1) refill_buffer();
+  }
+}
+}  // namespace
 
 static void handle_define(char *yyt) {
   char namebuf[NSIZE];

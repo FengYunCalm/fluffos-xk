@@ -1,5 +1,7 @@
 // #1247 B-S2: pure layout description/classification. No driver state.
 
+#include "base/std.h"
+
 #include "vm/internal/recompile_layout.h"
 
 #include <algorithm>

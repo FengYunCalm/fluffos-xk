@@ -7,7 +7,7 @@
 ## 1. 当前发布流程
 
 1. 只从 `.github/workflows/release.yml` 的 `workflow_dispatch` 入口启动，提供完整 40 位
-   `target_sha`。`validate-target` 必须证明该提交属于 `origin/master`、checkout 精确命中该
+   `target_sha`。`validate-target` 必须证明该提交属于 `origin/main`、checkout 精确命中该
    SHA，并且发布门禁名称完整且全部成功。
 2. 只读阶段并行产生两类输入：
    - Windows/Linux 二进制、各自的 SHA-256；

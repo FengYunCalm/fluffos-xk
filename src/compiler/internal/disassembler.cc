@@ -742,7 +742,7 @@ static void disassemble(FILE *f, char *code, int start, int end, program_t *prog
 #define INCLUDE_DEPTH 10
 
 static void dump_line_numbers(FILE *f, program_t *prog) {
-  unsigned short *fi;
+  lpc_file_info_t *fi;
   unsigned char *li_start;
   unsigned char *li_end;
   unsigned char *li;
@@ -761,7 +761,7 @@ static void dump_line_numbers(FILE *f, program_t *prog) {
 
   fi += 2;
   fprintf(f, "\nabsolute line -> (file, line) table:\n");
-  while (fi < reinterpret_cast<unsigned short *>(li_start)) {
+  while (fi < reinterpret_cast<lpc_file_info_t *>(li_start)) {
     fprintf(f, "%i lines from %i [%s]\n", fi[0], fi[1], prog->strings[fi[1] - 1]);
     fi += 2;
   }

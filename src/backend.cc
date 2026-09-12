@@ -692,6 +692,11 @@ void update_load_av() {
     return;
   }
   n = now - last_time;
+  if (n < 0) {
+    last_time = now;
+    acc = 0;
+    return;
+  }
   if (n < K_NUM_CONST) {
     c = CONSTS[n];
   } else {
@@ -716,6 +721,11 @@ void update_compile_av(int lines) {
     return;
   }
   n = now - last_time;
+  if (n < 0) {
+    last_time = now;
+    acc = 0;
+    return;
+  }
   if (n < K_NUM_CONST) {
     c = CONSTS[n];
   } else {

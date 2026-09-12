@@ -35,4 +35,15 @@ Content-Type: application/json; charset=UTF-8
 {"code":0,"session":"E4EtZGu4"}
 TEXT;
   ASSERT_EQ(155, strsrch(txt, "{"));
+
+  // ASCII byte offsets are already grapheme offsets; the search path must
+  // not rebuild an ICU iterator for a long ASCII haystack.
+  {
+    string many = repeat_string("abcdefghij ", 800);
+    ASSERT_EQ(10, strsrch(many, " "));
+    ASSERT_EQ(10, strsrch(many, ' '));
+    ASSERT_EQ(sizeof(many) - 1, strsrch(many, " ", 1));
+    ASSERT_EQ(8, strsrch(many, "ij "));
+    ASSERT_EQ(sizeof(many) - 3, strsrch(many, "ij ", 1));
+  }
 }

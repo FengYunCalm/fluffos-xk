@@ -1,0 +1,54 @@
+// A trace that fills the native event buffer must not wedge later traces.
+// The first dump deliberately uses a missing directory so the million-event
+// buffer is discarded instead of writing a large JSON file.
+
+#define TRACE_FILE "/log/trace_after_overflow.json"
+#define OVERFLOW_CALLS 600000
+#define MAX_TRIES 8
+
+nosave int tries;
+
+private int noop(int value) {
+  return value;
+}
+
+private void burn(int count) {
+  int i;
+
+  for (i = 0; i < count; i++) {
+    noop(i);
+  }
+}
+
+private void cleanup_file() {
+  rm(TRACE_FILE);
+}
+
+private void check_file() {
+  if (file_size(TRACE_FILE) <= 0 && ++tries < MAX_TRIES) {
+    call_out((: check_file :), 1);
+    return;
+  }
+
+  ASSERT2(file_size(TRACE_FILE) > 0,
+         "a later trace produced no file after the previous trace filled its buffer");
+  // Give the asynchronous writer time to finish before unlinking its path.
+  call_out((: cleanup_file :), 1);
+}
+
+void do_tests() {
+#if efun_defined(trace_start)
+  rm(TRACE_FILE);
+
+  trace_start("/log/no_such_dir/overflow.json", 300);
+  burn(OVERFLOW_CALLS);
+  trace_end();
+
+  trace_start(TRACE_FILE, 300);
+  burn(50);
+  trace_end();
+
+  // Native trace dumping is asynchronous.
+  call_out((: check_file :), 1);
+#endif
+}

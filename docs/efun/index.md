@@ -404,6 +404,7 @@ title: EFUN
 * [flush_messages](system/flush_messages.html)
 * [function_exists](system/function_exists.html)
 * [function_profile](system/function_profile.html)
+* [include_list](system/include_list.html)
 * [inherit_list](system/inherit_list.html)
 * [inherits](system/inherits.html)
 * [json_encode_frozen](general/json_encode_frozen.html)

@@ -212,6 +212,20 @@ void RecompilePrepared::commit_swap() noexcept {
   // N old_prog references while the targets still point at old_prog, orphaning
   // live objects). assert, not error(): this is a noexcept segment.
   assert(new_prog != nullptr);
+  // Migration preparation is a frozen, fallible step and is part of the
+  // commit contract. Check it before taking any new-program references or
+  // publishing a pointer so a caller that skips preparation cannot partially
+  // mutate the transaction before the per-target layout assertion below.
+  RecompileLifecycle lifecycle = recompile_lifecycle_for(kind);
+  bool layout_changed =
+      !old_layout.variables.empty() || !new_layout.variables.empty()
+          ? !recompile_layouts_match(old_layout, new_layout, nullptr)
+          : false;
+  bool migration_required =
+      lifecycle.migrate == RecompileMigrationPolicy::Always ||
+      (lifecycle.migrate == RecompileMigrationPolicy::OnMigratableLayoutChange &&
+       layout_changed);
+  assert(!migration_required || migrations.size() == targets.size());
   new_prog->ref++;  // commit pin
 
   constexpr uint32_t kProgramDerivedFlags = O_WILL_CLEAN_UP;

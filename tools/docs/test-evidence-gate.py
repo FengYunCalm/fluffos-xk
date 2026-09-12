@@ -12,7 +12,6 @@ Exit: 0 all negatives rejected; 1 a negative was accepted or the harness
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -90,6 +89,14 @@ def main() -> int:
         expect_accepted(td, "positive control")
         os.remove(os.path.join(td, "e.json"))
 
+        # The schema is commonly stored beside evidence reports; it is input
+        # to the checker, not an envelope that should be validated.
+        schema_dir = os.path.join(td, "schema-beside-reports")
+        os.makedirs(schema_dir)
+        os.symlink(SCHEMA, os.path.join(schema_dir, "manifest.schema.json"))
+        write_envelope(schema_dir, "e.json")
+        expect_accepted(schema_dir, "schema beside reports")
+
         # 1. Empty report set.
         empty = os.path.join(td, "empty")
         os.makedirs(empty)
@@ -153,7 +160,30 @@ def main() -> int:
             f.write(b'{"cleanup_owner_queue_depth": 1}')
         expect_rejected(d, "raw digest modified")
 
-        # 10. Bench metrics report non-clean cleanup (queue/ref not drained):
+        # 10. A raw report must not escape the envelope directory, even when
+        # the recorded digest matches the outside file.
+        d = os.path.join(td, "raw-path-traversal")
+        os.makedirs(d)
+        outside = os.path.join(td, "outside.json")
+        with open(outside, "wb") as f:
+            f.write(raw)
+        write_envelope(d, "e.json", {
+            "raw_report": "../outside.json",
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+        })
+        expect_rejected(d, "raw report path traversal")
+
+        # 11. Invalid raw_report types must be rejected without crashing the
+        # checker before it can report the schema violation.
+        d = os.path.join(td, "raw-name-type")
+        os.makedirs(d)
+        write_envelope(d, "e.json", {
+            "raw_report": 7,
+            "raw_sha256": hashlib.sha256(raw).hexdigest(),
+        })
+        expect_rejected(d, "raw report name type")
+
+        # 12. Bench metrics report non-clean cleanup (queue/ref not drained):
         # the wrapper's derive-cleanup must write failed, and the gate must
         # refuse the resulting envelope.
         d = os.path.join(td, "undrained")
@@ -179,13 +209,13 @@ def main() -> int:
                                          "bench": {"metrics": {"cleanup_owner_queue_depth": 3}}})
             expect_rejected(d, "undrained queue metrics envelope")
 
-        # 11. evidence_kind=historical cannot gate.
+        # 13. evidence_kind=historical cannot gate.
         d = os.path.join(td, "historical")
         os.makedirs(d)
         write_envelope(d, "e.json", {"evidence_kind": "historical"})
         expect_rejected(d, "evidence_kind=historical in gate mode")
 
-        # 12. Valid envelope in validator mode passes even with gate-level
+        # 14. Valid envelope in validator mode passes even with gate-level
         # violations (layering: validator answers format, gate answers policy).
         d = os.path.join(td, "validator-mode")
         os.makedirs(d)

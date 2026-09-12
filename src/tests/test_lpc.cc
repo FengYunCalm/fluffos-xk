@@ -6387,6 +6387,44 @@ TEST_F(DriverTest, TestStringIndexHandlesConcurrentEgcIterators) {
   ASSERT_EQ(failures.load(), 0);
 }
 
+TEST_F(DriverTest, TestEgcAsciiSubrangesAndBoundedFind) {
+  std::string ascii(2048, 'x');
+  for (size_t i = 10; i < ascii.size(); i += 11) ascii[i] = ' ';
+
+  EGCIterator iterator(ascii.data(), static_cast<int32_t>(ascii.size()));
+  ASSERT_TRUE(iterator.ok());
+  ASSERT_TRUE(iterator.is_ascii());
+  iterator.reset(ascii.data() + 11, static_cast<int32_t>(ascii.size() - 11));
+  EXPECT_TRUE(iterator.ok());
+  EXPECT_TRUE(iterator.is_ascii());
+  EXPECT_EQ(ascii.data() + 11, iterator.data());
+
+  const char bounded[] = "\xE4\xB8\xAD--";
+  EGCIterator partial(bounded, 4);  // 你-; the second dash is outside the range.
+  ASSERT_TRUE(partial.ok());
+  ASSERT_FALSE(partial.is_ascii());
+  EXPECT_EQ(-1, u8_egc_find_as_offset(partial, "--", 2, false));
+
+  EXPECT_FALSE(EGCIterator::scan_is_ascii("hello", -1));
+  EGCIterator invalid_length("hello", -3);
+  EXPECT_FALSE(invalid_length.ok());
+}
+
+TEST_F(DriverTest, TestEgcSplitPreservesAsciiAndCrLfClusters) {
+  const char* ascii = "hello";
+  auto ascii_parts = u8_egc_split(ascii, 5);
+  ASSERT_EQ(5u, ascii_parts.size());
+  EXPECT_EQ("h", ascii_parts[0]);
+  EXPECT_EQ("o", ascii_parts[4]);
+
+  const char* crlf = "a\r\nb";
+  auto crlf_parts = u8_egc_split(crlf, 4);
+  ASSERT_EQ(3u, crlf_parts.size());
+  EXPECT_EQ("a", crlf_parts[0]);
+  EXPECT_EQ(std::string_view("\r\n", 2), crlf_parts[1]);
+  EXPECT_EQ("b", crlf_parts[2]);
+}
+
 TEST_F(DriverTest, TestMappingNodeFreelistIsOwnerThreadLocal) {
   std::atomic<int> failures{0};
   std::vector<std::thread> workers;
@@ -6457,6 +6495,51 @@ TEST_F(DriverTest, TestCallOtherDiagnosticsAvoidFixedMessageBuffers) {
   ASSERT_EQ(source.find("sprintf(buf"), std::string::npos);
   ASSERT_NE(source.find("auto message = fmt::format("), std::string::npos);
   ASSERT_NE(source.find("error(\"%s\", message.c_str())"), std::string::npos);
+}
+
+TEST_F(DriverTest, TestAddVmessageUsesThreadLocalBoundedBuffer) {
+  const auto source = read_source_file_for_test("../src/comm.cc");
+
+  ASSERT_NE(source.find("static thread_local char buf[LARGEST_PRINTABLE_STRING + 1];"),
+            std::string::npos);
+  ASSERT_NE(source.find("static_cast<size_t>(result) < sizeof(buf)"), std::string::npos);
+}
+
+TEST_F(DriverTest, TestUserLogonSchedulingChecksEventBaseOnceResult) {
+  for (const auto *path : {"../src/comm.cc", "../src/net/ws_ascii.cc", "../src/net/ws_telnet.cc"}) {
+    const auto source = read_source_file_for_test(path);
+    ASSERT_NE(source.find("if (event_base_once("), std::string::npos) << path;
+    ASSERT_NE(source.find("failed to schedule user logon"), std::string::npos) << path;
+  }
+}
+
+TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {
+  ASSERT_NE(g_event_base, nullptr);
+
+#ifndef _WIN32
+  const char *method = event_base_get_method(g_event_base);
+  if (!method || std::strcmp(method, "epoll") != 0) {
+    GTEST_SKIP() << "The deterministic epoll add-failure injection is unavailable";
+  }
+  const int invalid_fd = open("/dev/null", O_RDONLY | O_NONBLOCK);
+  ASSERT_GE(invalid_fd, 0);
+  ASSERT_EQ(event_base_once(g_event_base, invalid_fd, EV_READ,
+                            [](evutil_socket_t, short, void *) {}, nullptr, nullptr),
+            -1);
+  evutil_closesocket(invalid_fd);
+#else
+  GTEST_SKIP() << "The epoll-specific failure injection is not available on Windows";
+#endif
+
+  int callbacks = 0;
+  ASSERT_EQ(event_base_once(g_event_base, -1, EV_TIMEOUT,
+                            [](evutil_socket_t, short, void *arg) {
+                              ++*static_cast<int *>(arg);
+                            },
+                            &callbacks, nullptr),
+            0);
+  ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_ONCE | EVLOOP_NONBLOCK), 0);
+  ASSERT_EQ(callbacks, 1);
 }
 
 TEST_F(DriverTest, TestCompressFilePathsUseOwnedDynamicStorage) {
@@ -24950,9 +25033,13 @@ SimulTableSnapshot SaveSimulTable() {
   SimulTableSnapshot s;
   s.count = num_simul_efun;
   if (s.count) {
-    s.names = static_cast<simul_entry *>(malloc(s.count * sizeof(simul_entry)));
-    s.funcs = static_cast<function_lookup_info_t *>(
-        malloc(s.count * sizeof(function_lookup_info_t)));
+    // The production transaction frees the live arrays with FREE(). Keep
+    // snapshot copies in the same allocator domain so a later test can use
+    // them as live tables without crossing debugmalloc's ownership boundary.
+    s.names = static_cast<simul_entry *>(
+        DMALLOC(s.count * sizeof(simul_entry), TAG_TEMPORARY, "test_simul_snapshot_names"));
+    s.funcs = static_cast<function_lookup_info_t *>(DMALLOC(
+        s.count * sizeof(function_lookup_info_t), TAG_TEMPORARY, "test_simul_snapshot_funcs"));
     memcpy(s.names, simul_names, s.count * sizeof(simul_entry));
     memcpy(s.funcs, simuls, s.count * sizeof(function_lookup_info_t));
   }
@@ -24993,11 +25080,18 @@ void RestoreSimulTable(const SimulTableSnapshot &s) {
     ihe->sem_value++;
     ihe->dn.simul_num = s.names[i].index;
   }
-  // Swap the live pointers back to the snapshot copies (driver-lifetime;
-  // the tables built by the tests were activated and are intentionally
-  // never freed). Deactivated names from the tests keep an inert perm-ident
-  // (token 0, simul_num -1) -- harmless, matching failed-transaction
-  // semantics.
+  // The snapshot takes ownership of the live-table role. The table currently
+  // installed by the test is no longer reachable after this assignment, so
+  // release it here; callers must first finish or rollback every prepared
+  // activation that still owns an older table through old_names/old_funcs.
+  if (simul_names != s.names) {
+    FREE(simul_names);
+  }
+  if (simuls != s.funcs) {
+    FREE(simuls);
+  }
+  // Deactivated names from the tests keep an inert perm-ident (token 0,
+  // simul_num -1) -- harmless, matching failed-transaction semantics.
   simul_names = s.names;
   simuls = s.funcs;
   num_simul_efun = s.count;
@@ -25149,9 +25243,12 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   ASSERT_FALSE(ihe->token & IHE_ORPHAN);
   ASSERT_EQ(ihe->dn.simul_num, foo_idx);
 
-  // Restore live tables and ident state; the activated tables are
-  // intentionally leaked (driver-lifetime), the programs are safe to free
-  // after the live tables no longer reference them.
+  // Finish the successful activations in reverse order so each prepared
+  // object releases the older table it retained. RestoreSimulTable() then
+  // releases the final active shadow table before installing the snapshot.
+  simul_efuns_finish(&prep_c);
+  simul_efuns_finish(&prep_b);
+  simul_efuns_finish(&prep_a);
   RestoreSimulTable(snap);
   deallocate_program(prog_a);
   deallocate_program(prog_b);
@@ -25188,13 +25285,34 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
 
   // Drive the transaction through the same entry point f_recompile_object
   // uses (pin + kind + dispatch prepare + snapshot all live there).
+  const uint64_t old_generation = simul_efun_ob->prog_generation;
+  const unsigned int old_program_ref = old_prog->ref;
+  const unsigned int new_program_ref = prog->ref;
+
   RecompilePrepared prep;
   prep.staged = StagedProgram(prog);
+  // This synthetic sefun source intentionally omits the production
+  // inherit graph; the direct transaction test uses the documented fallback
+  // classification and still exercises the migration allocation contract.
   start_recompile_transaction(simul_efun_ob, RecompileTargetKind::SimulEfun, &prep);
   ASSERT_EQ(prep.targets.size(), 1u) << "simul_efun_ob must be the only target";
+  prepare_variable_migrations(&prep);
+  ASSERT_EQ(prep.migrations.size(), prep.targets.size())
+      << "SimulEfun must prepare one variable block per target";
+  ASSERT_EQ(simul_efun_ob->prog, old_prog);
+  ASSERT_EQ(simul_efun_ob->prog_generation, old_generation);
+  ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(old_prog));
+  ASSERT_EQ(old_prog->ref, old_program_ref + 1u) << "transaction pin must keep old program alive";
+  ASSERT_EQ(prog->ref, new_program_ref);
 
   // Segment 1: no-fail swap. New dispatch table live.
   prep.commit_swap();
+  ASSERT_EQ(simul_efun_ob->prog, prog);
+  ASSERT_EQ(simul_efun_ob->prog_generation, old_generation + 1u);
+  ASSERT_EQ(simul_efun_ob->variables.count, static_cast<uint32_t>(prog->num_variables_total));
+  ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(prog));
+  ASSERT_EQ(prog->ref, new_program_ref + 2u)
+      << "commit pin and target reservation must be accounted before create";
   ASSERT_EQ(prep.simuls.state, simul_efun_prepared_t::State::Activated);
   int bad_idx = FindDispatchIndex(kBad);
   ASSERT_GE(bad_idx, old_count);
@@ -25246,6 +25364,14 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   // Rollback ends in the Finalized state: the destructor cleanup is a
   // no-op and the new tables were freed.
   ASSERT_EQ(prep.simuls.state, simul_efun_prepared_t::State::Finalized);
+  ASSERT_EQ(simul_efun_ob->prog, old_prog);
+  ASSERT_EQ(simul_efun_ob->prog_generation, old_generation);
+  ASSERT_EQ(simul_efun_ob->variables.count,
+            static_cast<uint32_t>(old_prog->num_variables_total));
+  ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(old_prog));
+  ASSERT_EQ(old_prog->ref, old_program_ref) << "rollback must release only its transaction pin";
+  ASSERT_EQ(prog->ref, new_program_ref)
+      << "rollback must release commit and target reservations, not the staged owner ref";
 
   RestoreSimulTable(snap);
   // prep goes out of scope: staged.prog deallocates (its initial ref), all
@@ -25296,8 +25422,17 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   ASSERT_NE(prog_c, nullptr);
   RecompilePrepared prep_c;
   prep_c.staged = StagedProgram(prog_c);
+  // As above, this is a minimal dispatch-table fixture rather than a full
+  // production simul_efun source; prepare_variable_migrations() supplies the
+  // direct-entry fallback classification.
   start_recompile_transaction(simul_efun_ob, RecompileTargetKind::SimulEfun, &prep_c);
+  ASSERT_EQ(prep_c.targets.size(), 1u);
+  prepare_variable_migrations(&prep_c);
+  ASSERT_EQ(prep_c.migrations.size(), prep_c.targets.size());
   prep_c.commit_swap();
+  ASSERT_EQ(simul_efun_ob->variables.count,
+            static_cast<uint32_t>(prog_c->num_variables_total));
+  ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(prog_c));
   // foo live again on the new table.
   ihe = find_or_add_perm_ident(kFoo);
   ASSERT_NE(ihe, nullptr);
@@ -25352,9 +25487,19 @@ TEST_F(DriverTest, TestSimulEfunReloadInitCreateOrder) {
   ASSERT_NE(probe, nullptr);
   int slot = FindVariableSlot(probe->prog, "probe_order");
   ASSERT_GE(slot, 0);
-  // load_object ran the create phase already; reset and run it again.
+  // load_object ran the create phase already; reset and run it again. Direct
+  // VM entry points require an active error context, just like the production
+  // transaction's run_create_guarded() wrapper.
   probe->variables.data[slot].u.number = 0;
-  call_create(probe, 0);
+  error_context_t econ{};
+  save_context(&econ);
+  try {
+    call_create(probe, 0);
+    pop_context(&econ);
+  } catch (...) {
+    restore_context(&econ);
+    FAIL() << "call_create failed for recompile probe";
+  }
   ASSERT_EQ(probe->variables.data[slot].u.number, 2)
       << "create phase must run __INIT (probe_mark) before create()";
 }
@@ -25370,8 +25515,14 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
   RecompilePrepared prep;
   prep.staged = compile_program_for_recompile(master_ob);
   ASSERT_NE(prep.staged.prog, nullptr);
+  prep.old_layout = describe_recompile_layout(orig_prog);
+  prep.new_layout = describe_recompile_layout(prep.staged.prog);
+  prep.admission_diff = classify_recompile_layout(prep.old_layout, prep.new_layout);
+  ASSERT_TRUE(prep.admission_diff.migratable());
   start_recompile_transaction(master_ob, RecompileTargetKind::Master, &prep);
   ASSERT_EQ(prep.targets.size(), 1u) << "master_ob must be the only target";
+  prepare_variable_migrations(&prep);
+  ASSERT_EQ(prep.migrations.size(), prep.targets.size());
 
   prep.commit_swap();
   ASSERT_TRUE(prep.run_create_guarded())
@@ -25402,7 +25553,14 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
     RecompilePrepared prep2;
     prep2.staged = compile_program_for_recompile(master_ob);
     ASSERT_NE(prep2.staged.prog, nullptr);
+    prep2.old_layout = describe_recompile_layout(master_ob->prog);
+    prep2.new_layout = describe_recompile_layout(prep2.staged.prog);
+    prep2.admission_diff = classify_recompile_layout(prep2.old_layout, prep2.new_layout);
+    ASSERT_TRUE(prep2.admission_diff.migratable());
     start_recompile_transaction(master_ob, RecompileTargetKind::Master, &prep2);
+    ASSERT_EQ(prep2.targets.size(), 1u);
+    prepare_variable_migrations(&prep2);
+    ASSERT_EQ(prep2.migrations.size(), prep2.targets.size());
     prep2.commit_swap();
     ASSERT_TRUE(prep2.run_create_guarded());
     prep2.commit_finish();

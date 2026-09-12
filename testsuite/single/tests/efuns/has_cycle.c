@@ -79,6 +79,14 @@ private void run_checks() {
   }
   ASSERT_EQ(0, has_cycle(deep));
   ASSERT(catch(save_variable(deep)));
+  // Refcounted array teardown is recursive. Peel one edge at a time so this
+  // test's intentionally invalid depth does not turn cleanup into a C-stack
+  // overflow under ASan; the cycle walker itself remains the code under test.
+  mixed deep_holder = deep;
+  deep = 0;
+  for (i = 0; i < 5000; i++) {
+    deep_holder = deep_holder[0];
+  }
 #endif
   ASSERT(1);
 }

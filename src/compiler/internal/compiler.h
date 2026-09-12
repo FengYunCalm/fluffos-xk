@@ -101,6 +101,13 @@ extern const char *compiler_type_names[];
 #define SPECIAL_CONTEXT 0x100
 #define ARG_LIST 0x200
 
+// Context flags and current_type share one parser-stack value when a special
+// expression block is entered. Keep both pieces of state error-safe.
+#define PACK_SAVED_CONTEXT(ctx, type) \
+  (((LPC_INT)(uint32_t)(type) << 32) | ((LPC_INT)(ctx) & 0xffffffffLL))
+#define SAVED_CONTEXT_FLAGS(value) ((LPC_INT)((value) & 0xffffffffLL))
+#define SAVED_CONTEXT_TYPE(value) ((int)((LPC_INT)(value) >> 32))
+
 struct function_context_t {
   parse_node_t *values_list;
   short bindable;
@@ -201,6 +208,7 @@ int add_program_file(const char *, int);
 void yyerror(const char *fmt, ...);
 void yywarn(const char *fmt, ...);
 char *the_file_name(const char *);
+void release_local_names(int);
 void free_all_local_names(int);
 void pop_n_locals(int);
 void reactivate_current_locals(void);

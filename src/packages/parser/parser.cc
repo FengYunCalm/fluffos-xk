@@ -183,7 +183,9 @@ void parser_mark_verbs() {
 
     while (verb_entry) {
       DO_MARK(verb_entry, TAG_PARSER);
-      DO_MARK(verb_entry->node, TAG_PARSER);
+      if (verb_entry->node) {
+        DO_MARK(verb_entry->node, TAG_PARSER);
+      }
 
       EXTRA_REF(BLOCK(verb_entry->real_name))++;
       EXTRA_REF(BLOCK(verb_entry->match_name))++;

@@ -12,6 +12,7 @@
 #include "base/std.h"
 
 #include "compiler/internal/grammar_rules.h"
+#include "packages_missing_efuns.autogen.h"
 #include "vm/vm.h"
 #include "vm/internal/base/machine.h"
 #include "compiler/internal/compiler.h"
@@ -42,6 +43,14 @@ int func_present;
  * bison & yacc don't prototype this in y.tab.h
  */
 int yyparse (void);
+
+static const char *missing_efun_package(const char *name) {
+  for (const auto &entry : missing_efuns) {
+    if (entry.name == nullptr) break;
+    if (strcmp(entry.name, name) == 0) return entry.package;
+  }
+  return nullptr;
+}
 
 %}
 
@@ -275,6 +284,11 @@ def:
                                   {
                                     if (!($1 & ~(DECL_MODS)) && (pragmas & PRAGMA_STRICT_TYPES))
                                       yyerror("Missing type for global variable declaration");
+                                    // Global initializer blocks use compiler locals while
+                                    // building the single __INIT frame. Their names must
+                                    // leave scope before the next top-level definition,
+                                    // but their slot high-water remains available to __INIT.
+                                    release_local_names(0);
                                     $$ = 0;
                                   }
   |   inheritance
@@ -549,7 +563,15 @@ new_name:
       if ((current_type & ~DECL_MODS) == TYPE_VOID)
         yyerror("Illegal to declare global variable of type void.");
 
-      define_new_variable($2, current_type | $1);
+      int var_index = define_new_variable($2, current_type | $1);
+      if (!$1 && (current_type & ~DECL_MODS) == TYPE_REAL) {
+        parse_node_t *expr_node, *real_node, *newnode;
+        CREATE_REAL(real_node, 0.0);
+        CREATE_BINARY_OP(expr_node, F_VOID_ASSIGN, 0, real_node, 0);
+        CREATE_OPCODE_1(expr_node->r.expr, F_GLOBAL_LVALUE, 0, var_index);
+        newnode = comp_trees[TREE_INIT];
+        CREATE_TWO_VALUES(comp_trees[TREE_INIT], 0, newnode, expr_node);
+      }
       scratch_free($2);
     }
   | optional_star identifier L_ASSIGN expr0
@@ -613,6 +635,9 @@ block:
     {
       $$.node = $3.node;
       $$.num = current_number_of_locals - $<number>2;  /* calculate locals declared in this block */
+      // Error recovery can discard a nested scope opener before its
+      // restoration action runs. Never pass a negative count to pop_n_locals.
+      if ($$.num < 0) $$.num = 0;
     }
 ;
 
@@ -649,10 +674,17 @@ new_local_def:
         yyerror("Illegal to declare local variable as reference");
         current_type &= ~LOCAL_MOD_REF;
       }
-      add_local_name($2, current_type | $1 | LOCAL_MOD_UNUSED);
+      int local_num = add_local_name($2, current_type | $1 | LOCAL_MOD_UNUSED);
+      if (!$1 && (current_type & ~DECL_MODS) == TYPE_REAL) {
+        parse_node_t *res, *real_node;
+        CREATE_REAL(real_node, 0.0);
+        CREATE_UNARY_OP_1(res, F_VOID_ASSIGN_LOCAL, 0, real_node, local_num);
+        $$ = res;
+      } else {
+        $$ = 0;
+      }
 
       scratch_free($2);
-      $$ = 0;
     }
   | optional_star new_local_name L_ASSIGN expr0
     {
@@ -1306,6 +1338,30 @@ expr0:
            lhs, so put the RIGHT hand side on the LEFT hand
            side of the tree node. */
         CREATE_BINARY_OP($$, opcode, r->type, r, l);
+
+        // call_other()/evaluate() are statically TYPE_ANY even when the
+        // callee's declared result is numeric. Preserve the declared type of
+        // a compound-assignment lvalue without wrapping arbitrary mixed
+        // variables, whose runtime type errors remain meaningful.
+        const bool unknown_dynamic_rhs =
+            r->kind == NODE_EFUN &&
+            (r->v.number == predefs[arrow_efun].token ||
+             r->v.number == predefs[evaluate_efun].token) &&
+            (r->type == TYPE_ANY || r->type == TYPE_UNKNOWN);
+        if (opcode == F_ADD_EQ || opcode == F_SUB_EQ || opcode == F_MULT_EQ ||
+            opcode == F_DIV_EQ) {
+          if (l->type == TYPE_REAL &&
+              (r->type == TYPE_NUMBER || unknown_dynamic_rhs)) {
+            r = promote_to_float(r);
+            $$->l.expr = r;
+            $$->type = TYPE_REAL;
+          } else if (l->type == TYPE_NUMBER &&
+                     (r->type == TYPE_REAL || unknown_dynamic_rhs)) {
+            r = promote_to_int(r);
+            $$->l.expr = r;
+            $$->type = TYPE_NUMBER;
+          }
+        }
 
         /* allow TYPE_STRING += TYPE_NUMBER | TYPE_OBJECT */
         if (exact_types && !compatible_types(r->type, l->type) &&
@@ -2958,6 +3014,9 @@ expr_or_block:
   block
     {
       $$ = $1.node;
+      // Expression-position blocks have the same lexical lifetime as
+      // statement blocks; do not leak their names into the enclosing scope.
+      pop_n_locals($1.num);
     }
   | '(' comma_expr ')'
     {
@@ -2968,13 +3027,14 @@ expr_or_block:
 catch:
   L_CATCH
     {
-      $<number>$ = context;
+      $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
       context = SPECIAL_CONTEXT;
     }
   expr_or_block
     {
       CREATE_CATCH($$, $3);
-      context = $<number>2;
+      context = SAVED_CONTEXT_FLAGS($<number>2);
+      current_type = SAVED_CONTEXT_TYPE($<number>2);
     }
   ;
 
@@ -3017,13 +3077,14 @@ parse_command:
 time_expression:
   L_TIME_EXPRESSION
     {
-      $<number>$ = context;
+      $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
       context = SPECIAL_CONTEXT;
     }
   expr_or_block
     {
       CREATE_TIME_EXPRESSION($$, $3);
-      context = $<number>2;
+      context = SAVED_CONTEXT_FLAGS($<number>2);
+      current_type = SAVED_CONTEXT_TYPE($<number>2);
     }
 ;
 
@@ -3312,7 +3373,12 @@ function_call:
           if (*n == ':') n++;
           p = strput(buf, end, "Undefined function ");
           p = strput(p, end, n);
-          yyerror(buf);
+          if (const char *package = missing_efun_package(n)) {
+            p = strput(p, end, " (an efun of ");
+            p = strput(p, end, package);
+            p = strput(p, end, ", which this driver was not built with)");
+          }
+          yyerror("%s", buf);
         } else {
           /*
            * Don't complain, just grok it.
@@ -3377,7 +3443,12 @@ function_call:
             if (*n == ':') n++;
             p = strput(buf, end, "Undefined function ");
             p = strput(p, end, n);
-            yyerror(buf);
+            if (const char *package = missing_efun_package(n)) {
+              yyerror("Undefined function %s (an efun of %s, which this driver was not built with)",
+                      n, package);
+            } else {
+              yyerror("%s", buf);
+            }
           } else {
             f = define_new_function(name, 0, 0, DECL_PUBLIC|FUNC_UNDEFINED, TYPE_ANY);
           }
