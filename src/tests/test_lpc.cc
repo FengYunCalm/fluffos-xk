@@ -17791,8 +17791,8 @@ TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
 
   constexpr LPC_INT kItemCount = 8;
 #ifdef _WIN32
-  // GetThreadTimes can quantize a small workload to zero.
-  constexpr LPC_INT kIterations = 32;
+  // GetThreadTimes has coarse resolution; keep the measured workload above it.
+  constexpr LPC_INT kIterations = 256;
 #else
   constexpr LPC_INT kIterations = 2;
 #endif

@@ -274,7 +274,8 @@ long long require_mapping_number(mapping_t *map, const char *key) {
 void run_representative_lpc_bench(Report &report) {
   constexpr long kItemCount = 16;
 #ifdef _WIN32
-  constexpr long kIterations = 32;
+  // GetThreadTimes has coarse resolution; keep the measured workload above it.
+  constexpr long kIterations = 256;
 #else
   constexpr long kIterations = 256;
 #endif
