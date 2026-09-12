@@ -10,6 +10,7 @@
 #include <cmath>            // for exp
 #include <cstddef>          // for size_t
 #include <cstdio>           // for NULL, sprintf
+#include <limits>
 #ifdef TIME_WITH_SYS_TIME
 #include <sys/time.h>
 #include <ctime>
@@ -113,7 +114,18 @@ std::atomic<uint64_t> g_current_gametick{0};
 uint64_t current_gametick() { return g_current_gametick.load(std::memory_order_relaxed); }
 
 int time_to_next_gametick(std::chrono::milliseconds msec) {
-  return std::max(1, (int)(ceil(msec.count() / (double)CONFIG_INT(__RC_GAMETICK_MSEC__))));
+  const auto tick_msec = CONFIG_INT(__RC_GAMETICK_MSEC__);
+  const auto count = msec.count();
+  if (tick_msec <= 0 || count <= 0) {
+    return 1;
+  }
+
+  const auto quotient = count / tick_msec;
+  if (quotient >= std::numeric_limits<int>::max()) {
+    return std::numeric_limits<int>::max();
+  }
+  const auto ticks = quotient + (count % tick_msec != 0);
+  return static_cast<int>(ticks);
 }
 
 std::chrono::milliseconds gametick_to_time(int ticks) {

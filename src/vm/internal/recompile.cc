@@ -102,6 +102,11 @@ StagedProgram compile_program_for_recompile(object_t *blueprint) {
     close(f);
     error("recompile_object: illegal path '/%s'\n", real_name);
   }
+#ifdef _WIN32
+  // FileLexStream consumes raw source bytes; text-mode translation can make
+  // read() report a short chunk before EOF, truncating long CRLF files.
+  _setmode(f, _O_BINARY);
+#endif
 
   error_context_t econ{};
   save_context(&econ);

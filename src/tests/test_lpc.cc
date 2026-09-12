@@ -6590,6 +6590,17 @@ TEST_F(DriverTest, TestVmContextTracksTopLevelState) {
   ASSERT_EQ(vm_context().object_store.restricted_destruct_object, nullptr);
 }
 
+TEST_F(DriverTest, TestTimeToNextGametickClampsLargeDelay) {
+  const auto tick_msec = CONFIG_INT(__RC_GAMETICK_MSEC__);
+  ASSERT_GT(tick_msec, 0);
+  ASSERT_EQ(time_to_next_gametick(std::chrono::milliseconds::zero()), 1);
+  ASSERT_EQ(time_to_next_gametick(std::chrono::milliseconds(-1)), 1);
+  ASSERT_EQ(time_to_next_gametick(std::chrono::milliseconds(tick_msec)), 1);
+  ASSERT_EQ(time_to_next_gametick(std::chrono::milliseconds(tick_msec + 1)), 2);
+  ASSERT_EQ(time_to_next_gametick(std::chrono::milliseconds::max()),
+            std::numeric_limits<int>::max());
+}
+
 TEST_F(DriverTest, TestGameTickQueueSupportsConcurrentProducersAndFullDrain) {
   clear_tick_events();
   struct TickQueueGuard {
@@ -25121,6 +25132,16 @@ program_t *CompileSimulProg(const std::string &src) {
   return compile_file(std::make_unique<IStreamLexStream>(stream), "simul_reload_test");
 }
 
+int FindValidSimulSlot() {
+  for (int i = 0; i < num_simul_efun; i++) {
+    const char *name = simul_names[i].name;
+    if (name && name[0] != '#') {
+      return i;
+    }
+  }
+  return -1;
+}
+
 // Locate a program variable's block slot by name (own variables first,
 // inherited variables after). Returns -1 when absent.
 int FindVariableSlot(program_t *prog, const char *name) {
@@ -25145,7 +25166,9 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
 
   // Program A: provides foo (a fresh name) -> middle insert at a sorted
   // position that is not the cumulative tail, plus a live-table survivor.
-  std::string survivor = simul_names[0].name;  // position 0 (pointer-ordered table), real name
+  const int survivor_slot = FindValidSimulSlot();
+  ASSERT_GE(survivor_slot, 0);
+  std::string survivor = simul_names[survivor_slot].name;
   std::string src_a = std::string("string ") + kFoo + "() { return \"a\"; }\n"
                       "string " + survivor + "() { return \"survivor\"; }\n";
   program_t *prog_a = CompileSimulProg(src_a);
@@ -25161,7 +25184,7 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   int foo_idx = FindDispatchIndex(kFoo);
   int surv_idx = FindDispatchIndex(survivor.c_str());
   ASSERT_GE(foo_idx, old_count);
-  ASSERT_EQ(surv_idx, snap.names[0].index);
+  ASSERT_EQ(surv_idx, snap.names[survivor_slot].index);
   // Survivor slot must hold the NEW program's function (the pre-fix bug
   // shifted dispatch slots on middle insert, making this a different or
   // null function).
@@ -25267,7 +25290,9 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   function_lookup_info_t *orig_funcs = simuls;
 
   const char *kBad = "simul_efun_xyz_bad";
-  std::string survivor = simul_names[0].name;
+  const int survivor_slot = FindValidSimulSlot();
+  ASSERT_GE(survivor_slot, 0);
+  std::string survivor = simul_names[survivor_slot].name;
   ASSERT_NE(survivor, kBad);
   int surv_sem_before = 0;
   ident_hash_elem_t *pre = find_or_add_perm_ident(survivor.c_str());
@@ -25354,7 +25379,7 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   // Target object back on the old program; dispatch entries still point at
   // old-program functions with consistent runtime indices.
   ASSERT_EQ(simul_efun_ob->prog, old_prog);
-  int s_idx = snap.names[0].index;
+  int s_idx = snap.names[survivor_slot].index;
   ASSERT_NE(simuls[s_idx].func, nullptr);
   int s_pidx = FindProgramIndex(old_prog, survivor.c_str());
   ASSERT_GE(s_pidx, 0);
@@ -25382,7 +25407,9 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   ASSERT_GT(num_simul_efun, 0);
   SimulTableSnapshot snap = SaveSimulTable();
   const char *kFoo = "simul_efun_xyz_foo2";  // unique vs other reload tests
-  std::string survivor = simul_names[0].name;
+  const int survivor_slot = FindValidSimulSlot();
+  ASSERT_GE(survivor_slot, 0);
+  std::string survivor = simul_names[survivor_slot].name;
   int surv_sem_before = 0;
   ident_hash_elem_t *pre = find_or_add_perm_ident(survivor.c_str());
   if (pre) surv_sem_before = pre->sem_value;
@@ -25460,7 +25487,7 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   ASSERT_NE(ihe, nullptr);
   ASSERT_TRUE(ihe->token & IHE_SIMUL);
   ASSERT_EQ(ihe->dn.simul_num, only_idx);
-  // 'same' was already dropped by reload B (not in prog_b), so the
+  // The survivor was already dropped by reload B (not in prog_b), so the
   // rollback target state keeps it orphaned: B's post-activate table has
   // a nil func for it and step 2's guard skips nil-func entries.
   ihe = find_or_add_perm_ident(survivor.c_str());
