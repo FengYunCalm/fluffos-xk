@@ -6,6 +6,7 @@
 // destructor cleans up a failed preparation. Callers must not hand-release
 // targets or pins.
 
+#include "base/std.h"
 #include "vm/internal/recompile.h"
 
 #include <cassert>

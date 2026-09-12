@@ -72,7 +72,7 @@ int convert_type(int type) {
 }
 
 // TODO: These should be moved somewhere else
-void check_co_args2(unsigned short *types, int num_arg, const char *name, const char *ob_name,
+void check_co_args2(lpc_type_t *types, int num_arg, const char *name, const char *ob_name,
                     int sparg) {
   int argc = sparg;
   int exptype, i = 0;

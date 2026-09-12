@@ -110,6 +110,7 @@ void mark_mapping_node_blocks(void);
 mapping_t *mkmapping(array_t *, array_t *);
 LPC_INT svalue_to_int(svalue_t *);
 void add_mapping_pair(mapping_t *, const char *, LPC_INT);
+void add_mapping_promise(mapping_t *, const char *, promise_t *);
 void add_mapping_string(mapping_t *, const char *, const char *);
 void add_mapping_malloced_string(mapping_t *, const char *, char *);
 void add_mapping_object(mapping_t *, const char *, object_t *);

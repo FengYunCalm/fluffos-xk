@@ -149,6 +149,7 @@ inline struct timeval gametick_timeval() {
 using TickQueue = std::multimap<uint64_t, TickEvent *, std::less<>>;
 TickQueue g_tick_queue;
 std::mutex g_tick_queue_mutex;
+bool g_in_tick_events = false;
 bool g_backend_owner_main_drain_scheduled = false;
 TickEvent *g_backend_owner_main_drain_event = nullptr;
 std::atomic<uint64_t> g_backend_tick_slice_runs{0};
@@ -207,7 +208,9 @@ TickEventDrainResult call_tick_events_slice() {
     }
 
     if (event->is_valid()) {
+      g_in_tick_events = true;
       event->callback();
+      g_in_tick_events = false;
     }
     delete event;
     result.processed++;
@@ -491,6 +494,8 @@ size_t tick_event_queue_size_for_test() {
 }
 
 size_t run_tick_events_for_test() { return call_tick_events(); }
+
+bool backend_in_tick_events() { return g_in_tick_events; }
 
 size_t walltime_event_queue_size_for_test() {
   std::lock_guard<std::mutex> lock(g_walltime_events_mutex);

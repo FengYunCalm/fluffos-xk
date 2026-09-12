@@ -1,8 +1,10 @@
 #include "base/std.h"
 
 #include "vm/internal/base/machine.h"
+#include "vm/internal/base/promise.h"
 
 #include <nlohmann/json.hpp>
+#include <vector>
 using json = nlohmann::json;
 
 // FIXME: move init from main() to compile time;
@@ -70,6 +72,47 @@ void copy_some_svalues(svalue_t *dest, svalue_t *v, int num) {
   while (num--) {
     assign_svalue_no_free(dest + num, v + num);
   }
+}
+
+namespace {
+struct pending_compound_free_t {
+  void *ptr;
+  uint32_t type;
+};
+
+bool freeing_compound = false;
+std::vector<pending_compound_free_t> pending_compound_frees;
+}
+
+void free_compound(void *ptr, uint32_t type) {
+  if (freeing_compound) {
+    pending_compound_frees.push_back({ptr, type});
+    return;
+  }
+  freeing_compound = true;
+  auto deallocate = [](void *value, uint32_t value_type) {
+    switch (value_type) {
+      case T_PROMISE:
+        dealloc_promise(reinterpret_cast<promise_t *>(value));
+        break;
+      case T_CLASS:
+        dealloc_class(reinterpret_cast<array_t *>(value));
+        break;
+      case T_ARRAY:
+        dealloc_array(reinterpret_cast<array_t *>(value));
+        break;
+      case T_MAPPING:
+        dealloc_mapping(reinterpret_cast<mapping_t *>(value));
+        break;
+    }
+  };
+  deallocate(ptr, type);
+  while (!pending_compound_frees.empty()) {
+    auto next = pending_compound_frees.back();
+    pending_compound_frees.pop_back();
+    deallocate(next.ptr, next.type);
+  }
+  freeing_compound = false;
 }
 
 /*
@@ -169,6 +212,9 @@ void int_free_svalue(svalue_t *v)
             kill_ref(v->u.ref);
           }
           break;
+        case T_PROMISE:
+          free_compound(v->u.prom, T_PROMISE);
+          break;
       }
       v->type |= T_FREED;
     }
@@ -210,6 +256,18 @@ json svalue_to_json_summary(const svalue_t *obj, int depth) {
       return {{"ref", (intptr_t)obj->u.ref->lvalue}};
     case T_FUNCTION:
       return "function";
+    case T_PROMISE:
+      if (obj->u.prom == nullptr) {
+        return "promise (invalid)";
+      }
+      switch (obj->u.prom->state) {
+        case PROMISE_FULFILLED:
+          return "promise (fulfilled)";
+        case PROMISE_REJECTED:
+          return "promise (rejected)";
+        default:
+          return "promise (pending)";
+      }
     case T_NUMBER:
       return obj->u.number;
     case T_REAL:

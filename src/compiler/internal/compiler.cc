@@ -89,11 +89,10 @@ int current_tree;
 
 function_context_t function_context;
 
-/* only lower 16bits are used */
+/* Type modifiers and runtime tags occupy a 32-bit LPC type word. */
 int exact_types, global_modifiers;
 
-/* 16bits modifier + 16bits type */
-int current_type;
+lpc_type_t current_type;
 
 int var_defined;
 
@@ -112,7 +111,7 @@ unsigned char string_tags[0x20];
 short freed_string;
 
 /* x_ptr is different inside nested functions */
-unsigned short *type_of_locals, *type_of_locals_ptr;
+lpc_type_t *type_of_locals, *type_of_locals_ptr;
 local_info_t *locals, *locals_ptr;
 
 int locals_size = 0;
@@ -137,8 +136,8 @@ char *get_two_types(char *where, char *end, int type1, int type2) {
 void init_locals() {
   auto max_local_variables = CFG_INT(__MAX_LOCAL_VARIABLES__);
 
-  type_of_locals = reinterpret_cast<unsigned short *>(
-      DCALLOC(max_local_variables, sizeof(unsigned short), TAG_LOCALS, "init_locals:1"));
+  type_of_locals = reinterpret_cast<lpc_type_t *>(
+      DCALLOC(max_local_variables, sizeof(lpc_type_t), TAG_LOCALS, "init_locals:1"));
   locals = reinterpret_cast<local_info_t *>(
       DCALLOC(max_local_variables, sizeof(local_info_t), TAG_LOCALS, "init_locals:2"));
   type_of_locals_ptr = type_of_locals;
@@ -252,7 +251,7 @@ void reallocate_locals() {
   int offset;
   offset = type_of_locals_ptr - type_of_locals;
   type_of_locals = RESIZE(type_of_locals, type_of_locals_size += max_local_variables,
-                          unsigned short, TAG_LOCALS, "reallocate_locals:1");
+                          lpc_type_t, TAG_LOCALS, "reallocate_locals:1");
   type_of_locals_ptr = type_of_locals + offset;
   offset = locals_ptr - locals;
   locals = RESIZE(locals, locals_size += max_local_variables, local_info_t, TAG_LOCALS,
@@ -819,6 +818,39 @@ int copy_functions(program_t *from, int typemod) {
   return initializer;
 }
 
+int promise_payload_type(int type) {
+  if (!IS_PROMISE(type)) {
+    return type;
+  }
+  int payload = type & ~(TYPE_MOD_PROMISE | TYPE_MOD_PROMISE_VALUE_ARRAY);
+  if (type & TYPE_MOD_PROMISE_VALUE_ARRAY) {
+    payload |= TYPE_MOD_ARRAY;
+  }
+  return payload;
+}
+
+int promise_of_type(int type) {
+  if (IS_PROMISE(type)) {
+    return type;
+  }
+  int result = type & ~TYPE_MOD_ARRAY;
+  if (type & TYPE_MOD_ARRAY) {
+    result |= TYPE_MOD_PROMISE_VALUE_ARRAY;
+  }
+  return result | TYPE_MOD_PROMISE;
+}
+
+unsigned short promise_value_subtype(int type) {
+  if (!IS_PROMISE(type)) {
+    return 0;
+  }
+  int runtime_type = convert_type(promise_payload_type(type));
+  if (runtime_type == T_ANY || runtime_type == T_INVALID) {
+    return 0;
+  }
+  return static_cast<unsigned short>(runtime_type);
+}
+
 void type_error(const char *str, int type) {
   static char buff[512];
   char *end = EndOf(buff);
@@ -1230,7 +1262,7 @@ int define_new_function(const char *name, int num_arg, int num_local, int flags,
       }
     }
     *(reinterpret_cast<unsigned short *>(mem_block[A_ARGUMENT_INDEX].block) + num) =
-        mem_block[A_ARGUMENT_TYPES].current_size / sizeof(unsigned short);
+        mem_block[A_ARGUMENT_TYPES].current_size / sizeof(lpc_type_t);
     add_to_mem_block(A_ARGUMENT_TYPES, (char *)type_of_locals_ptr,
                      num_arg * sizeof(*type_of_locals_ptr));
     if (!CONFIG_INT(__RC_SUPPRESS_ARGUMENT_WARNINGS__)) {
@@ -1297,7 +1329,7 @@ int define_variable(const char *name, int type) {
 
 int define_new_variable(const char *name, int type) {
   int n;
-  unsigned short *tp;
+  lpc_type_t *tp;
   const char **np;
 
   var_defined = 1;
@@ -1305,8 +1337,7 @@ int define_new_variable(const char *name, int type) {
   n = define_variable(name, type);
   np = reinterpret_cast<const char **>(allocate_in_mem_block(A_VAR_NAME, sizeof(char *)));
   *np = name;
-  tp =
-      reinterpret_cast<unsigned short *>(allocate_in_mem_block(A_VAR_TYPE, sizeof(unsigned short)));
+  tp = reinterpret_cast<lpc_type_t *>(allocate_in_mem_block(A_VAR_TYPE, sizeof(lpc_type_t)));
   *tp = type;
   symbol_record(OP_SYMBOL_VAR, current_file, current_line, name);
   return n;
@@ -1592,7 +1623,7 @@ int validate_function_call(int f, parse_node_t *args) {
   int num_arg = (args ? args->kind : 0);
   int num_var = 0;
   parse_node_t *pn = args;
-  unsigned short *arg_types = nullptr;
+  lpc_type_t *arg_types = nullptr;
   program_t *prog;
 
   while (pn) {
@@ -1641,7 +1672,7 @@ int validate_function_call(int f, parse_node_t *args) {
       int which = FUNCTION_TEMP(f)->u.index;
       int start = *(reinterpret_cast<unsigned short *>(mem_block[A_ARGUMENT_INDEX].block) + which);
       if (start != INDEX_START_NONE) {
-        arg_types = reinterpret_cast<unsigned short *>(mem_block[A_ARGUMENT_TYPES].block) + start;
+        arg_types = reinterpret_cast<lpc_type_t *>(mem_block[A_ARGUMENT_TYPES].block) + start;
       }
     }
 
@@ -2459,7 +2490,7 @@ static program_t *epilog(void) {
   if (mem_block[A_ARGUMENT_INDEX].current_size) {
     unsigned short *dest;
 
-    prog->argument_types = reinterpret_cast<unsigned short *>(p);
+    prog->argument_types = reinterpret_cast<lpc_type_t *>(p);
     copy_in(A_ARGUMENT_TYPES, &p);
 
     dest = prog->type_start = reinterpret_cast<unsigned short *>(p);
@@ -2490,7 +2521,7 @@ static program_t *epilog(void) {
 
   prog->variable_table = reinterpret_cast<char **>(p);
   copy_in(A_VAR_NAME, &p);
-  prog->variable_types = reinterpret_cast<unsigned short *>(p);
+  prog->variable_types = reinterpret_cast<lpc_type_t *>(p);
   copy_in(A_VAR_TYPE, &p);
 
   prog->num_inherited = mem_block[A_INHERITS].current_size / sizeof(inherit_t);

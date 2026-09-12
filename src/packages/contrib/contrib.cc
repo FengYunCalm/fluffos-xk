@@ -331,7 +331,7 @@ void f_functions() {
   function_t *funp;
   program_t *prog;
   int const flag = (sp--)->u.number;
-  unsigned short *types;
+  lpc_type_t *types;
   char buf[256];
   char *end = EndOf(buf);
   program_t *progp = sp->u.ob->prog;

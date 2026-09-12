@@ -375,6 +375,8 @@ const char *type_name(int c) {
       return "*lvalue_range*";
     case T_LVALUE_CODEPOINT:
       return "*lvalue_codepoint*";
+    case T_PROMISE:
+      return "promise";
     case T_ERROR_HANDLER:
       return "*error_handler*";
 #ifdef DEBUG
@@ -1554,6 +1556,8 @@ void push_control_stack(int frkind) {
   csp->framekind = frkind;
   csp->prev_ob = previous_ob;
   csp->fp = fp;
+  csp->save_sp = sp;
+  csp->save_cgsp = cgsp;
   csp->prog = current_prog;
   csp->pc = pc;
   csp->function_index_offset = function_index_offset;
@@ -2027,6 +2031,8 @@ void setup_fake_frame(funptr_t *fun) {
   csp->ob = current_object;
   csp->prev_ob = previous_ob;
   csp->fp = fp;
+  csp->save_sp = sp;
+  csp->save_cgsp = cgsp;
   csp->prog = current_prog;
   /* push_control_stack() clears this; the fake frame must too, or an efun
    * that registers per-frame state against csp (f_defer via an FP_EFUN

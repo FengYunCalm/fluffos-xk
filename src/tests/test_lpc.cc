@@ -57,6 +57,7 @@
 #include "vm/internal/base/array.h"
 #include "vm/internal/base/mapping.h"
 #include "vm/internal/base/object.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/eval_limit.h"
 #include "vm/internal/lpc_vm_profile.h"
 #include "vm/internal/owner_future_store.h"
@@ -833,6 +834,36 @@ class DriverTest : public ::testing::Test {
     clear_state();
   }
 };
+
+TEST_F(DriverTest, TestPromisePassThroughDeliveryIsDeferredAndRefcounted) {
+  clear_tick_events();
+  struct TickQueueGuard {
+    ~TickQueueGuard() { clear_tick_events(); }
+  } tick_queue_guard;
+
+  promise_t* source = promise_alloc();
+  promise_t* next = promise_alloc();
+  next->ref++;  // keep an observer reference after the reaction consumes one
+  promise_add_reaction(source, nullptr, nullptr, next, nullptr);
+
+  add_gametick_event(0, [&] {
+    svalue_t value = const0;
+    value.type = T_NUMBER;
+    value.u.number = 42;
+    ASSERT_EQ(promise_settle(source, &value, 0), 1);
+    EXPECT_EQ(next->state, PROMISE_PENDING);
+  });
+
+  ASSERT_EQ(next->state, PROMISE_PENDING);
+  ASSERT_EQ(run_tick_events_for_test(), 2u);
+  ASSERT_EQ(next->state, PROMISE_FULFILLED);
+  ASSERT_EQ(next->result.type, T_NUMBER);
+  ASSERT_EQ(next->result.u.number, 42);
+  ASSERT_EQ(pending_promise_deliveries(), 0u);
+
+  free_promise(source);
+  free_promise(next);
+}
 
 TEST_F(DriverTest, TestFutureFrozenMappingKeyAndValueBytesAreCounted) {
   OwnerFutureStore store;

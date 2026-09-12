@@ -81,6 +81,7 @@ static const int TAG_MAP_NODE_BLOCK = (TAG_DATA + 46);
 static const int TAG_MAP_TBL = (TAG_DATA + 47);
 static const int TAG_BUFFER = (TAG_DATA + 48);
 static const int TAG_CLASS = (TAG_DATA + 49);
+static const int TAG_PROMISE = (TAG_DATA + 55);
 // A queued replace_program record survives until the next VM cleanup sweep,
 // so it is not a per-apply temporary. Keep its tag distinct from the package
 // tags and the object-variable payload tag; check_memory() whitelists it as a

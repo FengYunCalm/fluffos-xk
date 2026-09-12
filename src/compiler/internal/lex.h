@@ -2,6 +2,7 @@
 #define _LEX_H_
 
 #include "compiler/internal/LexStream.h"
+#include "vm/internal/base/svalue.h" /* lpc_type_t */
 
 #define DEFMAX 65536  // at least 4 times MAXLINE
 #define MAXLINE 4096
@@ -89,9 +90,9 @@ extern lpc_predef_t *lpc_predefs;
 
 typedef struct {
   short max_arg, min_arg; /* Can't use char to represent -1 */
-  short type[4];          /* need a short to hold the biggest type flag */
+  lpc_type_t type[4];
   short Default;
-  unsigned short ret_type;
+  lpc_type_t ret_type;
   const char *name;
   int arg_index;
 } instr_t;

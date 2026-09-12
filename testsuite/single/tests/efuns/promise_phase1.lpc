@@ -1,0 +1,60 @@
+// Phase-1 native Promise value/refcount regression coverage.
+// Delivery is exercised by the C++ promise tests; this legacy single-file
+// runner checks only work that is complete before its leak checkpoint.
+
+void on_fulfilled(mixed value) {
+  ASSERT_EQ(42, value);
+}
+
+void on_rejected(mixed value) {
+  ASSERT_EQ("boom", value);
+}
+
+void do_tests() {
+  mixed p, q, r, chained, bad;
+  mapping m;
+
+  p = promise_create();
+  ASSERT_EQ("promise", typeof(p));
+  ASSERT_EQ(1, promisep(p));
+  ASSERT_EQ(0, promisep(0));
+  ASSERT_EQ(0, promisep("promise"));
+  ASSERT_EQ(0, promise_status(p));
+  ASSERT(catch(promise_result(p)));
+  ASSERT(catch(promise_status(1)));
+
+  q = promise_create();
+  ASSERT(p == p);
+  ASSERT(p != q);
+  ASSERT_EQ(-1, member_array(p, ({ q })));
+  ASSERT_EQ(1, member_array(p, ({ q, p })));
+  m = ([]);
+  m[p] = 42;
+  ASSERT_EQ(42, m[p]);
+  ASSERT_EQ(0, m[q]);
+  map_delete(m, p);
+
+  // A pending reaction is released with its source before the leak check.
+  chained = promise_then(p, (: on_fulfilled :));
+  ASSERT_EQ("promise", typeof(chained));
+  ASSERT_EQ(1, promisep(chained));
+  bad = 1;
+  ASSERT(catch(promise_then(p, bad)));
+  ASSERT(catch(promise_catch(q, bad)));
+
+  // Settlement and result reads are synchronous; handler delivery is not.
+  r = promise_create();
+  ASSERT(catch(promise_resolve(1, 42)));
+  ASSERT(catch(promise_reject(1, "boom")));
+  ASSERT(catch(promise_resolve(r, r)));
+  promise_resolve(r, 42);
+  ASSERT_EQ(1, promise_status(r));
+  ASSERT_EQ(42, promise_result(r));
+  ASSERT(catch(promise_resolve(r, 7)));
+  ASSERT(catch(promise_reject(r, "late")));
+
+  q = promise_create();
+  promise_reject(q, "boom");
+  ASSERT_EQ(2, promise_status(q));
+  ASSERT_EQ("boom", promise_result(q));
+}

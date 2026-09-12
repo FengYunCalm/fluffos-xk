@@ -92,6 +92,8 @@ void clear_tick_events();
 // Native test support for exercising the queue without running the event loop.
 size_t tick_event_queue_size_for_test();
 size_t run_tick_events_for_test();
+/* True while the main thread is dispatching one tick-event callback. */
+bool backend_in_tick_events();
 size_t walltime_event_queue_size_for_test();
 int walltime_event_priority_for_test(TickEvent *event);
 

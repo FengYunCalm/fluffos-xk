@@ -3294,7 +3294,7 @@ const char *query_instr_name(int instr) {
 
 #define add_instr_name(w, x, y, z) int_add_instr_name(w, y, z)
 
-static void int_add_instr_name(const char *name, int n, short t) {
+static void int_add_instr_name(const char *name, int n, lpc_type_t t) {
   instrs[n].name = name;
   instrs[n].ret_type = t;
 }

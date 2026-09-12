@@ -25,6 +25,7 @@
 #include "vm/internal/base/number.h"
 #include "vm/internal/base/program.h"
 #include "vm/internal/base/svalue.h"
+#include "vm/internal/base/promise.h"
 
 // functions
 #include "include/function.h"

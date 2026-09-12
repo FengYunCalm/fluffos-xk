@@ -9,6 +9,7 @@
 #include <mutex>
 
 #include "vm/internal/base/machine.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/lpc_vm_profile.h"
 
 FLUFFOS_VM_THREAD_LOCAL mapping_node_t *locked_map_nodes = nullptr;
@@ -1280,6 +1281,14 @@ void add_mapping_pair(mapping_t *m, const char *key, LPC_INT value) {
   s->type = T_NUMBER;
   s->subtype = 0;
   s->u.number = value;
+}
+
+void add_mapping_promise(mapping_t *m, const char *key, promise_t *value) {
+  svalue_t *s = insert_in_mapping(m, key);
+  s->type = T_PROMISE;
+  s->subtype = 0;
+  s->u.prom = value;
+  value->ref++;
 }
 
 void add_mapping_string(mapping_t *m, const char *key, const char *value) {

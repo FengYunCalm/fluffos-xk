@@ -1190,6 +1190,11 @@ void f_member_array() {
             break;
           }
           continue;
+        case T_PROMISE:
+          if (find->u.prom == sv->u.prom) {
+            break;
+          }
+          continue;
         default:
           if (sv->type == T_OBJECT && (sv->u.ob->flags & O_DESTRUCTED)) {
             assign_svalue(sv, &const0u);

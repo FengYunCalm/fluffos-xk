@@ -25,6 +25,7 @@
 
 #define FRAME_OB_CHANGE 4
 #define FRAME_EXTERNAL 8
+#define FRAME_ASYNC 32
 
 #define FRAME_RETURNED_FROM_CATCH 16
 struct defer_list {
@@ -46,6 +47,8 @@ struct control_stack_t {
   char *pc;          /* TODO: change this to unsigned char* */
 
   svalue_t *fp;
+  svalue_t *save_sp;
+  object_t **save_cgsp;
   struct defer_list *defers;
   int num_local_variables;   /* Local + arguments */
   int function_index_offset; /* Used when executing functions in inherited

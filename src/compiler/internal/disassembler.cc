@@ -226,7 +226,7 @@ static void print_function_sig(FILE *f, program_t *prog, int idx) {
   fprintf(f, "%s", funp.funcname);
 
   fprintf(f, "(");
-  unsigned short *types;
+  lpc_type_t *types;
   if (prog->type_start && prog->type_start[idx] != INDEX_START_NONE) {
     types = &prog->argument_types[prog->type_start[idx]];
   } else {

@@ -81,6 +81,20 @@ struct mem_block_t {
 #define TYPE_BUFFER 10
 #define TYPE_MASK 0xf
 
+/* A bare promise modifier marks the declared value, while the separate bit
+ * preserves array-ness of its payload (promise<int *>). */
+#define TYPE_MODS_SHIFT 16
+#define BASIC_TYPE_MASK (0xffffu | TYPE_MOD_PROMISE | TYPE_MOD_PROMISE_VALUE_ARRAY)
+#define PACK_TYPE_MODS(m) ((m) << TYPE_MODS_SHIFT)
+#define PACKED_TYPE_MODS(t) (((t) & ~BASIC_TYPE_MASK) >> TYPE_MODS_SHIFT)
+#define PACKED_TYPE_BASIC(t) ((t) & BASIC_TYPE_MASK)
+#define IS_PROMISE(t) (((t) & (TYPE_MOD_PROMISE | TYPE_MOD_ARRAY)) == TYPE_MOD_PROMISE)
+
+int promise_payload_type(int type);
+int promise_of_type(int type);
+unsigned short promise_value_subtype(int type);
+int convert_type(int type);
+
 struct local_info_t {
   int runtime_index;
   parse_node_t *funcptr_default;
@@ -179,13 +193,13 @@ int validate_function_call(int, parse_node_t *);
 parse_node_t *validate_efun_call(int, parse_node_t *);
 extern mem_block_t mem_block[];
 extern int exact_types, global_modifiers;
-extern int current_type;
+extern lpc_type_t current_type;
 extern char *prog_code;
 extern char *prog_code_max;
 extern unsigned char string_tags[0x20];
 extern short freed_string;
 extern local_info_t *locals, *locals_ptr;
-extern unsigned short *type_of_locals, *type_of_locals_ptr;
+extern lpc_type_t *type_of_locals, *type_of_locals_ptr;
 extern int current_number_of_locals;
 extern int max_num_locals;
 extern int current_tree;
@@ -227,7 +241,7 @@ void type_error(const char *, int);
 int compatible_types(int, int);
 int compatible_types2(int, int);
 int arrange_call_inherited(char *, parse_node_t *);
-void add_arg_type(unsigned short);
+void add_arg_type(lpc_type_t);
 int define_new_function(const char *, int, int, int, int);
 int define_variable(const char *, int);
 int define_new_variable(const char *, int);

@@ -111,6 +111,9 @@ const FlagEntry INT_FLAGS[] = {
     {"gateway debug", __RC_GATEWAY_DEBUG__, 0},
     {"gateway packet size", __RC_GATEWAY_PACKET_SIZE__, 1048576, 1024, 16 * 1024 * 1024},
     {"multicore mode", __RC_MULTICORE_MODE__, 1, 0, 2},
+    {"max suspended async functions", __RC_MAX_SUSPENDED_ASYNC__, 10000},
+    {"async drain eval budget", __RC_ASYNC_DRAIN_EVAL_BUDGET__, 1000},
+    {"max pending promise deliveries", __RC_MAX_PENDING_DELIVERIES__, 100000},
 };
 
 /*

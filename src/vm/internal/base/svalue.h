@@ -27,6 +27,7 @@ union u {
 
   struct svalue_t *lvalue;
   struct ref_t *ref;
+  struct promise_t *prom;
   unsigned char *lvalue_byte;
   void (*error_handler)(void);
 
@@ -42,8 +43,11 @@ union u {
  * If it is a string, then the way that the string has been allocated
  * differently, which will affect how it should be freed.
  */
+using lpc_type_t = uint32_t;
+
 struct svalue_t {
-  unsigned short type;
+  /* The low 16 runtime tags are occupied; promise uses the next bit. */
+  uint32_t type;
   unsigned short subtype;
   union u u;
 };
@@ -83,6 +87,13 @@ struct ref_t {
 #define T_FREED 0x2000u
 #define T_REF 0x4000u
 #define T_LVALUE_CODEPOINT 0x8000u /* UTF8 codepoint */
+#define T_PROMISE 0x10000u
+
+/* Compile-time promise modifiers share the widened LPC type word with the
+ * ordinary array/class modifiers.  They are distinct from the runtime tag
+ * above. */
+#define TYPE_MOD_PROMISE 0x10000u
+#define TYPE_MOD_PROMISE_VALUE_ARRAY 0x20000u
 
 struct codepoint_lvalue_t;
 struct range_lvalue_t;
@@ -106,7 +117,8 @@ static inline svalue_t *lvalue_target(svalue_t *slot) {
 #define TYPE_MOD_CLASS 0x0080u /* a class */
 #define CLASS_NUM_MASK 0x007fu
 
-#define T_REFED (T_ARRAY | T_OBJECT | T_MAPPING | T_FUNCTION | T_BUFFER | T_CLASS | T_REF)
+#define T_REFED \
+  (T_ARRAY | T_OBJECT | T_MAPPING | T_FUNCTION | T_BUFFER | T_CLASS | T_REF | T_PROMISE)
 #define T_ANY (T_REFED | T_STRING | T_NUMBER | T_REAL)
 
 /* values for subtype field of svalue struct */
@@ -124,6 +136,7 @@ static inline svalue_t *lvalue_target(svalue_t *slot) {
 void copy_some_svalues(svalue_t *, svalue_t *, int);
 void assign_svalue(svalue_t *, svalue_t *);
 void assign_svalue_no_free(svalue_t *, svalue_t *);
+void free_compound(void *ptr, uint32_t type);
 
 #ifdef DEBUG
 #define free_svalue(x, y) int_free_svalue(x, y)

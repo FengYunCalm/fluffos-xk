@@ -4,6 +4,7 @@
 */
 
 #include "base/package_api.h"
+#include "vm/internal/base/promise.h"
 
 #include "packages/ops/parse.h"
 
@@ -194,6 +195,13 @@ void f_eq() {
       i = (sp - 1)->u.buf == sp->u.buf;
       free_buffer((sp--)->u.buf);
       free_buffer(sp->u.buf);
+      break;
+    }
+
+    case T_PROMISE: {
+      i = (sp - 1)->u.prom == sp->u.prom;
+      free_promise((sp--)->u.prom);
+      free_promise(sp->u.prom);
       break;
     }
     default:
@@ -548,6 +556,13 @@ void f_ne() {
       i = (sp - 1)->u.buf != sp->u.buf;
       free_buffer((sp--)->u.buf);
       free_buffer(sp->u.buf);
+      break;
+    }
+
+    case T_PROMISE: {
+      i = (sp - 1)->u.prom != sp->u.prom;
+      free_promise((sp--)->u.prom);
+      free_promise(sp->u.prom);
       break;
     }
 
