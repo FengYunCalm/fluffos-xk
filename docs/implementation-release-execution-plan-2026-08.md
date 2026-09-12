@@ -38,7 +38,7 @@
 ### 1.1 Git 基线
 
 - 当前分支契约：`main...origin/main`。
-- 当前 `HEAD`：`c6aba24514267e3b8f5b4ca01db2ecf4847878e7`。
+- 当前 `HEAD`：`bbee8c84dbff954acca65ec1105517e3eacc5c42`（`main` 与 `origin/main` 同步）。
 - upstream 目标：`735bd31f`（完整对象仅存在于 upstream partial-clone refs，不作为当前 checkout 的 commit 证据）。
 - merge base：`277d0b1cbc4350844d9aff07a604dfa519650d9e`。
 - `735bd31f` 的父提交：`7c808c8b`。
@@ -58,18 +58,23 @@ git ls-files -u            -> 无输出
 
 已知改动：
 
-1. `src/vm/internal/recompile_layout.cc`
+1. `e7044bf3` / `src/vm/internal/recompile_layout.cc`
    - 在 `vm/internal/recompile_layout.h` 前增加 `#include "base/std.h"`。
    - 原因：`base/std.h` 提供构建配置宏 `DEBUGMALLOC_EXTENSIONS`；`program.h` 在该宏下向 `program_t` 增加 `extra_ref` 和 `extra_func_ref`。如果编译器翻译单元看到该宏而布局模块没有看到，两个翻译单元会使用不同的结构偏移，合法的 `program_t` 会被错误解释。
    - 该修复没有改变 layout digest 算法、inheritance 语义或 migration 语义。
-2. `docs/upstream-absorption-plan-d07e7641-735bd31f.md`
+2. `f1020aed` / `src/backend.cc`、`src/vm/internal/recompile.cc` 和 `src/tests/test_lpc.cc`
+   - gametick 延迟计算改为按毫秒向上取整并饱和到 `int` 上限，避免超大 callout delay 溢出。
+   - recompile transaction 测试/前置条件路径与变量 migration 顺序保持一致，并补充回归覆盖。
+3. `bbee8c84` / `src/tests/lpc_vm_bench.cc` 和 `src/tests/test_lpc.cc`
+   - Windows `GetThreadTimes` 的粗粒度计时探针使用足够大的 LPC workload，避免 Release 构建将合法短 workload 量化为零。
+4. `docs/upstream-absorption-plan-d07e7641-735bd31f.md`
    - 已存在于当前 checkout；它是 upstream 取证计划，不是已吸收实现。
-3. 临时 layout 诊断文件
+5. 临时 layout 诊断文件
    - 已确认不具备稳定的正式测试契约并删除；不得未经判断提交临时文件。
-4. `docs/implementation-release-execution-plan-2026-08.md`
+6. `docs/implementation-release-execution-plan-2026-08.md`
    - 本统一方案文档。
 
-临时 `fprintf()` 诊断已经移除。不得执行 `reset --hard`、批量清理或覆盖未知来源的未跟踪文件。
+临时 `fprintf()` 诊断已经移除；当前工作区无未提交改动。不得执行 `reset --hard`、批量清理或覆盖未知来源的未跟踪文件。
 
 ### 1.3 不可继承的历史假设
 
@@ -102,45 +107,29 @@ git ls-files -u            -> 无输出
 - Docker 基础镜像、jemalloc 下载、workflow action 和 container 引用已有部分 pin/checksum/digest 约束。
 - 本地不存在 native `T_PROMISE`、Promise VM、parked async frame、`acatch` 或 `external_create()`；现有 `src/packages/async/` 和 `external` 文件不能被误报为完整 Promise 实现。
 
-### 2.2 已有但必须刷新证据的结果
+### 2.2 当前已刷新证据（源提交 `bbee8c84`）
 
-- 静态 workflow 检查、action pin self-test、release fault injection、SBOM 生成/验证、manifest/schema 解析曾通过；SBOM 曾报告 30 个组件。
-- `build` 和 `build-portable-release` 曾各有 `444/444` CTest 通过，约 13 秒；这些结果发生在当前 include 修复之前，必须重新构建和运行。
-- `tools/testsuite/run-isolated.sh --driver build/bin/driver --mode audit --keep` 曾通过，四个端口分别为 `36627 41733 43831 45099`，driver 退出 0，LPC assertion 和 bind error 均为 0；端口和 kept workspace 只作为历史记录，不复制到新证据。
-- `testsuite/single/tests/compiler/a2_grammar.lpc` 曾被确认与 `HEAD` 内容一致，先前失败归类为 stale driver/build artifact；当前仍应使用新 driver 重跑。
-- `build` 和 portable 的布局 digest/migration 定向测试曾通过；Debug/ASan 的相同测试不能因此被视为通过。
+- 本地 `build-dev-debug` 全量 CTest 为 `450/450` 通过，耗时 `28.39s`；gametick/recompile/LPC workload 定向测试和 `lpc_vm_bench` 当前执行均通过。
+- GitHub CI run `34698672438` 的 15 个构建/测试矩阵 job 及其 Evidence Gate 全部成功；该 run 同时包含完整 isolated LPC testsuite、ASan/UBSan/TSan 定向门禁和真实 Clang libFuzzer bounded run。
+- Ubuntu GCC Debug 生成的 3 份 capacity envelope 均绑定 `bbee8c84dbff954acca65ec1105517e3eacc5c42`；下载 raw reports 后在本地以 `check-evidence.py --mode gate` 验证为 `OK (3 report(s))`。
+- 同一提交的 Docker run `34698672460` 和 CodeQL run `34698672466` 均成功；静态 docs/workflow/action-pin、SBOM/schema、fault-injection 检查也随 CI 通过。
+- 上述 GitHub artifact 是当前证据，未复制进源码树；`docs/evidence/` 中的历史文本仍不能替代精确 SHA 绑定的 current envelope。
 
 ### 2.3 当前失败或已确认阻断
 
-1. **recompile transaction 断言**：
+1. **Promise/`T_PROMISE`/async substrate 仍延期**：本地仍没有完整 Promise value、parked frame、`acatch`、取消/超时、GC/recompile/shutdown 合同；继续保持架构 blocker。
 
-   ```text
-   src/vm/internal/recompile.cc:242
-   RecompilePrepared::commit_swap()
-   Assertion 't.ob->variables.layout_id == program_layout_digest(new_prog)' failed
-   ```
+2. **stack-lvalue ABI 仍延期**：缺少经过 owner、异常 unwind 和 sanitizer 验证的稳定栈槽合同；不能从 upstream 直接移植。
 
-   在布局 ABI include 修复后，原来的 `walk_layout()` SIGSEGV 消失，但 `DriverTest.TestSimulEfunReloadCreateFailureRollback` 暴露出上述独立失败。当前源码给出一个可验证的最小根因线索：生产入口 `f_recompile_object()` 在 `commit_swap()` 前调用 `prepare_variable_migrations()`，而失败的 GTest 直接 `start_recompile_transaction()` 后调用 `commit_swap()`，没有满足 `recompile.h` 明确写出的前置条件；该测试生成的 staged source 还包含 `int g = boom();`，会改变变量布局。应先把测试调用顺序和 `migrations.size()==targets.size()` 不变量固定下来，再判断是否存在生产路径的独立故障；不能删除 assertion 或强制覆盖 `layout_id`。
+3. **external-handle 与 canonical object-store migration 仍延期**：现有 ObjectHandle、pointer/record bridge 和 owner-local fast path 不能被误报为完整单写迁移。
 
-2. **Debug/ASan 布局与 recompile 路径尚未绿**：
-   - `TestProgramLayoutDigestMatchesDescriptor` 曾在 Debug/ASan 发生 SIGSEGV；
-   - `TestLayoutDigestBijectionOverCorpus` 曾在 Debug 发生 SIGSEGV；
-   - `TestRecompileMigrationAddRemovePreserves`、`TestMasterExactReloadMigrateThenInit` 和 simul-efun rollback 不能沿用 Release 结果；
-   - `detect_leaks=0` 后仍能复现 assertion/崩溃，说明不是单纯 LeakSanitizer 报告。
+4. **分支/保护合同仍未满足**：当前 `main` 的 live branch-protection 查询返回 `404 Branch not protected`；workflow、Docker、CodeQL、release 和 `SECURITY.md` 中的 `master`/`origin/master` 假设及 `Analyze (cpp)` 名称仍需独立决策和 live check-run 验证。
 
-3. **ASan 仍有泄漏/非泄漏问题**：完整 CTest 曾先报告约 11 个 simul-efun 泄漏，随后进入 assertion/崩溃；不能通过永久关闭 leak detection 掩盖问题。
+5. **签名与 provenance 缺失**：仓库/workflow 未发现 artifact signing、`cosign`、attestation 或 provenance signing。checksum、SBOM、manifest、OCI digest 只能证明部分完整性，不能证明来源真实性。
 
-4. **UBSan、TSan 和真实 `gateway_fuzz` 证据缺失**：仅构建过 `gateway_fuzz_smoke`，不能替代真实 libFuzzer target。
+6. **upstream partial clone 阻断**：当前仓库仍是 `promisor=true`、`blob:none` 的 partial clone；此前出现 `fatal: could not fetch fbee17747bd5fd0b229e13d4da78bbc7912a0509 from promisor remote`。未成功 hydrate 的对象不能根据 ancestry 或文档猜 patch；patch 文件不是源码已吸收的证据。
 
-5. **分支契约不一致**：本地为 `main`，但 `.github/workflows/ci.yml`、Docker、CodeQL、release 和 `SECURITY.md` 仍含 `master` filter/`origin/master` 假设；`tools/release/common.sh` 还要求 `Analyze (cpp)`，该字面名称不在 workflow 源码中，必须用 live check-run 核实。
-
-6. **live GitHub/registry 证据不可用**：历史尝试得到 HTTP 403，SSH 远端查询也失败；不能声称保护分支、required check、审批、artifact 下载或 registry mutation 已验证。
-
-7. **签名与 provenance 缺失**：仓库/workflow 未发现 artifact signing、`cosign`、attestation 或 provenance signing。checksum、SBOM、manifest、OCI digest 只能证明部分完整性，不能证明来源真实性。
-
-8. **upstream partial clone 阻断**：当前仓库仍是 `promisor=true`、`blob:none` 的 partial clone；此前出现 `fatal: could not fetch fbee17747bd5fd0b229e13d4da78bbc7912a0509 from promisor remote`。本轮已读取并导出 37 个候选 patch 到 `/tmp/fluffos-upstream-audit/`，但未成功 hydrate 的对象仍不能根据 ancestry 或文档猜 patch；patch 文件不是源码已吸收的证据。
-
-9. **生产门禁缺失**：真实 300-player、生产规模容量、长期运行和受保护环境仍是 external-required。
+7. **生产门禁缺失**：真实 300-player、生产规模容量、长期运行、受保护环境和 registry mutation 仍是 `external-required`。
 
 ### 2.4 高可信运行时风险
 
@@ -314,7 +303,7 @@ old program pin
 
 只有根因有证据后才修改；优先增加能在修复前失败、修复后通过的回归断言。当前 GTest harness 若确认只是违反 API 前置条件，应以最小测试修复/契约测试收口；若生产入口也能复现，才进入 transaction 实现修复。验收：
 
-- 本节五个重点路径分别通过；当前已知重点 GTest 批次为 `9/10`，必须列出第 10 项失败/未运行项，不能用“多数通过”替代失败项；
+- 本节五个重点路径在 `bbee8c84` 的本地 Debug、跨平台 RelWithDebInfo、ASan、UBSan、TSan 和 CI 门禁中均通过；历史 `9/10` 结果只保留为旧失败线索，不得再作为当前状态；
 - 无布局遍历 SIGSEGV、assertion 或未解释 sanitizer error；
 - 成功 reload 的变量迁移值、layout digest、function dispatch 和 generation 正确；
 - create/`__INIT` 失败恢复旧 program、旧 dispatch pointer、旧 ident 状态、旧变量数据/布局和引用计数；
@@ -914,7 +903,7 @@ git status --short
 
 1. 提交前检查 `git status --short --branch`、`git diff --check`、完整 diff、生成物来源和临时 fuzz corpus 清理状态。
 2. 保留当前本地证据：Debug/portable/ASan/UBSan/TSan CTest、完整 isolated LPC testsuite、`include_list()` 定向测试和真实 Clang libFuzzer 结果。
-3. 将实现与测试作为原子本地提交落地，再用独立文档提交绑定最终验证对应的精确 commit SHA；不推送。
+3. `f1020aed` 和 `bbee8c84` 已作为原子实现/测试提交推送；本次文档更新绑定其后的精确验证 SHA。后续 release、deploy、registry mutation 和真实签名仍不得自动执行。
 4. 后续若实施 Promise/`T_PROMISE`、stack-lvalue 或 external-handle，先完成独立 owner/VM/错误栈/生命周期设计和合同测试，不能从延期 upstream commit 直接 cherry-pick。
 5. 只有在 GitHub required checks、registry、签名/provenance、生产容量和跨平台矩阵取得外部证据后，才重新评估 release-ready；本地通过不能替代这些门禁。
 

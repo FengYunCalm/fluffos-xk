@@ -6,11 +6,11 @@
 
 本次执行启动时的本地状态：
 
-- `main` 与 `origin/main` 同步，工作区干净；当前 `HEAD` 为 `c6aba24514267e3b8f5b4ca01db2ecf4847878e7`。
-- 本地 canonical build 目录和 current evidence 尚未刷新；历史 449/449、LPC、isolated testsuite、include_list 和 Clang libFuzzer 数字不继承。
-- `check-evidence.py` 在空 `docs/evidence` 报告集上 fail-closed；不能宣称 `release-ready`。
-- 当前本地 GCC 为 13.3；Clang、Docker daemon、cosign/syft/trivy 和生产容量环境不可用，相关门禁保持 `unverified` 或 `external-required`。
-- 只读 GitHub 查询可达，但 `main` 未启用 branch protection，且 `c6aba245` 的最新 CI 矩阵包含失败 job；这不能替代本次提交的 current evidence。
+- `main` 与 `origin/main` 同步，工作区干净；当前 `HEAD` 为 `bbee8c84dbff954acca65ec1105517e3eacc5c42`。
+- 本地 `build-dev-debug` 全量 CTest 已为 `450/450` 通过；gametick/recompile/LPC workload 定向测试和当前 benchmark 已刷新。
+- GitHub CI `34698672438` 的 15 个构建/测试矩阵 job、Evidence Gate、完整 isolated testsuite、sanitizer/fuzz 门禁均成功；同一提交的 Docker `34698672460` 和 CodeQL `34698672466` 也成功。3 份 capacity envelope 绑定该 SHA，并已用 `check-evidence.py --mode gate` 验证。
+- `check-evidence.py` 直接检查源码树的 `docs/evidence` 仍按空/历史报告 fail-closed；GitHub artifact 是本次 current evidence，未复制为源码生成物。
+- 当前本地 GCC 为 13.3；Clang、Docker daemon、cosign/syft/trivy 和生产容量环境不可用，相关门禁保持 `unverified` 或 `external-required`。live 查询确认 `main` 未启用 branch protection。
 - Promise/`T_PROMISE`、stack-lvalue、external-handle 和完整 object-store migration 尚无兼容本地 VM 的实现基座。
 
 最终只有在所有硬门禁拥有当前、可复现、机器可验证证据时才能标记 `release-ready`；否则使用 `blocked`、`unverified` 或 `external-required`。
