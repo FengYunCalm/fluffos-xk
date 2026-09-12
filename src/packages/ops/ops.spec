@@ -73,3 +73,4 @@ operator parse_command;
 operator new_class, new_empty_class;
 operator expand_varargs;
 operator type_check;
+operator lor_eq, land_eq, nullish, nullish_eq, assign_value;
