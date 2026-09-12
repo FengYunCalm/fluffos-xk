@@ -25,11 +25,13 @@
 
 using Clock = std::chrono::steady_clock;
 
-#if defined(__GLIBC__) && defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 33)
-#include <malloc.h>
-#define FLUFFOS_HAVE_MALLINFO2 1
-#else
 #define FLUFFOS_HAVE_MALLINFO2 0
+#if defined(__GLIBC__) && defined(__GLIBC_PREREQ)
+#if __GLIBC_PREREQ(2, 33)
+#include <malloc.h>
+#undef FLUFFOS_HAVE_MALLINFO2
+#define FLUFFOS_HAVE_MALLINFO2 1
+#endif
 #endif
 
 // Only meaningful with glibc malloc (uordblks is 0 under jemalloc,

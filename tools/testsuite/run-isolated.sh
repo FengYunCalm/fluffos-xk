@@ -337,7 +337,10 @@ while [ "$RC" -ne 0 ] && [ "$ROUND" -lt "$MAX_ROUNDS" ]; do
   if [ "$KEEP" -eq 1 ]; then
     echo "driver log: $DRIVER_LOG"
   else
-    # Show enough of the log to include the first failure and its trace before cleanup.
+    # Show failure signatures and enough of the log to include the trace before cleanup.
+    echo "diagnostic matches:"
+    { grep -E -i "Assertion .*failed|assertion .*failed|AddressSanitizer|UndefinedBehaviorSanitizer|runtime error:|Driver BUG|double free|SIGABRT|Aborted" "$DRIVER_LOG" || true; } \
+      | tail -n 20 | sed 's/^/  | /'
     tail -n 80 "$DRIVER_LOG" | sed 's/^/  | /'
   fi
 

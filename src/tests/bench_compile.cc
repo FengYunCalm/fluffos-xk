@@ -61,7 +61,8 @@ static long peak_rss_kb() {
 }
 
 static int compile_one(const fs::path &f) {
-  int fd = open(f.c_str(), O_RDONLY);
+  const std::string filename = f.string();
+  int fd = open(filename.c_str(), O_RDONLY);
   if (fd < 0) {
     return -1;
   }
@@ -70,7 +71,7 @@ static int compile_one(const fs::path &f) {
   error_context_t econ{};
   save_context(&econ);
   try {
-    prog = compile_file(std::move(stream), f.c_str());
+    prog = compile_file(std::move(stream), filename.c_str());
     pop_context(&econ);
   } catch (...) {
     // error() threw (simulate.cc:2325); restore the error context like
@@ -137,8 +138,9 @@ int main(int argc, char **argv) {
     files.push_back(corpus_dir);
   }
   std::sort(files.begin(), files.end());
+  const std::string corpus_dir_string = corpus_dir.string();
   if (files.empty()) {
-    std::fprintf(stderr, "no corpus files under %s\n", corpus_dir.c_str());
+    std::fprintf(stderr, "no corpus files under %s\n", corpus_dir_string.c_str());
     return 2;
   }
 
@@ -184,7 +186,7 @@ int main(int argc, char **argv) {
   double degradation = head_mean > 0 ? tail_mean / head_mean : 0.0;
 
   std::printf("bench_compile: files=%zu rounds=%d corpus=%s\n", files.size(), rounds,
-              corpus_dir.c_str());
+              corpus_dir_string.c_str());
   std::printf("throughput: %.2f files/s (%.2f s total)\n", files.size() * rounds / total_secs,
               total_secs);
   std::printf("round_secs: median=%.4f p95=%.4f p99=%.4f min=%.4f max=%.4f\n", median, p95, p99,
