@@ -71,13 +71,6 @@ KNOWN_STALE = {
     "docs/driver/adding_efuns.md": {
         "src/packages/mypkg",
     },
-    # The objects are named in the plan as promisor/upstream objects, but are
-    # not present in a normal origin-only checkout.
-    "docs/implementation-release-execution-plan-2026-08.md": {
-        "735bd31fcd07aa3ec55cd6b0dca2f664544682eb",
-        "fbee17747bd5fd0b229e13d4da78bbc7912a0509",
-        "tools/lpc-syntax",
-    },
     # These are future fuzz corpus directories required by the design; Git
     # cannot represent their empty pre-populated state yet.
     "docs/recompile-object-special-design-2026-08.md": {

@@ -423,7 +423,7 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 
 ## `6cf257ce..735bd31f` 最终逐提交审计与当前复验
 
-本轮范围通过 `git log 6cf257ce..735bd31f` 核对为 **37 个提交**；候选 patch 已定向取证，未使用 bulk merge/cherry-pick。除明确延期的 Promise/stack-lvalue/external-handle 架构外，适用 hunk 已按本地调用者、生成链和 owner 边界逐项适配。逐 hunk 的详细锚点见 `docs/implementation-release-execution-plan-2026-08.md` 与 `docs/upstream-absorption-plan-d07e7641-735bd31f.md`。
+本轮范围通过 `git log 6cf257ce..735bd31f` 核对为 **37 个提交**；候选 patch 已定向取证，未使用 bulk merge/cherry-pick。除明确延期的 Promise/stack-lvalue/external-handle 架构外，适用 hunk 已按本地调用者、生成链和 owner 边界逐项适配。最终执行状态见 `docs/implementation-release-execution-plan-2026-08.md`；逐 hunk 取证仍见 `docs/upstream-absorption-plan-d07e7641-735bd31f.md`。
 
 | 结论 | 提交 |
 |---|---|
