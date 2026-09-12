@@ -21,7 +21,9 @@
 #include "compiler/internal/compile_arena.h"
 
 #include <fcntl.h>
+#if !defined(_WIN32)
 #include <sys/resource.h>
+#endif
 #include <unistd.h>
 
 #include <algorithm>
@@ -40,11 +42,22 @@ namespace fs = std::filesystem;
 using Clock = std::chrono::steady_clock;
 
 static long peak_rss_kb() {
+#if defined(_WIN32)
+  // The benchmark has no Windows-specific RSS dependency; report the metric
+  // as unavailable rather than requiring the optional PSAPI library.
+  return -1;
+#else
   struct rusage ru;
   if (getrusage(RUSAGE_SELF, &ru) != 0) {
     return -1;
   }
+#if defined(__APPLE__)
+  // macOS reports ru_maxrss in bytes; Linux reports kilobytes.
+  return ru.ru_maxrss / 1024;
+#else
   return ru.ru_maxrss;
+#endif
+#endif
 }
 
 static int compile_one(const fs::path &f) {

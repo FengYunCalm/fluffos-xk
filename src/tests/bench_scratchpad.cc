@@ -15,8 +15,6 @@
 #include "compiler/internal/compile_arena.h"
 #include "compiler/internal/scratchpad.h"
 
-#include <malloc.h>
-
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -27,11 +25,23 @@
 
 using Clock = std::chrono::steady_clock;
 
+#if defined(__GLIBC__) && defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2, 33)
+#include <malloc.h>
+#define FLUFFOS_HAVE_MALLINFO2 1
+#else
+#define FLUFFOS_HAVE_MALLINFO2 0
+#endif
+
 // Only meaningful with glibc malloc (uordblks is 0 under jemalloc,
-// which this project links by default); kept for glibc-only builds.
+// which this project links by default); keep the metric unavailable on
+// platforms without mallinfo2.
 static size_t heap_used() {
+#if FLUFFOS_HAVE_MALLINFO2
   struct mallinfo2 mi = mallinfo2();
   return mi.uordblks;
+#else
+  return 0;
+#endif
 }
 
 int main(int argc, char **argv) {

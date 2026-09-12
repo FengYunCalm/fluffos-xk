@@ -337,8 +337,8 @@ while [ "$RC" -ne 0 ] && [ "$ROUND" -lt "$MAX_ROUNDS" ]; do
   if [ "$KEEP" -eq 1 ]; then
     echo "driver log: $DRIVER_LOG"
   else
-    # Show the tail of the log for diagnostics before cleanup.
-    tail -n 20 "$DRIVER_LOG" | sed 's/^/  | /'
+    # Show enough of the log to include the first failure and its trace before cleanup.
+    tail -n 80 "$DRIVER_LOG" | sed 's/^/  | /'
   fi
 
   if [ "$RC" -ne 0 ] && [ "$BIND_FAIL" = "yes" ] && [ "$ROUND" -lt "$MAX_ROUNDS" ]; then
