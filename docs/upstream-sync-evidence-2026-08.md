@@ -431,7 +431,7 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 | 不单独吸收/当前没有可直接对应 hunk | `3d24d7ae`（被 `ed328800` 最终方案取代）、`4853debc`（仅格式）、`17d9d4f1`（本地无 `acatch`）、`1e74a758`（上游 DB fixture/diagnostic renderer 在本地不存在）、`c80ce56f`, `1da7a0b6`（lockfile 依赖节点不存在）、`b1745c82`（文档站布局不同） |
 | 明确延期，需先完成独立设计 | `858d5da9`, `de945701`, `e0ce7d26`, `134bebd7`, `7bcd22eb`, `b8dd5866`, `7c808c8b`, `735bd31f`（Promise/`T_PROMISE`、stack-lvalue ABI 或 external handle 尚无兼容本地基座） |
 
-最终本地验证（均针对待提交实现工作树；提交后仅做文档绑定更新）：
+最终本地验证（均针对实现提交 `e7044bf3`；本节本次只做文档绑定更新）：
 
 - Debug CTest：`ctest --test-dir build-dev-debug --output-on-failure` **449/449**，30.09 s；portable Release：**449/449**，14.42 s。
 - ASan：`ctest --test-dir build-asan --output-on-failure` **449/449**，85.43 s；include_list LPC 定向运行通过。
@@ -439,6 +439,6 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 - TSan：`setarch x86_64 -R ctest --test-dir build-tsan --output-on-failure` **449/449**，132.63 s；include_list LPC 定向运行通过。未加 `setarch` 的环境失败是 ThreadSanitizer unexpected-memory-mapping 启动限制，源码未作规避。
 - LPC testsuite：完整 `-ftest` 与 `tools/testsuite/run-isolated.sh --driver build-dev-debug/bin/driver` 均 exit 0，assertions `yes`，bind error `no`；最近 isolated 运行验证了四个独立 loopback 端口 `35859 39867 43163 45895`。
 - Gateway fuzz：Clang 18.1.3 真 libFuzzer smoke **256 inputs / 1024 frames**；真实 **10,000 runs** 保留 coverage **194**，无 sanitizer crash、无 artifact。`gateway_fuzz_smoke` 与真实 `gateway_fuzz` 已明确区分。
-- 生成与文档门禁：五个构建的 package headers SHA-256 均为 `b3ebe39f30544888ec22754930574ea339579ded3a11974b1288d2e4b1619fde`；`grammar.autogen.cc/.h` 已由本地 Bison 3.8.2 从 `grammar.y` 重生成，fallback 动作与构建树一致；`check-docs.py` **1125 Markdown**、`check-actions-pins.py` **14 actions / 2 digests**、`check-workflows.py`、`test-evidence-gate.py` 均通过；`git diff --check` 无输出。
+- 生成与文档门禁：五个构建的 `packages_missing_efuns.autogen.h` SHA-256 均为 `b3ebe39f30544888ec22754930574ea339579ded3a11974b1288d2e4b1619fde`；`grammar.autogen.cc/.h` 已由本地 Bison 3.8.2 从 `grammar.y` 重生成，fallback 动作与构建树一致；`check-docs.py` **1125 Markdown**、`check-actions-pins.py` **14 actions / 2 digests**、`check-workflows.py`、`test-evidence-gate.py` 均通过；`git diff --check` 无输出。
 
-已知限制仍不变：空 evidence 目录的 `check-evidence.py` 继续 fail-closed（`FAIL: no reports to check`）；live GitHub/registry、签名/provenance、Docker daemon、生产规模容量及 macOS/Windows/Ubuntu system-Clang 矩阵未执行。不能据此宣称 release-ready。实现提交后将以独立文档提交绑定本节的精确 commit SHA。
+已知限制仍不变：空 evidence 目录的 `check-evidence.py` 继续 fail-closed（`FAIL: no reports to check`）；live GitHub/registry、签名/provenance、Docker daemon、生产规模容量及 macOS/Windows/Ubuntu system-Clang 矩阵未执行。不能据此宣称 release-ready。本实现与本地验证绑定到 `e7044bf3`；本次文档绑定更新另行提交。
