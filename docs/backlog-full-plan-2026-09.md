@@ -25,6 +25,21 @@ gtest 425/425 + ftest 444/444）。S16 的 libwebsockets **本地已是 4.5.8**
 
 ---
 
+## 执行状态（2026-09 收口）
+
+| 批次 | 状态 | 证据 |
+| --- | --- | --- |
+| P0 | 已完成 | 各单元的 C++/LPC 回归测试与提交记录 |
+| P1 | 已完成 | ops/math/foreach/bit 回归 + 全量 ftest |
+| P2 | 已完成 | compress/嵌套释放/深度限制/load_object 回归 + ASan |
+| P3 | 已完成 | parser/lex/member_array/remove_action/ws 等回归 + live ws smoke |
+| P4 | 已完成 | S16 live ws/wss smoke（docs/evidence/s16-ws-wss-smoke.md）、T1/T2/T4/E1/E3-v2 合同测试 |
+| P4-7 (E2 fuzz) | blocked-env | 需要 afl-clang-fast，本机不存在；corpus 就绪 |
+| P5 | 已完成 | E3 v2/L7/C-S2 状态改写 + lpcshell 前置修订 |
+| P6 | 已完成 | T3.1-T3.4（docs/evidence/t3-*.md）+ L7 master 轮次（docs/evidence/l7-master-reload-rounds.md） |
+| P7 | 已完成 | num_varargs 契约、libevent 跨线程 self-pipe、LSan 归零（P7-1/2/3 提交） |
+| P8 | external-required（记录已产出） | docs/external-required-readiness-2026-09.md |
+
 ## 1. P0 批次：远程/普通 LPC 可触发的内存损坏（7 项，约 1.5 天）
 
 ### P0-1 PORT_TYPE_ASCII 缓冲溢出【最高危·远程可触发】

@@ -86,7 +86,9 @@
   heartbeat 生存性、master/simul_efun 支持、replace_program 交互），本地移植需
   专项设计审计（owner shard program pin 并发、跨 owner 引用、失败原子性），
   照搬风险过高。按方案 §6.1 条款保持 blocked，待专项设计。
-- **T3 lpcshell**：已授权，未实施——依赖上游 #1343 scratchpad/结构化诊断基建
+- **T3 lpcshell**：**已实施**（T3.1 ScratchArena 会话作用域、T3.2 结构化诊断记录、
+  T3.3 渲染栈 = E4、T3.4 lpcshell 二进制）——证据 docs/evidence/t3-1-scratch-arena.md、
+  t3-2-structured-diagnostics.md、t3-3-diagnostic-rendering.md、t3-4-lpcshell.md
   （本地 P3 判定不适用），无可移植的独立载体。
 - **push**：已执行（除最后一个 commit 外全部推送；最终收尾后补推）
 
@@ -236,7 +238,8 @@ blueprint fixture（/clone/recompile_blueprint.c）+ self_reload 探针。
   `docs/evidence/e3-v2-phase1-simul-efun-reload.md`，B-S3 四件套 gtest +
   删除函数名的运行期报错合同测试）；`__INIT`/`create()` 期重载仍按
   Phase 2 设计保留
-- T3 lpcshell / E4：由 P6 批次实施（诊断基建 + REPL），完成后改写本节
+- T3 lpcshell / E4：**已由 P6 批次实施**（T3.1-T3.4 + L7 扩展）；external-required
+  项的就绪记录见 docs/external-required-readiness-2026-09.md
 
 ---
 
