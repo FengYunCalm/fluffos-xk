@@ -104,6 +104,10 @@ struct GatewayIngressSequenceState {
   std::string stream_id;
   uint64_t last_accepted{0};
   int owner_fd{kGatewayIngressUnownedFd};
+  // A fresh Driver has no durable copy of the Gateway stream sequence. The
+  // first valid frame establishes the recovered baseline; subsequent frames
+  // remain strictly contiguous.
+  bool process_restart_bootstrap_pending{false};
 };
 
 GatewayIngressSequenceState g_gateway_ingress_sequence;
@@ -111,6 +115,7 @@ GatewayIngressSequenceState g_gateway_ingress_sequence;
 enum class GatewayIngressSequenceDecision : uint8_t {
   kLegacy,
   kAccept,
+  kAcceptAfterProcessRestart,
   kDuplicate,
   kReject,
 };
@@ -745,6 +750,7 @@ bool gateway_begin_ingress_stream(int fd, const std::string &stream_id) {
   if (stream_id == g_gateway_ingress_sequence.stream_id) {
     return true;
   }
+  const bool fresh_process_stream = g_gateway_ingress_sequence.stream_id.empty();
   auto master_it = g_gateway_masters.find(fd);
   if (master_it != g_gateway_masters.end() && master_it->second) {
     master_it->second->ingress_ack_pending = false;
@@ -752,6 +758,8 @@ bool gateway_begin_ingress_stream(int fd, const std::string &stream_id) {
   }
   g_gateway_ingress_sequence.stream_id = stream_id;
   g_gateway_ingress_sequence.last_accepted = 0;
+  g_gateway_ingress_sequence.process_restart_bootstrap_pending =
+      fresh_process_stream;
   g_gateway_runtime_counters.ingress_sequence_stream_resets.fetch_add(
       1, std::memory_order_relaxed);
   return true;
@@ -790,6 +798,9 @@ GatewayIngressSequenceDecision gateway_classify_ingress_sequence(
     g_gateway_runtime_counters.ingress_sequence_duplicates.fetch_add(
         1, std::memory_order_relaxed);
     return GatewayIngressSequenceDecision::kDuplicate;
+  }
+  if (g_gateway_ingress_sequence.process_restart_bootstrap_pending) {
+    return GatewayIngressSequenceDecision::kAcceptAfterProcessRestart;
   }
   if (incoming != g_gateway_ingress_sequence.last_accepted + 1) {
     g_gateway_runtime_counters.ingress_sequence_gaps.fetch_add(
@@ -1089,8 +1100,10 @@ void gateway_handle_data(int fd, const nlohmann::json &msg) {
   if (accepted) {
     g_gateway_runtime_counters.data_frames_applied.fetch_add(
         1, std::memory_order_relaxed);
-    if (ingress_decision == GatewayIngressSequenceDecision::kAccept) {
+    if (ingress_decision == GatewayIngressSequenceDecision::kAccept
+        || ingress_decision == GatewayIngressSequenceDecision::kAcceptAfterProcessRestart) {
       g_gateway_ingress_sequence.last_accepted = ingress_sequence;
+      g_gateway_ingress_sequence.process_restart_bootstrap_pending = false;
       gateway_queue_ingress_ack(fd);
     }
   } else {
