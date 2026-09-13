@@ -46,6 +46,24 @@ libevent `event_new()`，与主线程事件循环竞争 libevent 的调试标志
 | `d41f000f` #1394 Coverity 四项 | CLOEXEC **已吸收**；icode REVERSE_INULL 本地写法更保守**不适用**；cancelled-reason 本地无该功能**不适用** | 部分已吸收（前一批） |
 | `070724d1` #1385 total_lines | **不适用**：本地 `simulate.cc` 在 load 后消费并清零，`compile_file` 不保存/恢复，无上游的归零 bug | 无需动作 |
 | `de945701` async/await Coverity | **不适用**：涉及 `cycles.cc`，本库无此文件（#1276 产物） | 无需动作 |
+| `04fd64b4` socket_write T_ARRAY 发送未初始化堆内存 | **本地确实存在**（吸收矩阵遗漏项；S5 记录的 socket 修复来自 `d9171788`，是另一处） | **已实施**：`default` 分支 memset 初始化槽位 |
+
+### 内存安全专项核实结论（2026-09-13）
+
+初版建议的"内存安全专项"清单（10 项）逐项核实后关闭：
+
+- `ec9b6a4a`、`948b49ed`、`98f09f3d`、`d9171788`、`b1fb96f3`、`a540f77d`、
+  `7af5c3ff`、`070724d1`、`990f7b12`、`de945701`——**全部已吸收或确认不适用**。
+  依据：S1/S2/S5/S7/S13 批次的 accepted 记录，加上代码级抽查（拼接 UAF 守卫
+  `f_add: str ob` 2 处在位；`restore_stat_list` 以 `std::ifstream` + 宽度限
+  制实现等价保护；local-index 守卫 5 处均为正确符号）。
+- `04fd64b4`（socket_write T_ARRAY）——吸收矩阵遗漏，本地缺陷确认存在，已
+  修复并随本批提交。
+
+关键事实：`6cf257ce..735bd31f`（37 提交吸收范围）已覆盖本清单全部 10 项；
+`735bd31f..upstream/master` 仅剩 3 笔（`d41f000f`/`63e8a0cb`/`070724d1`）且均
+已在前一批处置。**上游积压为 0**——"内存安全专项"无需排期；候选池只作为未来
+上游新增修复时的核对起点，逐条按本节流程核实即可。
 
 ### 后续吸收策略
 

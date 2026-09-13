@@ -2,6 +2,10 @@
 
 ## Current self-use baseline (independent fork)
 
+- Sockets: `socket_write()` initializes the skipped slot of a T_ARRAY binary
+  send, so an array containing non-numeric elements no longer transmits
+  uninitialized heap memory to the remote peer (upstream 04fd64b4, the one
+  candidate the earlier absorption matrix had missed).
 - Sockets: `lpc_socks_closeall()` releases each entry through `socket_close()`
   instead of only closing the descriptor, so the TLS context, the SSL object,
   and the libevent watches are freed at shutdown. LeakSanitizer no longer
