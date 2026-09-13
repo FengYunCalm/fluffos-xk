@@ -90,7 +90,7 @@ C 单元的当前定向证据：Debug/ASan/UBSan/TSan `lpc_tests` 外部 Promise
 `setarch x86_64 -R`。未在本机执行 Windows/macOS runtime，不能把本地
 Linux 结果写成跨平台证据。
 
-D：提交 `81118ce2` 完成 object-store 收口。driver 的规范化 live-name
+D：提交 `012ae728` 完成 object-store 收口。driver 的规范化 live-name
 lookup 先路由到 owner shard 的 `local_records`、`local_objects` 和
 `object_path_index`；本地 store 未启用或缺少记录时才回退到 `ObjectTable`
 兼容索引。`ObjectTable` 的 children、insert/remove 和 legacy fallback 用途
