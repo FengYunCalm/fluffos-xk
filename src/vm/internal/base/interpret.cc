@@ -117,6 +117,34 @@ FLUFFOS_VM_THREAD_LOCAL short int caller_type;
 FLUFFOS_VM_THREAD_LOCAL int tracedepth;
 FLUFFOS_VM_THREAD_LOCAL int num_varargs;
 
+/* Extra leading arguments produced by the "..." expansion marker (F_PUSH_ARRAY
+ * counts them here; the consuming opcode carries the fixed count in its
+ * operand byte). Every opcode that consumes varargs must drain the counter
+ * exactly once, so the six consumers below call consume_num_varargs() instead
+ * of writing `num_varargs = 0` themselves, and the interpreter's frame-pop
+ * paths DEBUG_CHECK that nothing was left behind. A new consuming opcode that
+ * forgets to drain -- or a producer left without a consumer -- then fails
+ * loudly instead of silently shifting a later argument count. */
+constexpr const char *kNumVarargsConsumerOpcodes[] = {
+    "F_AGGREGATE", "F_AGGREGATE_ASSOC", "F_CALL_FUNCTION_BY_ADDRESS",
+    "F_CALL_INHERITED", "F_SIMUL_EFUN", "F_EFUNV",
+};
+
+static inline int consume_num_varargs() {
+  int const extra = num_varargs;
+  num_varargs = 0;
+  return extra;
+}
+
+#ifdef DEBUG
+/* Called where a frame is left: the varargs must have been consumed by then. */
+static inline void debug_check_num_varargs_consumed(const char *where) {
+  if (num_varargs != 0) {
+    fatal("Program BUG: %d unconsumed varargs at %s.\n", num_varargs, where);
+  }
+}
+#endif
+
 /*
  * Inheritance:
  * An object X can inherit from another object Y. This is done with
@@ -1576,6 +1604,9 @@ extern int playerchanged;
 
 void pop_control_stack() {
   DEBUG_CHECK(csp == (control_stack - 1), "Popped out of the control stack\n");
+#ifdef DEBUG
+  debug_check_num_varargs_consumed("pop_control_stack");
+#endif
 #ifdef PROFILE_FUNCTIONS
   if ((csp->framekind & FRAME_MASK) == FRAME_FUNCTION) {
     long secs, usecs, dsecs;
@@ -3476,8 +3507,7 @@ void eval_instruction(char *p) {
         array_t *v;
 
         LOAD_SHORT(offset, pc);
-        offset += num_varargs;
-        num_varargs = 0;
+        offset += consume_num_varargs();
         v = allocate_empty_array(offset);
         /*
          * transfer svalues in reverse...popping stack as we go
@@ -3492,8 +3522,7 @@ void eval_instruction(char *p) {
 
         LOAD_SHORT(offset, pc);
 
-        offset += num_varargs;
-        num_varargs = 0;
+        offset += consume_num_varargs();
         m = load_mapping_from_aggregate(sp -= offset, offset);
         push_refed_mapping(m);
         break;
@@ -3644,8 +3673,7 @@ void eval_instruction(char *p) {
           error("Undefined function called: %s\n", function_name(current_object->prog, offset));
         }
 
-        auto pushed_args = EXTRACT_UCHAR(pc++) + num_varargs;
-        num_varargs = 0;
+        auto pushed_args = EXTRACT_UCHAR(pc++) + consume_num_varargs();
 
         auto result = get_function_at_index(current_object->prog, offset);
         auto *progp = result.first;
@@ -3683,8 +3711,7 @@ void eval_instruction(char *p) {
 
         LOAD_SHORT(offset, pc);
 
-        int pushed_args = EXTRACT_UCHAR(pc++) + num_varargs;
-        num_varargs = 0;
+        int pushed_args = EXTRACT_UCHAR(pc++) + consume_num_varargs();
         bool inherited_is_async = false;
 
         /* `::`-qualified calls must fill default arguments exactly like
@@ -4499,8 +4526,7 @@ void eval_instruction(char *p) {
         int num_args;
 
         LOAD_SHORT(sindex, pc);
-        num_args = EXTRACT_UCHAR(pc++) + num_varargs;
-        num_varargs = 0;
+        num_args = EXTRACT_UCHAR(pc++) + consume_num_varargs();
         call_simul_efun(sindex, num_args);
       } break;
       case F_SWITCH:
@@ -4624,8 +4650,7 @@ void eval_instruction(char *p) {
         break;
       case F_EFUNV: {
         LOAD_SHORT(instruction, pc);
-        st_num_arg = EXTRACT_UCHAR(pc++) + num_varargs;
-        num_varargs = 0;
+        st_num_arg = EXTRACT_UCHAR(pc++) + consume_num_varargs();
 
         if (st_num_arg < instrs[instruction].min_arg) {
           error("Too few arguments to EFUN %s()\n", instrs[instruction].name);
@@ -5705,6 +5730,10 @@ void restore_context(error_context_t *econ) {
 #endif
   /* unwind the command_giver stack to the saved position */
 
+  // An error can interrupt a vararg expansion between the producer and the
+  // consuming opcode; the pending count belongs to the aborted expression and
+  // must not survive the unwind (it would then trip the frame-pop check).
+  num_varargs = 0;
   while (csp > econ->save_csp) {
     pop_control_stack();
   }
