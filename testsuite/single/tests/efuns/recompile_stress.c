@@ -15,8 +15,14 @@
 #define N_WORKERS 4
 #define ROUNDS 5
 #define PER_ROUND 200
+// L7 extension (E3 v2): rounds that hot-reload the master object, the target the
+// v1 gate used to reject. The master is the object every apply goes through, so
+// a swap here exercises the caches the v2 work rebuilt (apply cache, master
+// applies) rather than a leaf object's variables.
+#define MASTER_ROUNDS 3
 
 int total_recompiles;
+int master_recompiles;
 // Kept as an assertion slot for future stress extensions (no increment
 // path in the current synchronous form; ASSERT_EQ(0, failures) below is
 // the canary).
@@ -53,10 +59,26 @@ void do_tests_p6() {
       ok = 0;
       break;
     }
+    // Every round also attempts the master target. The reload must be refused
+    // while the master's own program is executing (this test runs through
+    // master applies), which is the protection that keeps an executing target
+    // consistent rather than a v1 gate. The master-target rounds that can run
+    // are driven from the driver side, where the master is not on the stack:
+    // DriverTest.TestMasterReloadStressRounds (12 rounds, apply cache and
+    // authorization apply verified after every swap).
+    if (r < MASTER_ROUNDS) {
+      mixed master_err = catch(recompile_object(master()));
+      if (!stringp(master_err) || strsrch(master_err, "target program is executing") == -1) {
+        ok = 0;
+        break;
+      }
+      master_recompiles++;
+    }
   }
 
   ASSERT_EQ(1, ok);
   ASSERT_EQ(ROUNDS * PER_ROUND, total_recompiles);
+  ASSERT_EQ(MASTER_ROUNDS, master_recompiles);
   ASSERT_EQ(0, failures);
   ASSERT_EQ(7, blueprint->get_value());  // blueprint variables stable
 
@@ -70,8 +92,9 @@ void do_tests_p6() {
 
   // Terminal proof line: shows the reload round actually ran (a silently
   // skipped do_tests_p6 would leave total_recompiles at 0).
-  write(sprintf("recompile_stress: %d recompiles ok, %d failures, %d workers\n",
-                total_recompiles, failures, N_WORKERS));
+  write(sprintf("recompile_stress: %d recompiles ok, %d master targets refused while executing,"
+                " %d failures, %d workers\n",
+                total_recompiles, master_recompiles, failures, N_WORKERS));
 }
 
 void do_tests() {

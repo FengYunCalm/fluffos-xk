@@ -26670,6 +26670,65 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
   free_prog(&orig_prog);  // our pin
 }
 
+// L7 extension (E3 v2): master-target rounds under repetition. The single
+// TestMasterReloadSuccess above proves one swap; this proves the master stays
+// functionally reloadable round after round - every round must publish a new
+// program, keep the apply lookup resolvable for it and keep the standard master
+// authorization apply working. It is the driver-side counterpart of the LPC
+// contract's note that a reload cannot run while the target program is
+// executing.
+TEST_F(DriverTest, TestMasterReloadStressRounds) {
+  ASSERT_NE(master_ob, nullptr);
+  program_t *orig_prog = master_ob->prog;
+  ASSERT_NE(orig_prog, nullptr);
+  orig_prog->ref++;  // pin for the restore below
+
+  constexpr int kRounds = 12;
+  std::vector<program_t *> published;
+
+  for (int round = 0; round < kRounds; round++) {
+    RecompilePrepared prep;
+    prep.staged = compile_program_for_recompile(master_ob);
+    ASSERT_NE(prep.staged.prog, nullptr) << "round " << round;
+    prep.old_layout = describe_recompile_layout(master_ob->prog);
+    prep.new_layout = describe_recompile_layout(prep.staged.prog);
+    prep.admission_diff = classify_recompile_layout(prep.old_layout, prep.new_layout);
+    ASSERT_TRUE(prep.admission_diff.migratable()) << "round " << round;
+
+    start_recompile_transaction(master_ob, RecompileTargetKind::Master, &prep);
+    ASSERT_EQ(prep.targets.size(), 1u) << "round " << round;
+    prepare_variable_migrations(&prep);
+    prep.commit_swap();
+    ASSERT_TRUE(prep.run_create_guarded()) << "round " << round;
+    prep.commit_finish();
+
+    ASSERT_EQ(master_ob->prog, prep.staged.prog) << "round " << round;
+    published.push_back(prep.staged.prog);
+
+    // The rebuilt apply cache must resolve for the program this round published.
+    lookup_entry_s entry = apply_cache_lookup("valid_recompile_object", prep.staged.prog);
+    ASSERT_NE(entry.funp, nullptr) << "round " << round;
+
+    // And the master must still answer applies: the standard authorization
+    // path is what every reload depends on.
+    push_object(master_ob);
+    svalue_t *ret = safe_apply_master_ob(APPLY_VALID_RECOMPILE_OBJECT, 1);
+    ASSERT_NE(ret, nullptr) << "round " << round;
+    ASSERT_TRUE(MASTER_APPROVED(ret)) << "round " << round;
+    free_svalue(ret, "TestMasterReloadStressRounds");
+    *ret = const0;
+  }
+  ASSERT_EQ(published.size(), static_cast<size_t>(kRounds));
+
+  // Restore the original master program (transfers the object's reference and
+  // drops our pin), exactly like the single-reload test.
+  program_t *last_prog = master_ob->prog;
+  master_ob->prog = orig_prog;
+  orig_prog->ref++;
+  free_prog(&last_prog);
+  free_prog(&orig_prog);
+}
+
 // Quiescence accounting: a successful begin/end pair must increment
 // attempts and success (and never timeouts), proving the counters are
 // live on the success path (the pre-fix guard rejected before counting,
