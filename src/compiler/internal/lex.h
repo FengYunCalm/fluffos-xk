@@ -167,8 +167,10 @@ const macro_expansion_frame_t *macro_expansion_frame(int index);
  * after a macro body was spliced into the token stream, so these (not the
  * active frames) are what explains a diagnostic inside macro text; consumers
  * keep the entries whose line matches the diagnostic. */
-int recent_macro_expansion_count();
-/* Fills `out` with entry `index` (newest first); `out->name` points at a
- * lexer-owned buffer valid until the next call. */
-void recent_macro_expansion(int index, macro_expansion_frame_t *out);
+// Fills up to `capacity` frames of the macro expansion chain containing the
+// position, innermost first, and returns how many were filled. The pointers stay
+// valid until the next compile scope, which is the window a diagnostic record and
+// its rendering need. Returns 0 when the position is not inside spliced
+// expansion text.
+int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, int capacity);
 #endif

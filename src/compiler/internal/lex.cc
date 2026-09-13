@@ -121,64 +121,124 @@ const macro_expansion_frame_t *macro_expansion_frame(int index) {
   return &expands[index];
 }
 
-/* Completed expansions, newest first. A macro body is expanded into the token
- * stream before the parser sees it, so by the time an error is reported the
- * active frames are gone; this keeps the recent sites (with the line they
- * started on) so a diagnostic on that line can still explain where its text
- * came from. Bounded and line-filtered at record time, so no reset hook is
- * needed on every line change. */
-constexpr int kRecentExpansionCapacity = 8;
-constexpr size_t kRecentExpansionNameLength = 64;
-struct recent_expansion_t {
-  char name[kRecentExpansionNameLength];
-  // Owned copy: a frame's file pointer belongs to the file being compiled and
-  // is released when that file's compilation ends, while diagnostics are still
+/* Spliced macro expansions, newest first.
+ *
+ * A macro body is spliced into the input buffer and re-scanned before the parser
+ * sees it, so by the time a problem is reported the expansion frames are gone. A
+ * span records where the spliced text landed (single-line expansions only: a
+ * multi-line splice cannot be attributed with a column comparison, and guessing
+ * is worse than staying quiet), which macro produced it, where that macro was
+ * used, and the span it was expanded inside - a macro used inside another
+ * macro's text nests, so the chain is exact instead of a list of everything seen
+ * on the line. */
+constexpr int kExpansionSpanCapacity = 16;
+constexpr size_t kExpansionNameLength = 64;
+struct expansion_span_t {
+  bool used = false;
+  int line = 0;    // line the spliced text starts on
+  int column = 0;  // 1-based column of its first character
+  int length = 0;  // characters spliced
+  // Owned copies: a frame's file pointer belongs to the file being compiled and
+  // is released when that file's compilation ends, while diagnostics stay
   // readable until the next compile scope.
   std::string file;
-  int line;
-  int column;
+  int site_line = 0;
+  int site_column = 0;
+  char name[kExpansionNameLength] = {0};
+  int parent = -1;  // span this expansion happened inside, or -1
 };
-static recent_expansion_t recent_expansions[kRecentExpansionCapacity];
-static int recent_expansion_count = 0;
+static expansion_span_t expansion_spans[kExpansionSpanCapacity];
+static int expansion_span_head = -1;  // newest span index, -1 when empty
+
+// The frame of the expansion expand_define2() just finished, so the splice can
+// record which macro produced the text it is about to insert.
+static char last_expansion_name[kExpansionNameLength];
+static macro_expansion_frame_t last_expansion_frame{last_expansion_name, nullptr, 0, 0};
 
 static void note_completed_expansion(const macro_expansion_frame_t &frame) {
-  if (recent_expansion_count < kRecentExpansionCapacity) {
-    recent_expansion_count++;
-  }
-  for (int i = recent_expansion_count - 1; i > 0; i--) {
-    recent_expansions[i] = recent_expansions[i - 1];
-  }
-  recent_expansion_t &entry = recent_expansions[0];
-  entry.name[0] = '\0';
+  last_expansion_name[0] = '\0';
   if (frame.name != nullptr) {
     // The macro name points into the input buffer, which is reused long before
     // the diagnostic is reported: keep a copy.
-    strncpy(entry.name, frame.name, kRecentExpansionNameLength - 1);
-    entry.name[kRecentExpansionNameLength - 1] = '\0';
+    strncpy(last_expansion_name, frame.name, kExpansionNameLength - 1);
+    last_expansion_name[kExpansionNameLength - 1] = '\0';
   }
-  entry.file = frame.file != nullptr ? frame.file : "";
-  entry.line = frame.line;
-  entry.column = frame.column;
+  last_expansion_frame.file = frame.file;
+  last_expansion_frame.line = frame.line;
+  last_expansion_frame.column = frame.column;
 }
 
-int recent_macro_expansion_count() { return recent_expansion_count; }
+static void note_expansion_file_reset() {
+  for (auto &span : expansion_spans) {
+    span = expansion_span_t{};
+  }
+  expansion_span_head = -1;
+}
 
-void recent_macro_expansion(int index, macro_expansion_frame_t *out) {
-  static char name_buffer[kRecentExpansionNameLength];
-  if (out == nullptr) {
+// Index of the innermost span whose text contains the position, or -1.
+static int innermost_span_at(int line, int column) {
+  if (expansion_span_head < 0) {
+    return -1;
+  }
+  for (int step = 0; step < kExpansionSpanCapacity; step++) {
+    int const index =
+        (expansion_span_head - step + kExpansionSpanCapacity * 2) % kExpansionSpanCapacity;
+    expansion_span_t const &span = expansion_spans[index];
+    if (!span.used) {
+      break;
+    }
+    if (span.line == line && column >= span.column && column <= span.column + span.length) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+// Records the text expand_define() just spliced for the last completed frame.
+static void note_expansion_span(const char *text) {
+  if (text == nullptr || text[0] == '\0' || std::strchr(text, '\n') != nullptr) {
     return;
   }
-  *out = macro_expansion_frame_t{nullptr, nullptr, 0, 0};
-  if (index < 0 || index >= recent_expansion_count) {
-    return;
+  int const position = current_source_column();
+  int const parent = innermost_span_at(current_line, position);
+  int const next = expansion_span_head < 0 ? 0 : (expansion_span_head + 1) % kExpansionSpanCapacity;
+
+  expansion_span_t &span = expansion_spans[next];
+  span = expansion_span_t{};
+  span.used = true;
+  span.line = current_line;
+  span.column = position;
+  span.length = static_cast<int>(std::strlen(text));
+  span.file = last_expansion_frame.file != nullptr ? last_expansion_frame.file : "";
+  span.site_line = last_expansion_frame.line;
+  span.site_column = last_expansion_frame.column;
+  span.name[0] = '\0';
+  if (last_expansion_frame.name != nullptr) {
+    strncpy(span.name, last_expansion_frame.name, kExpansionNameLength - 1);
+    span.name[kExpansionNameLength - 1] = '\0';
   }
-  const recent_expansion_t &entry = recent_expansions[index];
-  strncpy(name_buffer, entry.name, sizeof(name_buffer) - 1);
-  name_buffer[sizeof(name_buffer) - 1] = '\0';
-  out->name = name_buffer;
-  out->file = entry.file.c_str();
-  out->line = entry.line;
-  out->column = entry.column;
+  span.parent = parent;
+  expansion_span_head = next;
+}
+
+int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, int capacity) {
+  if (out == nullptr || capacity <= 0) {
+    return 0;
+  }
+  // Pointers handed back stay valid until the next compile scope (the stored
+  // entries own their strings), which is what the diagnostic recorder needs.
+  int index = innermost_span_at(line, column);
+  int count = 0;
+  while (index >= 0 && count < capacity) {
+    expansion_span_t const &span = expansion_spans[index];
+    out[count].name = span.name;
+    out[count].file = span.file.empty() ? nullptr : span.file.c_str();
+    out[count].line = span.site_line;
+    out[count].column = span.site_column;
+    count++;
+    index = span.parent;
+  }
+  return count;
 }
 
 char yytext[MAXLINE];
@@ -3100,6 +3160,7 @@ int parseStringLiteral(unsigned char c) {
 extern YYSTYPE yylval;
 
 void end_new_file() {
+  note_expansion_file_reset();
   /* The macro-expansion scratch is per-compile state that used to survive a
    * compile that ended in error(): the remaining expand_depth entries pin
    * text that the arena is about to reclaim, and the next file would start
@@ -4493,6 +4554,7 @@ int expand_define(void) {
 
   if ((expand_buffer = expand_define2(yytext)) != nullptr) {
     add_input(expand_buffer);
+    note_expansion_span(expand_buffer);
     FREE(expand_buffer);
     return 1;
   }

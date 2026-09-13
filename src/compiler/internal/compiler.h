@@ -303,6 +303,13 @@ char *allocate_in_mem_block(int, int);
 // Log errors during compiling
 void smart_log(const char *, int, const char *, int);
 
+// A consumer that renders the structured diagnostics itself (lpcshell) turns the
+// compiler's traditional text path off, so each problem is reported once. The
+// structured records are produced either way; only the text output and the
+// master's log_error apply are silenced. The driver never calls this.
+void compiler_set_text_log_suppressed(bool suppressed);
+bool compiler_text_log_suppressed();
+
 // FIXME: 'inherit_file' is used as a flag.
 extern char *inherit_file;
 

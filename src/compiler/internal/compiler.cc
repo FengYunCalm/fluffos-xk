@@ -3006,28 +3006,21 @@ static void record_compile_diagnostic(const char *message, int warning) {
   source.message = message;
   source.show_context = (pragmas & PRAGMA_ERROR_CONTEXT) != 0;
 
-  // A diagnostic inside a macro body points at the macro definition; the
-  // expansion frames explain where the body was used (T3.3 renders them).
+  // Only a diagnostic whose position falls inside spliced expansion text is
+  // attributed to a macro: an unrelated warning on a line that also expanded
+  // something must not carry a misleading note chain.
   constexpr int kMaxExpansionSites = 16;
   compiler_diag::ExpansionSite sites[kMaxExpansionSites];
-  int site_count = 0;
-  // Outermost first: the frame that started on this line is the reason the
-  // text exists, the frames nested inside it explain the rest.
-  int const recent = recent_macro_expansion_count();
-  for (int i = recent - 1; i >= 0 && site_count < kMaxExpansionSites; i--) {
-    macro_expansion_frame_t frame{};
-    recent_macro_expansion(i, &frame);
-    // The scanner may have consumed the newline that ends the expanded line
-    // before the parser reports, so accept the frame's line or the next one.
-    if (frame.name == nullptr || frame.name[0] == '\0' || frame.line < current_line - 1 ||
-        frame.line > current_line) {
-      continue;
-    }
-    sites[site_count].name = frame.name;
-    sites[site_count].file = frame.file;
-    sites[site_count].line = frame.line;
-    sites[site_count].column = frame.column;
-    site_count++;
+  macro_expansion_frame_t chain[kMaxExpansionSites];
+  int site_count = macro_expansion_chain(source.line, source.column, chain, kMaxExpansionSites);
+  // The lexer hands back the innermost expansion first; the renderer reads the
+  // chain from the outermost (the macro the user wrote) inward.
+  for (int i = 0; i < site_count; i++) {
+    macro_expansion_frame_t const &frame = chain[site_count - 1 - i];
+    sites[i].name = frame.name;
+    sites[i].file = frame.file;
+    sites[i].line = frame.line;
+    sites[i].column = frame.column;
   }
   source.expansion_sites = site_count > 0 ? sites : nullptr;
   source.expansion_count = site_count;
@@ -3038,7 +3031,23 @@ static void record_compile_diagnostic(const char *message, int warning) {
  * There is an error in a specific file. Ask the MudOS driver to log the
  * message somewhere.
  */
+namespace {
+// T3.4: a consumer that renders the structured diagnostics itself (lpcshell)
+// silences the text path so the same problem is not reported twice. The
+// records are produced either way.
+bool g_compile_text_log_suppressed = false;
+}  // namespace
+
+void compiler_set_text_log_suppressed(bool suppressed) {
+  g_compile_text_log_suppressed = suppressed;
+}
+
+bool compiler_text_log_suppressed() { return g_compile_text_log_suppressed; }
+
 void smart_log(const char *error_file, int line, const char *what, int flag) {
+  if (g_compile_text_log_suppressed) {
+    return;
+  }
   auto logs = prepare_logs(error_file, line, what, flag, pragmas & PRAGMA_ERROR_CONTEXT);
   for (auto &log : logs) {
     debug_message("%s", log.c_str());

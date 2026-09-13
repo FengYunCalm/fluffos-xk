@@ -27287,6 +27287,125 @@ LpccCliResult RunLpccCli(const std::string &args) {
 }
 }  // namespace
 
+// T3.4: runs the interactive shell with `input` on stdin. Prompt output is
+// tty-only, so piped runs see exactly the diagnostics and command output.
+LpccCliResult RunLpcshellCli(const std::string &args, const std::string &input) {
+  LpccCliResult result;
+  const auto build_dir = LpccTestBuildDir();
+  if (build_dir.empty()) {
+    return result;
+  }
+  const auto mudlib = std::filesystem::path(build_dir).parent_path() / "testsuite";
+  const auto shell = std::filesystem::path(build_dir) / "bin" / "lpcshell";
+  if (!std::filesystem::exists(shell) || !std::filesystem::exists(mudlib / "etc" / "config.test")) {
+    return result;
+  }
+  const auto input_path = std::filesystem::path(build_dir) / "lpcshell_input.txt";
+  {
+    std::ofstream out(input_path, std::ios::binary | std::ios::trunc);
+    if (!out.good()) {
+      return result;
+    }
+    out << input;
+  }
+  const std::string command = "cd '" + mudlib.string() + "' && '" + shell.string() + "' " + args +
+                              " < '" + input_path.string() + "' 2>&1";
+  FILE *pipe = popen(command.c_str(), "r");
+  if (pipe != nullptr) {
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+      result.output += buffer;
+    }
+    int const status = pclose(pipe);
+    result.exit_code = WEXITSTATUS(status);
+  }
+  std::error_code ec;
+  std::filesystem::remove(input_path, ec);
+  return result;
+}
+
+TEST_F(DriverTest, TestLpcshellInteractiveContract) {
+  const std::string cfg = "etc/config.test";
+
+  // Error, structured rendering, recovery, diagnostics replay and clean exit.
+  {
+    const std::string input =
+        "void create() {\n  int x = ;\n}\n#diagnostics\n#style traditional\n"
+        "#diagnostics\n#nope\nvoid create() { }\n#quit\n";
+    auto const result = RunLpcshellCli(cfg, input);
+    if (result.exit_code == -1) {
+      GTEST_SKIP() << "lpcshell is not built in this build directory";
+    }
+    EXPECT_EQ(result.exit_code, 0) << result.output;
+    // clang style: location, snippet and caret for the failing line.
+    EXPECT_NE(result.output.find("tmp_eval_file.c:2:12: error: syntax error"), std::string::npos)
+        << result.output;
+    EXPECT_NE(result.output.find("  int x = ;"), std::string::npos) << result.output;
+    EXPECT_NE(result.output.find("compile failed"), std::string::npos) << result.output;
+    // #diagnostics replays the same record, in the traditional shape after the
+    // style switch, without the driver printing a second copy.
+    EXPECT_NE(result.output.find("/tmp_eval_file.c line 2: syntax error"), std::string::npos)
+        << result.output;
+    size_t const occurrences = [&result] {
+      size_t count = 0, pos = 0;
+      while ((pos = result.output.find("syntax error, unexpected ';'", pos)) != std::string::npos) {
+        count++;
+        pos += 1;
+      }
+      return count;
+    }();
+    // Three renders: the compile's own report, then two #diagnostics replays.
+    EXPECT_EQ(occurrences, 3u) << result.output;
+    // Error recovery: the valid program after the failure compiles.
+    EXPECT_NE(result.output.find("compiled:"), std::string::npos) << result.output;
+    // Unknown commands are reported and the shell keeps running.
+    EXPECT_NE(result.output.find("unknown command '#nope'"), std::string::npos) << result.output;
+  }
+
+  // Multi-line continuation: an unbalanced brace keeps the input open.
+  {
+    auto const result = RunLpcshellCli(cfg, "void create() {\n}\n#quit\n");
+    ASSERT_NE(result.exit_code, -1) << result.output;
+    EXPECT_EQ(result.exit_code, 0) << result.output;
+    EXPECT_NE(result.output.find("compiled:"), std::string::npos) << result.output;
+    EXPECT_EQ(result.output.find("syntax error"), std::string::npos) << result.output;
+  }
+
+  // Batch mode: a compiling file exits 0, a broken one exits 1 with a
+  // diagnostic that names the host path (testsuite sources are not standalone:
+  // they use the testsuite's simul_efun helpers, so the fixtures live in the
+  // build directory).
+  {
+    const auto build_dir = LpccTestBuildDir();
+    ASSERT_FALSE(build_dir.empty());
+
+    const auto good = std::filesystem::path(build_dir) / "lpcshell_good.c";
+    {
+      std::ofstream out(good, std::ios::binary | std::ios::trunc);
+      ASSERT_TRUE(out.good());
+      out << "void create() { }\nint run_twice(int value) { return value * 2; }\n";
+    }
+    auto const good_result = RunLpcshellCli(cfg + " " + good.string(), "");
+    std::error_code ec;
+    std::filesystem::remove(good, ec);
+    ASSERT_NE(good_result.exit_code, -1) << good_result.output;
+    EXPECT_EQ(good_result.exit_code, 0) << good_result.output;
+    EXPECT_EQ(good_result.output.find("error:"), std::string::npos) << good_result.output;
+
+    const auto broken = std::filesystem::path(build_dir) / "lpcshell_broken.c";
+    {
+      std::ofstream out(broken, std::ios::binary | std::ios::trunc);
+      ASSERT_TRUE(out.good());
+      out << "void create() {\n  int x = ;\n}\n";
+    }
+    auto const bad = RunLpcshellCli(cfg + " " + broken.string(), "");
+    std::filesystem::remove(broken, ec);
+    ASSERT_NE(bad.exit_code, -1) << bad.output;
+    EXPECT_EQ(bad.exit_code, 1) << bad.output;
+    EXPECT_NE(bad.output.find(":2:12: error: syntax error"), std::string::npos) << bad.output;
+  }
+}
+
 TEST_F(DriverTest, TestLpccCliArgumentMatrix) {
   const std::string cfg = "etc/config.test";
   const std::string good = "/single/tests/efuns/has_cycle";
