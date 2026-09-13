@@ -1901,6 +1901,16 @@ void move_object(object_t *item, object_t *dest) {
 
   if (!CONFIG_INT(__RC_NO_RESETS__) && CONFIG_INT(__RC_LAZY_RESETS__)) {
     try_reset(dest);
+    // try_reset() runs dest's reset() apply: arbitrary LPC that can destruct
+    // dest (or item) as an ordinary side effect. safe_apply() only catches
+    // error(), never destruction, so recheck here before linking anything --
+    // the objects are still on the destruction list at this point, so the
+    // flags are readable. Same shape as clone_object()'s guard after
+    // call_create().
+    if ((dest->flags & O_DESTRUCTED) || (item->flags & O_DESTRUCTED)) {
+      restore_command_giver();
+      return;
+    }
   }
 #ifndef NO_LIGHT
   add_light(dest, item->total_light);

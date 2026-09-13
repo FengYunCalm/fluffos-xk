@@ -17,6 +17,22 @@ static Vector *normalize_array(Vector *);
 static Vector *cross_product(Vector *, Vector *, Vector *);
 static Vector *points_to_array(Vector *, Vector *, Vector *);
 
+// #1247 MATRIX-1/MATRIX-2: these efuns validate and then read AND overwrite
+// matrix->item[i].u.real in place, but the spec's `float *` is only enforced
+// at compile time -- a `mixed` argument arrives unchecked, and a non-float
+// element would have its type/pointer union bits overwritten with a double.
+// Validate the array shape and every element once, before touching anything.
+static void check_transform_matrix(svalue_t *arg) {
+  if (arg->type != T_ARRAY || arg->u.arr->size < 16) {
+    error("matrix transform requires a 16-element array.\n");
+  }
+  for (int i = 0; i < 16; i++) {
+    if (arg->u.arr->item[i].type != T_REAL) {
+      error("matrix transform requires a 16-element float array.\n");
+    }
+  }
+}
+
 void f_id_matrix() {
   array_t *matrix;
   int i;
@@ -47,11 +63,7 @@ void f_translate() {
    * get arguments from stack.
    */
   matrix = (sp - 3)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 3);
   x = (sp - 2)->u.real;
   y = (sp - 1)->u.real;
   z = sp->u.real;
@@ -97,11 +109,7 @@ void f_scale() {
    * get arguments from stack.
    */
   matrix = (sp - 3)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 3);
   x = (sp - 2)->u.real;
   y = (sp - 1)->u.real;
   z = sp->u.real;
@@ -140,11 +148,7 @@ void f_rotate_x() {
    * get arguments from stack.
    */
   matrix = (sp - 1)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 1);
   angle = (sp--)->u.real;
   /*
    * convert vec matrix to float matrix.
@@ -180,11 +184,7 @@ void f_rotate_y() {
    * get arguments from stack.
    */
   matrix = (sp - 1)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 1);
   angle = (sp--)->u.real;
   /*
    * convert vec matrix to float matrix.
@@ -220,11 +220,7 @@ void f_rotate_z() {
    * get arguments from stack.
    */
   matrix = (sp - 1)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 1);
   angle = (sp--)->u.real;
   /*
    * convert vec matrix to float matrix.
@@ -265,11 +261,7 @@ void f_lookat_rotate() {
    * get arguments from stack.
    */
   matrix = (sp - 3)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 3);
   x = (sp - 2)->u.real;
   y = (sp - 1)->u.real;
   z = sp->u.real;
@@ -309,11 +301,7 @@ void f_lookat_rotate2(void) {
    * get arguments from stack.
    */
   matrix = (sp - 6)->u.arr;
-
-  // #1247 MATRIX-1: transform requires a 16-element array.
-  if (matrix->size < 16) {
-    error("matrix transform requires a 16-element array.\n");
-  }
+  check_transform_matrix(sp - 6);
   ex = (sp - 5)->u.real;
   ey = (sp - 4)->u.real;
   ez = (sp - 3)->u.real;

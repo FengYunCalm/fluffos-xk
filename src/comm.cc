@@ -1059,11 +1059,80 @@ void flush_message_all() {
  * Read pending data for a user into user->interactive->text.
  * This also does telnet negotiation.
  */
+/*
+ * Widen the free room at the end of ip->text, moving any not-yet-consumed
+ * input down and dropping what cannot be kept, then report how many bytes the
+ * next read may safely append there.  Every connection type that accumulates
+ * into ip->text must bound its read by this, never by the size of a local
+ * scratch buffer.
+ */
+static int comm_reserve_input_space(interactive_t *ip, size_t reserve) {
+  int text_space = sizeof(ip->text) - ip->text_end;
+
+  if (static_cast<size_t>(text_space) < reserve) {
+    if (ip->text_start > 0) {
+      memmove(ip->text, ip->text + ip->text_start, ip->text_end - ip->text_start);
+      text_space += ip->text_start;
+      ip->text_end -= ip->text_start;
+      ip->text_start = 0;
+    }
+    if (static_cast<size_t>(text_space) < reserve) {
+      ip->iflags |= SKIP_COMMAND;
+      ip->text_start = ip->text_end = 0;
+      text_space = sizeof(ip->text);
+    }
+  }
+
+  return text_space;
+}
+
+/*
+ * Append freshly read bytes to ip->text.  The copy itself is what would clip
+ * neighbouring fields of interactive_t on a mis-sized read, so the bound is
+ * enforced here rather than trusted from the caller's text_space computation.
+ * Returns the number of bytes actually stored.
+ */
+static int comm_append_input(interactive_t *ip, const unsigned char *data, int len) {
+  if (len <= 0) {
+    return 0;
+  }
+
+  int room = sizeof(ip->text) - ip->text_end;
+  if (len > room) {
+    debug_message("get_user_data: fd %d input overflow, dropping %d bytes.\n", ip->fd,
+                  len - room);
+    len = room;
+  }
+
+  memcpy(ip->text + ip->text_end, data, len);
+  ip->text_end += len;
+  return len;
+}
+
+/*
+ * Scratch space used to carry bytes out of the libevent input buffer before
+ * they are parsed into ip->text.  A MAX_TEXT sized array does not belong on
+ * the stack of a read callback frame, and interactive IO only ever runs on the
+ * main thread, so one process-wide buffer is enough.
+ */
+static unsigned char *comm_read_scratch() {
+  static std::unique_ptr<unsigned char[]> scratch(new unsigned char[MAX_TEXT]);
+  return scratch.get();
+}
+
+int comm_reserve_input_space_for_test(interactive_t *ip, size_t reserve) {
+  return comm_reserve_input_space(ip, reserve);
+}
+
+int comm_append_input_for_test(interactive_t *ip, const unsigned char *data, int len) {
+  return comm_append_input(ip, data, len);
+}
+
 void get_user_data(interactive_t *ip) {
   int num_bytes, text_space;
-  unsigned char buf[MAX_TEXT];
+  unsigned char *buf = comm_read_scratch();
 
-  text_space = sizeof(buf);
+  text_space = MAX_TEXT;
 
   debug(connections, "get_user_data: USER %d\n", ip->fd);
 
@@ -1073,22 +1142,10 @@ void get_user_data(interactive_t *ip) {
       // Impossible, we don't handle it here.
       break;
     case PORT_TYPE_TELNET:
-      text_space = sizeof(ip->text) - ip->text_end;
-
-      /* check if we need more space */
-      if (text_space < sizeof(ip->text) / 16) {
-        if (ip->text_start > 0) {
-          memmove(ip->text, ip->text + ip->text_start, ip->text_end - ip->text_start);
-          text_space += ip->text_start;
-          ip->text_end -= ip->text_start;
-          ip->text_start = 0;
-        }
-        if (text_space < sizeof(ip->text) / 16) {
-          ip->iflags |= SKIP_COMMAND;
-          ip->text_start = ip->text_end = 0;
-          text_space = sizeof(ip->text);
-        }
-      }
+    case PORT_TYPE_ASCII:
+      /* Both accumulate into ip->text at ip->text_end, so both must be
+       * bounded by the actual remaining room there. */
+      text_space = comm_reserve_input_space(ip, sizeof(ip->text) / 16);
       break;
 
     case PORT_TYPE_MUD:
@@ -1108,7 +1165,7 @@ void get_user_data(interactive_t *ip) {
       break;
 
     default:
-      text_space = sizeof(buf);
+      text_space = MAX_TEXT;
       break;
   }
 
@@ -1163,8 +1220,7 @@ void get_user_data(interactive_t *ip) {
       break;
     }
     case PORT_TYPE_MUD:
-      memcpy(ip->text + ip->text_end, buf, num_bytes);
-      ip->text_end += num_bytes;
+      comm_append_input(ip, buf, num_bytes);
 
       if (num_bytes == text_space) {
         if (ip->text_end == 4) {
@@ -1194,8 +1250,7 @@ void get_user_data(interactive_t *ip) {
     case PORT_TYPE_ASCII: {
       char *nl, *p;
 
-      memcpy(ip->text + ip->text_end, buf, num_bytes);
-      ip->text_end += num_bytes;
+      comm_append_input(ip, buf, num_bytes);
 
       p = ip->text + ip->text_start;
       while ((nl = reinterpret_cast<char *>(memchr(p, '\n', ip->text_end - ip->text_start)))) {

@@ -78,8 +78,11 @@ void on_user_input(interactive_t *ip, const char *data, size_t len);
 void on_user_websocket_received(interactive_t *ip, const char *data, size_t len);
 void on_user_websocket_telnet_received(interactive_t *ip, const char *data, size_t len);
 
-// C++ regression hook; not part of the LPC/runtime API.
+// C++ regression hooks; not part of the LPC/runtime API.
 bool decode_mud_port_payload_length_for_test(const char *header, size_t header_size,
                                              size_t *payload_length);
+int comm_reserve_input_space_for_test(struct interactive_t *ip, size_t reserve);
+int comm_append_input_for_test(struct interactive_t *ip, const unsigned char *data,
+                               int len);
 
 #endif /* COMM_H */

@@ -20,6 +20,10 @@ title: objects / reload_object
     similar effect to destructing/reloading the object,  however,  no  disk
     access or parsing is performed.
 
+    If 'ob' is already destructed -- or create() destructs the object while
+    reload_object() is running -- the call raises an error instead of
+    operating on a dead object.
+
 ### SEE ALSO
 
     export_uid(3), new(3), clone_object(3), destruct(3)

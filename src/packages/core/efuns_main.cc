@@ -1276,6 +1276,9 @@ void f_move_object() {
   /* get destination */
   if (sp->type == T_OBJECT) {
     o2 = sp->u.ob;
+    if (!o2 || (o2->flags & O_DESTRUCTED)) {
+      error("move_object failed: could not find destination\n");
+    }
   } else {
     if (!(o2 = find_object(sp->u.string)) || !object_visible(o2)) {
       error("move_object failed: could not find destination\n");
@@ -3370,8 +3373,18 @@ void f_memory_info() {
 
 #ifdef F_RELOAD_OBJECT
 void f_reload_object() {
+  // A destructed object has no program left to re-initialize; reject it the
+  // same way the rest of the object efuns do instead of walking a stale prog.
+  if (sp->type != T_OBJECT || sp->u.ob == nullptr || (sp->u.ob->flags & O_DESTRUCTED)) {
+    error("reload_object: cannot reload a destructed object.\n");
+  }
+
   reload_object(sp->u.ob);
-  free_object(&(sp--)->u.ob, "f_reload_object");
+  // reload_object() runs __INIT/create, which may destruct the very object
+  // sitting on this stack slot: destruct sweeps the VM stack, so the slot can
+  // hold a plain 0 by now.  Release whatever is actually there.
+  free_svalue(sp, "f_reload_object");
+  sp--;
 }
 #endif
 

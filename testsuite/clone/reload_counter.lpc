@@ -1,0 +1,6 @@
+// Fixture for testsuite/single/tests/efuns/reload_object_self_destruct.lpc:
+// a separate, never-reloaded object that lets the target tell its first
+// create() (at load time) apart from a later one triggered by reload_object().
+int count = 0;
+
+int bump() { return ++count; }

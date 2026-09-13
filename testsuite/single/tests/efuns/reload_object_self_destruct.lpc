@@ -1,0 +1,22 @@
+// f_reload_object() (src/packages/core/efuns_main.cc) calls reload_object(),
+// which runs the target's create() again -- arbitrary LPC that can
+// self-destruct the very object argument sitting on f_reload_object()'s own VM
+// stack slot. destruct_object() sweeps the VM stack, so that slot may hold a
+// plain 0 by the time control returns; f_reload_object() used to
+// unconditionally free_object() it regardless, dereferencing null and
+// crashing the driver.
+void do_tests() {
+    object ob;
+    mixed err;
+
+    ob = load_object("/clone/reload_self_destruct");
+    ASSERT(objectp(ob));
+
+    // The second create() (this one) destructs the object; the call must
+    // return cleanly instead of crashing on the swept stack slot.
+    err = catch(reload_object(ob));
+    ASSERT(!err);
+
+    // A destructed object has no program left to re-initialize.
+    ASSERT(catch(reload_object(ob)));
+}

@@ -1,0 +1,3 @@
+// Fixture for DriverTest.TestMoveObjectDestructDuringReset: the item moved
+// into a destination that destructs itself out of reset().
+void create() { }

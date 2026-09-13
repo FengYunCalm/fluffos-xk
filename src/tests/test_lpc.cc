@@ -107,6 +107,8 @@ extern int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* a
                           svalue_t* arg3);
 extern bool decode_mud_port_payload_length_for_test(const char* header, size_t header_size,
                                                     size_t* payload_length);
+extern int comm_reserve_input_space_for_test(interactive_t* ip, size_t reserve);
+extern int comm_append_input_for_test(interactive_t* ip, const unsigned char* data, int len);
 extern int replace_interactive(object_t *ob, object_t *obfrom);
 extern bool gateway_dispatch_message_for_test(int fd, const char *payload);
 extern int gateway_dispatch_buffered_frames_for_test(GatewayMaster *master, int budget);
@@ -4660,6 +4662,103 @@ TEST_F(DriverTest, TestMudPortRejectsInvalidWirePayloadLengths) {
   std::memset(header, 0, 4);
   ASSERT_FALSE(decode_mud_port_payload_length_for_test(header, 4, &payload_length));
   ASSERT_FALSE(decode_mud_port_payload_length_for_test(header, 3, &payload_length));
+}
+
+TEST_F(DriverTest, TestAsciiReadSpaceMatchesRemainingInputRoom) {
+  // TRANSPORT-ASCII-1: the ASCII path accumulated into ip->text while sizing
+  // its read from a MAX_TEXT sized scratch buffer, so a client that withheld a
+  // newline could grow text_end and have the next read overflow interactive_t.
+  // The read size must always match the room left at text_end.
+  interactive_t ip{};
+  ip.text_start = 0;
+  ip.text_end = 100;
+  int space = comm_reserve_input_space_for_test(&ip, sizeof(ip.text) / 16);
+  ASSERT_EQ(space, static_cast<int>(sizeof(ip.text)) - ip.text_end);
+  ASSERT_EQ(space, MAX_TEXT - 100);
+
+  // With a full buffer and a consumed prefix, the prefix is moved down and the
+  // answer still matches the room at the new text_end.
+  ip.text_start = 1000000;
+  ip.text_end = MAX_TEXT;
+  space = comm_reserve_input_space_for_test(&ip, sizeof(ip.text) / 16);
+  ASSERT_EQ(ip.text_start, 0);
+  ASSERT_EQ(ip.text_end, MAX_TEXT - 1000000);
+  ASSERT_EQ(space, static_cast<int>(sizeof(ip.text)) - ip.text_end);
+  ASSERT_EQ(ip.iflags & SKIP_COMMAND, 0u);
+
+  // A full buffer with nothing consumable is dropped instead of read into.
+  ip.text_start = 0;
+  ip.text_end = MAX_TEXT;
+  space = comm_reserve_input_space_for_test(&ip, sizeof(ip.text) / 16);
+  ASSERT_EQ(space, MAX_TEXT);
+  ASSERT_EQ(ip.text_end, 0);
+  ASSERT_NE(ip.iflags & SKIP_COMMAND, 0u);
+}
+
+TEST_F(DriverTest, TestInputAppendNeverWritesPastTheBuffer) {
+  interactive_t ip{};
+  std::vector<unsigned char> data(64, 'x');
+
+  ip.text_end = 4;
+  ASSERT_EQ(comm_append_input_for_test(&ip, data.data(), 64), 64);
+  ASSERT_EQ(ip.text_end, 68);
+
+  // The copy itself is bounded, so a mis-sized read cannot clip the fields
+  // that follow ip->text inside interactive_t.
+  ip.text_end = MAX_TEXT - 4;
+  ASSERT_EQ(comm_append_input_for_test(&ip, data.data(), 64), 4);
+  ASSERT_EQ(ip.text_end, MAX_TEXT);
+  ASSERT_EQ(ip.text[MAX_TEXT - 1], 'x');
+  ASSERT_EQ(comm_append_input_for_test(&ip, data.data(), 64), 0);
+  ASSERT_EQ(ip.text_end, MAX_TEXT);
+}
+
+// move_object() lazily calls try_reset() on the destination just before
+// linking the moved item into it. reset() is arbitrary LPC and can
+// self-destruct the destination as a perfectly ordinary side effect (no
+// error() involved, so safe_apply() inside try_reset() doesn't catch it).
+// move_object() must notice that and not link the item into an object that is
+// no longer live.
+TEST_F(DriverTest, TestMoveObjectDestructDuringReset) {
+  auto saved_lazy_resets = CONFIG_INT(__RC_LAZY_RESETS__);
+  auto saved_no_resets = CONFIG_INT(__RC_NO_RESETS__);
+  CONFIG_INT(__RC_LAZY_RESETS__) = 1;
+  CONFIG_INT(__RC_NO_RESETS__) = 0;
+
+  current_object = master_ob;
+  object_t *dest = nullptr;
+  object_t *item = nullptr;
+
+  error_context_t econ{};
+  save_context(&econ);
+  try {
+    dest = load_object_for_test("clone/move_object_reset_dest");
+    item = load_object_for_test("clone/move_object_item");
+    ASSERT_NE(dest, nullptr);
+    ASSERT_NE(item, nullptr);
+    // try_reset()'s "is a reset due" check is `next_reset < gametick`; the
+    // harness never pumps the backend loop, so push the tick clock past the
+    // deadline and clear the already-reset flag to make it fire inside
+    // move_object().
+    dest->next_reset = 1;
+    advance_gametick_for_test(2);
+    dest->flags &= ~O_RESET_STATE;
+    move_object(item, dest);
+  } catch (...) {
+    restore_context(&econ);
+  }
+  pop_context(&econ);
+
+  CONFIG_INT(__RC_LAZY_RESETS__) = saved_lazy_resets;
+  CONFIG_INT(__RC_NO_RESETS__) = saved_no_resets;
+
+  // dest self-destructed out of reset(): the item must be left unlinked
+  // instead of becoming inventory of a dead object.
+  ASSERT_NE(dest, nullptr);
+  EXPECT_TRUE(dest->flags & O_DESTRUCTED);
+  ASSERT_NE(item, nullptr);
+  EXPECT_EQ(item->super, nullptr);
+  EXPECT_EQ(dest->contains, nullptr);
 }
 
 TEST_F(DriverTest, TestReadBytesPreservesLpc64BitOffsets) {

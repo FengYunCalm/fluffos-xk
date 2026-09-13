@@ -1,0 +1,9 @@
+// Fixture for DriverTest.TestMoveObjectDestructDuringReset: a destination
+// whose reset() destructs the destination itself while move_object() is
+// lazily resetting it, so move_object() must not go on to link an item into a
+// destructed object.
+void create() { }
+
+void reset() {
+    destruct(this_object());
+}

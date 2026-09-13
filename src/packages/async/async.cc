@@ -63,6 +63,7 @@ struct Request {
         ret(0),
         handle(0),
         fun(nullptr),
+        bound_args(nullptr),
         promise(nullptr),
         owner(nullptr),
         failed(false),
@@ -81,6 +82,12 @@ struct Request {
   int handle;
   std::string data;
   function_to_call_t *fun;
+  /* Bound args trailing the callback (async_db_exec's spec allows a trailing
+     `...`), heap-copied off the VM stack -- mirrors call_out()'s cop->vs
+     (call_out.cc), since this callback fires long after the registering stack
+     frame is gone. fun->args/fun->narg point into this array; null when there
+     are no bound args. */
+  array_t *bound_args;
   promise_t *promise;
   object_t *owner;
   bool failed;
@@ -190,6 +197,9 @@ void free_async_request(Request *req) {
   if (req->fun) {
     free_funp(req->fun->f.fp);
     delete req->fun;
+  }
+  if (req->bound_args) {
+    free_array(req->bound_args);
   }
   if (req->promise) {
     free_promise(req->promise);
@@ -523,9 +533,10 @@ int add_write(const char *fname, const char *buf, int size, char flags, function
 }
 
 #ifdef F_ASYNC_DB_EXEC
-int add_db_exec(int handle, const char *sql, function_to_call_t *fun) {
+int add_db_exec(int handle, const char *sql, function_to_call_t *fun, array_t *bound_args) {
   auto *req = new Request();
   req->fun = fun;
+  req->bound_args = bound_args;
   req->type = ADBEXEC;
   req->handle = handle;
   req->data = sql;
@@ -851,6 +862,14 @@ bool vm_async_test_support_dispatch_read_callback(object_t *owner, const char *m
 void f_async_read() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
   process_efun_callback(1, cb.get(), F_ASYNC_READ);
+  // A `mixed` argument bypasses the spec's compile-time `function` check;
+  // process_efun_callback() then sets cb->ob (string-callback form) rather than
+  // cb->f.fp, and the ref++ below would type-confuse cb->f.str (a char*) as a
+  // funptr_t*. The string form has no reference-counted lifetime that could
+  // survive until this callback fires.
+  if (cb->ob != nullptr) {
+    error("async_read: callback must be a function pointer, not a string.\n");
+  }
   cb->f.fp->hdr.ref++;
   pop_stack();
 
@@ -887,6 +906,9 @@ void f_async_read_promise() {
 void f_async_write() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
   process_efun_callback(3, cb.get(), F_ASYNC_WRITE);
+  if (cb->ob != nullptr) {
+    error("async_write: callback must be a function pointer, not a string.\n");
+  }
   cb->f.fp->hdr.ref++;
   pop_stack();
 
@@ -926,6 +948,9 @@ void f_async_write_promise() {
 void f_async_getdir() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
   process_efun_callback(1, cb.get(), F_ASYNC_GETDIR);
+  if (cb->ob != nullptr) {
+    error("async_getdir: callback must be a function pointer, not a string.\n");
+  }
   cb->f.fp->hdr.ref++;
   pop_stack();
 
@@ -958,7 +983,34 @@ void f_async_getdir_promise() {
 void f_async_db_exec() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
   process_efun_callback(2, cb.get(), F_ASYNC_DB_EXEC);
+  if (cb->ob != nullptr) {
+    error("async_db_exec: callback must be a function pointer, not a string.\n");
+  }
   cb->f.fp->hdr.ref++;
+
+  // Trailing bound args are captured by process_efun_callback() as a raw
+  // pointer into the live VM stack, which is only safe for its synchronous
+  // consumers (pcre, array map/filter/sort). This callback runs after a DB
+  // round trip on a worker thread, so the slots have to be moved off the stack
+  // into an array (the bitwise copy IS the new owning reference, matching
+  // call_out()'s cop->vs).
+  array_t *bound_args = nullptr;
+  if (cb->narg > 0) {
+    bound_args = allocate_empty_array(cb->narg);
+    memcpy(bound_args->item, cb->args, sizeof(svalue_t) * cb->narg);
+    cb->args = bound_args->item;
+  }
+  bool bound_args_handed_off = false;
+  DEFER {
+    if (bound_args && !bound_args_handed_off) {
+      free_array(bound_args);
+    }
+  };
+
+  // The bound args' stack slots have been transferred into bound_args (no ref
+  // bump above), so step over them without freeing -- same "args have been
+  // transfered; don't free them" idiom as int_call_out().
+  sp -= cb->narg;
   pop_stack();
 
   array_t *info;
@@ -983,7 +1035,8 @@ void f_async_db_exec() {
   db_unlock_mutex();
 #endif
 
-  add_db_exec((sp - 1)->u.number, sp->u.string, cb.release());
+  add_db_exec((sp - 1)->u.number, sp->u.string, cb.release(), bound_args);
+  bound_args_handed_off = true;
   pop_2_elems();
 }
 #endif
@@ -1026,6 +1079,9 @@ void async_mark_request() {
   auto mark_request = [](Request *req) {
     if (req->fun != nullptr) {
       req->fun->f.fp->hdr.extra_ref++;
+    }
+    if (req->bound_args != nullptr) {
+      req->bound_args->extra_ref++;
     }
     if (req->promise != nullptr) {
       mark_promise(req->promise);

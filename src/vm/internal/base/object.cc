@@ -2064,9 +2064,11 @@ void free_object(object_t **ob, const char *const from) {
   // be related to some of the corrupted memory crashes (which dw stopped doing,
   // oh well, I'm sure it
   // will be back.) Better to find and fix than to hide!
-  if (*ob) {
-    (*ob)->ref--;
+  if (*ob == nullptr) {
+    return;
   }
+
+  (*ob)->ref--;
 
   if ((*ob)->ref > 0) {
     *ob = (object_t *)9;
@@ -2228,7 +2230,7 @@ int object_visible(object_t *ob) {
 void reload_object(object_t *obj) {
   int i;
 
-  if (!obj->prog) {
+  if (!obj || !obj->prog) {
     return;
   }
   for (i = 0; i < obj->prog->num_variables_total; i++) {

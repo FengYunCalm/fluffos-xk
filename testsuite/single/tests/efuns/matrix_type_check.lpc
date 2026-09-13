@@ -1,0 +1,44 @@
+// Matrix transform efuns (src/packages/matrix/matrix.cc) only checked the
+// input array's SIZE (>= 16), never that each element was T_REAL, before
+// reading AND overwriting matrix->item[i].u.real in place -- corrupting the
+// type tag/pointer union of any non-float element (e.g. a string) held in the
+// caller's array. Every transform efun must now reject a non-float element
+// cleanly instead of corrupting it.
+void do_tests() {
+    mixed err;
+    mixed bad;
+    mixed floats;
+
+    bad = allocate(16);
+    bad[0] = "not a float";
+    // fill the rest with floats so only the size check would otherwise pass
+    bad[1..15] = ({1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0});
+
+    err = catch(translate(bad, 0.0, 0.0, 0.0));
+    ASSERT(err);
+    // the element must be untouched -- not silently corrupted -- after the
+    // rejected call.
+    ASSERT_EQ("not a float", bad[0]);
+
+    ASSERT(catch(scale(bad, 1.0, 1.0, 1.0)));
+    ASSERT(catch(rotate_x(bad, 1.0)));
+    ASSERT(catch(rotate_y(bad, 1.0)));
+    ASSERT(catch(rotate_z(bad, 1.0)));
+    ASSERT(catch(lookat_rotate(bad, 1.0, 1.0, 1.0)));
+    ASSERT(catch(lookat_rotate2(bad, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)));
+
+    // A `mixed` non-array argument must be rejected too, not walked as an
+    // array_t.
+    mixed not_an_array = 5;
+    ASSERT(catch(translate(not_an_array, 0.0, 0.0, 0.0)));
+
+    // A well-typed 16-float array must still work exactly as before.
+    floats = allocate(16, 0.0);
+    ASSERT(pointerp(translate(floats, 0.0, 0.0, 0.0)));
+    ASSERT(pointerp(scale(allocate(16, 0.0), 1.0, 1.0, 1.0)));
+    ASSERT(pointerp(rotate_x(allocate(16, 0.0), 1.0)));
+    ASSERT(pointerp(rotate_y(allocate(16, 0.0), 1.0)));
+    ASSERT(pointerp(rotate_z(allocate(16, 0.0), 1.0)));
+    ASSERT(pointerp(lookat_rotate(allocate(16, 0.0), 1.0, 1.0, 1.0)));
+    ASSERT(pointerp(lookat_rotate2(allocate(16, 0.0), 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)));
+}

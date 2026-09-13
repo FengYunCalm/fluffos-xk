@@ -182,7 +182,11 @@ void f_pcre_match() {
   array_t *v;
   int flag = 0;
   int pcre_flags = 0;
-  bool is_string = ((sp - 1)->type == T_STRING);
+  // The subject (1st arg) is at sp - st_num_arg + 1 no matter how many
+  // optional trailing args (flag, pcre_flags) follow; reading (sp - 1) only
+  // located it for the 2-arg form, so every 3-/4-arg call misidentified the
+  // mode and ran the wrong branch over the subject's union bits.
+  bool is_string = ((sp - st_num_arg + 1)->type == T_STRING);
 
   // optional 4th arg: pcre_flags
   if (st_num_arg > 3) {
@@ -323,6 +327,18 @@ void f_pcre_replace() {
     }
     pcre_flags = (sp--)->u.number;
     st_num_arg--;
+  }
+
+  // The spec's types are compile-time only: a `mixed` value reaches these
+  // slots unchecked, and the code below reads .u.string/.u.arr raw.
+  if ((sp - 2)->type != T_STRING) {
+    error("Bad argument 1 to pcre_replace()\n");
+  }
+  if ((sp - 1)->type != T_STRING) {
+    error("Bad argument 2 to pcre_replace()\n");
+  }
+  if (sp->type != T_ARRAY) {
+    error("Bad argument 3 to pcre_replace()\n");
   }
 
   run = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_replace: run");

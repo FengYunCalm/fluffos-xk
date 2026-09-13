@@ -22,6 +22,9 @@ set(PACKAGE_DB_POSTGRESQL "" CACHE STRING "DB Type for POSTGRESQL")
 set(PACKAGE_DB_SQLITE "" CACHE STRING "DB Type for SQLITE")
 set(PACKAGE_DB_DEFAULT_DB "1" CACHE STRING "Default DB Handle")
 option(PACKAGE_DEVELOP "compress package" ON)
+# dwlib is an opt-in compatibility package: OFF by default, so its efuns stay
+# undefined (which testsuite's "missing_package_efun" fixture relies on).
+option(PACKAGE_DWLIB "dwlib compatibility package (opt-in)" OFF)
 option(PACKAGE_MATH "math package" ON)
 option(PACKAGE_MATRIX "matrix package" ON)
 option(PACKAGE_MUDLIB_STATS "mudlib_stats package" ON)

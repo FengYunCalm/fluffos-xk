@@ -27,6 +27,14 @@ void do_tests() {
   ASSERT(catch(pcre_replace("abc", "(a)", ({1}))));
 
   ASSERT_EQ(1, pcre_match("123", "^[0-9]+$")); // or other pattern
+
+  // Array form with a 3rd (flag) argument: is_string used to be computed from
+  // the wrong stack slot for any 3-argument call, misrouting this into the
+  // string-only path (type confusion / wrong result type).
+  // flag 2 inverts the match (returns non-matching elements).
+  ASSERT_EQ(({ "dog" }), pcre_match(({ "cat", "dog", "car" }), "^ca", 2));
+  // Array form with all 4 arguments (flag + pcre_flags).
+  ASSERT_EQ(({ "cat", "car" }), pcre_match(({ "cat", "dog", "car" }), "^ca", 0, 0));
   ASSERT(same_array(
     pcre_assoc("testhahatest", ({ "haha", "te" }), ({ 2, 3 }), 4),
     ({ ({ "", "te", "st", "haha", "", "te", "st" }),
@@ -206,6 +214,11 @@ TEXT;
 
   // pcre_match with flags: case-insensitive and anchored.
   ASSERT_EQ(1, pcre_match("abc", "ABC", flag_i));
+  // The 4-argument form used to type-confuse the string subject (is_string was
+  // read from the flag slot); the string form's 3rd argument still supplies
+  // pcre_flags.
+  ASSERT_EQ(1, pcre_match("abc", "ABC", flag_i, 0));
+  ASSERT_EQ(0, pcre_match("abc", "ABC"));
   int flag_anchored = (1 << 21); // PCRE_A
   ASSERT_EQ(0, pcre_match("zabc", "abc", flag_anchored));
 

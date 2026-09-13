@@ -113,6 +113,12 @@ std::atomic<uint64_t> g_current_gametick{0};
 
 uint64_t current_gametick() { return g_current_gametick.load(std::memory_order_relaxed); }
 
+void advance_gametick_for_test(uint64_t ticks) {
+  auto const next = g_current_gametick.load(std::memory_order_relaxed) + ticks;
+  g_current_gametick.store(next, std::memory_order_relaxed);
+  vm_context_set_current_gametick(vm_context(), next);
+}
+
 int time_to_next_gametick(std::chrono::milliseconds msec) {
   const auto tick_msec = CONFIG_INT(__RC_GAMETICK_MSEC__);
   const auto count = msec.count();
