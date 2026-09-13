@@ -461,6 +461,12 @@ tools/testsuite/run-isolated.sh \
 1. `read_source_line()` 缓冲读取：在输出字节完全一致且独立 patch 可提取时，可进入当前批次。
 2. scratchpad arena 所有权：默认 `deferred`。它与结构化诊断、compile lifetime 和 lpcshell 消费者耦合，需单独设计审计。
 
+> 本地实施记录：以 `src/compiler/internal/compile_arena.{h,cc}` 落地（C-S1/C-S2，
+> 编译作用域单调 bump 分配器 + retained chunk 池），证据见
+> `docs/upstream-sync-evidence-2026-08.md` 的 C-S1/C-S2 实施记录与
+> `docs/evidence/l7-bench-*`。lpcshell 侧（T3）将其作为 ScratchArena
+> 基座消费，见 `docs/lpcshell-prerequisite-plan-2026-08.md` §1.1。
+
 验收至少包括 deep macro/nested include 诊断全文字节对比、编译器单测、ASan+UBSan 和重复编译性能。性能主指标固定为同一输入 corpus 的 `compile_diagnostic_ns_per_case`（越低越好）：7 个有效样本的中位数至少改善 10%，且每个输入的 stdout/stderr、退出码和诊断顺序逐字节一致。中位数改善在 5%-10% 或 p95 回退超过 5% 时改跑 15 个有效样本；15 样本后仍未达到 10% 改善则不得接受 #1343 性能结论。
 
 ### 5.5 性能测量协议

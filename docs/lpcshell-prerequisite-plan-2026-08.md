@@ -25,9 +25,18 @@
 - 上游形态（base/internal/scratchpad.h:116/149，磁盘实证）：
   `ScratchArena`（chunk 分配器，编译周期外可存活）+ `ScratchArenaBinding`
   （作用域绑定，析构释放 chunk）。
-- 本地现状：`src/compiler/internal/scratchpad.h` 是传统编译器内部
-  scratchpad（语法分析缓冲，编译周期内），**不是 arena**——语义不同、
-  生命周期不同，不能复用。
+> 修订（2026-09，P5-4）：旧结论"不能复用"已过时。C-S1/C-S2 已把
+> scratchpad 迁移为 `src/compiler/internal/compile_arena.{h,cc}`：编译作用域
+> 单调 bump 分配器（1MB 标准 chunk + >1MB oversize 独立 chunk）、
+> `end()` 时 live 链释放并保留至多 8 个标准 chunk 进 retained 池。
+> ScratchArena 不需要重新发明分配器，而是**消费侧扩展**：在 compile_arena
+> 之上增加会话级持有（跨编译周期存活）与 `Binding` 嵌套释放语义。旧
+> `scratchpad.{h,cc}` 现在只是历史名字的兼容层（grammar.y 调用点不动），
+> 语义差异只剩生命周期一处。
+
+- 本地现状：`src/compiler/internal/scratchpad.h` 是兼容层，真正的分配器
+  在 `compile_arena.{h,cc}`（见上）；直接按旧结论另起一套 arena 会重复
+  实现同一套 chunk 生命周期。
 - 设计要点：arena 所有权单元（lpcshell Session 持有 vs 编译器持有）；
   `compiler_diags` 全局（compiler.h:421 `g_compile.diags`）的 arena 备份
   语义（Diagnostic 记录内字符串指针的生命周期）；绑定嵌套规则

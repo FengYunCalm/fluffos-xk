@@ -18,7 +18,7 @@
 | L5 | ASan 全矩阵（lpc_tests/ftest/lpcc/ofile_tests） | 验证 | P1 | L1 | 已授权（P7 门禁） |
 | L6 | TSan 独立构建 + 定向 + 全量 | 验证 | P2 | 无 | 已授权（P7 门禁） |
 | L7 | owner 压测 + 多 owner 重复热重载压测 | 验证 | P2 | 无 | 已授权（P7 门禁） |
-| L8 | E3 v2 设计（master/simul_efun/__INIT/create/回滚） | 设计 | P3 | 无 | **需单独授权后实施** |
+| L8 | E3 v2 设计（master/simul_efun/__INIT/create/回滚） | 设计 | P3 | 无 | 设计完成；**Phase 1（master/simul_efun 事务重载 + 失败回滚）已实施**，证据 `docs/evidence/e3-v2-phase1-simul-efun-reload.md`；`__INIT`/`create()` 期重载留 Phase 2 |
 | L9 | E4 `read_source_line()` 移植评估 | 移植 | P3 | 上游 #1343a 对比 | **需单独授权** |
 | L10 | T3 lpcshell 前置基建立项 | 立项 | P4 | scratchpad/结构化诊断基建（本地不存在） | **需单独授权** |
 

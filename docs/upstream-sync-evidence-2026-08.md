@@ -78,7 +78,10 @@
 - **T1 get_os_env/set_os_env**：accepted（61ab872e）
 - **T2 set_clean_up**：accepted（提交于 T2 commit）
 - **T4 lpcc --batch**：accepted（fff68619）
-- **E3 recompile_object**：**已授权，未实施**——上游 PR #1237 为 897 行/5 commit 大功能
+- **E3 recompile_object**：**v2 Phase 1 已实施**（master/simul_efun 事务重载 +
+  失败回滚，证据 `docs/evidence/e3-v2-phase1-simul-efun-reload.md`；本轮 P4 另加
+  删除函数名的运行期报错合同测试）。下方 2026-08-16 的"未实施"判断保留为历史记录；
+  原始评估如下——上游 PR #1237 为 897 行/5 commit 大功能
   （function.h prog_generation、object program 热交换、shadow/catch_tell/add_action/
   heartbeat 生存性、master/simul_efun 支持、replace_program 交互），本地移植需
   专项设计审计（owner shard program pin 并发、跨 owner 引用、失败原子性），
@@ -215,14 +218,25 @@ blueprint fixture（/clone/recompile_blueprint.c）+ self_reload 探针。
   （E3 相关测试 recompile/owner_executor_contract 定向零泄漏）。上游 CI
   sanitizer 步骤只跑 ctest（gtest），从不跑 driver ftest，故该缺口上游
   从未暴露。异步资源退出清理修复单独立项
-- TSan、owner 压测：deferred（见 docs/recompile-followup-plan-2026-08.md
-  L6/L7）
+- TSan：deferred（见 docs/recompile-followup-plan-2026-08.md L6；drivers
+  `docs/evidence/l6-tsan-driver-recompile.txt` 已有定向留痕）
+- L7 owner 压测 + 多 owner 重复热重载压测：**已完成**——三个 bench 基线
+  （`docs/evidence/l7-bench-{owner_runtime,lpc_vm,object_store}.txt`，
+  JSON 统计 exit 0）+ 热重载压测契约
+  `testsuite/single/tests/efuns/recompile_stress.c`（4 worker 跨对象交替，
+  5 轮 × 200 次 = 1000 次重载，ASan 零报错、零 Check failed；ftest 单线程
+  模型下 call_out/heart_beat 不推进，多 owner 并发由 owner_runtime_bench
+  在 C++ 侧覆盖，已在契约头注释如实记录），另有
+  `docs/evidence/l7-stress-asan.txt`、`l7-ftest-regression.txt`。
 
 ### 剩余门禁
 
-- TSan / owner 压测（L6/L7）
-- E3 v2 能力（master/simul_efun 热重载、__INIT/create()、失败回滚）deferred
-- T3 lpcshell / E4 保持 deferred
+- TSan 全量（L6）
+- E3 v2：**已实施 Phase 1**（master/simul_efun 事务重载、失败回滚；
+  `docs/evidence/e3-v2-phase1-simul-efun-reload.md`，B-S3 四件套 gtest +
+  删除函数名的运行期报错合同测试）；`__INIT`/`create()` 期重载仍按
+  Phase 2 设计保留
+- T3 lpcshell / E4：由 P6 批次实施（诊断基建 + REPL），完成后改写本节
 
 ---
 
@@ -385,6 +399,11 @@ pr1247.diff 共 66 文件 = 47 C++ + 19 测试。47 个 C++ 文件的覆盖明�
 - 单文件子集（如 sprintf.lpc 1056B/12）泄漏量随执行子集变化，属正常形态差异，非独立缺陷。
 
 ### C-S1 实施记录：scratchpad → compile_arena 迁移（2026-08-19）
+
+> 决策背景见 `docs/upstream-sync-optimization-plan-2026-08.md` §5.4 P3
+> （#1343 编译诊断优化：read_source_line 与 scratchpad arena 所有权两个
+> 决策单元），本节与 §5.4 互引；C-S2 的稳态门禁观测基础即下文
+> compile_arena 的 retained 池。
 
 - 新模块 `src/compiler/internal/compile_arena.{h,cc}`：编译作用域单调 bump 分配器。1MB 标准 chunk（BSS 静态 base + malloc 链），>1MB 请求走 oversize 独立 chunk；end() 释放 live 链、保留至多 8 个标准 chunk 进 retained 池（C-S2 稳态门禁的观测基础）；`begin()` 检测上次 error() 异常（simulate.cc:2325 throw）残留的 live 链并先 drain（compile_file 的 DEFER end() 已覆盖异常展开路径，drain 仅为安全网）。
 - `scratchpad.{h,cc}` 降为兼容层：scratch_copy/scratch_alloc/scratch_free(no-op)/scratch_join/scratch_realloc 保留历史名字（grammar.y 十余处调用点不动）；**scratch_destroy/scratch_join2/scratch_large_alloc/scratch_copy_string 删除**（零调用点；scratch_copy_string 的 text-block 路径已并入 lex.cc 共享收集器）；旧导出游标 scr_last/scr_tail/scratch_end 与 scratch_free_last 宏**彻底移除**（直接游标操作是旧边界无法闭合的根因）。
