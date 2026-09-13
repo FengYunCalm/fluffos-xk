@@ -17,6 +17,7 @@
 #include "vm/internal/apply.h"
 #include "vm/internal/base/apply_cache.h"
 #include "vm/internal/base/machine.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/eval_limit.h"
 #include "vm/internal/master.h"
 #include "vm/internal/simulate.h"
@@ -3622,6 +3623,10 @@ void eval_instruction(char *p) {
         auto *funp = setup_new_frame(offset);
         csp->pc = pc; /* The corrected return address */
         pc = current_prog->program + funp->address;
+        if (funflags & FUNC_ASYNC) {
+          run_async_function(pc, funp);
+          break;
+        }
         if (Tracer::enabled()) {
           csp->trace_id = ::get_trace_id(csp);
           trace_context = ::get_trace_context(csp, sp);
@@ -3637,6 +3642,7 @@ void eval_instruction(char *p) {
 
         int pushed_args = EXTRACT_UCHAR(pc++) + num_varargs;
         num_varargs = 0;
+        bool inherited_is_async = false;
 
         /* `::`-qualified calls must fill default arguments exactly like
          * F_CALL_FUNCTION_BY_ADDRESS -- this path used to skip them, so the
@@ -3647,6 +3653,7 @@ void eval_instruction(char *p) {
             roff = temp_prog->function_flags[roff] & ~FUNC_ALIAS;
           }
           auto rflags = temp_prog->function_flags[roff];
+          inherited_is_async = (rflags & FUNC_ASYNC) != 0;
           if (!(rflags & (FUNC_PROTOTYPE | FUNC_UNDEFINED))) {
             auto result = get_function_at_index(temp_prog, roff);
             if (result.first != nullptr) {
@@ -3669,6 +3676,10 @@ void eval_instruction(char *p) {
         funp = setup_inherited_frame(offset);
         csp->pc = pc;
         pc = current_prog->program + funp->address;
+        if (inherited_is_async) {
+          run_async_function(pc, funp);
+          break;
+        }
 
         if (Tracer::enabled()) {
           csp->trace_id = ::get_trace_id(csp);
@@ -4482,6 +4493,34 @@ void eval_instruction(char *p) {
         push_number(0);
         return; /* return to do_catch */
       }
+      case F_AWAIT: {
+        /* Awaiting a plain value is a no-op. A promise, including an already
+         * settled one, is delivered by the microtask machinery so every
+         * suspension resumes with a fresh evaluation budget. */
+        if (sp->type != T_PROMISE) {
+          break;
+        }
+        coroutine_await_pending(sp->u.prom);
+        return;
+      }
+      case F_ACATCH: {
+        LOAD_SHORT(offset, pc);
+        char *const continuation = (pc - 2) + offset;
+        if (!g_coroutine_econ) {
+          error("acatch: not inside an async function body.\n");
+        }
+        push_control_stack(FRAME_CATCH | FRAME_ASYNC);
+        csp->save_sp = sp;
+        csp->save_cgsp = cgsp;
+        csp->pc = continuation;
+        csp->num_local_variables = (csp - 1)->num_local_variables;
+        break;
+      }
+      case F_END_ACATCH: {
+        pop_control_stack();
+        push_number(0);
+        break;
+      }
       case F_TIME_EXPRESSION: {
         long sec, usec;
 #ifdef DEBUG
@@ -4875,6 +4914,7 @@ int is_static(const char *fun, object_t *ob) {
  */
 void call_direct(object_t *ob, int offset, int origin, int num_arg) {
   function_t *funp;
+  bool is_async = false;
   program_t *prog = ob->prog;
 
   if (!vm_context_is_owner_controlled_lpc()) {
@@ -4888,6 +4928,7 @@ void call_direct(object_t *ob, int offset, int origin, int num_arg) {
       roff = prog->function_flags[roff] & ~FUNC_ALIAS;
     }
     auto rflags = prog->function_flags[roff];
+    is_async = (rflags & FUNC_ASYNC) != 0;
     if (!(rflags & (FUNC_PROTOTYPE | FUNC_UNDEFINED))) {
       auto result = get_function_at_index(prog, roff);
       if (result.first != nullptr) {
@@ -4900,6 +4941,10 @@ void call_direct(object_t *ob, int offset, int origin, int num_arg) {
   csp->num_local_variables = num_arg;
   vm_set_execution_frame_fast(ob, prog, current_object, origin);
   funp = setup_new_frame(offset);
+  if (is_async) {
+    run_async_function(current_prog->program + funp->address, funp);
+    return;
+  }
   call_program(current_prog, funp->address);
 }
 

@@ -1451,7 +1451,7 @@ static void promise_add_coroutine(promise_t* p, lpc_coroutine_t* coro) {
 }
 
 void run_async_function(char* entry_pc, const function_t* funp) {
-  csp->framekind |= FRAME_ASYNC;
+  csp->framekind |= FRAME_ASYNC | FRAME_EXTERNAL;
   /* The promise value carries its declared payload type in the svalue's
    * subtype, taken from the coroutine's declared return type -- promise<T>
    * for an `async T f()`. See promise_value_subtype(). */

@@ -39,6 +39,7 @@ extern char *outp;
 int context;
 int num_refs;
 int func_present;
+int compiling_async_function;
 /*
  * bison & yacc don't prototype this in y.tab.h
  */
@@ -86,8 +87,10 @@ static const char *missing_efun_package(const char *name) {
 %token L_ARROW L_DOT L_INHERIT L_COLON_COLON
 %token L_ARRAY_OPEN L_MAPPING_OPEN L_FUNCTION_OPEN L_NEW_FUNCTION_OPEN
 
-%token L_SSCANF L_CATCH
+%token L_SSCANF L_CATCH L_ACATCH
+%token L_AWAIT
 %token L_ARRAY
+%token L_PROMISE
 %token L_REF
 %token L_PARSE_COMMAND L_TIME_EXPRESSION
 %token L_CLASS L_NEW
@@ -153,7 +156,7 @@ static const char *missing_efun_package(const char *name) {
     uint8_t num_local;
     uint8_t max_num_locals;
     uint16_t context;
-    uint16_t save_current_type;
+    LPC_INT save_current_type;
     uint16_t save_exact_types;
   } func_block; /* 8 */
 }
@@ -202,7 +205,7 @@ static const char *missing_efun_package(const char *name) {
 
 /* The following return a parse node */
 %type <node> optional_default_arg_value
-%type <node> number real string expr0 comma_expr for_expr sscanf catch
+%type <node> number real string expr0 comma_expr for_expr sscanf catch acatch
 %type <node> parse_command time_expression expr_list expr_list2 expr_list3
 %type <node> expr_list4 assoc_pair expr4 lvalue function_call lvalue_list
 %type <node> new_local_def statement while cond do switch case
@@ -355,6 +358,19 @@ new_local_name:
 
 atomic_type:
   L_BASIC_TYPE
+  | L_PROMISE
+                                            {
+                                              $$ = promise_of_type(TYPE_ANY);
+                                            }
+  | L_PROMISE '<' basic_type optional_star L_ORDER
+                                            {
+                                              if ($5 != F_GT) {
+                                                yyerror("Expected '>' after promise payload type.");
+                                                $$ = promise_of_type(TYPE_ANY);
+                                              } else {
+                                                $$ = promise_of_type($3 | $4);
+                                              }
+                                            }
   | L_CLASS L_DEFINED_NAME
                                             {
                                               if ($2->dn.class_num == -1) {
@@ -515,7 +531,7 @@ type_modifier_list:
 type:
   type_modifier_list opt_basic_type
     {
-      $$ = ($1 << 16) | $2;
+      $$ = PACK_TYPE_MODS($1) | $2;
       current_type = $$;
     }
 ;
@@ -543,17 +559,17 @@ name_list:
 new_name:
   optional_star identifier
     {
-      if (current_type & (FUNC_VARARGS << 16)){
+      if (PACKED_TYPE_MODS(current_type) & FUNC_VARARGS){
         yyerror("Illegal to declare varargs variable.");
-        current_type &= ~(FUNC_VARARGS << 16);
+        current_type &= ~PACK_TYPE_MODS(FUNC_VARARGS);
       }
       /* Now it is ok to merge the two
        * remember that class_num and varargs was the reason for above
        * Do the merging once only per row of decls
        */
 
-      if (current_type & 0xffff0000){
-        current_type = (current_type >> 16) | (current_type & 0xffff);
+      if (PACKED_TYPE_MODS(current_type)){
+        current_type = PACKED_TYPE_MODS(current_type) | PACKED_TYPE_BASIC(current_type);
       }
 
       current_type |= global_modifiers;
@@ -579,13 +595,13 @@ new_name:
       parse_node_t *expr, *newnode;
       int type;
 
-      if (current_type & (FUNC_VARARGS << 16)){
+      if (PACKED_TYPE_MODS(current_type) & FUNC_VARARGS){
         yyerror("Illegal to declare varargs variable.");
-        current_type &= ~(FUNC_VARARGS << 16);
+        current_type &= ~PACK_TYPE_MODS(FUNC_VARARGS);
       }
 
-      if (current_type & 0xffff0000){
-        current_type = (current_type >> 16) | (current_type & 0xffff);
+      if (PACKED_TYPE_MODS(current_type)){
+        current_type = PACKED_TYPE_MODS(current_type) | PACKED_TYPE_BASIC(current_type);
       }
 
       current_type |= global_modifiers;
@@ -2118,6 +2134,16 @@ expr0:
       } else $$->type = TYPE_ANY;
 
     }
+  | L_AWAIT expr0 %prec L_NOT
+    {
+      if (!compiling_async_function) {
+        yyerror("await is only allowed inside an async function.");
+      }
+      if ((context & SPECIAL_CONTEXT) && !(context & ASYNC_CATCH_CONTEXT)) {
+        yyerror("await cannot suspend across a synchronous catch block.");
+      }
+      CREATE_UNARY_OP($$, F_AWAIT, promise_payload_type($2->type), $2);
+    }
   | L_NOT expr0
     {
       if ($2->kind == NODE_NUMBER) {
@@ -2588,7 +2614,7 @@ expr4:
     {
       if ($1->type == TYPE_ANY) {
         int cmi;
-        unsigned short tp;
+        lpc_type_t tp;
 
         if ((cmi = lookup_any_class_member($3, &tp)) != -1) {
           CREATE_UNARY_OP_1($$, F_MEMBER, tp, $1, 0);
@@ -2612,7 +2638,7 @@ expr4:
     {
       if ($1->type == TYPE_ANY) {
         int cmi;
-        unsigned short tp;
+        lpc_type_t tp;
 
         if ((cmi = lookup_any_class_member($3, &tp)) != -1) {
           CREATE_UNARY_OP_1($$, F_MEMBER, tp, $1, 0);
@@ -2776,6 +2802,7 @@ expr4:
       $$ = $2;
     }
   | catch
+  | acatch
   | tree
   | L_BASIC_TYPE
     {
@@ -3038,6 +3065,23 @@ catch:
     }
   ;
 
+acatch:
+  L_ACATCH
+    {
+      if (!compiling_async_function) {
+        yyerror("acatch is only allowed inside an async function.");
+      }
+      $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
+      context = SPECIAL_CONTEXT | ASYNC_CATCH_CONTEXT;
+    }
+  expr_or_block
+    {
+      CREATE_ACATCH($$, $3);
+      context = SAVED_CONTEXT_FLAGS($<number>2);
+      current_type = SAVED_CONTEXT_TYPE($<number>2);
+    }
+  ;
+
 tree:
   L_TREE block
     {
@@ -3191,7 +3235,7 @@ function_call:
         $$->kind = NODE_CALL_1;
         $$->v.number = F_SIMUL_EFUN;
         $$->l.number = f;
-        $$->type = (SIMUL(f)->type) & ~DECL_MODS;
+        $$->type = simul_efun_call_type(f) & ~DECL_MODS;
       } else {
         $$ = validate_efun_call(lookup_predef("clone_object"), $4);
 #ifdef CAST_CALL_OTHERS
@@ -3281,7 +3325,7 @@ function_call:
         $$->kind = NODE_CALL_1;
         $$->v.number = F_SIMUL_EFUN;
         $$->l.number = f;
-        $$->type = (SIMUL(f)->type) & ~DECL_MODS;
+        $$->type = simul_efun_call_type(f) & ~DECL_MODS;
       } else if ((f=$1->dn.efun_num) != -1) {
         $$ = validate_efun_call(f, $4);
       } else if ((i = $1->dn.local_num) != -1 && 
@@ -3559,7 +3603,7 @@ function_call:
         $$->kind = NODE_CALL_1;
         $$->v.number = F_SIMUL_EFUN;
         $$->l.number = f;
-        $$->type = (SIMUL(f)->type) & ~DECL_MODS;
+        $$->type = simul_efun_call_type(f) & ~DECL_MODS;
       } else {
         $$ = validate_efun_call(arrow_efun, $6);
 #ifdef CAST_CALL_OTHERS

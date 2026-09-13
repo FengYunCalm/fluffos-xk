@@ -23,6 +23,11 @@ inherit "std/percent" ;
 inherit "std/all_environment" ;
 inherit "std/present_clone" ;
 
+async int async_simul_probe() {
+    await async_yield();
+    return 84;
+}
+
 int same(mixed x, mixed y) {
     // Allow comparing array with buffer
     if (!(typeof(x) == ARRAY && typeof(y) == BUFFER || typeof(y) == ARRAY && typeof(x) == BUFFER))

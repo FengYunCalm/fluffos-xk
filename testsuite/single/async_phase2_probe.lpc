@@ -1,0 +1,31 @@
+inherit "/single/async_phase2_base";
+
+async int suspend_once() {
+  await async_yield();
+  return 42;
+}
+
+async int call_function_pointer_probe() {
+  function callback = (: suspend_once :);
+  return await callback();
+}
+
+async int call_simul_probe() {
+  return await async_simul_probe();
+}
+
+async int call_external_probe() {
+  return await this_object()->suspend_once();
+}
+
+async int call_inherited_probe() {
+  return await ::inherited_delay();
+}
+
+async mixed catch_rejection(promise<string> input) {
+  mixed caught = acatch {
+    await input;
+    return "not reached";
+  };
+  return caught;
+}

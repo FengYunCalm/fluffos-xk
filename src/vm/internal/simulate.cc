@@ -32,6 +32,7 @@
 #include "vm/internal/apply.h"
 #include "vm/internal/base/machine.h"
 #include "vm/internal/base/debug.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/master.h"
 #include "vm/internal/otable.h"
 #include "vm/internal/simul_efun.h"
@@ -1155,6 +1156,10 @@ void destruct_object(object_t *ob) {
   if (ob->flags & O_DESTRUCTED) {
     return;
   }
+  /* Destruction is the final owner admission boundary for parked async
+   * frames.  Remove them before the object leaves the live store; otherwise
+   * a promise that never settles can retain the object forever. */
+  abandon_coroutines_of_object(ob);
   stage_start = object_lifecycle_stage_start();
   vm_object_store_mark_destructed(ob);
   object_lifecycle_stage_record(ObjectLifecycleStage::kDestructObjectStoreMark, stage_start);
@@ -2082,7 +2087,8 @@ void vm_context_adjust_mudlib_error_depth(VMContext &context, int delta) {
  */
 
 [[noreturn]] void throw_error() {
-  if (((current_error_context->save_csp + 1)->framekind & FRAME_MASK) == FRAME_CATCH) {
+  if (((current_error_context->save_csp + 1)->framekind & FRAME_MASK) == FRAME_CATCH ||
+      current_error_context == g_coroutine_econ) {
     throw("throw error");
     fatal("Throw_error failed!");
   }
@@ -2227,8 +2233,9 @@ void _error_handler(char *err) {
 #endif
   vm_context_set_load_object_depth(vm_context(), 0); /* reset the count */
 
-  if (((current_error_context->save_csp + 1)->framekind & FRAME_MASK) == FRAME_CATCH) {
-    /* user catches this error */
+  if (((current_error_context->save_csp + 1)->framekind & FRAME_MASK) == FRAME_CATCH ||
+      current_error_context == g_coroutine_econ) {
+    /* user catches this error, or an async body turns it into a rejection */
     /* This is added so that catches generate messages in the log file. */
     if (!CONFIG_INT(__RC_MUDLIB_ERROR_HANDLER__)) {
       debug_message_with_location(err);

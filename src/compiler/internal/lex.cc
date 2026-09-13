@@ -164,11 +164,14 @@ static keyword_t reswords[] = {
 #ifdef ARRAY_RESERVED_WORD
     {"array", L_ARRAY, 0},
 #endif
+    {"async", L_TYPE_MODIFIER, FUNC_ASYNC},
+    {"await", L_AWAIT, 0},
     {"asm", 0, 0},
     {"break", L_BREAK, 0},
     {"buffer", L_BASIC_TYPE, TYPE_BUFFER},
     {"case", L_CASE, 0},
     {"catch", L_CATCH, 0},
+    {"acatch", L_ACATCH, 0},
 #ifdef STRUCT_CLASS
     {"class", L_CLASS, 0},
 #endif
@@ -194,6 +197,7 @@ static keyword_t reswords[] = {
 #endif
     {"object", L_BASIC_TYPE, TYPE_OBJECT},
     {"parse_command", L_PARSE_COMMAND, 0},
+    {"promise", L_PROMISE, 0},
     {"private", L_TYPE_MODIFIER, DECL_PRIVATE},
     {"protected", L_TYPE_MODIFIER, DECL_PROTECTED},
 #ifdef SENSIBLE_MODIFIERS
@@ -1845,12 +1849,18 @@ void push_function_context() {
   node->kind = 0;
   fc->values_list = node;
   fc->bindable = 0;
+  fc->async_parent = compiling_async_function != 0;
   fc->parent = current_function_context;
 
+  /* Anonymous functionals are ordinary synchronous functions, even when
+   * their constructor appears inside an async body. Do not let await escape
+   * into a closure that has no coroutine result channel. */
+  compiling_async_function = 0;
   current_function_context = fc;
 }
 
 void pop_function_context() {
+  compiling_async_function = current_function_context->async_parent;
   current_function_context = current_function_context->parent;
   last_function_context--;
 }

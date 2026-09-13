@@ -10,8 +10,9 @@
 
 #include <fmt/format.h>
 
-extern int context;       // FIXME
-extern int func_present;  // FIXME
+extern int context;                  // FIXME
+extern int func_present;             // FIXME
+extern int compiling_async_function; // parser state
 
 // Snapshot of the function declaration's own line, taken in rule_func_type()
 // (fired right after `type optional_star identifier` -- current_line is
@@ -119,7 +120,7 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
 #endif
   pending_func_decl_line = current_line_base + current_line;
   func_present = 1;
-  flags = (type >> 16);
+  flags = PACKED_TYPE_MODS(type);
 
   flags |= global_modifiers;
 
@@ -144,18 +145,20 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
     flags &= ~DECL_NOSAVE;
   }
 #endif
-  type = (flags << 16) | (type & 0xffff);
+  type = PACK_TYPE_MODS(flags) | PACKED_TYPE_BASIC(type);
   // A named function starts a fresh runtime frame. Clear any locals left by
   // a preceding file-scope initializer without affecting __INIT's compile-
   // wide high-water mark.
   free_all_local_names(0);
   /* Handle type checking here so we know whether to typecheck
      'argument' */
-  if (type & 0xffff) {
+  lpc_type_t const declared_type = PACKED_TYPE_BASIC(type);
+  compiling_async_function = (flags & FUNC_ASYNC) != 0;
+  if (declared_type) {
     if (CONFIG_INT(__RC_OLD_TYPE_BEHAVIOR__)) {
       exact_types = 0;
     } else {
-      exact_types = (type & 0xffff) | optional_star;
+      exact_types = declared_type | optional_star;
     }
   } else {
     if (pragmas & PRAGMA_STRICT_TYPES) {
@@ -186,9 +189,10 @@ LPC_INT rule_func_proto(LPC_INT type, LPC_INT optional_star, char **identifier, 
   if (argument.flags & ARG_IS_VARARGS) {
     func_types |= (FUNC_TRUE_VARARGS | FUNC_VARARGS);
   }
-  func_types |= (type >> 16);
+  func_types |= PACKED_TYPE_MODS(type);
 
-  define_new_function(*identifier, argument.num_arg, 0, func_types, (type & 0xffff) | optional_star);
+  define_new_function(*identifier, argument.num_arg, 0, func_types,
+                     PACKED_TYPE_BASIC(type) | optional_star);
   /* This is safe since it is guaranteed to be in the
      function table, so it can't be dangling */
   free_string(*identifier);
@@ -213,7 +217,8 @@ void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, cha
     }
 
     // Creating functions for argument defaults
-    fun = define_new_function(identifier, argument.num_arg, max_num_locals - argument.num_arg, *func_types, (type & 0xffff) | optional_star);
+    fun = define_new_function(identifier, argument.num_arg, max_num_locals - argument.num_arg,
+                              *func_types, PACKED_TYPE_BASIC(type) | optional_star);
     if (fun != -1) {
       *function = new_node_no_line();
       (*function)->kind = NODE_FUNCTION;
@@ -295,6 +300,7 @@ void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, cha
   } else
     *function = 0;
   free_all_local_names(!!(*block_or_semi));
+  compiling_async_function = 0;
 }
 
 ident_hash_elem_t *rule_define_class(LPC_INT *$$, char *$3) {

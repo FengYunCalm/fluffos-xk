@@ -83,17 +83,21 @@ struct mem_block_t {
 
 /* A bare promise modifier marks the declared value, while the separate bit
  * preserves array-ness of its payload (promise<int *>). */
-#define TYPE_MODS_SHIFT 16
+/* A grammar type temporarily carries declaration flags as well as the
+ * lpc_type_t value. Promise modifiers occupy bits 16..17 of lpc_type_t, so
+ * the temporary flag payload must live above the 32-bit type word. */
+#define TYPE_MODS_SHIFT 32
 #define BASIC_TYPE_MASK (0xffffu | TYPE_MOD_PROMISE | TYPE_MOD_PROMISE_VALUE_ARRAY)
-#define PACK_TYPE_MODS(m) ((m) << TYPE_MODS_SHIFT)
-#define PACKED_TYPE_MODS(t) (((t) & ~BASIC_TYPE_MASK) >> TYPE_MODS_SHIFT)
-#define PACKED_TYPE_BASIC(t) ((t) & BASIC_TYPE_MASK)
+#define PACK_TYPE_MODS(m) ((LPC_INT)(m) << TYPE_MODS_SHIFT)
+#define PACKED_TYPE_MODS(t) ((int)(((LPC_INT)(t) >> TYPE_MODS_SHIFT) & 0xffff))
+#define PACKED_TYPE_BASIC(t) ((lpc_type_t)((LPC_INT)(t) & BASIC_TYPE_MASK))
 #define IS_PROMISE(t) (((t) & (TYPE_MOD_PROMISE | TYPE_MOD_ARRAY)) == TYPE_MOD_PROMISE)
 
 int promise_payload_type(int type);
 int promise_of_type(int type);
 unsigned short promise_value_subtype(int type);
 int convert_type(int type);
+lpc_type_t simul_efun_call_type(int simul_num);
 
 struct local_info_t {
   int runtime_index;
@@ -114,6 +118,7 @@ extern const char *compiler_type_names[];
 #define LOOP_FOREACH 0x80
 #define SPECIAL_CONTEXT 0x100
 #define ARG_LIST 0x200
+#define ASYNC_CATCH_CONTEXT 0x400
 
 // Context flags and current_type share one parser-stack value when a special
 // expression block is entered. Keep both pieces of state error-safe.
@@ -127,11 +132,13 @@ struct function_context_t {
   short bindable;
   short num_parameters;
   short num_locals;
+  bool async_parent;
   struct function_context_t *parent;
 };
 
 extern function_context_t *current_function_context;
 extern int var_defined;
+extern int compiling_async_function;
 extern parse_node_t *comp_trees[NUMTREES];
 extern unsigned short *comp_def_index_map;
 extern unsigned short *func_index_map;
@@ -193,7 +200,7 @@ int validate_function_call(int, parse_node_t *);
 parse_node_t *validate_efun_call(int, parse_node_t *);
 extern mem_block_t mem_block[];
 extern int exact_types, global_modifiers;
-extern lpc_type_t current_type;
+extern LPC_INT current_type;
 extern char *prog_code;
 extern char *prog_code_max;
 extern unsigned char string_tags[0x20];
@@ -256,8 +263,8 @@ void pop_func_block(void);
 int decl_fix(int);
 parse_node_t *check_refs(int, parse_node_t *, parse_node_t *);
 
-int lookup_any_class_member(char *, unsigned short *);
-int lookup_class_member(int, char *, unsigned short *);
+int lookup_any_class_member(char *, lpc_type_t *);
+int lookup_class_member(int, char *, lpc_type_t *);
 parse_node_t *reorder_class_values(int, parse_node_t *);
 
 parse_node_t *promote_to_float(parse_node_t *);

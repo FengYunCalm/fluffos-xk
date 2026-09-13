@@ -6,6 +6,7 @@
 #define _TREES_H
 
 #include "vm/internal/base/number.h"
+#include "vm/internal/base/svalue.h"
 
 #define NODES_PER_BLOCK 256
 
@@ -49,6 +50,7 @@ enum node_type {
   NODE_STRING,
   NODE_FUNCTION_CONSTRUCTOR,
   NODE_CATCH,
+  NODE_ACATCH,
   NODE_TIME_EXPRESSION,
   NODE_FUNCTION
 };
@@ -68,7 +70,7 @@ struct parse_node_t {
 #else
   uint32_t line;
 #endif
-  unsigned short type;
+  lpc_type_t type;
   union parse_value v, l, r; /* left, right, and value */
 };
 
@@ -169,6 +171,8 @@ typedef struct parse_node_block_s {
        (vn)->type = f;)
 #define CREATE_CATCH(vn, pn) \
   SAFE((vn) = new_node(); (vn)->kind = NODE_CATCH; (vn)->type = TYPE_ANY; (vn)->r.expr = pn;)
+#define CREATE_ACATCH(vn, pn) \
+  SAFE((vn) = new_node(); (vn)->kind = NODE_ACATCH; (vn)->type = TYPE_ANY; (vn)->r.expr = pn;)
 #define CREATE_TIME_EXPRESSION(vn, pn)                                              \
   SAFE((vn) = new_node(); (vn)->kind = NODE_TIME_EXPRESSION; (vn)->type = TYPE_ANY; \
        (vn)->r.expr = pn;)

@@ -724,16 +724,18 @@ void i_generate_node(parse_node_t *expr) {
       upd_short(addr + 3, CURRENT_PROGRAM_SIZE - addr, "switch");
       break;
     }
-    case NODE_CATCH: {
+    case NODE_CATCH:
+    case NODE_ACATCH: {
       int addr;
 
       end_pushes();
-      ins_byte(F_CATCH);
+      ins_byte(expr->kind == NODE_ACATCH ? F_ACATCH : F_CATCH);
       addr = CURRENT_PROGRAM_SIZE;
       ins_short(0);
       i_generate_node(expr->r.expr);
-      ins_byte(F_END_CATCH);
-      upd_short(addr, CURRENT_PROGRAM_SIZE - addr, "catch");
+      ins_byte(expr->kind == NODE_ACATCH ? F_END_ACATCH : F_END_CATCH);
+      upd_short(addr, CURRENT_PROGRAM_SIZE - addr,
+                expr->kind == NODE_ACATCH ? "acatch" : "catch");
       break;
     }
     case NODE_TIME_EXPRESSION: {
@@ -1187,6 +1189,7 @@ void optimize_icode(char *start, char *pc, char *end) {
       }
 #endif
       case F_CATCH:
+      case F_ACATCH:
       case F_AGGREGATE:
       case F_AGGREGATE_ASSOC:
       case F_NEXT_FOREACH:

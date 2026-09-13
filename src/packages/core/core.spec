@@ -54,9 +54,8 @@ mixed implode(mixed *, string | function, void | mixed);
 int call_out(string | function, int|float, ...);
 int call_out_walltime(string | function, int|float, ...);
 
-/* Native promise substrate. The compiler's promise<T> type is introduced in
- * the async language phase; these phase-1 declarations intentionally use
- * mixed so the value/refcount and delivery contract can be exercised first. */
+/* Native promises and cooperative async execution. `async T` functions
+ * return promise<T>; callback-based async efuns remain separate APIs. */
 mixed promise_create();
 void promise_resolve(mixed, void | mixed);
 void promise_reject(mixed, void | mixed);
@@ -65,6 +64,10 @@ mixed promise_catch(mixed, function);
 int promise_status(mixed);
 mixed promise_result(mixed);
 int promisep(mixed);
+/* Cooperative async suspension and diagnostics. async_info() returns the
+ * suspended-coroutine array by default and scheduler counters with 1. */
+mixed async_yield();
+mixed async_info(int default: 0);
 
 int call_out_walltime_gateway(string | function, int|float, ...);
 int call_out_walltime_background(string | function, int|float, ...);

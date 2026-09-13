@@ -1,0 +1,38 @@
+#pragma strict_types
+
+async int async_add(int left, int right) {
+  return left + right;
+}
+
+async int only_plain_await() {
+  int value = await 41;
+  return value + 1;
+}
+
+async int catch_sync_error() {
+  mixed err = acatch(error("boom"));
+  ASSERT(stringp(err));
+  ASSERT(strsrch(err, "boom") != -1);
+  return 7;
+}
+
+void do_tests() {
+  promise<int> typed = async_add(20, 22);
+  ASSERT_EQ(1, promise_status(typed));
+  ASSERT_EQ(42, promise_result(typed));
+
+  mixed p = async_add(20, 22);
+  ASSERT_EQ("promise", typeof(p));
+  ASSERT_EQ(1, promise_status(p));
+  ASSERT_EQ(42, promise_result(p));
+
+  p = only_plain_await();
+  ASSERT_EQ("promise", typeof(p));
+  ASSERT_EQ(1, promise_status(p));
+  ASSERT_EQ(42, promise_result(p));
+
+  p = catch_sync_error();
+  ASSERT_EQ("promise", typeof(p));
+  ASSERT_EQ(1, promise_status(p));
+  ASSERT_EQ(7, promise_result(p));
+}

@@ -1,0 +1,4 @@
+async int inherited_delay() {
+  await async_yield();
+  return 7;
+}

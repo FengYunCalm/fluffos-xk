@@ -196,6 +196,7 @@ static parse_node_t *optimize(parse_node_t *expr) {
       break;
     }
     case NODE_CATCH:
+    case NODE_ACATCH:
       OPT(expr->r.expr);
       break;
     case NODE_LVALUE_EFUN:
@@ -625,7 +626,8 @@ void dump_tree(parse_node_t *expr) {
       printf(")");
       break;
     case NODE_CATCH:
-      printf("(catch ");
+    case NODE_ACATCH:
+      printf(expr->kind == NODE_ACATCH ? "(acatch " : "(catch ");
       dump_tree(expr->r.expr);
       printf(")");
       break;
@@ -810,6 +812,7 @@ void lpc_tree_form(parse_node_t *expr, parse_node_t *dest) {
       lpc_tree_expr(ARG_3, expr->r.expr);
       break;
     case NODE_CATCH:
+    case NODE_ACATCH:
       lpc_tree(dest, 2);
       lpc_tree_expr(ARG_2, expr->r.expr);
       break;

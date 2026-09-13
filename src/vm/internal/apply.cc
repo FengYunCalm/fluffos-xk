@@ -11,6 +11,7 @@
 #include "thirdparty/scope_guard/scope_guard.hpp"  // DEFER
 
 #include "vm/internal/base/apply_cache.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/base/machine.h"
 #include "vm/internal/base/debug.h"
 #include "compiler/internal/compiler.h"
@@ -39,6 +40,9 @@ void vm_apply_return_clear() {
 int convert_type(int /*type*/);
 
 int convert_type(int type) {
+  if (IS_PROMISE(type)) {
+    return T_PROMISE;
+  }
   switch (type & (~DECL_MODS)) {
     case TYPE_UNKNOWN:
     case TYPE_NOVALUE:
@@ -403,7 +407,11 @@ retry_for_shadow:
 #ifdef DEBUG
     save_csp = csp;
 #endif
-    call_program(current_prog, funp->address);
+    if (funflags & FUNC_ASYNC) {
+      run_async_function(current_prog->program + funp->address, funp);
+    } else {
+      call_program(current_prog, funp->address);
+    }
     DEBUG_CHECK(save_csp - 1 != csp, "Bad csp after execution in apply_low.\n");
     return 1;
   }

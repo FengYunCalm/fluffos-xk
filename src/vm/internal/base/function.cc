@@ -4,6 +4,7 @@
 #include "vm/context.h"
 #include "vm/vm.h"
 #include "vm/internal/base/machine.h"
+#include "vm/internal/base/promise.h"
 #include "vm/internal/lpc_vm_profile.h"
 #include "compiler/internal/lex.h"  // for instrs, FIXME
 
@@ -315,17 +316,22 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
       /* Function-pointer calls must fill default arguments like a direct
        * call -- `(: foo :)()` used to run foo with zeros instead of its
        * declared defaults. Fill BEFORE fp is set: the helpers push the
-       * missing values as ordinary arguments. */
+       * missing values as ordinary arguments. Resolve aliases here too;
+       * the aliased entry carries the async flag and the default-argument
+       * contract of the implementation that will actually run. */
+      bool local_is_async = false;
       {
         auto *cprog = current_object->prog;
         int roff = funp->f.local.index;
         if (cprog->function_flags[roff] & FUNC_ALIAS) {
           roff = cprog->function_flags[roff] & ~FUNC_ALIAS;
         }
+        auto const resolved_flags = cprog->function_flags[roff];
+        local_is_async = (resolved_flags & FUNC_ASYNC) != 0;
         auto result = get_function_at_index(cprog, roff);
         if (result.first != nullptr) {
           num_arg = fill_default_args(result.first, &result.first->function_table[result.second],
-                                      cprog->function_flags[roff], num_arg);
+                                      resolved_flags, num_arg);
         }
       }
 
@@ -339,7 +345,11 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
       csp->num_local_variables = num_arg;
       func = setup_new_frame(funp->f.local.index);
 
-      call_program(current_prog, func->address);
+      if (local_is_async) {
+        run_async_function(current_prog->program + func->address, func);
+      } else {
+        call_program(current_prog, func->address);
+      }
       break;
     }
     case FP_FUNCTIONAL:

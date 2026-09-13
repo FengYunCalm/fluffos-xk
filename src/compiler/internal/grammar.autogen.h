@@ -97,18 +97,21 @@ extern int yydebug;
     L_NEW_FUNCTION_OPEN = 298,     /* L_NEW_FUNCTION_OPEN  */
     L_SSCANF = 299,                /* L_SSCANF  */
     L_CATCH = 300,                 /* L_CATCH  */
-    L_ARRAY = 301,                 /* L_ARRAY  */
-    L_REF = 302,                   /* L_REF  */
-    L_PARSE_COMMAND = 303,         /* L_PARSE_COMMAND  */
-    L_TIME_EXPRESSION = 304,       /* L_TIME_EXPRESSION  */
-    L_CLASS = 305,                 /* L_CLASS  */
-    L_NEW = 306,                   /* L_NEW  */
-    L_PARAMETER = 307,             /* L_PARAMETER  */
-    L_TREE = 308,                  /* L_TREE  */
-    L_PREPROCESSOR_COMMAND = 309,  /* L_PREPROCESSOR_COMMAND  */
-    LOWER_THAN_ELSE = 310,         /* LOWER_THAN_ELSE  */
-    L_EQ = 311,                    /* L_EQ  */
-    L_NE = 312                     /* L_NE  */
+    L_ACATCH = 301,                /* L_ACATCH  */
+    L_AWAIT = 302,                 /* L_AWAIT  */
+    L_ARRAY = 303,                 /* L_ARRAY  */
+    L_PROMISE = 304,               /* L_PROMISE  */
+    L_REF = 305,                   /* L_REF  */
+    L_PARSE_COMMAND = 306,         /* L_PARSE_COMMAND  */
+    L_TIME_EXPRESSION = 307,       /* L_TIME_EXPRESSION  */
+    L_CLASS = 308,                 /* L_CLASS  */
+    L_NEW = 309,                   /* L_NEW  */
+    L_PARAMETER = 310,             /* L_PARAMETER  */
+    L_TREE = 311,                  /* L_TREE  */
+    L_PREPROCESSOR_COMMAND = 312,  /* L_PREPROCESSOR_COMMAND  */
+    LOWER_THAN_ELSE = 313,         /* LOWER_THAN_ELSE  */
+    L_EQ = 314,                    /* L_EQ  */
+    L_NE = 315                     /* L_NE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -117,7 +120,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 140 "src/compiler/internal/grammar.y"
+#line 143 "src/compiler/internal/grammar.y"
 
   LPC_INT number; /* 8 */
   LPC_FLOAT real; /* 8 */
@@ -134,11 +137,11 @@ union YYSTYPE
     uint8_t num_local;
     uint8_t max_num_locals;
     uint16_t context;
-    uint16_t save_current_type;
+    LPC_INT save_current_type;
     uint16_t save_exact_types;
   } func_block; /* 8 */
 
-#line 142 "src/compiler/internal/grammar.autogen.h"
+#line 145 "src/compiler/internal/grammar.autogen.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

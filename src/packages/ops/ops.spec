@@ -29,6 +29,7 @@ operator while_dec;
 operator lor, land;
 
 operator catch, end_catch;
+operator await, acatch, end_acatch;
 operator time_expression, end_time_expression;
 
 operator switch ;

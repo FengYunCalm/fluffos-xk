@@ -53,6 +53,7 @@
 #include "packages/gateway/gateway.h"
 #include "packages/sockets/socket_efuns.h"
 #include "vm/context.h"
+#include "vm/internal/apply.h"
 #include "vm/internal/base/apply_cache.h"
 #include "vm/internal/base/array.h"
 #include "vm/internal/base/mapping.h"
@@ -96,6 +97,7 @@ struct ExternalCommandGuard {
   char* saved_command;
   ~ExternalCommandGuard() { external_cmd[0] = saved_command; }
 };
+object_t* load_object_for_test(const char* path);
 object_t* clone_object_for_test(const char* path);
 void destruct_object_for_test(object_t* object);
 }
@@ -863,6 +865,162 @@ TEST_F(DriverTest, TestPromisePassThroughDeliveryIsDeferredAndRefcounted) {
 
   free_promise(source);
   free_promise(next);
+}
+
+TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
+  clear_tick_events();
+  struct AsyncProbeGuard {
+    object_t* object = nullptr;
+    promise_t* source = nullptr;
+    std::vector<promise_t*> results;
+    ~AsyncProbeGuard() {
+      clear_tick_events();
+      if (object != nullptr) {
+        destruct_object_for_test(object);
+      }
+      if (source != nullptr) {
+        free_promise(source);
+      }
+      for (auto* result : results) {
+        free_promise(result);
+      }
+      vm_apply_return_clear();
+    }
+  } guard;
+
+  guard.object = load_object_for_test("single/async_phase2_probe");
+  ASSERT_NE(guard.object, nullptr);
+
+  auto invoke = [&](const char* method) -> promise_t* {
+    auto* result = safe_apply(method, guard.object, 0, ORIGIN_DRIVER);
+    EXPECT_NE(result, nullptr);
+    if (result == nullptr || result->type != T_PROMISE) {
+      vm_apply_return_clear();
+      return nullptr;
+    }
+    auto* promise = result->u.prom;
+    promise->ref++;  // retain a C++ observer reference after clearing apply_ret_value
+    vm_apply_return_clear();
+    guard.results.push_back(promise);
+    return promise;
+  };
+
+  auto drain_backend_events = [&] {
+    for (int pass = 0; pass < 32; pass++) {
+      if (tick_event_queue_size_for_test() != 0) {
+        ASSERT_GT(run_tick_events_for_test(), 0u);
+      }
+      if (walltime_event_queue_size_for_test() != 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+      }
+      if (tick_event_queue_size_for_test() == 0 &&
+          walltime_event_queue_size_for_test() == 0) {
+        return;
+      }
+    }
+    ADD_FAILURE() << "async probe did not drain backend events";
+  };
+
+  auto* suspended = invoke("suspend_once");
+  ASSERT_NE(suspended, nullptr);
+  ASSERT_EQ(suspended->state, PROMISE_PENDING);
+  drain_backend_events();
+  ASSERT_EQ(suspended->state, PROMISE_FULFILLED);
+  ASSERT_EQ(suspended->result.type, T_NUMBER);
+  ASSERT_EQ(suspended->result.u.number, 42);
+
+  auto* function_pointer = invoke("call_function_pointer_probe");
+  ASSERT_NE(function_pointer, nullptr);
+  ASSERT_EQ(function_pointer->state, PROMISE_PENDING);
+  drain_backend_events();
+  ASSERT_EQ(function_pointer->state, PROMISE_FULFILLED);
+  ASSERT_EQ(function_pointer->result.type, T_NUMBER);
+  ASSERT_EQ(function_pointer->result.u.number, 42);
+
+  auto* simul = invoke("call_simul_probe");
+  ASSERT_NE(simul, nullptr);
+  ASSERT_EQ(simul->state, PROMISE_PENDING);
+  drain_backend_events();
+  ASSERT_EQ(simul->state, PROMISE_FULFILLED);
+  ASSERT_EQ(simul->result.type, T_NUMBER);
+  ASSERT_EQ(simul->result.u.number, 84);
+
+  auto* external = invoke("call_external_probe");
+  ASSERT_NE(external, nullptr);
+  ASSERT_EQ(external->state, PROMISE_PENDING);
+  drain_backend_events();
+  ASSERT_EQ(external->state, PROMISE_FULFILLED);
+  ASSERT_EQ(external->result.type, T_NUMBER);
+  ASSERT_EQ(external->result.u.number, 42);
+
+  auto* inherited = invoke("call_inherited_probe");
+  ASSERT_NE(inherited, nullptr);
+  ASSERT_EQ(inherited->state, PROMISE_PENDING);
+  drain_backend_events();
+  ASSERT_EQ(inherited->state, PROMISE_FULFILLED);
+  ASSERT_EQ(inherited->result.type, T_NUMBER);
+  ASSERT_EQ(inherited->result.u.number, 7);
+
+  guard.source = promise_alloc();
+  guard.source->ref++;  // retain the source while the async call owns its argument
+  push_refed_promise(guard.source);
+  auto* result = safe_apply("catch_rejection", guard.object, 1, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* caught = result->u.prom;
+  caught->ref++;
+  vm_apply_return_clear();
+  guard.results.push_back(caught);
+  ASSERT_EQ(caught->state, PROMISE_PENDING);
+
+  svalue_t reason = const0;
+  reason.type = T_STRING;
+  reason.subtype = STRING_CONSTANT;
+  reason.u.string = const_cast<char*>("expected rejection");
+  ASSERT_EQ(promise_settle(guard.source, &reason, 1), 1);
+  drain_backend_events();
+  ASSERT_EQ(caught->state, PROMISE_FULFILLED);
+  ASSERT_EQ(caught->result.type, T_STRING);
+  ASSERT_STREQ(caught->result.u.string, "expected rejection");
+}
+
+TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
+  clear_tick_events();
+  object_t* object = load_object_for_test("single/async_phase2_probe");
+  ASSERT_NE(object, nullptr);
+
+  auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* promise = result->u.prom;
+  promise->ref++;
+  vm_apply_return_clear();
+  ASSERT_EQ(promise->state, PROMISE_PENDING);
+
+  destruct_object_for_test(object);
+  ASSERT_EQ(promise->state, PROMISE_REJECTED);
+  ASSERT_EQ(promise->result.type, T_STRING);
+  ASSERT_STREQ(promise->result.u.string,
+               "*async function owner was destructed while suspended");
+  promise->handled = true;
+
+  for (int pass = 0; pass < 16; pass++) {
+    if (tick_event_queue_size_for_test() != 0) {
+      ASSERT_GT(run_tick_events_for_test(), 0u);
+    }
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    }
+    if (tick_event_queue_size_for_test() == 0 &&
+        walltime_event_queue_size_for_test() == 0) {
+      break;
+    }
+  }
+  ASSERT_EQ(tick_event_queue_size_for_test(), 0u);
+  ASSERT_EQ(walltime_event_queue_size_for_test(), 0u);
+  free_promise(promise);
 }
 
 TEST_F(DriverTest, TestFutureFrozenMappingKeyAndValueBytesAreCounted) {

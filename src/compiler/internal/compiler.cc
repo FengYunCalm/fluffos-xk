@@ -13,6 +13,7 @@
 
 #include "vm/internal/base/program.h"
 #include "vm/internal/base/svalue.h"
+#include "vm/internal/simul_efun.h"
 #include "generate.h"
 #include "icode.h"
 #include "lex.h"
@@ -92,7 +93,7 @@ function_context_t function_context;
 /* Type modifiers and runtime tags occupy a 32-bit LPC type word. */
 int exact_types, global_modifiers;
 
-lpc_type_t current_type;
+LPC_INT current_type;
 
 int var_defined;
 
@@ -371,7 +372,7 @@ static void copy_new_function(program_t *prog, int index, program_t *defprog, in
   ihe->dn.function_num = where;
 }
 
-static int find_class_member(int which, const char *name, unsigned short *type) {
+static int find_class_member(int which, const char *name, lpc_type_t *type) {
   int i;
   class_def_t *cd;
   class_member_entry_t *cme;
@@ -398,7 +399,7 @@ static int find_class_member(int which, const char *name, unsigned short *type) 
   }
 }
 
-int lookup_any_class_member(char *name, unsigned short *type) {
+int lookup_any_class_member(char *name, lpc_type_t *type) {
   int nc = mem_block[A_CLASS_DEF].current_size / sizeof(class_def_t);
   int i, ret = -1, nret;
   const char *s = findstring(name);
@@ -423,7 +424,7 @@ int lookup_any_class_member(char *name, unsigned short *type) {
   return ret;
 }
 
-int lookup_class_member(int which, char *name, unsigned short *type) {
+int lookup_class_member(int which, char *name, lpc_type_t *type) {
   const char *s = findstring(name);
   int ret;
 
@@ -829,6 +830,23 @@ int promise_payload_type(int type) {
   return payload;
 }
 
+lpc_type_t simul_efun_call_type(int simul_num) {
+  if (simul_num < 0 || simul_num >= num_simul_efun || simuls == nullptr ||
+      simuls[simul_num].func == nullptr) {
+    return TYPE_ANY;
+  }
+
+  function_lookup_info_t const &lookup = simuls[simul_num];
+  lpc_type_t type = lookup.func->type;
+  if (simul_efun_ob != nullptr && simul_efun_ob->prog != nullptr && lookup.index >= 0 &&
+      lookup.index < simul_efun_ob->prog->num_functions_defined +
+                          simul_efun_ob->prog->last_inherited &&
+      (simul_efun_ob->prog->function_flags[lookup.index] & FUNC_ASYNC)) {
+    type = promise_of_type(type);
+  }
+  return type;
+}
+
 int promise_of_type(int type) {
   if (IS_PROMISE(type)) {
     return type;
@@ -879,6 +897,16 @@ int compatible_types(int t1, int t2) {
   if (t1 == TYPE_ANY || t2 == TYPE_ANY) {
     return 1;
   }
+  if ((t1 | t2) & TYPE_MOD_PROMISE) {
+    if (!(t1 & TYPE_MOD_PROMISE) || !(t2 & TYPE_MOD_PROMISE) ||
+        ((t1 & TYPE_MOD_ARRAY) != (t2 & TYPE_MOD_ARRAY))) {
+      return 0;
+    }
+    if (t1 & TYPE_MOD_ARRAY) {
+      return t1 == t2;
+    }
+    return compatible_types(promise_payload_type(t1), promise_payload_type(t2));
+  }
   if ((t1 == (TYPE_ANY | TYPE_MOD_ARRAY) && (t2 & TYPE_MOD_ARRAY))) {
     return 1;
   }
@@ -912,6 +940,16 @@ int compatible_types2(int t1, int t2) {
   t2 &= ~DECL_MODS;
   if (t1 == TYPE_ANY || t2 == TYPE_ANY) {
     return 1;
+  }
+  if ((t1 | t2) & TYPE_MOD_PROMISE) {
+    if (!(t1 & TYPE_MOD_PROMISE) || !(t2 & TYPE_MOD_PROMISE) ||
+        ((t1 & TYPE_MOD_ARRAY) != (t2 & TYPE_MOD_ARRAY))) {
+      return 0;
+    }
+    if (t1 & TYPE_MOD_ARRAY) {
+      return t1 == t2;
+    }
+    return compatible_types2(promise_payload_type(t1), promise_payload_type(t2));
   }
   if ((t1 == (TYPE_ANY | TYPE_MOD_ARRAY) && (t2 & TYPE_MOD_ARRAY))) {
     return 1;
@@ -974,6 +1012,9 @@ static int find_matching_function(program_t *prog, const char *name, parse_node_
           node->v.number = F_CALL_INHERITED;
           node->l.number = ri;
           type = prog->function_table[i].type;
+          if (flags & FUNC_ASYNC) {
+            type = promise_of_type(type);
+          }
           fix_class_type(&type, prog);
           node->type = type;
           return 1;
@@ -1431,18 +1472,32 @@ char *get_type_modifiers(char *where, char *end, int type) {
   if (type & FUNC_VARARGS) {
     where = strput(where, end, "varargs ");
   }
+  if (type & FUNC_ASYNC) {
+    where = strput(where, end, "async ");
+  }
 
   return where;
 }
 
 char *get_type_name(char *where, char *end, int type) {
-  int pointer = 0;
+  bool pointer = false;
+  bool promise = false;
+  bool promise_array = false;
 
   where = get_type_modifiers(where, end, type);
   type &= ~DECL_MODS;
+  /* Strip an outer array modifier before recognizing promise<T>. Without
+   * this, `promise<T> *` falls through the type switch and prints as an
+   * unknown type instead of preserving both layers. */
   if (type & TYPE_MOD_ARRAY) {
-    pointer = 1;
+    pointer = true;
     type &= ~TYPE_MOD_ARRAY;
+  }
+  if (IS_PROMISE(type)) {
+    promise = true;
+    promise_array = (type & TYPE_MOD_PROMISE_VALUE_ARRAY) != 0;
+    where = strput(where, end, "promise<");
+    type &= ~(TYPE_MOD_PROMISE | TYPE_MOD_PROMISE_VALUE_ARRAY);
   }
   if (type & TYPE_MOD_CLASS) {
     where = strput(where, end, "class ");
@@ -1457,7 +1512,7 @@ char *get_type_name(char *where, char *end, int type) {
   }
   where = strput(where, end, " ");
 #ifdef ARRAY_RESERVED_WORD
-  if (pointer) {
+  if (pointer && !promise) {
     /* use just "array" instead of "mixed array" */
     if (type == TYPE_ANY) {
       where -= strlen(compiler_type_names[type]) + 1;
@@ -1465,10 +1520,25 @@ char *get_type_name(char *where, char *end, int type) {
     where = strput(where, end, "array ");
   }
 #else
-  if (pointer) {
+  if (pointer && !promise) {
     where = strput(where, end, "* ");
   }
 #endif
+  if (promise_array) {
+    where = strput(where, end, "* ");
+  }
+  if (promise) {
+    where = strput(where, end, "> ");
+#ifdef ARRAY_RESERVED_WORD
+    if (pointer) {
+      where = strput(where, end, "array ");
+    }
+#else
+    if (pointer) {
+      where = strput(where, end, "* ");
+    }
+#endif
+  }
   return where;
 }
 
@@ -1713,7 +1783,7 @@ int validate_function_call(int f, parse_node_t *args) {
       }
     }
   }
-  return funp->type;
+  return (funflags & FUNC_ASYNC) ? promise_of_type(funp->type) : funp->type;
 }
 
 parse_node_t *promote_to_float(parse_node_t *node) {
@@ -1763,12 +1833,20 @@ parse_node_t *promote_to_int(parse_node_t *node) {
 parse_node_t *add_type_check(parse_node_t *node, int intype) {
   parse_node_t *expr, *expr2;
   int type = 0;
+  int runtype = intype & (~DECL_MODS);
 
   if (!(pragmas & PRAGMA_STRICT_TYPES)) {
     return node;
   }
 
-  switch (intype & (~DECL_MODS)) {
+  /* A promise is a runtime value regardless of its declared payload. An
+   * array of promises still has the ordinary array runtime tag; the promise
+   * value-array bit is intentionally not TYPE_MOD_ARRAY. */
+  if ((runtype & (TYPE_MOD_PROMISE | TYPE_MOD_ARRAY)) == TYPE_MOD_PROMISE) {
+    runtype = TYPE_MOD_PROMISE;
+  }
+
+  switch (runtype) {
     case 0:
     case 3:
       // error situation, don't bother
@@ -1793,6 +1871,9 @@ parse_node_t *add_type_check(parse_node_t *node, int intype) {
       break;
     case TYPE_BUFFER:
       type = T_BUFFER;
+      break;
+    case TYPE_MOD_PROMISE:
+      type = T_PROMISE;
       break;
     default:
       if (intype & TYPE_MOD_ARRAY) {
