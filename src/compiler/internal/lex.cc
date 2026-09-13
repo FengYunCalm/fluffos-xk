@@ -3006,6 +3006,16 @@ int parseStringLiteral(unsigned char c) {
 extern YYSTYPE yylval;
 
 void end_new_file() {
+  /* The macro-expansion scratch is per-compile state that used to survive a
+   * compile that ended in error(): the remaining expand_depth entries pin
+   * text that the arena is about to reclaim, and the next file would start
+   * with a non-empty expansion stack. Reset it on every teardown -- the
+   * end-side half of the per-file begin/end pair the C-S1 checklist requires
+   * (docs/upstream-sync-evidence-2026-08.md). A well-formed compile reaches
+   * here with expand_depth already 0; the reset only matters on the
+   * error() unwind that reuses this function as the cleanup hook. */
+  nexpands = 0;
+  expand_depth = 0;
   while (inctop) {
     incstate_t *p;
 

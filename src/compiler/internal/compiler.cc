@@ -1379,7 +1379,12 @@ int define_new_variable(const char *name, int type) {
   np = reinterpret_cast<const char **>(allocate_in_mem_block(A_VAR_NAME, sizeof(char *)));
   *np = name;
   tp = reinterpret_cast<lpc_type_t *>(allocate_in_mem_block(A_VAR_TYPE, sizeof(lpc_type_t)));
-  *tp = type;
+  // define_variable() may add DECL_NOSAVE when this name already exists
+  // (inherited or earlier in this file) so save_object() emits one key.
+  // That flag used to live only in A_VAR_TEMP and never reached
+  // prog->variable_types (#1381): restore then applied both the inherited
+  // and the shadowing line to the same slot, leaving the child undefined.
+  *tp = VAR_TEMP(n)->type;
   symbol_record(OP_SYMBOL_VAR, current_file, current_line, name);
   return n;
 }
@@ -2169,6 +2174,13 @@ program_t *compile_file(std::unique_ptr<LexStream> stream, const char *name) {
   // error() exception path (simulate.cc:2325) also releases the scope.
   compile_arena::begin();
   DEFER { compile_arena::end(); };
+
+  // end_new_file() is only reached through epilog(), i.e. after a parse that
+  // ran to completion. An error() thrown during yyparse() would skip it and
+  // leak every include level still on the stack -- each with an open stream
+  // and its fd -- until the next compile happens to run the teardown. Run it
+  // unconditionally; it is idempotent and a no-op after a clean epilog().
+  DEFER { end_new_file(); };
 
   {
     // make sure we use the C locale during parsing
