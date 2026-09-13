@@ -2,6 +2,7 @@
 
 #include "compiler.h"
 #include "compile_arena.h"
+#include "diagnostic.h"
 
 #include <cstdlib>  // for qsort
 #include <cstdio>   // for sprintf
@@ -2105,6 +2106,8 @@ parse_node_t *validate_efun_call(int f, parse_node_t *args) {
   return args;
 }
 
+static void record_compile_diagnostic(const char *message, int warning);
+
 void yyerror(const char *fmt, ...) {
   static char buf[1024 + 1];
 
@@ -2121,6 +2124,7 @@ void yyerror(const char *fmt, ...) {
     lex_fatal = 1;
     return;
   }
+  record_compile_diagnostic(buf, 0);
   smart_log(current_file, current_line, buf, 0);
 #ifdef PACKAGE_MUDLIB_STATS
   add_errors_for_file(current_file, 1);
@@ -2141,6 +2145,7 @@ void yywarn(const char *fmt, ...) {
     return;
   }
 
+  record_compile_diagnostic(buf, 1);
   smart_log(current_file, current_line, buf, 1);
 }
 
@@ -2177,6 +2182,11 @@ program_t *compile_file(std::unique_ptr<LexStream> stream, const char *name) {
   // error() exception path (simulate.cc:2325) also releases the scope.
   compile_arena::begin();
   DEFER { compile_arena::end(); };
+
+  // T3.2: open the structured-diagnostic scope with the arena cycle that owns
+  // its strings; closing it keeps the records readable until the next compile.
+  compiler_diag::begin_scope();
+  DEFER { compiler_diag::end_scope(); };
 
   // end_new_file() is only reached through epilog(), i.e. after a parse that
   // ran to completion. An error() thrown during yyparse() would skip it and
@@ -2981,6 +2991,21 @@ char *allocate_in_mem_block(int n, int size) {
   ret = mbp->block + mbp->current_size;
   mbp->current_size += size;
   return ret;
+}
+
+/* T3.2: record the structured form of a compiler report. The rendered text
+ * path (smart_log) is unchanged; this keeps position, severity and context for
+ * consumers that should not have to parse the rendered line (lpcshell, tests). */
+static void record_compile_diagnostic(const char *message, int warning) {
+  compiler_diag::Source source{};
+  source.file = current_file;
+  source.line = current_line;
+  source.column = current_source_column();
+  source.severity =
+      warning ? compiler_diag::Severity::kWarning : compiler_diag::Severity::kError;
+  source.message = message;
+  source.show_context = (pragmas & PRAGMA_ERROR_CONTEXT) != 0;
+  compiler_diag::record(source);
 }
 
 /*

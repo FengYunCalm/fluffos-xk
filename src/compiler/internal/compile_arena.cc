@@ -34,8 +34,8 @@ size_t align_up(size_t n) {
   return (n + kAlign - 1) & ~(kAlign - 1);
 }
 
-Chunk *new_chunk(size_t size, bool oversize, size_t *chunk_mallocs) {
-  void *mem = DMALLOC(kChunkHeaderSize + size, TAG_COMPILER, "compile_arena");
+Chunk *new_chunk(size_t size, bool oversize, size_t *chunk_mallocs, int tag, const char *desc) {
+  void *mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
   (*chunk_mallocs)++;
   Chunk *c = new (mem) Chunk;
   c->next = nullptr;
@@ -48,8 +48,8 @@ Chunk *new_chunk(size_t size, bool oversize, size_t *chunk_mallocs) {
 
 }  // namespace
 
-ScratchArena::ScratchArena(bool static_base) noexcept
-    : static_base_(static_base) {
+ScratchArena::ScratchArena(bool static_base, int tag, const char *desc) noexcept
+    : static_base_(static_base), tag_(tag), desc_(desc) {
   base_ = static_base_ ? &g_static_base : nullptr;
   current_ = base_;
 }
@@ -90,7 +90,7 @@ Chunk *ScratchArena::acquire_standard() {
     c->used = 0;
     return c;
   }
-  return new_chunk(kBaseChunkSize, false, &chunk_mallocs_);
+  return new_chunk(kBaseChunkSize, false, &chunk_mallocs_, tag_, desc_);
 }
 
 void ScratchArena::release_chunk(Chunk *chunk) noexcept {
@@ -178,7 +178,7 @@ void *ScratchArena::alloc(size_t size) {
   }
   if (base_ == nullptr) {
     // First use of a session arena: the base chunk is allocated on demand.
-    base_ = new_chunk(kBaseChunkSize, false, &chunk_mallocs_);
+    base_ = new_chunk(kBaseChunkSize, false, &chunk_mallocs_, tag_, desc_);
     current_ = base_;
   }
   size_t need = align_up(size);
@@ -187,7 +187,7 @@ void *ScratchArena::alloc(size_t size) {
     // Need a fresh chunk. Oversize (exact-fit) when the request exceeds a
     // standard chunk; otherwise take/allocate a standard chunk.
     if (need > kBaseChunkSize) {
-      c = new_chunk(need, true, &chunk_mallocs_);
+      c = new_chunk(need, true, &chunk_mallocs_, tag_, desc_);
     } else {
       c = acquire_standard();
     }

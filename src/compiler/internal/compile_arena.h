@@ -29,6 +29,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "base/internal/debugmalloc.h"  // TAG_COMPILER
+
 namespace compile_arena {
 
 constexpr size_t kBaseChunkSize = 1u << 20;  // 1MB
@@ -44,7 +46,11 @@ class ScratchArena {
  public:
   // `static_base` selects zero-cost startup: the process-wide arena takes its
   // first chunk from a BSS array, every other arena allocates it on demand.
-  explicit ScratchArena(bool static_base) noexcept;
+  // `tag`/`desc` classify the chunks for the driver's memory accounting;
+  // session-owned arenas use a permanent-class tag so check_memory() does not
+  // read their live chunks as un-released scratch.
+  explicit ScratchArena(bool static_base, int tag = TAG_COMPILER,
+                        const char *desc = "compile_arena") noexcept;
   // Frees the arena's own memory: the live chain, the retained pool and (for
   // non-static arenas) the base chunk. The process-wide arena keeps its BSS
   // base, which is what makes allocation possible before/around main().
@@ -126,6 +132,8 @@ class ScratchArena {
   size_t bytes_allocated_ = 0;
   size_t chunk_mallocs_ = 0;
   size_t reset_count_ = 0;
+  int tag_;
+  const char *desc_;
   size_t bindings_active_ = 0;
   size_t binding_rewinds_ = 0;
   size_t binding_order_violations_ = 0;

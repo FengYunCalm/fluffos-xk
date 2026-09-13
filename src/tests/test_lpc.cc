@@ -5,6 +5,7 @@
 #include <event2/event.h>
 #include <atomic>
 #include "packages/async/async.h"  // for check_reqs (backend wakeup drain)
+#include "compiler/internal/diagnostic.h"  // T3.2 structured compile diagnostics
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -25952,6 +25953,85 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   deallocate_program(prog_a);
   deallocate_program(prog_b);
   deallocate_program(prog_c);
+}
+
+TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
+  // T3.2 golden: a syntax error is recorded with the file, the offending line
+  // and the caret column, and the rendered text path is untouched (the full
+  // testsuite run is the text-path regression).
+  std::string const bad_source = "void create() {\n  int x = ;\n}\n";
+  compiler_diag::clear();
+  program_t *bad_prog = nullptr;
+  {
+    std::istringstream stream(bad_source);
+    bad_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_syntax_test");
+  }
+  EXPECT_EQ(bad_prog, nullptr) << "a syntax error must not produce a program";
+  ASSERT_GE(compiler_diag::size(), 1u);
+  const auto *diag = compiler_diag::last();
+  ASSERT_NE(diag, nullptr);
+  EXPECT_EQ(diag->severity, compiler_diag::Severity::kError);
+  ASSERT_NE(diag->message, nullptr);
+  EXPECT_NE(std::string(diag->message).find("syntax error"), std::string::npos)
+      << "message: " << diag->message;
+  ASSERT_NE(diag->snippet.position.file, nullptr);
+  EXPECT_STREQ(diag->snippet.position.file, "diag_syntax_test");
+  EXPECT_EQ(diag->snippet.position.line, 2);
+  EXPECT_EQ(diag->snippet.end_line, 2);
+  // The column is the lexer's position when it reported, i.e. one past the
+  // ';' it could not use (the same position the traditional caret uses).
+  auto const semicolon = bad_source.find(';', bad_source.find('\n') + 1);
+  auto const line_start = bad_source.find('\n') + 1;
+  EXPECT_EQ(diag->snippet.position.column,
+            static_cast<int>(semicolon - line_start) + 2)
+      << "column should be the lexer position after the unexpected ';'";
+  EXPECT_TRUE(diag->snippet.show_context);
+  EXPECT_TRUE(diag->ranges.empty());
+  EXPECT_TRUE(diag->fixits.empty());
+  EXPECT_TRUE(diag->expansions.empty());
+  EXPECT_EQ(compiler_diag::records_outside_scope(), 0u);
+
+  // A warning keeps its severity and does not fail the compile.
+  std::string const warned_source =
+      "#pragma no_such_pragma\nvoid create() { }\n";
+  compiler_diag::clear();
+  program_t *warned_prog = nullptr;
+  {
+    std::istringstream stream(warned_source);
+    warned_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_warning_test");
+  }
+  ASSERT_NE(warned_prog, nullptr);
+  ASSERT_EQ(compiler_diag::size(), 1u);
+  const compiler_diag::Diagnostic *warning = &compiler_diag::at(0);
+  EXPECT_EQ(warning->severity, compiler_diag::Severity::kWarning);
+  ASSERT_NE(warning->message, nullptr);
+  EXPECT_NE(std::string(warning->message).find("Unknown #pragma"), std::string::npos)
+      << "message: " << warning->message;
+  ASSERT_NE(warning->snippet.position.file, nullptr);
+  EXPECT_STREQ(warning->snippet.position.file, "diag_warning_test");
+  EXPECT_EQ(warning->snippet.position.line, 1);
+  EXPECT_GT(warning->snippet.position.column, 0);
+  deallocate_program(warned_prog);
+
+  // Opening a new compile scope drops the previous records (the arena cycle
+  // that owns their strings restarts).
+  {
+    std::istringstream stream("void create() { }\n");
+    program_t *fresh = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_clean_test");
+    ASSERT_NE(fresh, nullptr);
+    EXPECT_EQ(compiler_diag::size(), 0u)
+        << "a clean compile starts with no diagnostics";
+    deallocate_program(fresh);
+  }
+
+  // A runtime report (smart_log from the driver, not the compiler) is not a
+  // compile diagnostic: the runtime path does not even attempt a record, so
+  // neither the list nor the out-of-scope counter moves.
+  compiler_diag::clear();
+  size_t const outside_before = compiler_diag::records_outside_scope();
+  smart_log("driver", 0, "runtime report, no lexer position\n", 1);
+  EXPECT_EQ(compiler_diag::size(), 0u);
+  EXPECT_EQ(compiler_diag::records_outside_scope(), outside_before);
 }
 
 TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {

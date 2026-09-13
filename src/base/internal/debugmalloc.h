@@ -94,6 +94,12 @@ static const int TAG_OBJECT_VARIABLES = (TAG_DATA + 53);
 #ifdef PACKAGE_DB
 static const int TAG_DB = (TAG_PERMANENT + 50);
 #endif
+// T3.2: structured compile diagnostics outlive the compile scope that produced
+// them (a session renders them after the compile returned), so their arena is
+// driver-owned session state rather than scratch. The distinct tag keeps
+// check_memory() from reporting it as an un-released compiler block while
+// memory_summary() still accounts it.
+static const int TAG_COMPILE_DIAGNOSTICS = (TAG_PERMANENT + 56);
 static const int TAG_INTERPRETER = (TAG_PERMANENT + 51);
 #ifdef PACKAGE_PCRE
 static const int TAG_PCRE_CACHE = (TAG_PERMANENT + 52);

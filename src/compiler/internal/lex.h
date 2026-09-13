@@ -146,4 +146,8 @@ void mark_all_defines(void);
 void print_all_predefines();
 // Get error/warning message from lexer
 std::vector<std::string> prepare_logs(const char *, int, const char *, int, bool);
+/* Lexer position helpers for diagnostics: the start of the current source line
+ * (nullptr at EOF) and its 1-based column (0 when unknown). */
+const char *current_line_start();
+int current_source_column();
 #endif

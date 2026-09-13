@@ -1656,6 +1656,33 @@ char *show_error_context() {
   return buf;
 }
 
+/* Start of the source line the lexer is currently on, or nullptr at EOF (or
+ * before the first character). Shared by the traditional error-context snippet
+ * and the structured diagnostic position so both report the same column. */
+const char *current_line_start() {
+  if (outp == nullptr || cur_lbuf == nullptr || static_cast<unsigned char>(outp[-1]) == LEX_EOF) {
+    return nullptr;
+  }
+  const char *start = outp;
+  while (start != &cur_lbuf->buf[0]) {
+    if (start[-1] == '\n' || static_cast<unsigned char>(start[-1]) == LEX_EOF) {
+      break;
+    }
+    start--;
+  }
+  return start;
+}
+
+/* 1-based column of the lexer's current position, 0 when it cannot be derived
+ * (end of file, or no line buffer). */
+int current_source_column() {
+  const char *start = current_line_start();
+  if (start == nullptr) {
+    return 0;
+  }
+  return static_cast<int>(outp - start) + 1;
+}
+
 std::vector<std::string> prepare_logs(const char *error_file, int line, const char *what, int flag,
                                       bool include_error_context) {
   std::vector<std::string> logs;
@@ -1663,14 +1690,8 @@ std::vector<std::string> prepare_logs(const char *error_file, int line, const ch
                                 flag ? "Warning: " : "", what));
 
   if (include_error_context) {
-    if (static_cast<unsigned char>(outp[-1]) != LEX_EOF) {
-      const char *start = outp;
-      while (start != &cur_lbuf->buf[0]) {
-        if (start[-1] == '\n' || start[-1] == LEX_EOF) {
-          break;
-        }
-        start--;
-      }
+    const char *start = current_line_start();
+    if (start != nullptr) {
 
       const char *end = outp;
       while (end != cur_lbuf->buf_end && *end != LEX_EOF) {
