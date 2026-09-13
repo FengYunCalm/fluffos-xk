@@ -9,7 +9,7 @@
 #include "packages/core/dns.h"
 #include "user.h"
 #include "vm/context.h"
-#include "vm/internal/otable.h"
+#include "vm/internal/simulate.h"
 #include "vm/owner.h"
 
 #include <event2/event.h>
@@ -1225,7 +1225,7 @@ object_t *gateway_resolve_session_object(GatewaySession *sess) {
     return nullptr;
   }
 
-  auto *current = ObjectTable::instance().find(sess->user_ob_name);
+  auto *current = find_object2(sess->user_ob_name.c_str());
   if (!gateway_object_valid(current) || current != sess->user_ob ||
       current->load_time != sess->user_ob_load_time) {
     sess->user_ob = nullptr;
@@ -1532,7 +1532,7 @@ object_t *gateway_resolve_future_watch_object(const GatewayFutureWatch &watch) {
   if (watch.target_ob_name.empty()) {
     return nullptr;
   }
-  auto *ob = ObjectTable::instance().find(watch.target_ob_name);
+  auto *ob = find_object2(watch.target_ob_name.c_str());
   if (!gateway_object_valid(ob) || ob->load_time != watch.target_ob_load_time) {
     return nullptr;
   }

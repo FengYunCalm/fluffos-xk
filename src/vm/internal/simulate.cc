@@ -464,7 +464,10 @@ static object_t *load_virtual_object(const char *name, int clone) {
   new_ob = v->u.ob;
 
   if (!clone) {
-    ob = ObjectTable::instance().find(name);
+    ob = vm_object_store_find_live_by_path(name);
+    if (!ob) {
+      ob = ObjectTable::instance().find(name);
+    }
     if (ob && ob != new_ob) {
       /*
        * If we rename, we're going to have a duplicate name here.  Don't
@@ -781,7 +784,11 @@ object_t *load_object(const char *lname, int callcreate) {
       error("Illegal to inherit self.\n");
     }
 
-    if ((inh_obj = ObjectTable::instance().find(inhbuf))) {
+    inh_obj = vm_object_store_find_live_by_path(inhbuf);
+    if (!inh_obj) {
+      inh_obj = ObjectTable::instance().find(inhbuf);
+    }
+    if (inh_obj) {
 #ifdef DEBUG
       fatal("Inherited object is already loaded!");
 #endif
@@ -796,7 +803,11 @@ object_t *load_object(const char *lname, int callcreate) {
      * create function. Without this check, that would crash the driver.
      * -Beek
      */
-    if (!(ob = ObjectTable::instance().find(name))) {
+    ob = vm_object_store_find_live_by_path(name);
+    if (!ob) {
+      ob = ObjectTable::instance().find(name);
+    }
+    if (!ob) {
       ob = load_object(name, 1);
       /* sigh, loading the inherited file removed us */
       if (!ob) {
@@ -1813,7 +1824,11 @@ object_t *find_object(const char *str) {
     return nullptr;
   }
 
-  if ((ob = ObjectTable::instance().find(tmpbuf))) {
+  ob = vm_object_store_find_live_by_path(tmpbuf);
+  if (!ob) {
+    ob = ObjectTable::instance().find(tmpbuf);
+  }
+  if (ob) {
     if ((ob->flags & O_DESTRUCTED) == 0) {
       vm_object_store_register(ob);
     }
@@ -1835,7 +1850,11 @@ object_t *find_object2(const char *str) {
     return nullptr;
   }
 
-  if ((ob = ObjectTable::instance().find(p))) {
+  ob = vm_object_store_find_live_by_path(p);
+  if (!ob) {
+    ob = ObjectTable::instance().find(p);
+  }
+  if (ob) {
     if ((ob->flags & O_DESTRUCTED) == 0) {
       vm_object_store_register(ob);
     }

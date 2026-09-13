@@ -1,8 +1,8 @@
 # FluffOS_XK 实施与发布执行方案（最终审计版）
 
-> **状态：本执行批次已收口；结论为 `blocked`，不是 `release-ready`。**
+> **状态：历史发布审计仍为 `blocked`；当前架构批次已完成 A-D，不能写 `release-ready`。**
 >
-> 本文件已经从执行清单收束为事实账本。当前没有可直接执行的本地待办；尚未完成的架构、供应链和生产事项只作为明确的 `deferred` / `external-required` 阻塞记录保留。
+> 本文件同时记录历史发布审计的证据和后续架构批次的当前状态。未满足的运行时、供应链和生产门禁仍是明确的 `deferred` / `unverified` / `external-required` 事项，不得用局部测试替代。
 
 ## 1. 审计范围与基线
 
@@ -23,7 +23,7 @@
 | `bbee8c84` | 增大 Windows Release CPU timing probe 的 LPC workload，避免粗粒度计时量化为零。 |
 | `f051d230` | 修复 simul_efun rollback 测试错误固定使用 `snap.names[0]` 的索引假设，改用实际 `survivor_slot`。 |
 
-审计前状态为 `main == origin/main`、无冲突、无未跟踪任务文件。最终文档提交只改变 Markdown，不改变运行时源码。
+历史审计基线为 `main == origin/main`、无冲突、无未跟踪任务文件；该基线已由后续 A-C 架构提交推进。历史审计的远端证据仍绑定 `f051d230`，当前架构状态见第 4.1 节。
 
 ## 2. 已完成的本地验证
 
@@ -47,9 +47,9 @@
 
 capacity artifact 的运行时构建配置为 GCC 13.3、Linux x86_64、4 核；报告 cleanup 状态为 clean。报告保留在 CI artifact，不复制进源码树，不把历史 `docs/evidence` 文本冒充 current envelope。
 
-## 4. 明确封存的阻塞事实
+## 4. 历史审计封存的阻塞事实
 
-下列项目没有在本批次完成，且不能被定向测试或小 benchmark 改写为“已完成”：
+下列记录描述历史审计截止点的状态，不能被定向测试或小 benchmark 改写为发布证据；后续本地架构提交的状态更新见第 4.1 节：
 
 | 项目 | 状态 | 封存事实 |
 |---|---|---|
@@ -75,7 +75,7 @@ Promise、stack-lvalue 和 external-handle 的 `deferred` 记录描述的是当�
 - B1：`84c338f9` 完成 `T_PROMISE` substrate、引用/反应队列和微任务生命周期。
 - B2：`46568b7c` 完成 async/await 的编译器、park/resume 和错误传播。
 - B3：`6f45e262` 完成 callback async efun 的 Promise 形式。
-- C：当前原子单元完成 external handle：`external_create` / `external_run`、
+- C：`722d8812` 完成 external handle：`external_create` / `external_run`、
   stdin/stdout/stderr、exit code、kill/close、generation/owner/epoch 绑定、
   POSIX `posix_spawn` 与 Win32 `CreateProcess` 路径，以及 Promise 取消、
   owner destruct 和 driver shutdown 清理；经典 `external_start` 的 fd/callback
@@ -88,23 +88,41 @@ C 单元的当前定向证据：Debug/ASan/UBSan/TSan `lpc_tests` 外部 Promise
 `driver lpcc lpc_tests`，生成 efun 源已重建，`check-docs.py` 与
 `git diff --check` 通过。TSan 在本机必须使用既有 WSL2 workaround：
 `setarch x86_64 -R`。未在本机执行 Windows/macOS runtime，不能把本地
-Linux 结果写成跨平台证据；canonical owner-sharded object-store 收口仍是
-独立的 D 单元。
+Linux 结果写成跨平台证据。
+
+D：提交 `81118ce2` 完成 object-store 收口。driver 的规范化 live-name
+lookup 先路由到 owner shard 的 `local_records`、`local_objects` 和
+`object_path_index`；本地 store 未启用或缺少记录时才回退到 `ObjectTable`
+兼容索引。`ObjectTable` 的 children、insert/remove 和 legacy fallback 用途
+保留，但不再作为 owner-local canonical source。新增 helper 不读取 worker
+上的可变 `object_t` 生命周期字段，跨 owner handle 的拒绝合同不变；
+`find_object`、`find_object2`、load/virtual collision 和 gateway name
+validation 均已接入该路径。
+
+D 的定向证据：Debug object-store `5/5`、name-lookup `1/1`、gateway `2/2`；
+ASan object-store/name-lookup `6/6`、gateway `3/3`；UBSan 同为 `6/6` 和
+`3/3`；TSan 同为 `6/6` 和 `3/3`，均通过。testsuite 从 `testsuite/` 运行
+`owner_executor_contract` 返回 `Checks succeeded.`；`lpc_tests` 和
+`driver` 定向构建成功，`check-docs.py` 报告 `1137 markdown files`，
+`git diff --check` 通过。TSan 在本机必须使用既有 WSL2 workaround：
+`setarch x86_64 -R`；未使用 workaround 的 CMake test discovery 仅失败于
+已知 `unexpected memory mapping` 环境错误，随后使用 workaround 的构建和
+运行均通过。
 
 ## 5. 最终判定
 
-当前不能写 `release-ready`，原因是 Promise/stack-lvalue/external-handle 仍 deferred，运行时风险尚无逐项 current gate，且 branch protection、签名/provenance、registry 和生产容量仍 external-required。
+当前不能写 `release-ready`：运行时风险尚无逐项 current gate，且 branch protection、签名/provenance、registry 和生产容量仍为 `external-required`。A-D 的本地实现和定向测试不等于跨平台、生产或发布证据。
 
-本批次可以确认的结论只有：
+当前可以确认的结论是：
 
-1. layout ABI/recompile transaction 的当前回归已修复并复验；
-2. Windows simul_efun 索引测试的非确定性假设已修复；
-3. `f051d230` 的跨平台 CI、Docker、CodeQL 和 capacity artifact 已成功；
-4. 工作区改动已按原子提交处理，没有临时诊断、构建产物、密钥或未知并行改动进入交付。
+1. 历史审计中的 layout ABI/recompile transaction 和 Windows simul_efun 索引回归已修复并有对应证据；
+2. A-D 已形成独立本地提交，A-C 与 D 的定向 Debug/ASan/UBSan/TSan、testsuite、生成链和文档检查证据见第 4.1 节；
+3. D 的 owner-local canonical lookup、生命周期清理、失败路径和兼容 fallback 已通过本节列出的定向验证；
+4. 未满足的跨平台、供应链、签名、registry 和生产容量条件不能由上述本地结果代替。
 
-## 6. 收口声明
+## 6. 当前执行边界
 
-- 本文件不保留可直接执行的 TODO、恢复清单或“下一步”条目。
-- 未完成内容均已转换为 `deferred`、`unverified` 或 `external-required` 的事实记录。
+- A-D 已提交；当前没有开放的本地架构实现单元。
+- 未完成内容继续标记为 `deferred`、`unverified` 或 `external-required`，不把计划文字当作完成证据。
 - 方案状态保持 `blocked`；不得因本地测试通过而提升为 `release-ready`。
 - 相关历史取证仍见 [`docs/upstream-sync-evidence-2026-08.md`](upstream-sync-evidence-2026-08.md)、[`docs/upstream-absorption-plan-d07e7641-735bd31f.md`](upstream-absorption-plan-d07e7641-735bd31f.md) 和 [`docs/evidence/manifest.schema.json`](evidence/manifest.schema.json)。

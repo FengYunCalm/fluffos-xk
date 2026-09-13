@@ -177,6 +177,10 @@ mapping_t *vm_object_store_status();
 mapping_t *vm_object_store_owner_status(const char *owner_id);
 object_t *vm_object_store_owner_resolve(const char *owner_id, uint64_t object_id);
 object_t *vm_object_store_owner_path_resolve(const char *owner_id, const char *object_path);
+// Main-thread normalized-name lookup from the owner-local live path indexes.
+// It never consults ObjectTable or reads mutable object_t lifecycle flags;
+// callers may use ObjectTable as a compatibility fallback when this returns nullptr.
+object_t *vm_object_store_find_live_by_path(const char *object_path);
 mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t object_id);
 mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const char *object_path);
 

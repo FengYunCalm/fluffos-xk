@@ -16464,6 +16464,47 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
   destruct_object(obj);
 }
 
+TEST_F(DriverTest, TestVmNameLookupPrefersOwnerLocalPathIndex) {
+  struct MulticoreModeGuard {
+    int saved_mode;
+    ~MulticoreModeGuard() { CONFIG_INT(__RC_MULTICORE_MODE__) = saved_mode; }
+  } mode_guard{CONFIG_INT(__RC_MULTICORE_MODE__)};
+  CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_AUDIT;
+
+  ScopedCurrentObjectAsMaster master_scope;
+  auto* object = clone_object_for_test("single/void");
+  ASSERT_NE(object, nullptr);
+  vm_object_store_register(object);
+  const std::string object_path = object->obname;
+
+  EXPECT_EQ(vm_object_store_find_live_by_path(object_path.c_str()), object);
+  const bool removed = ObjectTable::instance().remove(object_path);
+  if (!removed) {
+    ADD_FAILURE() << "test object was not present in ObjectTable";
+    destruct_object_for_test(object);
+    return;
+  }
+
+  // The canonical owner-local path index must remain usable when the legacy
+  // global name entry is absent.
+  EXPECT_EQ(vm_object_store_find_live_by_path(object_path.c_str()), object);
+  EXPECT_EQ(find_object2(object_path.c_str()), object);
+  EXPECT_EQ(find_object(object_path.c_str()), object);
+
+  EXPECT_TRUE(ObjectTable::instance().insert(object_path, object));
+
+  // Tracking disabled is an explicit compatibility fallback; the helper must
+  // not return a pointer from stale owner-local state in that mode.
+  CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_OFF;
+  EXPECT_EQ(vm_object_store_find_live_by_path(object_path.c_str()), nullptr);
+  EXPECT_EQ(find_object2(object_path.c_str()), object);
+  CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_AUDIT;
+
+  destruct_object_for_test(object);
+  EXPECT_EQ(vm_object_store_find_live_by_path(object_path.c_str()), nullptr);
+  EXPECT_EQ(find_object2(object_path.c_str()), nullptr);
+}
+
 TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   auto mapping_number = [](mapping_t* map, const char* key) -> long {
     auto* value = find_string_in_mapping(map, key);

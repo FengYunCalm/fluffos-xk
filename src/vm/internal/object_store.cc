@@ -2223,6 +2223,23 @@ object_t *vm_object_store_owner_path_resolve(const char *owner_id, const char *o
   return owner_local_resolve_path_fast_path_locked(owner_id, object_path);
 }
 
+object_t *vm_object_store_find_live_by_path(const char *object_path) {
+  if (!object_store_lifecycle_tracking_enabled() || !object_path || object_path[0] == '\0') {
+    return nullptr;
+  }
+
+  ObjectStoreReadLock lock(object_store_directory_mutex);
+  const auto *record = find_record_by_owner_local_path_locked(object_path);
+  if (!record || record->destructed) {
+    return nullptr;
+  }
+  auto shard_it = owner_shards.find(record->owner_id);
+  if (shard_it == owner_shards.end()) {
+    return nullptr;
+  }
+  return shard_resolve_live_object_locked(shard_it->second, record->object_id);
+}
+
 mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t object_id) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   auto result = owner_local_lookup_by_object_locked(owner_id, object_id);
