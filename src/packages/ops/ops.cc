@@ -390,8 +390,13 @@ void f_lt() {
 void f_lsh() {
   CHECK_TYPES((sp - 1), T_NUMBER, 1, F_LSH);
   CHECK_TYPES(sp, T_NUMBER, 2, F_LSH);
+  // A raw negative or >=64 (LPC_INT is int64_t) shift count is undefined
+  // behavior for '<<'. Mask to the low 6 bits (mod 64) instead of erroring --
+  // matches Java's `long` shift semantics (JLS 15.19), keeps every LPC int a
+  // legal count, and keeps a folded and unfolded shift in agreement.
+  LPC_INT const count = sp->u.number & 63;
   sp--;
-  sp->u.number <<= (sp + 1)->u.number;
+  sp->u.number <<= count;
   sp->subtype = 0;
 }
 
@@ -405,7 +410,7 @@ void f_lsh_eq() {
   if (sp->type != T_NUMBER) {
     error("Bad right type to <<=\n");
   }
-  sp->u.number = argp->u.number <<= sp->u.number;
+  sp->u.number = argp->u.number <<= (sp->u.number & 63);  // shift count masked mod 64
   argp->subtype = 0;
   sp->subtype = 0;
 }
@@ -930,8 +935,10 @@ void f_extract_range(int code) {
 void f_rsh() {
   CHECK_TYPES((sp - 1), T_NUMBER, 1, F_RSH);
   CHECK_TYPES(sp, T_NUMBER, 2, F_RSH);
+  // See f_lsh(): the count is masked mod 64 rather than rejected.
+  LPC_INT const count = sp->u.number & 63;
   sp--;
-  sp->u.number >>= (sp + 1)->u.number;
+  sp->u.number >>= count;
   sp->subtype = 0;
 }
 
@@ -945,7 +952,7 @@ void f_rsh_eq() {
   if (sp->type != T_NUMBER) {
     error("Bad right type to >>=\n");
   }
-  sp->u.number = argp->u.number >>= sp->u.number;
+  sp->u.number = argp->u.number >>= (sp->u.number & 63);  // shift count masked mod 64
   argp->subtype = 0;
   sp->subtype = 0;
 }

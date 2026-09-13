@@ -1,0 +1,28 @@
+// norm()/vector_op() (src/packages/math/math.cc) used to signal errors by
+// returning sentinel LPC_FLOAT values (-INT_MAX, -INT_MAX+1, -INT_MAX+2) that
+// the callers compared against with `==`/`<=`. A legitimate result can land
+// exactly on one of those values -- e.g. dotprod(({-2147483646, 0}), ({1, 0}))
+// is -INT_MAX+1 -- and was misreported as "invalid arg" instead of returned.
+// The errors are now reported out of band, so real results are never
+// mistaken for them.
+void do_tests() {
+    // -INT_MAX+1 == -2147483646: a real dot product that used to be
+    // interpreted as the "invalid arg 1" sentinel.
+    ASSERT_EQ(-2147483646.0, dotprod(({-2147483646, 0}), ({1, 0})));
+
+    // -INT_MAX == -2147483647: used to be read as a size mismatch.
+    ASSERT_EQ(-2147483647.0, dotprod(({-2147483647, 0}), ({1, 0})));
+
+    // angle() built on such a dot product used to error out; with the vector
+    // (-2147483646, 0) against (1, 0) the angle is exactly pi.
+    mixed ang = angle(({-2147483646.0, 0.0}), ({1.0, 0.0}));
+    ASSERT(floatp(ang));
+    ASSERT(ang > 3.14159 && ang < 3.1416);
+
+    // Real errors must still be reported.
+    ASSERT(catch(dotprod(({1, 2}), ({1, 2, 3}))));
+    ASSERT(catch(distance(({1, 2}), ({1, 2, 3}))));
+    ASSERT(catch(dotprod(({"x"}), ({1}))));
+    ASSERT(catch(norm(({1, "x"}))));
+    ASSERT(catch(angle(({1}), ({1, 2}))));
+}

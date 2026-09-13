@@ -670,10 +670,12 @@ static LPC_INT cond_get_exp_impl(int priority) {
         value -= value2;
         break;
       case LSHIFT:
-        value <<= value2;
+        // Mask the count mod 64 (matching the runtime opcode and the constant
+        // folder); a raw negative or >=64 count is undefined behavior.
+        value <<= (value2 & 63);
         break;
       case RSHIFT:
-        value >>= value2;
+        value >>= (value2 & 63);
         break;
       case LESS:
         value = value < value2;

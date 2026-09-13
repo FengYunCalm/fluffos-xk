@@ -1,0 +1,55 @@
+// F_FOREACH used to store the remaining-iteration count in the loop cursor
+// svalue's `subtype` field, which is an unsigned short: iterating an array or
+// mapping with more than 65535 entries ran size % 65536 times (a 65536-entry
+// container ran zero times, a 65537-entry one ran once). The bound is now a
+// pointer comparison against the source container, so the count no longer
+// narrows.
+void do_tests() {
+    int count, i;
+    mixed* arr;
+    mapping m;
+
+    arr = allocate(70000);
+    count = 0;
+    foreach (int v in arr) {
+        count++;
+    }
+    ASSERT_EQ(70000, count);
+
+    // Ref form uses the same cursor, plus the element writes must still work.
+    count = 0;
+    foreach (int ref v in arr) {
+        v = 1;
+        count++;
+    }
+    ASSERT_EQ(70000, count);
+    ASSERT_EQ(1, arr[69999]);
+
+    // Exactly 65536 entries used to iterate zero times.
+    arr = allocate(65536);
+    count = 0;
+    foreach (int v in arr) {
+        count++;
+    }
+    ASSERT_EQ(65536, count);
+
+    // Mappings iterate over mapping_indices(), which had the same truncation.
+    m = ([]);
+    for (i = 0; i < 70000; i++) {
+        m[i] = i;
+    }
+    ASSERT_EQ(70000, sizeof(m));
+
+    count = 0;
+    foreach (int key, int val in m) {
+        count++;
+    }
+    ASSERT_EQ(70000, count);
+
+    // Empty containers must still iterate zero times.
+    count = 0;
+    foreach (int v in allocate(0)) {
+        count++;
+    }
+    ASSERT_EQ(0, count);
+}

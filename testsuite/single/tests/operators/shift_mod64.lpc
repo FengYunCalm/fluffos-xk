@@ -1,0 +1,45 @@
+// LPC ints are 64-bit; '<<'/'>>' with a raw count that is negative or >= 64 is
+// C++ undefined behavior. Three separate sites compute these shifts with no
+// guard: the runtime shift efuns (f_lsh/f_rsh/f_lsh_eq/f_rsh_eq in
+// src/packages/ops/ops.cc), the compiler's constant folder
+// (src/compiler/internal/trees.cc) and the #if expression evaluator
+// (src/compiler/internal/lex.cc). All three now mask the count to its low six
+// bits (mod 64), matching Java's `long` shift semantics, so a folded and an
+// unfolded shift by the same count always agree.
+#if (1 << 100) != (1 << 36)
+#error "preprocessor #if shift count is not masked mod 64"
+#endif
+
+void do_tests() {
+    int n, v;
+
+    // Runtime (non-constant operand) shifts.
+    n = 64;
+    ASSERT_EQ(1, 1 << n);
+    n = 100;
+    ASSERT_EQ(1 << 36, 1 << n);
+    n = -1;
+    ASSERT_EQ(1 << 63, 1 << n);
+
+    n = 64;
+    v = 1 << 63;
+    ASSERT_EQ(v, v >> n);
+    n = -1;
+    ASSERT_EQ(-1, -1 >> n);
+
+    // Compound assignment forms take the same masking path.
+    v = 1;
+    n = 100;
+    v <<= n;
+    ASSERT_EQ(1 << 36, v);
+
+    v = -1;
+    n = 64;
+    v >>= n;
+    ASSERT_EQ(-1, v);
+
+    // Constant-folded shifts must agree with the runtime results.
+    ASSERT_EQ(1 << 36, 1 << 100);
+    ASSERT_EQ(1 << 63, 1 << -1);
+    ASSERT_EQ(-1, -1 >> 64);
+}

@@ -1,0 +1,24 @@
+// set_bit()/clear_bit() (src/packages/core/efuns_main.cc) reject a bit index
+// above __MAX_BITFIELD_BITS__ by checking the full 64-bit LPC int before it is
+// narrowed into a 32-bit `int bit`. A large-magnitude negative index whose low
+// 32 bits form a large positive value used to slip past both checks: it is
+// negative (so the pre-truncation "> max_bitfield_bits" check never fires) yet
+// truncates to a bit index that is then used unchecked.
+void do_tests() {
+    // -4294967296 + 20000: negative, but its low 32 bits equal 20000 -- far
+    // beyond the configured bitfield limit, and previously accepted.
+    int crafted = -4294967296 + 20000;
+    mixed err;
+
+    // clear_bit() used to find ind >= len and return the first argument
+    // unmodified, i.e. silently accept the index.
+    err = catch(clear_bit(" ", crafted));
+    ASSERT(err);
+
+    err = catch(set_bit(" ", crafted));
+    ASSERT(err);
+
+    // Ordinary in-range use is unaffected.
+    ASSERT_EQ("!", set_bit(" ", 0));
+    ASSERT_EQ(" ", clear_bit("!", 0));
+}
