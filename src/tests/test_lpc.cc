@@ -4,6 +4,7 @@
 #include <event2/bufferevent.h>
 #include <event2/event.h>
 #include <atomic>
+#include "packages/async/async.h"  // for check_reqs (backend wakeup drain)
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -820,6 +821,29 @@ void test_unset_env(const char* name) {
 }  // namespace
 
 // Test fixture class
+namespace {
+/* LPC mappings returned by the owner/gateway introspection helpers are
+ * refcounted allocations the caller owns. A test that holds one across
+ * assertions leaks it as soon as one fails and returns early (LSan sees it at
+ * exit), so tests wrap them in this guard instead of a trailing
+ * free_mapping(). */
+class ScopedLpcMapping {
+ public:
+  explicit ScopedLpcMapping(mapping_t *map) : map_(map) {}
+  ~ScopedLpcMapping() {
+    if (map_) {
+      free_mapping(map_);
+    }
+  }
+  ScopedLpcMapping(const ScopedLpcMapping &) = delete;
+  ScopedLpcMapping &operator=(const ScopedLpcMapping &) = delete;
+  mapping_t *get() const { return map_; }
+
+ private:
+  mapping_t *map_;
+};
+}  // namespace
+
 class DriverTest : public ::testing::Test {
  public:
   static void SetUpTestSuite() {
@@ -1000,8 +1024,10 @@ TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
   vm_apply_return_clear();
 
   for (int pass = 0; pass < 256 && promise->state == PROMISE_PENDING; pass++) {
-    if (tick_event_queue_size_for_test() != 0) {
-      ASSERT_GT(run_tick_events_for_test(), 0u);
+    if (tick_event_queue_size_for_test() != 0 || backend_wakeup_pending_for_test()) {
+      // The worker completion wakes the loop through the backend self-pipe;
+      // the tick pump drains that wakeup (and runs the async handler).
+      run_tick_events_for_test();
     }
     if (walltime_event_queue_size_for_test() != 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -1009,7 +1035,7 @@ TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
     }
     if (tick_event_queue_size_for_test() == 0 &&
         walltime_event_queue_size_for_test() == 0 &&
-        promise->state == PROMISE_PENDING) {
+        !backend_wakeup_pending_for_test() && promise->state == PROMISE_PENDING) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
   }
@@ -14420,7 +14446,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   auto before_context_leaks = mapping_number(before, "thread_context_leak_detected");
   free_mapping(before);
 
-  auto* submitted = vm_owner_lpc_canary(probe, owner, "owner_lpc_canary");
+  ScopedLpcMapping submitted_mapping(vm_owner_lpc_canary(probe, owner, "owner_lpc_canary"));
+  auto* submitted = submitted_mapping.get();
   auto task_id = mapping_number(submitted, "task_id");
   ASSERT_EQ(mapping_number(submitted, "success"), 1);
   ASSERT_EQ(mapping_number(submitted, "requires_owner_thread"), 1);
@@ -14428,7 +14455,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   ASSERT_EQ(mapping_number(submitted, "owner_epoch"), static_cast<long>(owner_epoch));
   ASSERT_STREQ(mapping_string(submitted, "task_type"), "lpc_canary");
   ASSERT_STREQ(mapping_string(submitted, "method"), "owner_lpc_canary");
-  free_mapping(submitted);
 
   vm_owner_thread_start(1);
   for (int i = 0; i < 100; i++) {
@@ -14441,7 +14467,21 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  auto* running = vm_owner_thread_status();
+  // An empty mailbox only means the worker dequeued the task, not that it
+  // finished the LPC canary (the body makes two efun calls), so wait on the
+  // completion counter with a bound before asserting on the run counters.
+  for (int i = 0; i < 400; i++) {
+    auto* poll = vm_owner_thread_status();
+    auto executed = mapping_number(poll, "thread_lpc_canary_executed");
+    free_mapping(poll);
+    if (executed >= before_executed + 1) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+
+  ScopedLpcMapping running_mapping(vm_owner_thread_status());
+  auto* running = running_mapping.get();
   ASSERT_GE(mapping_number(running, "thread_lpc_canary_executed"), before_executed + 1);
   // The canary body (testsuite/single/void.c owner_lpc_canary()) also probes
   // the T1 contract from the worker: get_os_env()/set_os_env() must be
@@ -14461,9 +14501,9 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   ASSERT_EQ(mapping_number(running, "thread_context_leak_detected"), before_context_leaks);
   ASSERT_GE(mapping_number(running, "thread_context_bound"), 1);
   ASSERT_GE(mapping_number(running, "thread_object_store_isolated"), 1);
-  free_mapping(running);
 
-  auto* trace = vm_owner_task_trace(16);
+  ScopedLpcMapping trace_mapping(vm_owner_task_trace(16));
+  auto* trace = trace_mapping.get();
   auto* events = find_string_in_mapping(trace, "events");
   ASSERT_NE(events, nullptr);
   ASSERT_EQ(events->type, T_ARRAY);
@@ -14476,7 +14516,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
     }
   }
   ASSERT_EQ(canary_succeeded, 1);
-  free_mapping(trace);
   ASSERT_EQ(probe->time_of_ref, time_of_ref_before);
 
   vm_owner_thread_stop();
