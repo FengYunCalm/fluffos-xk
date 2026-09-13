@@ -107,8 +107,79 @@ static char *last_nl;
 static int nexpands = 0;
 
 #define EXPANDMAX 25000
-static char *expands[EXPANDMAX];
+/* Expansion frames: the macro name plus the position of the expansion site, so
+ * a diagnostic reported inside a macro body can explain where it came from. */
+static macro_expansion_frame_t expands[EXPANDMAX];
 static int expand_depth = 0;
+
+int macro_expansion_depth() { return expand_depth; }
+
+const macro_expansion_frame_t *macro_expansion_frame(int index) {
+  if (index < 0 || index >= expand_depth) {
+    return nullptr;
+  }
+  return &expands[index];
+}
+
+/* Completed expansions, newest first. A macro body is expanded into the token
+ * stream before the parser sees it, so by the time an error is reported the
+ * active frames are gone; this keeps the recent sites (with the line they
+ * started on) so a diagnostic on that line can still explain where its text
+ * came from. Bounded and line-filtered at record time, so no reset hook is
+ * needed on every line change. */
+constexpr int kRecentExpansionCapacity = 8;
+constexpr size_t kRecentExpansionNameLength = 64;
+struct recent_expansion_t {
+  char name[kRecentExpansionNameLength];
+  // Owned copy: a frame's file pointer belongs to the file being compiled and
+  // is released when that file's compilation ends, while diagnostics are still
+  // readable until the next compile scope.
+  std::string file;
+  int line;
+  int column;
+};
+static recent_expansion_t recent_expansions[kRecentExpansionCapacity];
+static int recent_expansion_count = 0;
+
+static void note_completed_expansion(const macro_expansion_frame_t &frame) {
+  if (recent_expansion_count < kRecentExpansionCapacity) {
+    recent_expansion_count++;
+  }
+  for (int i = recent_expansion_count - 1; i > 0; i--) {
+    recent_expansions[i] = recent_expansions[i - 1];
+  }
+  recent_expansion_t &entry = recent_expansions[0];
+  entry.name[0] = '\0';
+  if (frame.name != nullptr) {
+    // The macro name points into the input buffer, which is reused long before
+    // the diagnostic is reported: keep a copy.
+    strncpy(entry.name, frame.name, kRecentExpansionNameLength - 1);
+    entry.name[kRecentExpansionNameLength - 1] = '\0';
+  }
+  entry.file = frame.file != nullptr ? frame.file : "";
+  entry.line = frame.line;
+  entry.column = frame.column;
+}
+
+int recent_macro_expansion_count() { return recent_expansion_count; }
+
+void recent_macro_expansion(int index, macro_expansion_frame_t *out) {
+  static char name_buffer[kRecentExpansionNameLength];
+  if (out == nullptr) {
+    return;
+  }
+  *out = macro_expansion_frame_t{nullptr, nullptr, 0, 0};
+  if (index < 0 || index >= recent_expansion_count) {
+    return;
+  }
+  const recent_expansion_t &entry = recent_expansions[index];
+  strncpy(name_buffer, entry.name, sizeof(name_buffer) - 1);
+  name_buffer[sizeof(name_buffer) - 1] = '\0';
+  out->name = name_buffer;
+  out->file = entry.file.c_str();
+  out->line = entry.line;
+  out->column = entry.column;
+}
 
 char yytext[MAXLINE];
 char *outp;
@@ -4268,11 +4339,18 @@ static char *expand_define2(char *text) {
 
   /* have we already expanded this macro? */
   for (i = 0; i < expand_depth; i++) {
-    if (!strcmp(expands[i], text)) {
+    if (expands[i].name != nullptr && !strcmp(expands[i].name, text)) {
       return nullptr;
     }
   }
-  expands[expand_depth++] = text;
+  expands[expand_depth].name = text;
+  expands[expand_depth].file = current_file;
+  expands[expand_depth].line = current_line;
+  expands[expand_depth].column = current_source_column();
+  // Copied now: the decrements inside this function (macro argument expansion)
+  // move expand_depth away from this frame.
+  macro_expansion_frame_t const completed_frame = expands[expand_depth];
+  expand_depth++;
 
   if (nexpands++ > EXPANDMAX) {
     expand_depth--;
@@ -4302,6 +4380,7 @@ static char *expand_define2(char *text) {
     expand_buffer =
         reinterpret_cast<char *>(DMALLOC(strlen(macro->exps) + 1, TAG_COMPILER, "expand_define2"));
     strcpy(expand_buffer, macro->exps);
+    note_completed_expansion(completed_frame);
     expand_depth--;
     return expand_buffer;
   }
@@ -4404,6 +4483,7 @@ static char *expand_define2(char *text) {
   }
 
   *out = 0;
+  note_completed_expansion(completed_frame);
   expand_depth--;
   return expand_buffer;
 }

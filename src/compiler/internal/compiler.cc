@@ -3005,6 +3005,32 @@ static void record_compile_diagnostic(const char *message, int warning) {
       warning ? compiler_diag::Severity::kWarning : compiler_diag::Severity::kError;
   source.message = message;
   source.show_context = (pragmas & PRAGMA_ERROR_CONTEXT) != 0;
+
+  // A diagnostic inside a macro body points at the macro definition; the
+  // expansion frames explain where the body was used (T3.3 renders them).
+  constexpr int kMaxExpansionSites = 16;
+  compiler_diag::ExpansionSite sites[kMaxExpansionSites];
+  int site_count = 0;
+  // Outermost first: the frame that started on this line is the reason the
+  // text exists, the frames nested inside it explain the rest.
+  int const recent = recent_macro_expansion_count();
+  for (int i = recent - 1; i >= 0 && site_count < kMaxExpansionSites; i--) {
+    macro_expansion_frame_t frame{};
+    recent_macro_expansion(i, &frame);
+    // The scanner may have consumed the newline that ends the expanded line
+    // before the parser reports, so accept the frame's line or the next one.
+    if (frame.name == nullptr || frame.name[0] == '\0' || frame.line < current_line - 1 ||
+        frame.line > current_line) {
+      continue;
+    }
+    sites[site_count].name = frame.name;
+    sites[site_count].file = frame.file;
+    sites[site_count].line = frame.line;
+    sites[site_count].column = frame.column;
+    site_count++;
+  }
+  source.expansion_sites = site_count > 0 ? sites : nullptr;
+  source.expansion_count = site_count;
   compiler_diag::record(source);
 }
 

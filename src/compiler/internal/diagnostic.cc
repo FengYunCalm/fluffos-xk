@@ -91,6 +91,13 @@ void record(const Source &source) {
   diagnostic.snippet.end_line = source.line;
   diagnostic.snippet.end_column = source.column;
   diagnostic.snippet.show_context = source.show_context;
+  for (int i = 0; i < source.expansion_count; i++) {
+    const ExpansionSite &site = source.expansion_sites[i];
+    Expansion expansion;
+    expansion.message = arena_dup(site.name);
+    expansion.position = make_position(site.file, site.line, site.column);
+    diagnostic.expansions.push_back(std::move(expansion));
+  }
   g_compile_diags.push_back(std::move(diagnostic));
 }
 

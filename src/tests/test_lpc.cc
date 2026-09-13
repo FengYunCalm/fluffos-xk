@@ -6,6 +6,7 @@
 #include <atomic>
 #include "packages/async/async.h"  // for check_reqs (backend wakeup drain)
 #include "compiler/internal/diagnostic.h"  // T3.2 structured compile diagnostics
+#include "compiler/internal/diagnostic_render.h"  // T3.3 rendering
 #include <cerrno>
 #include <chrono>
 #include <cstdio>
@@ -26032,6 +26033,248 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   smart_log("driver", 0, "runtime report, no lexer position\n", 1);
   EXPECT_EQ(compiler_diag::size(), 0u);
   EXPECT_EQ(compiler_diag::records_outside_scope(), outside_before);
+}
+
+TEST_F(DriverTest, TestDiagnosticRenderingGoldenStylesAndSnippets) {
+  // T3.3 golden: read_source_line() plus both render styles over a fixture the
+  // renderer can read back from disk. Fixtures live under the testsuite's
+  // gitignored log/ directory and are removed again.
+  auto fixture_path = std::string("log/diag_render_fixture.c");
+  auto fixture = std::string("// diag render fixture\n") + "void create() {\n  int x = ;\n}\n";
+  {
+    // Plain stdio: the driver's write_file() applies mudlib path permissions,
+    // and this fixture only exists so the renderer can read a source line back.
+    std::ofstream out(fixture_path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(out.good());
+    out << fixture;
+    ASSERT_TRUE(out.good());
+  }
+
+  struct FixtureGuard {
+    std::string path;
+    ~FixtureGuard() { remove(path.c_str()); }
+  } fixture_guard{fixture_path};
+  // The compiler reports files relative to the mudlib root, i.e. the path
+  // write_file() sees (without the leading slash).
+  std::string const source_name = fixture_path;
+
+  compiler_diag::clear();
+  program_t *prog = nullptr;
+  {
+    std::istringstream stream(fixture);
+    prog = compile_file(std::make_unique<IStreamLexStream>(stream), source_name.c_str());
+  }
+  EXPECT_EQ(prog, nullptr);
+  ASSERT_GE(compiler_diag::size(), 1u);
+  const compiler_diag::Diagnostic *first = compiler_diag::last();
+  ASSERT_NE(first, nullptr);
+  const compiler_diag::Diagnostic &diag = *first;
+
+  // read_source_line(): the reported line, the first line, an empty tail line
+  // and a missing file.
+  char line[compiler_diag::kMaxSnippetLineLength + 1];
+  ASSERT_TRUE(compiler_diag::read_source_line(source_name.c_str(), 1, line, sizeof(line)));
+  EXPECT_EQ(std::string(line), "// diag render fixture");
+  ASSERT_TRUE(compiler_diag::read_source_line(source_name.c_str(), 2, line, sizeof(line)));
+  EXPECT_EQ(std::string(line), "void create() {");
+  ASSERT_TRUE(compiler_diag::read_source_line(source_name.c_str(), 3, line, sizeof(line)));
+  EXPECT_EQ(std::string(line), "  int x = ;");
+  EXPECT_FALSE(compiler_diag::read_source_line(source_name.c_str(), 5, line, sizeof(line)))
+      << "the file ends after line 4's newline: no text to render";
+  EXPECT_FALSE(compiler_diag::read_source_line("log/definitely_missing_file.c", 1, line,
+                                               sizeof(line)));
+  EXPECT_FALSE(compiler_diag::read_source_line(source_name.c_str(), 0, line, sizeof(line)));
+
+  // Traditional style: the shape the driver prints today, rebuilt from the
+  // record (the driver's own text path is unchanged and pinned by the full
+  // testsuite run).
+  // The caret column is the lexer position, one past the ';' it could not use:
+  // two spaces of indent plus (column - 1) spaces before the caret, matching
+  // what prepare_logs() prints today.
+  auto const traditional =
+      compiler_diag::render_diagnostic(diag, compiler_diag::RenderStyle::kTraditional);
+  EXPECT_EQ(traditional,
+            "/log/diag_render_fixture.c line 3: syntax error, unexpected ';'\n"
+            "  int x = ;\n"
+            "             ^\n")
+      << actual_rendering(traditional);
+
+  // Structured style: location, severity, snippet, caret.
+  auto const clang = compiler_diag::render_diagnostic(diag, compiler_diag::RenderStyle::kClang);
+  EXPECT_EQ(clang,
+            "log/diag_render_fixture.c:3:12: error: syntax error, unexpected ';'\n"
+            "    int x = ;\n"
+            "             ^\n")
+      << actual_rendering(clang);
+
+  // A diagnostic inside a macro body carries the expansion chain and renders a
+  // note per step.
+  std::string const macro_source =
+      "#define BAD_EXPR int x = ;\n"
+      "void create() {\n"
+      "  BAD_EXPR\n"
+      "}\n";
+  compiler_diag::clear();
+  program_t *macro_prog = nullptr;
+  {
+    std::istringstream stream(macro_source);
+    macro_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_macro_test");
+  }
+  EXPECT_EQ(macro_prog, nullptr);
+  ASSERT_GE(compiler_diag::size(), 1u);
+  const compiler_diag::Diagnostic *macro_diag = compiler_diag::last();
+  ASSERT_NE(macro_diag, nullptr);
+  ASSERT_EQ(macro_diag->expansions.size(), 1u);
+  EXPECT_STREQ(macro_diag->expansions[0].message, "BAD_EXPR");
+  ASSERT_NE(macro_diag->expansions[0].position.file, nullptr);
+  EXPECT_STREQ(macro_diag->expansions[0].position.file, "diag_macro_test");
+  EXPECT_EQ(macro_diag->expansions[0].position.line, 3)
+      << "the expansion site is the line that used the macro";
+  auto const macro_clang =
+      compiler_diag::render_diagnostic(*macro_diag, compiler_diag::RenderStyle::kClang);
+  EXPECT_NE(macro_clang.find("note: expanded from macro 'BAD_EXPR'"), std::string::npos)
+      << actual_rendering(macro_clang);
+  EXPECT_NE(macro_clang.find("diag_macro_test:3:"), std::string::npos)
+      << actual_rendering(macro_clang);
+}
+
+TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
+  // T3.3 golden set: 20 compile scenarios, each rendered in both styles. The
+  // assertions pin the structured contract (location line the compiler
+  // reported, severity, message, snippet equal to the file's line, caret
+  // offset) instead of a wall of hand-copied strings; the exact byte shapes of
+  // both styles are pinned by TestDiagnosticRenderingGoldenStylesAndSnippets.
+  struct Case {
+    const char *name;
+    const char *source;
+    compiler_diag::Severity severity;
+    const char *message_substring;
+    int line;
+  };
+  std::vector<Case> const cases = {
+      {"syntax_semicolon", "void create() {\n  int x = ;\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"missing_paren", "void create() {\n  if (1 return;\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"unknown_type", "void create() {\n  nosuchtype x;\n}\n",
+       compiler_diag::Severity::kError, "", 2},
+      {"bad_return", "int create() {\n  return \"text\";\n}\n",
+       compiler_diag::Severity::kError, "", 2},
+      {"bad_expression", "void create() {\n  int x = 1 +;\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"missing_brace", "void create() {\n  int x = 1;\n",
+       compiler_diag::Severity::kError, "", 3},
+      {"stray_brace", "void create() { }\n}\n",
+       compiler_diag::Severity::kError, "", 2},
+      {"unknown_pragma", "#pragma xk_unknown_pragma\nvoid create() { }\n",
+       compiler_diag::Severity::kWarning, "Unknown #pragma", 1},
+      // The unused-local warning is reported when the function ends.
+      {"unused_local", "void create() {\n  int unused = 1;\n}\n",
+       compiler_diag::Severity::kWarning, "Unused local variable", 3},
+      {"arg_count", "int helper(int a) { return a; }\nvoid create() {\n  helper();\n}\n",
+       compiler_diag::Severity::kError, "Wrong number of arguments to 'helper'", 3},
+      {"macro_object", "#define XK_MACRO int y = ;\nvoid create() {\n  XK_MACRO\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 3},
+      {"macro_nested",
+       "#define XK_INNER int z = ;\n#define XK_OUTER XK_INNER\nvoid create() {\n  XK_OUTER\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 4},
+      {"macro_function",
+       "#define XK_FN(a) int a = ;\nvoid create() {\n  XK_FN(w);\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 3},
+      {"macro_arity", "#define XK_ONE(a) (a)\nvoid create() {\n  XK_ONE();\n}\n",
+       compiler_diag::Severity::kError, "", 3},
+      {"bad_include", "#include \"definitely_missing_header_xyz.h\"\nvoid create() { }\n",
+       compiler_diag::Severity::kError, "Cannot #include", 1},
+      {"switch_overlap",
+       "void create() {\n  int i = 2;\n  switch (i) { case 1..3: break; case 2..4: break; }\n}\n",
+       compiler_diag::Severity::kError, "", 3},
+      {"bad_cast", "void create() {\n  string s = (string) ;\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"mapping_syntax", "void create() {\n  mapping m = ([ 1 : ]);\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"array_syntax", "void create() {\n  int *a = ({ 1 2 });\n}\n",
+       compiler_diag::Severity::kError, "syntax error", 2},
+      {"double_assign", "void create() {\n  int = 3;\n}\n",
+       compiler_diag::Severity::kError, "", 2},
+  };
+  ASSERT_EQ(cases.size(), 20u);
+
+  auto path_for = [](const char *name) {
+    return "log/diag_golden_" + std::string(name) + ".c";
+  };
+  for (auto const &test_case : cases) {
+    std::string const path = path_for(test_case.name);
+    {
+      std::ofstream out(path, std::ios::binary | std::ios::trunc);
+      ASSERT_TRUE(out.good()) << path;
+      out << test_case.source;
+      ASSERT_TRUE(out.good());
+    }
+    struct CaseGuard {
+      std::string path;
+      ~CaseGuard() { remove(path.c_str()); }
+    } guard{path};
+
+    compiler_diag::clear();
+    program_t *prog = nullptr;
+    {
+      std::istringstream stream(test_case.source);
+      prog = compile_file(std::make_unique<IStreamLexStream>(stream), path.c_str());
+    }
+    if (prog != nullptr) {
+      deallocate_program(prog);
+    }
+    ASSERT_GE(compiler_diag::size(), 1u)
+        << test_case.name << ": scenario must produce a diagnostic";
+    // The first record with the severity the scenario is about: an unrelated
+    // warning (an unused local) must not shadow it.
+    const compiler_diag::Diagnostic *diag = nullptr;
+    for (size_t i = 0; i < compiler_diag::size(); i++) {
+      if (compiler_diag::at(i).severity == test_case.severity) {
+        diag = &compiler_diag::at(i);
+        break;
+      }
+    }
+    if (diag == nullptr) {
+      FAIL() << test_case.name << ": no diagnostic with the expected severity";
+    }
+    ASSERT_NE(diag, nullptr) << test_case.name;
+    ASSERT_NE(diag->message, nullptr) << test_case.name;
+    EXPECT_EQ(diag->severity, test_case.severity) << test_case.name;
+    if (test_case.message_substring[0] != '\0') {
+      EXPECT_NE(std::string(diag->message).find(test_case.message_substring), std::string::npos)
+          << test_case.name << " message: " << diag->message;
+    } else {
+      EXPECT_GT(std::strlen(diag->message), 0u) << test_case.name;
+    }
+    ASSERT_NE(diag->snippet.position.file, nullptr) << test_case.name;
+    EXPECT_EQ(diag->snippet.position.line, test_case.line) << test_case.name;
+    EXPECT_GT(diag->snippet.position.column, 0) << test_case.name;
+
+    // The snippet must be the file's own line (the renderer reads it back from
+    // disk) and the caret must sit at the recorded column in both styles.
+    char line_text[compiler_diag::kMaxSnippetLineLength + 1];
+    bool const have_line = compiler_diag::read_source_line(path.c_str(), test_case.line,
+                                                           line_text, sizeof(line_text));
+    auto const clang = compiler_diag::render_diagnostic(*diag, compiler_diag::RenderStyle::kClang);
+    EXPECT_NE(clang.find(std::string(":") + std::to_string(test_case.line) + ":"),
+              std::string::npos)
+        << test_case.name << ": " << clang;
+    if (have_line) {
+      EXPECT_NE(clang.find(line_text), std::string::npos)
+          << test_case.name << ": snippet line missing: " << clang;
+    } else {
+      // End-of-file diagnostics point past the last line: there is no text to
+      // quote, so the renderer keeps the location line alone.
+      EXPECT_EQ(clang.find("  \n"), std::string::npos)
+          << test_case.name << ": unexpected snippet: " << clang;
+    }
+    auto const traditional =
+        compiler_diag::render_diagnostic(*diag, compiler_diag::RenderStyle::kTraditional);
+    EXPECT_NE(traditional.find("line " + std::to_string(test_case.line) + ":"),
+              std::string::npos)
+        << test_case.name << ": " << traditional;
+  }
 }
 
 TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {

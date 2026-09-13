@@ -150,4 +150,25 @@ std::vector<std::string> prepare_logs(const char *, int, const char *, int, bool
  * (nullptr at EOF) and its 1-based column (0 when unknown). */
 const char *current_line_start();
 int current_source_column();
+
+/* Active #define expansion frames, outermost first. A diagnostic reported while
+ * a macro body is being expanded uses these to explain where the text came
+ * from (the file/line of the report belong to the macro definition). */
+struct macro_expansion_frame_t {
+  const char *name;
+  const char *file;
+  int line;
+  int column;
+};
+int macro_expansion_depth();
+const macro_expansion_frame_t *macro_expansion_frame(int index);
+
+/* Recently completed expansions, newest first. The parser reports problems
+ * after a macro body was spliced into the token stream, so these (not the
+ * active frames) are what explains a diagnostic inside macro text; consumers
+ * keep the entries whose line matches the diagnostic. */
+int recent_macro_expansion_count();
+/* Fills `out` with entry `index` (newest first); `out->name` points at a
+ * lexer-owned buffer valid until the next call. */
+void recent_macro_expansion(int index, macro_expansion_frame_t *out);
 #endif

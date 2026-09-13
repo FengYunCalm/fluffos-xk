@@ -81,6 +81,15 @@ struct Diagnostic {
 // and code generation of the file being compiled. Diagnostics produced while
 // the driver runs LPC during compilation (master applies, create()) go through
 // the runtime path and are not part of this list.
+// One active macro expansion step (name + expansion site), supplied by the
+// lexer. Kept as a neutral struct so this module does not depend on the lexer.
+struct ExpansionSite {
+  const char *name;
+  const char *file;
+  int line;
+  int column;
+};
+
 struct Source {
   const char *file;  // current_file, without the leading '/'
   int line;          // current_line
@@ -88,6 +97,9 @@ struct Source {
   Severity severity;
   const char *message;
   bool show_context;
+  // Outermost-first macro expansion frames, or null when not inside a macro.
+  const ExpansionSite *expansion_sites = nullptr;
+  int expansion_count = 0;
 };
 
 // Compile scope: open before the parser runs (compile_file()), close when it

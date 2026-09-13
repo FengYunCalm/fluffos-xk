@@ -464,6 +464,7 @@ set(SRC
   "compiler/internal/grammar_rules.cc"
   "compiler/internal/compiler.cc"
   "compiler/internal/diagnostic.cc"
+  "compiler/internal/diagnostic_render.cc"
   "compiler/internal/disassembler.cc"
   "compiler/internal/generate.cc"
   "compiler/internal/icode.cc"
