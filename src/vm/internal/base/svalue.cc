@@ -80,8 +80,10 @@ struct pending_compound_free_t {
   uint32_t type;
 };
 
-bool freeing_compound = false;
-std::vector<pending_compound_free_t> pending_compound_frees;
+// Per-VM-thread: owner workers free their own values concurrently, and the
+// queue is only ever drained by the thread that filled it.
+FLUFFOS_VM_THREAD_LOCAL bool freeing_compound = false;
+FLUFFOS_VM_THREAD_LOCAL std::vector<pending_compound_free_t> pending_compound_frees;
 }
 
 void free_compound(void *ptr, uint32_t type) {
@@ -189,11 +191,11 @@ void int_free_svalue(svalue_t *v)
           dealloc_object(v->u.ob, "free_svalue");
           break;
         case T_CLASS:
-          dealloc_class(v->u.arr);
+          free_compound(v->u.arr, T_CLASS);
           break;
         case T_ARRAY:
           if (v->u.arr != &the_null_array) {
-            dealloc_array(v->u.arr);
+            free_compound(v->u.arr, T_ARRAY);
           }
           break;
         case T_BUFFER:
@@ -202,7 +204,7 @@ void int_free_svalue(svalue_t *v)
           }
           break;
         case T_MAPPING:
-          dealloc_mapping(v->u.map);
+          free_compound(v->u.map, T_MAPPING);
           break;
         case T_FUNCTION:
           dealloc_funp(v->u.fp);

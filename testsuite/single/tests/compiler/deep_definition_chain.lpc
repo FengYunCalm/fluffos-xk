@@ -1,0 +1,32 @@
+// rule_program_append() (grammar_rules.cc) chains one NODE_TWO_VALUES per
+// top-level definition via l.expr, so i_generate_node()/optimize() used to
+// recurse one C stack frame per definition while walking it -- and the depth
+// cap that bounds genuinely deep expression trees counted this the same way.
+// That makes an ordinary source-size quantity look pathological: any object
+// with more top-level definitions than the cap failed to compile. The walkers
+// now flatten this chain iteratively instead of recursing it, so a large
+// object must compile regardless of its definition count.
+void do_tests() {
+    string src;
+    object ob;
+    int i;
+
+    src = "";
+    for (i = 0; i < 5000; i++) {
+        src += "int f" + i + "() { return " + i + "; }\n";
+    }
+
+    rm("/gen_deep_defs.c");
+    write_file("/gen_deep_defs.c", src);
+
+    ob = load_object("/gen_deep_defs");
+    ASSERT2(objectp(ob), "object with 5000 top-level functions should compile");
+    if (objectp(ob)) {
+        ASSERT_EQ(0, ob->f0());
+        ASSERT_EQ(2500, ob->f2500());
+        ASSERT_EQ(4999, ob->f4999());
+        destruct(ob);
+    }
+
+    rm("/gen_deep_defs.c");
+}

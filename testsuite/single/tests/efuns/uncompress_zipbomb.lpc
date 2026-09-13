@@ -1,0 +1,36 @@
+#ifdef __PACKAGE_COMPRESS__
+// uncompress() (src/packages/compress/compress.cc, f_uncompress()) used to
+// grow a plain `int len` by COMPRESS_BUF_SIZE on every inflate() iteration
+// with no upper bound, only rejecting an oversized result via
+// allocate_buffer()'s own cap check *after* fully decompressing it -- for a
+// large enough "zip bomb" that lets a small compressed input drive unbounded
+// intermediate DMALLOC/DREALLOC/memcpy work (and, past ~2GB of decompressed
+// output, overflow the 32-bit `len` itself). The fix checks `len` against the
+// same cap on every iteration and bails out immediately with its own error.
+//
+// A fixture that actually overflows `len` would need to inflate to >2GB,
+// which is impractical to ship/run here. This test instead pins the
+// observable part: /data/compress/zipbomb.zbin (~2KB compressed ->
+// 2,000,000 bytes inflated, past this testsuite's configured "maximum buffer
+// size" of 400000) is rejected up front instead of being expanded to the end
+// first.
+void do_tests() {
+    buffer bomb;
+    mixed err;
+
+    // read_buffer() (not read_bytes(), which runs its result through
+    // u8_sanitize and would truncate the binary stream at its first NUL).
+    bomb = read_buffer("/data/compress/zipbomb.zbin");
+    ASSERT(bufferp(bomb));
+    ASSERT(sizeof(bomb) > 0);
+
+    err = catch(uncompress(bomb));
+    ASSERT(stringp(err));
+    ASSERT(strsrch(err, "exceeds maximum buffer size") != -1);
+
+    // A normal round trip is unaffected.
+    ASSERT_EQ("hello compress",
+              read_buffer(uncompress(compress("hello compress")), 0, 14));
+    ASSERT_EQ(4000, sizeof(uncompress(compress(repeat_string("a", 4000)))));
+}
+#endif
