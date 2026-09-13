@@ -333,5 +333,17 @@ TEXT;
   ASSERT(strlen(sprintf("%.2000f", 12345678901234567890123456789012345678901234567890.0)) > 1000);
   ASSERT(strlen(sprintf("%.5000f", -1.0)) > 1000);
   ASSERT(strlen(sprintf("%.5000d", -1)) > 0);
+
+  // Promises have no scalar spelling, so before the %O arm existed this fell
+  // into svalue_to_string()'s default branch and printed
+  // "!ERROR: GARBAGE SVALUE: 10000!" -- while docs/lpc/types/promise.md
+  // documents a readable rendering. Only the pending spelling is reachable
+  // synchronously here: a settlement queues its delivery, so it cannot be
+  // observed as fulfilled/rejected until the tick advances (that half is
+  // covered by the C++ promise delivery tests).
+  {
+    mixed pp = promise_create();
+    ASSERT_EQ("PROMISE( pending )", sprintf("%O", pp));
+  }
 }
 

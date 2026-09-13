@@ -54,6 +54,7 @@
 #include "base/package_api.h"
 
 #include "packages/core/sprintf.h"
+#include "vm/internal/base/promise.h"  // PROMISE_* states for the %O promise arm
 
 #include <unicode/brkiter.h>
 
@@ -494,6 +495,26 @@ void svalue_to_string(svalue_t *obj, outbuffer_t *outbuf, int indent, int traili
       }
       break;
     }
+    case T_PROMISE:
+      /* Promise has no scalar spelling, so without this branch %O fell into
+       * the default arm and printed "!ERROR: GARBAGE SVALUE: 10000!" -- while
+       * docs/lpc/types/promise.md documents a readable rendering.
+       *
+       * indent2=1 suppresses the leading pad for the payload, and the raised
+       * indent keeps a pathological promise chain under the depth guard at
+       * the top of this function instead of printing without bound. */
+      if (obj->u.prom->state == PROMISE_FULFILLED) {
+        outbuf_add(outbuf, "PROMISE( fulfilled: ");
+        svalue_to_string(&obj->u.prom->result, outbuf, indent + 2, 0, 1);
+        outbuf_add(outbuf, " )");
+      } else if (obj->u.prom->state == PROMISE_REJECTED) {
+        outbuf_add(outbuf, "PROMISE( rejected: ");
+        svalue_to_string(&obj->u.prom->result, outbuf, indent + 2, 0, 1);
+        outbuf_add(outbuf, " )");
+      } else {
+        outbuf_add(outbuf, "PROMISE( pending )");
+      }
+      break;
     default:
       outbuf_addv(outbuf, "!ERROR: GARBAGE SVALUE: %x!", obj->type);
   } /* end of switch (obj->type) */
