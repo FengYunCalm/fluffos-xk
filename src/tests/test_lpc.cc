@@ -985,6 +985,40 @@ TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   ASSERT_STREQ(caught->result.u.string, "expected rejection");
 }
 
+TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
+  clear_tick_events();
+  auto* object = load_object_for_test("single/tests/efuns/async_promise");
+  ASSERT_NE(object, nullptr);
+
+  auto* result = safe_apply("run_promise_forms", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* promise = result->u.prom;
+  promise->ref++;
+  vm_apply_return_clear();
+
+  for (int pass = 0; pass < 256 && promise->state == PROMISE_PENDING; pass++) {
+    if (tick_event_queue_size_for_test() != 0) {
+      ASSERT_GT(run_tick_events_for_test(), 0u);
+    }
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    }
+    if (tick_event_queue_size_for_test() == 0 &&
+        walltime_event_queue_size_for_test() == 0 &&
+        promise->state == PROMISE_PENDING) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+
+  ASSERT_EQ(promise->state, PROMISE_FULFILLED);
+  ASSERT_EQ(promise->result.type, T_NUMBER);
+  ASSERT_EQ(promise->result.u.number, 0);
+  free_promise(promise);
+  destruct_object_for_test(object);
+}
+
 TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
   clear_tick_events();
   object_t* object = load_object_for_test("single/async_phase2_probe");

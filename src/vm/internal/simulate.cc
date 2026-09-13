@@ -195,6 +195,7 @@ void shutdownMudOS(int exit_code) {
   free_mapping(owner_output_quiesce);
 #endif
   vm_owner_thread_stop();
+  promise_cleanup();
 
 #ifdef PACKAGE_DB
   db_cleanup();

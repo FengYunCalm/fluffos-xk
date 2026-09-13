@@ -12,6 +12,7 @@
 #include "packages/core/outbuf.h"
 #include "packages/core/heartbeat.h"
 #include "vm/owner.h"
+#include "vm/internal/base/promise.h"
 #ifdef PACKAGE_PARSER
 #include "packages/parser/parser.h"
 #endif
@@ -228,6 +229,9 @@ void mark_svalue(svalue_t *sv) {
       break;
     case T_BUFFER:
       sv->u.buf->extra_ref++;
+      break;
+    case T_PROMISE:
+      mark_promise(sv->u.prom);
       break;
     case T_STRING:
       switch (sv->subtype) {
@@ -470,6 +474,7 @@ void check_all_blocks(int flag) {
   array_t *vec;
   mapping_t *map;
   buffer_t *buf;
+  promise_t *promise;
   funptr_t *fp;
   mapping_node_t *node;
   program_t *prog;
@@ -555,6 +560,10 @@ void check_all_blocks(int flag) {
         case TAG_BUFFER:
           buf = NODET_TO_PTR(entry, buffer_t *);
           buf->extra_ref = 0;
+          break;
+        case TAG_PROMISE:
+          promise = NODET_TO_PTR(entry, promise_t *);
+          promise->extra_ref = 0;
           break;
       }
     }
@@ -723,6 +732,7 @@ void check_all_blocks(int flag) {
 #ifdef PACKAGE_ASYNC
     async_mark_request();
 #endif
+    mark_promise_queue();
     vm_owner_mark_runtime_refs();
     free_svalue(&apply_ret_value, "checkmemory");
     apply_ret_value = const0u;
@@ -942,6 +952,13 @@ void check_all_blocks(int flag) {
             if (buf->ref != buf->extra_ref) {
               outbuf_addv(&out, "Bad ref count for buffer, is %d - should be %d\n", buf->ref,
                           buf->extra_ref);
+            }
+            break;
+          case TAG_PROMISE:
+            promise = NODET_TO_PTR(entry, promise_t *);
+            if (promise->ref != promise->extra_ref) {
+              outbuf_addv(&out, "Bad ref count for promise, is %d - should be %d\n",
+                          promise->ref, promise->extra_ref);
             }
             break;
           case TAG_PREDEFINES:

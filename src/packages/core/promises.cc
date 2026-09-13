@@ -21,8 +21,9 @@ static funptr_t* require_handler(svalue_t* value, const char* efun) {
  * Promise efuns (issue #1319 phase 1). The T_PROMISE machinery itself lives
  * in vm/internal/base/promise.cc; these are the LPC-visible entry points.
  *
- * Phase 1 exposes the values as `mixed`; these entry points perform their own
- * runtime tag checks until the LPC `promise<T>` type lands in the compiler.
+ * The generated package signatures remain `mixed` because make_func describes
+ * legacy scalar efun types; these entry points perform their own runtime tag
+ * checks while LPC source can use the `promise<T>` type for async values.
  */
 
 #ifdef F_PROMISE_CREATE

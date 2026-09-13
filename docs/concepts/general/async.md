@@ -48,6 +48,12 @@ fulfilled, and `2` for rejected.
 cooperative scheduling point. `async_info()` returns suspended coroutine
 records; `async_info(1)` returns scheduler counters.
 
+The async I/O package also provides Promise companions for the callback efuns:
+`async_read_promise()`, `async_write_promise()`, `async_getdir_promise()`, and
+`async_db_exec_promise()` when database support is enabled. They start the same
+background operations, fulfill with the callback result, and reject with the
+same failure value (or database error string) instead of invoking a callback.
+
 A parked frame is tied to its object's owner and program generation. Object
 destruction, recompilation, or program replacement rejects the frame instead
 of resuming stale bytecode. Ordinary legacy LPC remains synchronous and does

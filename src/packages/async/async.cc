@@ -35,6 +35,8 @@
 #include <vm/internal/base/function.h>
 #include <vm/internal/base/interpret.h>
 #include <vm/internal/base/program.h>
+#include <vm/internal/base/promise.h>
+#include <vm/internal/base/object.h>
 
 #include "vm/context.h"
 #include "vm/owner.h"
@@ -51,7 +53,26 @@ enum atypes { AREAD, AWRITE, AGETDIR, ADBEXEC, ADONE };
 
 enum astates { BUSY, DONE };
 
+struct Request;
+std::mutex reqs_lock;
+std::set<struct Request *> live_requests;
+
 struct Request {
+  Request()
+      : flags(0),
+        ret(0),
+        handle(0),
+        fun(nullptr),
+        promise(nullptr),
+        owner(nullptr),
+        failed(false),
+        next(nullptr),
+        type(AREAD),
+        status(BUSY) {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    live_requests.insert(this);
+  }
+
   std::string path;
   std::string owner_id;
   uint64_t owner_epoch{0};
@@ -60,6 +81,9 @@ struct Request {
   int handle;
   std::string data;
   function_to_call_t *fun;
+  promise_t *promise;
+  object_t *owner;
+  bool failed;
   struct Request *next;
   enum atypes type;
   int status;
@@ -71,7 +95,6 @@ struct Work {
 };
 
 std::deque<struct Work *> reqs;
-std::mutex reqs_lock;
 
 // #1247 ASYNC-2..4: works a worker thread is CURRENTLY processing: popped from
 // reqs but not yet moved to finished_reqs. Guarded by reqs_lock so
@@ -106,8 +129,12 @@ object_t *callback_owner(function_to_call_t *fun) {
   return fun->ob ? fun->ob : fun->f.fp ? fun->f.fp->hdr.owner : nullptr;
 }
 
+object_t *request_owner(Request *req) {
+  return req->fun ? callback_owner(req->fun) : req->owner;
+}
+
 void bind_request_owner(Request *req) {
-  auto *owner = callback_owner(req->fun);
+  auto *owner = request_owner(req);
   req->owner_id = vm_owner_id(owner);
   req->owner_epoch = vm_owner_epoch(owner);
 }
@@ -156,8 +183,20 @@ void free_async_request(Request *req) {
   if (!req) {
     return;
   }
-  free_funp(req->fun->f.fp);
-  delete req->fun;
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    live_requests.erase(req);
+  }
+  if (req->fun) {
+    free_funp(req->fun->f.fp);
+    delete req->fun;
+  }
+  if (req->promise) {
+    free_promise(req->promise);
+  }
+  if (req->owner) {
+    free_object(&req->owner, "async request owner");
+  }
   delete req;
 }
 
@@ -238,6 +277,11 @@ void do_stuff(void *(*func)(struct Request *), struct Request *data) {
 
 void *gzreadthread(struct Request *req) {
   gzFile file = gzopen(req->path.c_str(), "rb");
+  if (!file) {
+    req->ret = -1;
+    req->status = DONE;
+    return nullptr;
+  }
   req->ret = gzread(file, (void *)(req->data.data()), req->data.size());
   req->status = DONE;
   gzclose(file);
@@ -254,7 +298,18 @@ void *gzwritethread(struct Request *req) {
   int const fd =
       open(req->path.c_str(), req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
            S_IRWXU | S_IRWXG);
+  if (fd < 0) {
+    req->ret = -1;
+    req->status = DONE;
+    return nullptr;
+  }
   gzFile file = gzdopen(fd, "wb");
+  if (!file) {
+    close(fd);
+    req->ret = -1;
+    req->status = DONE;
+    return nullptr;
+  }
   req->ret = gzwrite(file, (void *)(req->data.data()), req->data.size());
   req->status = DONE;
   gzclose(file);
@@ -272,10 +327,12 @@ void *writethread(struct Request *req) {
       open(req->path.c_str(), req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
            S_IRWXU | S_IRWXG);
 
-  req->ret = write(fd, req->data.data(), req->data.size());
+  req->ret = fd < 0 ? -1 : write(fd, req->data.data(), req->data.size());
 
   req->status = DONE;
-  close(fd);
+  if (fd >= 0) {
+    close(fd);
+  }
   return nullptr;
 }
 
@@ -360,6 +417,7 @@ void *getdirthread(struct Request *req) {
 
   DIR *dirp = nullptr;
   if ((dirp = opendir(req->path.c_str())) == nullptr) {
+    req->failed = true;
     req->ret = 0;
     req->status = DONE;
     return nullptr;
@@ -476,7 +534,44 @@ int add_db_exec(int handle, const char *sql, function_to_call_t *fun) {
 }
 #endif
 
+Request *make_promise_request(int value_type) {
+  auto *req = new Request();
+  req->promise = promise_alloc();
+  req->promise->value_type = static_cast<unsigned short>(value_type);
+  req->owner = current_object;
+  if (req->owner) {
+    add_ref(req->owner, "async promise request owner");
+  }
+  bind_request_owner(req);
+  return req;
+}
+
+void settle_promise_request(Request *req, svalue_t *value, bool rejected) {
+  (void)promise_settle(req->promise, value, rejected);
+  /* promise_settle() borrows value and assigns its own reference. The request
+   * handlers construct owned temporary strings/arrays, so release that
+   * temporary on both the normal and duplicate-settlement paths. */
+  free_svalue(value, "async promise settlement");
+}
+
 void handle_read(struct Request *req) {
+  if (req->promise) {
+    svalue_t result{};
+    if (req->ret < 0) {
+      result.type = T_NUMBER;
+      result.u.number = req->ret;
+      settle_promise_request(req, &result, true);
+      return;
+    }
+    result.type = T_STRING;
+    result.subtype = STRING_MALLOC;
+    char *file = new_string(req->ret, "read_file_async_promise: str");
+    memcpy(file, req->data.data(), req->ret);
+    file[req->ret] = 0;
+    result.u.string = file;
+    settle_promise_request(req, &result, false);
+    return;
+  }
   int const val = req->ret;
   if (val < 0) {
     push_number(val);
@@ -495,6 +590,14 @@ void handle_read(struct Request *req) {
 #ifdef F_ASYNC_GETDIR
 void handle_getdir(struct Request *req) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
+
+  if (req->promise && req->failed) {
+    svalue_t result{};
+    result.type = T_NUMBER;
+    result.u.number = -1;
+    settle_promise_request(req, &result, true);
+    return;
+  }
 
   int ret_size = req->ret;
   if (ret_size > max_array_size) {
@@ -519,6 +622,14 @@ void handle_getdir(struct Request *req) {
           });
   }
 
+  if (req->promise) {
+    svalue_t result{};
+    result.type = T_ARRAY;
+    result.u.arr = ret;
+    settle_promise_request(req, &result, false);
+    return;
+  }
+
   push_refed_array(ret);
   set_eval(max_eval_cost);
   safe_call_async_callback(req, 1, "async_getdir");
@@ -527,6 +638,17 @@ void handle_getdir(struct Request *req) {
 
 void handle_write(struct Request *req) {
   int const val = req->ret;
+  if (req->promise) {
+    svalue_t result = const0u;
+    if (val < 0) {
+      result.type = T_NUMBER;
+      result.u.number = val;
+      settle_promise_request(req, &result, true);
+    } else {
+      settle_promise_request(req, &result, false);
+    }
+    return;
+  }
   if (val < 0) {
     push_number(val);
     set_eval(max_eval_cost);
@@ -540,6 +662,20 @@ void handle_write(struct Request *req) {
 
 void handle_db_exec(struct Request *req) {
   int const val = req->ret;
+  if (req->promise) {
+    svalue_t result{};
+    if (val == -1) {
+      result.type = T_STRING;
+      result.subtype = STRING_MALLOC;
+      result.u.string = string_copy(req->path.c_str(), "async_db_exec_promise: error");
+      settle_promise_request(req, &result, true);
+    } else {
+      result.type = T_NUMBER;
+      result.u.number = val;
+      settle_promise_request(req, &result, false);
+    }
+    return;
+  }
   if (val == -1) {
     copy_and_push_string(req->path.c_str());
   } else {
@@ -577,7 +713,7 @@ void handle_finished_request(Request *req, enum atypes type) {
 }
 
 void dispatch_finished_request(Request *req, enum atypes type) {
-  auto *owner = callback_owner(req->fun);
+  auto *owner = request_owner(req);
   auto operation = std::string(async_operation_name(type));
   if (!owner || (owner->flags & O_DESTRUCTED)) {
     handle_finished_request(req, type);
@@ -586,7 +722,10 @@ void dispatch_finished_request(Request *req, enum atypes type) {
   }
 
   auto executor_available = vm_owner_executor_available();
-  if (executor_available) {
+  // Promise settlement queues VM microtasks and may resume an LPC coroutine;
+  // keep that transition on the main/owner admission path rather than
+  // mutating promise references from an executor worker.
+  if (executor_available && req->promise == nullptr) {
     auto task_id = vm_owner_enqueue_executor_task(
         owner, "async_callback", operation.c_str(),
         [req, type, operation] {
@@ -720,6 +859,30 @@ void f_async_read() {
 }
 #endif
 
+#ifdef F_ASYNC_READ_PROMISE
+void f_async_read_promise() {
+  auto *req = make_promise_request(TYPE_STRING);
+  req->type = AREAD;
+  req->data.resize(CONFIG_INT(__MAX_READ_FILE_SIZE__));
+  auto *path = check_valid_path(sp->u.string, current_object, "read_file", 0);
+
+  /* Keep one reference for the returned stack value and one for the request.
+   * Start the request only after replacing the input argument so an immediate
+   * fallback completion cannot free the value before it is pushed. */
+  req->promise->ref++;
+  pop_stack();
+  push_refed_promise(req->promise);
+  if (path) {
+    req->path = path;
+    aio_gzread(req);
+  } else {
+    req->ret = -1;
+    req->status = DONE;
+    dispatch_finished_request(req, AREAD);
+  }
+}
+#endif
+
 #ifdef F_ASYNC_WRITE
 void f_async_write() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
@@ -730,6 +893,32 @@ void f_async_write() {
   add_write(check_valid_path((sp - 2)->u.string, current_object, "write_file", 1),
             (sp - 1)->u.string, SVALUE_STRLEN((sp - 1)), sp->u.number, cb.release());
   pop_3_elems();
+}
+#endif
+
+#ifdef F_ASYNC_WRITE_PROMISE
+void f_async_write_promise() {
+  auto *req = make_promise_request(TYPE_NUMBER);
+  req->type = AWRITE;
+  auto *path = check_valid_path((sp - 2)->u.string, current_object, "write_file", 1);
+  req->data = std::string((sp - 1)->u.string, SVALUE_STRLEN(sp - 1));
+  req->flags = static_cast<char>(sp->u.number);
+
+  req->promise->ref++;
+  pop_3_elems();
+  push_refed_promise(req->promise);
+  if (path) {
+    req->path = path;
+    if (req->flags & 2) {
+      aio_gzwrite(req);
+    } else {
+      aio_write(req);
+    }
+  } else {
+    req->ret = -1;
+    req->status = DONE;
+    dispatch_finished_request(req, AWRITE);
+  }
 }
 #endif
 
@@ -744,6 +933,27 @@ void f_async_getdir() {
   pop_stack();
 }
 #endif
+
+#ifdef F_ASYNC_GETDIR_PROMISE
+void f_async_getdir_promise() {
+  auto *req = make_promise_request(TYPE_STRING | TYPE_MOD_ARRAY);
+  req->type = AGETDIR;
+  auto *path = check_valid_path(sp->u.string, current_object, "get_dir", 0);
+  req->promise->ref++;
+  pop_stack();
+  push_refed_promise(req->promise);
+  if (path) {
+    req->path = path;
+    req->data.resize(CONFIG_INT(__MAX_ARRAY_SIZE__));
+    aio_getdir(req);
+  } else {
+    req->failed = true;
+    req->status = DONE;
+    dispatch_finished_request(req, AGETDIR);
+  }
+}
+#endif
+
 #ifdef F_ASYNC_DB_EXEC
 void f_async_db_exec() {
   std::unique_ptr<function_to_call_t> cb(new function_to_call_t);
@@ -778,31 +988,58 @@ void f_async_db_exec() {
 }
 #endif
 
+#ifdef F_ASYNC_DB_EXEC_PROMISE
+void f_async_db_exec_promise() {
+  array_t *info = allocate_empty_array(1);
+  info->item[0].type = T_STRING;
+  info->item[0].subtype = STRING_MALLOC;
+  info->item[0].u.string = string_copy(sp->u.string, "f_db_exec_promise");
+  valid_database("exec", info);
+
+#ifdef PACKAGE_ASYNC
+  db_lock_mutex();
+#endif
+  auto *db = find_db_conn((sp - 1)->u.number);
+  if (!db) {
+#ifdef PACKAGE_ASYNC
+    db_unlock_mutex();
+#endif
+    error("Attempt to exec on an invalid database handle\n");
+  }
+#ifdef PACKAGE_ASYNC
+  db_unlock_mutex();
+#endif
+
+  auto *req = make_promise_request(TYPE_NUMBER);
+  req->type = ADBEXEC;
+  req->handle = static_cast<int>((sp - 1)->u.number);
+  req->data = sp->u.string;
+  req->promise->ref++;
+  pop_2_elems();
+  push_refed_promise(req->promise);
+  aio_db_exec(req);
+}
+#endif
+
 void async_mark_request() {
 #ifdef DEBUGMALLOC_EXTENSIONS
+  auto mark_request = [](Request *req) {
+    if (req->fun != nullptr) {
+      req->fun->f.fp->hdr.extra_ref++;
+    }
+    if (req->promise != nullptr) {
+      mark_promise(req->promise);
+    }
+    if (req->owner != nullptr) {
+      req->owner->extra_ref++;
+    }
+  };
+
+  // Keep every live request visible to the debug allocator, including the
+  // short interval after a worker moved it into an owner-admitted callback.
   std::lock_guard<std::mutex> const lock(reqs_lock);
-  std::lock_guard<std::mutex> const flock(finished_reqs_lock);
-
-  for (auto &work : reqs) {
-    auto *req = work->data;
-    if (req->fun != nullptr) {
-      req->fun->f.fp->hdr.extra_ref++;
-    }
-  }
-
-  for (auto &req : finished_reqs) {
-    if (req->fun != nullptr) {
-      req->fun->f.fp->hdr.extra_ref++;
-    }
-  }
-
-  // #1247 ASYNC-9: requests a worker is mid-processing (popped from reqs, not
-  // yet in finished_reqs); guarded by reqs_lock, held above. There may be
-  // several concurrent workers, so mark every in-flight work, not just one.
-  for (auto *work : current_works) {
-    if (work->data->fun != nullptr) {
-      work->data->fun->f.fp->hdr.extra_ref++;
-    }
+  for (auto *req : live_requests) {
+    mark_request(req);
   }
 #endif
 }

@@ -1250,7 +1250,12 @@ char* capture_reject_origin() {
   }
   const char* file = nullptr;
   int line = 0;
-  if (current_prog != nullptr) {
+  /* Package completions can settle a promise on the main/owner admission
+   * path after the interpreter has returned. In that context current_prog may
+   * still identify the last LPC program while pc is null (or belongs to a
+   * different VM operation), so asking find_line() to subtract a null pc
+   * produces a bogus offset and masks the actual rejection. */
+  if (current_prog != nullptr && pc != nullptr) {
     get_line_number_info(&file, &line);
   }
   char buf[512];
@@ -1845,8 +1850,82 @@ void push_refed_promise(promise_t* p) {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
+namespace {
+/* Promise ownership is a graph, not a tree: an awaited coroutine points back
+ * to its result promise, while reactions point forward to chained promises.
+ * The debug allocator must walk that graph without recursing forever. The
+ * epoch is per mark root, so repeated roots still count each independent raw
+ * reference while each graph node is traversed once per root. */
+thread_local bool g_marking_promise_graph = false;
+thread_local uint64_t g_promise_mark_epoch = 0;
+
+void mark_promise_graph(promise_t* p);
+}
+
+void mark_promise(promise_t* p) {
+  if (!p) {
+    return;
+  }
+  bool const root = !g_marking_promise_graph;
+  if (root) {
+    g_marking_promise_graph = true;
+    if (++g_promise_mark_epoch == 0) {
+      g_promise_mark_epoch = 1;
+    }
+  }
+  mark_promise_graph(p);
+  if (root) {
+    g_marking_promise_graph = false;
+  }
+}
+
+namespace {
+void mark_promise_graph(promise_t* p) {
+  if (!p) {
+    return;
+  }
+  p->extra_ref++;
+  if (p->debug_mark_epoch == g_promise_mark_epoch) {
+    return;
+  }
+  p->debug_mark_epoch = g_promise_mark_epoch;
+
+  mark_svalue(&p->result);
+  if (p->reject_origin != nullptr) {
+    MSTR_EXTRA_REF(p->reject_origin)++;
+  }
+  if (!p->reactions) {
+    return;
+  }
+  for (auto& r : *p->reactions) {
+    if (r.on_fulfilled) {
+      r.on_fulfilled->hdr.extra_ref++;
+    }
+    if (r.on_rejected) {
+      r.on_rejected->hdr.extra_ref++;
+    }
+    if (r.next) {
+      mark_promise_graph(r.next);
+    }
+    if (r.command_giver) {
+      r.command_giver->extra_ref++;
+    }
+    if (r.coro) {
+      mark_coroutine(r.coro);
+    }
+  }
+}
+}
+
 void mark_coroutine(lpc_coroutine_t* coro) {
-  coro->result_promise->extra_ref++;
+  if (!coro) {
+    return;
+  }
+  if (g_marking_promise_graph) {
+    mark_promise_graph(coro->result_promise);
+  } else {
+    mark_promise(coro->result_promise);
+  }
   coro->ob->extra_ref++;
   if (coro->prev_ob) {
     coro->prev_ob->extra_ref++;
@@ -1870,43 +1949,15 @@ void mark_coroutine(lpc_coroutine_t* coro) {
   }
 }
 
-void mark_promise(promise_t* p) {
-  mark_svalue(&p->result);
-  /* A raw malloced string held by the struct rather than by an svalue, so
-   * nothing else marks it: without this the checker reports it as an
-   * unaccounted reference after every file that leaves a rejected promise
-   * around (AGENTS.md section 3). */
-  if (p->reject_origin != nullptr) {
-    MSTR_EXTRA_REF(p->reject_origin)++;
-  }
-  if (p->reactions) {
-    for (auto& r : *p->reactions) {
-      if (r.on_fulfilled) {
-        r.on_fulfilled->hdr.extra_ref++;
-      }
-      if (r.on_rejected) {
-        r.on_rejected->hdr.extra_ref++;
-      }
-      if (r.next) {
-        r.next->extra_ref++;
-      }
-      if (r.command_giver) {
-        r.command_giver->extra_ref++;
-      }
-      if (r.coro) {
-        mark_coroutine(r.coro);
-      }
+void mark_promise_queue() {
+  bool const root = !g_marking_promise_graph;
+  if (root) {
+    g_marking_promise_graph = true;
+    if (++g_promise_mark_epoch == 0) {
+      g_promise_mark_epoch = 1;
     }
   }
-}
-
-void mark_promise_queue() {
-  /* Off-graph: a pending async_yield() promise is referenced only by the
-   * registry, which is a C++ global the allocation sweep never walks. */
-  for (auto* p : g_pending_yields) {
-    p->extra_ref++;
-  }
-  auto mark_one = [](QueuedReaction& qr) {
+  auto mark_one = [](auto& qr) {
     if (qr.on_fulfilled) {
       qr.on_fulfilled->hdr.extra_ref++;
     }
@@ -1914,7 +1965,7 @@ void mark_promise_queue() {
       qr.on_rejected->hdr.extra_ref++;
     }
     if (qr.next) {
-      qr.next->extra_ref++;
+      mark_promise_graph(qr.next);
     }
     if (qr.command_giver) {
       qr.command_giver->extra_ref++;
@@ -1922,20 +1973,16 @@ void mark_promise_queue() {
     if (qr.coro) {
       mark_coroutine(qr.coro);
     }
-    qr.source->extra_ref++;
+    mark_promise_graph(qr.source);
   };
+  for (auto* p : g_pending_yields) {
+    mark_promise_graph(p);
+  }
   if (g_delivering != nullptr) {
     mark_one(*g_delivering);
   }
-  /* refs held only by C++ locals while an async body runs (see the
-   * declarations): first-run result promises, and the resuming coroutine
-   * (deliver_reaction nulls qr->coro before resume_coroutine, so the
-   * g_delivering mark above no longer covers it). mark_coroutine() is safe
-   * mid-run: frame and defers are nulled/transferred during resume, so it
-   * bumps exactly the outstanding result_promise/ob/prev_ob/command_giver/
-   * prog refs. */
   for (auto* p : g_active_body_promises) {
-    p->extra_ref++;
+    mark_promise_graph(p);
   }
   if (g_resuming_coro != nullptr) {
     mark_coroutine(g_resuming_coro);
@@ -1944,22 +1991,10 @@ void mark_promise_queue() {
     mark_coroutine(g_freeing_coro);
   }
   for (auto& qr : g_promise_microtasks) {
-    if (qr.on_fulfilled) {
-      qr.on_fulfilled->hdr.extra_ref++;
-    }
-    if (qr.on_rejected) {
-      qr.on_rejected->hdr.extra_ref++;
-    }
-    if (qr.next) {
-      qr.next->extra_ref++;
-    }
-    if (qr.command_giver) {
-      qr.command_giver->extra_ref++;
-    }
-    if (qr.coro) {
-      mark_coroutine(qr.coro);
-    }
-    qr.source->extra_ref++;
+    mark_one(qr);
+  }
+  if (root) {
+    g_marking_promise_graph = false;
   }
 }
 #endif
