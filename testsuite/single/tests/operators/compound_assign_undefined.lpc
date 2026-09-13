@@ -1,0 +1,82 @@
+// A value read from a missing mapping key is `undefined`
+// ({T_NUMBER, subtype=T_UNDEFINED, 0}). The ops.cc compound-assign efuns used
+// to modify the lvalue in place without clearing its subtype, so a variable
+// that started undefined kept reporting undefinedp() == 1 after a real
+// arithmetic result had been computed into it. `x += 1` never had the bug
+// (the VM implements F_ADD_EQ inline, correctly); the rest of the family did.
+
+void do_tests() {
+  mapping m = ([]);
+  mixed v;
+
+  // Control: += was already correct.
+  v = m["k"];
+  ASSERT(undefinedp(v));
+  v += 1;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(1, v);
+
+  v = m["k"];
+  ASSERT(undefinedp(v));
+  v &= 3;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  v = m["k"];
+  v |= 5;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(5, v);
+
+  v = m["k"];
+  v ^= 5;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(5, v);
+
+  v = m["k"];
+  v -= 2;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(-2, v);
+
+  v = m["k"];
+  v *= 3;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  v = m["k"];
+  v /= 2;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  v = m["k"];
+  v %= 2;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  v = m["k"];
+  v <<= 1;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  v = m["k"];
+  v >>= 1;
+  ASSERT(!undefinedp(v));
+  ASSERT_EQ(0, v);
+
+  // Plain | reuses the undefined left operand's stack slot; the result must
+  // not inherit its subtype either.
+  {
+    mixed a = m["k"];
+    mixed b;
+    ASSERT(undefinedp(a));
+    b = a | 7;
+    ASSERT(!undefinedp(b));
+    ASSERT_EQ(7, b);
+  }
+
+  // The lvalue itself, not just the pushed result, must be clean.
+  m["unclean"] = m["k"];
+  ASSERT(undefinedp(m["unclean"]));
+  m["unclean"] |= 9;
+  ASSERT(!undefinedp(m["unclean"]));
+  ASSERT_EQ(9, m["unclean"]);
+}

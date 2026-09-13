@@ -2342,13 +2342,22 @@ void mark_sockets() {
 #endif
 
 void lpc_socks_closeall() {
-  for (auto &sock : lpc_socks) {
-    if (sock.state == STATE_CLOSED) {
+  /* Release each live entry through socket_close() rather than only closing
+   * the descriptor. The descriptor is the one thing the OS takes back at
+   * exit; the TLS context (and the OpenSSL structures hanging off it), the
+   * SSL object, and the libevent watches all belong to the entry. Closing
+   * only the fd left them allocated, which is why LeakSanitizer reported the
+   * server context created by tls_server_init() (plus roughly 10KB of
+   * associated blocks) on every TLS run.
+   *
+   * SC_FORCE skips the owner check (there is no current_object here) and
+   * SC_FINAL_CLOSE gets past a FLUSHING entry. No SC_DO_CALLBACK: the mudlib
+   * is already being torn down. */
+  for (size_t i = 0; i < lpc_socks.size(); i++) {
+    if (lpc_socks[i].state == STATE_CLOSED) {
       continue;
     }
-    if (sock.fd != -1) {
-      evutil_closesocket(sock.fd);
-    }
+    socket_close(static_cast<int>(i), SC_FORCE | SC_FINAL_CLOSE);
   }
 }
 

@@ -55,6 +55,10 @@ void f_and_eq() {
     error("Bad right type to &=\n");
   }
   sp->u.number = argp->u.number &= sp->u.number;
+  /* undefined is {T_NUMBER, subtype=T_UNDEFINED, 0}: a store that changes the
+   * value must drop the subtype or the variable keeps answering
+   * undefinedp() == 1 after a real arithmetic result landed in it. */
+  argp->subtype = 0;
   sp->subtype = 0;
 }
 
@@ -73,6 +77,7 @@ void f_div_eq() {
       } else {
         argp->u.number /= sp->u.number;
       }
+      argp->subtype = 0;
       sp->u.number = argp->u.number;
       sp->subtype = 0;
       break;
@@ -401,6 +406,7 @@ void f_lsh_eq() {
     error("Bad right type to <<=\n");
   }
   sp->u.number = argp->u.number <<= sp->u.number;
+  argp->subtype = 0;
   sp->subtype = 0;
 }
 
@@ -423,6 +429,7 @@ void f_mod_eq() {
   } else {
     argp->u.number %= sp->u.number;
   }
+  argp->subtype = 0;
   sp->u.number = argp->u.number;
   sp->subtype = 0;
 }
@@ -434,6 +441,7 @@ void f_mult_eq() {
   switch (argp->type | sp->type) {
     case T_NUMBER: {
       sp->u.number = argp->u.number *= sp->u.number;
+      argp->subtype = 0;
       sp->subtype = 0;
       break;
     }
@@ -586,6 +594,9 @@ void f_or() {
   CHECK_TYPES(sp, T_NUMBER, 2, F_OR);
   sp--;
   sp->u.number |= (sp + 1)->u.number;
+  /* A plain | on an undefined left operand reuses its stack slot; without
+   * this the result inherits T_UNDEFINED and reports undefinedp() == 1. */
+  sp->subtype = 0;
 }
 
 void f_or_eq() {
@@ -604,6 +615,7 @@ void f_or_eq() {
     error("Bad right type to |=\n");
   }
   sp->u.number = argp->u.number |= sp->u.number;
+  argp->subtype = 0;
   sp->subtype = 0;
 }
 
@@ -934,6 +946,7 @@ void f_rsh_eq() {
     error("Bad right type to >>=\n");
   }
   sp->u.number = argp->u.number >>= sp->u.number;
+  argp->subtype = 0;
   sp->subtype = 0;
 }
 
@@ -944,6 +957,7 @@ void f_sub_eq() {
   switch (argp->type | sp->type) {
     case T_NUMBER: {
       sp->u.number = argp->u.number -= sp->u.number;
+      argp->subtype = 0;
       sp->subtype = 0;
       break;
     }
@@ -1243,6 +1257,9 @@ void f_xor_eq() {
     error("Bad right type to ^=\n");
   }
   sp->u.number = argp->u.number ^= sp->u.number;
+  /* This one did not even clear the pushed result's subtype. */
+  argp->subtype = 0;
+  sp->subtype = 0;
 }
 
 void f_function_constructor() {
