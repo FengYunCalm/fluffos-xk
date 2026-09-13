@@ -7,15 +7,17 @@ title: FluffOS_XK Documentation
 
 ## Current Project Status / 当前项目状态
 
-FluffOS_XK is a production-oriented FluffOS maintenance fork for modern LPC/MUD
-projects. The current `main` branch includes the completed owner/service
-multicore runtime baseline, Runtime v4 hardening, LPC Modern Runtime contracts,
-source/session encoding boundaries, VM diagnostics, and benchmark/stress entry
-points.
+FluffOS_XK is an independent FluffOS maintenance fork used primarily by our
+team for modern LPC/MUD projects. The current `main` branch includes the
+completed owner/service multicore runtime baseline, Runtime v4 hardening, LPC
+Modern Runtime contracts, source/session encoding boundaries, VM diagnostics,
+and benchmark/stress entry points. It does not follow the official public
+release process.
 
-FluffOS_XK 是面向现代 LPC/MUD 项目的生产型 FluffOS 维护分支。当前 `main`
-已经包含完成的 owner/service 多核基线、Runtime v4 加固、LPC Modern Runtime
-合同、源码/会话编码边界、VM 诊断以及 benchmark/stress 入口。
+FluffOS_XK 是独立维护、主要供团队自用的 FluffOS 分支，面向现代 LPC/MUD 项目。
+当前 `main` 已经包含完成的 owner/service 多核基线、Runtime v4 加固、LPC Modern
+Runtime 合同、源码/会话编码边界、VM 诊断以及 benchmark/stress 入口。本项目不采用
+官方正规公开发布流程。
 
 Ordinary legacy LPC remains compatible and default-closed for arbitrary
 background execution. Multicore execution requires explicit owner-safe contracts:
@@ -41,8 +43,8 @@ ObjectHandle route、owner future、commit proposal 或 service shard domain。
 - [Owner Multicore API / Owner 多核接口](./owner-multicore-api.md)
 - [Multicore Runtime v4 / 多核运行时 v4](./multicore-runtime-v4.md)
 - [Multicore Runtime v2 Contract / 多核 Runtime v2 合同](./multicore-runtime-v2.md)
-- [Production Gate / 生产门禁](./multicore-production-gate.md)
-- [Production Baseline Release Note / 生产基线发布说明](./releases/multicore-production-baseline-2026-06-27.md)
+- [Runtime Acceptance / 运行时验收合同](./multicore-production-gate.md)
+- [Project Scope / 项目范围](./project-scope.md)
 
 ## LPC Reference / LPC 参考
 

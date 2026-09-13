@@ -423,7 +423,7 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 
 ## `6cf257ce..735bd31f` 最终逐提交审计与当前复验
 
-本轮范围通过 `git log 6cf257ce..735bd31f` 核对为 **37 个提交**；候选 patch 已定向取证，未使用 bulk merge/cherry-pick。除明确延期的 Promise/stack-lvalue/external-handle 架构外，适用 hunk 已按本地调用者、生成链和 owner 边界逐项适配。最终执行状态见 `docs/implementation-release-execution-plan-2026-08.md`；逐 hunk 取证仍见 `docs/upstream-absorption-plan-d07e7641-735bd31f.md`。
+本轮范围通过 `git log 6cf257ce..735bd31f` 核对为 **37 个提交**；候选 patch 已定向取证，未使用 bulk merge/cherry-pick。除明确延期的 Promise/stack-lvalue/external-handle 架构外，适用 hunk 已按本地调用者、生成链和 owner 边界逐项适配。当前运行时状态以提交历史、测试结果和运行时合同文档为准；逐 hunk 取证仍见 `docs/upstream-absorption-plan-d07e7641-735bd31f.md`。
 
 | 结论 | 提交 |
 |---|---|
@@ -441,4 +441,4 @@ d41a8acc 的 3 个测试存在缺陷（1 个必失败、2 个空转），修正�
 - Gateway fuzz：Clang 18.1.3 真 libFuzzer smoke **256 inputs / 1024 frames**；真实 **10,000 runs** 保留 coverage **194**，无 sanitizer crash、无 artifact。`gateway_fuzz_smoke` 与真实 `gateway_fuzz` 已明确区分。
 - 生成与文档门禁：五个构建的 `packages_missing_efuns.autogen.h` SHA-256 均为 `b3ebe39f30544888ec22754930574ea339579ded3a11974b1288d2e4b1619fde`；`grammar.autogen.cc/.h` 已由本地 Bison 3.8.2 从 `grammar.y` 重生成，fallback 动作与构建树一致；`check-docs.py` **1125 Markdown**、`check-actions-pins.py` **14 actions / 2 digests**、`check-workflows.py`、`test-evidence-gate.py` 均通过；`git diff --check` 无输出。
 
-已知限制仍不变：空 evidence 目录的 `check-evidence.py` 继续 fail-closed（`FAIL: no reports to check`）；live GitHub/registry、签名/provenance、Docker daemon、生产规模容量及 macOS/Windows/Ubuntu system-Clang 矩阵未执行。不能据此宣称 release-ready。本实现与本地验证绑定到 `e7044bf3`；本次文档绑定更新另行提交。
+已知限制仍不变：空 evidence 目录的 `check-evidence.py` 继续 fail-closed（`FAIL: no reports to check`）；Docker daemon、生产规模容量及 macOS/Windows/Ubuntu system-Clang 矩阵未执行。后续是否在下游启用这些检查由自用部署需求决定，不构成公开发布阻塞。本实现与本地验证绑定到 `e7044bf3`；本次文档绑定更新另行提交。

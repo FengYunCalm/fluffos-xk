@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fluffos.evidence.manifest.v1",
   "title": "FluffOS benchmark/runtime evidence manifest schema",
-  "description": "Required metadata for every machine-readable benchmark, smoke, or capacity report produced from this repository. Any report that claims readiness for a release gate must carry these fields; a report missing a required field fails the evidence gate.",
+  "description": "Required metadata for every machine-readable benchmark, smoke, or capacity report produced from this repository. Any report used for runtime acceptance must carry these fields; a report missing a required field fails the evidence check.",
   "type": "object",
   "required": [
     "schema",

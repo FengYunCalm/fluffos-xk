@@ -10,22 +10,35 @@ Chinese first. English follows each major section.
 
 ## 这个引擎是什么
 
-FluffOS_XK 是面向现代 LPC/MUD 项目的生产型 FluffOS 引擎分支。它保留 LPC
-和经典 FluffOS driver 模型，同时加入已经完成的 owner/service 多核运行时、
-按需启用的现代 LPC 合同、源码/会话编码边界、VM 热路径诊断，以及适合下游项目长期维护的工程边界。
+FluffOS_XK 是独立维护、主要供团队和个人自用的 FluffOS 引擎 fork。它保留
+LPC 和经典 FluffOS driver 模型，同时加入已经完成的 owner/service 多核运行时、
+按需启用的现代 LPC 合同、源码/会话编码边界、VM 热路径诊断，以及适合下游项目
+长期维护的工程边界。本项目不采用官方 FluffOS 的正规公开发布流程。
 
 本仓库应作为引擎源码树，或作为重建 `driver` 与 `lpcc` 二进制的来源。
 mudlib、世界内容、账号、部署密钥和运维策略应留在游戏项目仓库中。
 
-FluffOS_XK is a production-oriented FluffOS engine fork for modern LPC/MUD
-projects. It keeps LPC and the classic FluffOS driver model, then adds a
-completed owner/service multicore runtime, opt-in modern LPC contracts,
-source/session encoding boundaries, VM hot-path diagnostics, and
-downstream-friendly maintenance practices.
+FluffOS_XK is an independent FluffOS engine fork maintained primarily for
+team and personal self-use. It keeps LPC and the classic FluffOS driver model,
+then adds a completed owner/service multicore runtime, opt-in modern LPC
+contracts, source/session encoding boundaries, VM hot-path diagnostics, and
+downstream-friendly maintenance practices. It does not follow the official
+FluffOS public release process.
 
 Use this repository as an engine source tree or as the source for rebuilt
 `driver` and `lpcc` binaries. Keep mudlib content, world data, accounts,
 deployment secrets, and operations policy in your game repository.
+
+## 项目范围 / Project Scope
+
+本 fork 的默认交付物是供自有下游 mudlib 使用的测试源码和可重建二进制。公开
+Release、registry 推广、签名、provenance、attestation、分支保护治理和官方容量
+声明默认不在项目范围内。详见[项目范围](docs/project-scope.md)。
+
+This fork delivers tested source and rebuildable binaries for our own downstream
+mudlibs. Public release tags, registry promotion, signing, provenance,
+attestation, branch-protection governance, and official capacity claims are
+outside the default project scope. See [Project Scope](docs/project-scope.md).
 
 ## 为什么值得用
 
@@ -40,7 +53,7 @@ deployment secrets, and operations policy in your game repository.
 - **编码兼容放在正确边界**：VM 内部字符串保持规范 UTF-8；遗留源码、玩家会话、
   gateway payload 和外部文本可在明确边界使用 GBK、GB2312、Big5 或其他 ICU 支持编码。
 - **运行行为可量化**：VM profiling、owner runtime status、benchmark report、
-  stress script、队列/反压计数、fallback 计数和 stale/drop 分类让生产行为可审计。
+  stress script、队列/反压计数、fallback 计数和 stale/drop 分类让运行行为可审计。
 
 - **Controlled multicore execution**: owner/service executor paths cover object
   lifecycle, heartbeat, callout, async/file/db, DNS, socket callbacks, gateway
@@ -58,7 +71,7 @@ deployment secrets, and operations policy in your game repository.
   at explicit boundaries.
 - **Measurable runtime behavior**: VM profiling, owner runtime status, benchmark
   reports, stress scripts, queue/backpressure counters, fallback counters, and
-  stale/drop classifications make production behavior auditable.
+  stale/drop classifications make runtime behavior auditable.
 
 ## 运行时边界
 
@@ -74,7 +87,7 @@ FluffOS_XK 不会把任意 legacy LPC 自动放到后台线程执行，这是有
 - keyed service shard domain。
 
 main thread 仍可作为 IO adapter、cleanup adapter、显式兼容 fallback 和明确的
-main-required 兼容面。生产业务正常路径要求 `normal_path_main_fallback_count=0`。
+main-required 兼容面。业务正常路径要求 `normal_path_main_fallback_count=0`。
 
 FluffOS_XK does not make arbitrary legacy LPC run freely on background threads.
 That is deliberate. Normal LPC remains default-closed for background execution.
@@ -83,8 +96,8 @@ frozen payloads, ObjectHandle routing, owner futures, commit proposals, or keyed
 service shard domains.
 
 The main thread remains available for IO adapters, cleanup adapters, explicit
-compatibility fallback, and documented main-required surfaces. Production
-business paths are expected to keep `normal_path_main_fallback_count=0`.
+compatibility fallback, and documented main-required surfaces. Normal business
+paths are expected to keep `normal_path_main_fallback_count=0`.
 
 ## 现代 LPC 示例
 
@@ -188,7 +201,7 @@ diagnostics, not for machine-specific absolute timing thresholds.
 
 推荐流程：
 
-1. 固定一个 FluffOS_XK commit 或 release tag。
+1. 固定一个经过测试的 FluffOS_XK commit（或内部 tag）。
 2. 构建 `driver`、`lpcc` 和 `lpc_tests`。
 3. 运行引擎测试和 runtime contract。
 4. 将重建的二进制同步到游戏运行树。
@@ -197,7 +210,7 @@ diagnostics, not for machine-specific absolute timing thresholds.
 
 Recommended flow for a game repository:
 
-1. Pin a FluffOS_XK commit or release tag.
+1. Pin a tested FluffOS_XK commit (or an internal tag).
 2. Build `driver`, `lpcc`, and `lpc_tests`.
 3. Run engine tests and runtime contracts.
 4. Copy the rebuilt binaries into the game runtime tree.
@@ -214,7 +227,8 @@ Recommended flow for a game repository:
 - [LPC Modern Runtime / LPC 现代运行时](docs/lpc-modern-runtime.md)
 - [Owner Multicore API / Owner 多核接口](docs/owner-multicore-api.md)
 - [Multicore Runtime v4 / 多核运行时 v4](docs/multicore-runtime-v4.md)
-- [Production Gate / 生产门禁](docs/multicore-production-gate.md)
+- [Runtime Acceptance / 运行时验收合同](docs/multicore-production-gate.md)
+- [Project Scope / 项目范围](docs/project-scope.md)
 - [Driver CLI](docs/cli/driver.md)
 - [lpcc CLI](docs/cli/lpcc.md)
 - [LPC Reference](docs/lpc/index.md)

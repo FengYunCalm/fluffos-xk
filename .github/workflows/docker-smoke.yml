@@ -1,0 +1,43 @@
+name: Docker Smoke
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**']
+
+permissions:
+  contents: read
+
+# This workflow only builds and runs a local smoke image. It never publishes
+# to a registry and is intentionally independent of any release process.
+jobs:
+  build-and-smoke:
+    name: Build Docker Image (local smoke only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
+
+      - name: Build Docker image without push
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25  # v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: fluffos-xk
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image builds and runs (smoke)
+        run: |
+          docker run --rm --entrypoint /bin/sh fluffos-xk -c '\
+            test -x /fluffos/bin/driver && \
+            /fluffos/bin/driver --version
+          '

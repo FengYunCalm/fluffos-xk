@@ -27,7 +27,7 @@ INLINE_PATH_RE = re.compile(r"`([^`]+)`")
 KNOWN_PREFIXES = (
     "docs/", "src/", "tools/", "testsuite/", ".github/", "third_party/",
     "cmake/", "compat/", "CMakeLists.txt", "Dockerfile", "SECURITY.md",
-    "README", "CHANGELOG.md", "RELEASE.md", "Testing", "CONTRIBUTING.md",
+    "README", "CHANGELOG.md", "Testing", "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md", "NOTICE", "LICENSE", "Credits", "Copyright",
     "ChangeLog", "qodana.yaml", "fix_permission.sh", "CMakePresets.json",
 )
@@ -45,19 +45,8 @@ IGNORED_DIRS = (
 # evidence and explicit plans stay readable. New violations in current docs
 # must NOT be added here; fix the reference instead.
 KNOWN_STALE = {
-    "docs/codebase-audit-and-execution-plan-2026-08-09.md": {
-        "docs/reports/multicore-mudlib-audit-2026-06-25.md",
-        ".github/workflows/release-gates.yml",
-    },
     "docs/multicore-production-gate.md": {
         "docs/reports/multicore-mudlib-audit-2026-06-25.md",
-    },
-    "docs/releases/multicore-production-baseline-2026-06-27.md": {
-        "5b5e433e0ad02c0432246f7a4369694669f1aef0",
-        "87007f089a3d431a1dfd12af54e94fa6b62cc5c7",
-        "5041b078e2e08ae2c58bdfd694ac43312bbd2603",
-        "tools/public-beta-smoke-ubuntu.sh --cloud --skip-contracts",
-        "tools/cloud-health-check-ubuntu.sh --ssh --smoke --json docs/reports/cloud-health-2026-06-27.json",
     },
     "docs/archive/multicore/multicore-actor-vm-plan-2026-06.md": {
         "src/vm/internal/object_store.h",

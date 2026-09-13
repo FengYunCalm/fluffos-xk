@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:1bbbcc85-b239-5393-bee4-9f0ec7c8c070",
+  "serialNumber": "urn:uuid:b3c72a16-547e-562b-a638-abc2cae80820",
   "version": 1,
   "metadata": {
     "timestamp": "2026-08-10T00:00:00Z",
@@ -420,17 +420,6 @@
       ]
     },
     {
-      "type": "operating-system",
-      "name": "trivy",
-      "version": "0.50.1",
-      "hashes": [
-        {
-          "alg": "SHA-256",
-          "content": "586cf142d41727a184b2982ade6a4d94ada9e243d64fcd52e6dcfba9cce56df6"
-        }
-      ]
-    },
-    {
       "type": "application",
       "name": "actions/checkout",
       "version": "v4",
@@ -471,17 +460,6 @@
         {
           "type": "vcs",
           "url": "https://github.com/actions/download-artifact"
-        }
-      ]
-    },
-    {
-      "type": "application",
-      "name": "actions/github-script",
-      "version": "v7",
-      "externalReferences": [
-        {
-          "type": "vcs",
-          "url": "https://github.com/actions/github-script"
         }
       ]
     },
@@ -537,17 +515,6 @@
         {
           "type": "vcs",
           "url": "https://github.com/docker/setup-buildx-action"
-        }
-      ]
-    },
-    {
-      "type": "application",
-      "name": "docker/metadata-action",
-      "version": "v5",
-      "externalReferences": [
-        {
-          "type": "vcs",
-          "url": "https://github.com/docker/metadata-action"
         }
       ]
     },

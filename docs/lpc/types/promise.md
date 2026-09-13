@@ -14,7 +14,7 @@ promise_status(p);              // 1
 promise_result(p);              // 42
 ```
 
-Promises are produced by [`async` functions](../constructs/async), by the
+Promises are produced by [`async` functions](../../concepts/general/async), by the
 promise efuns, and by the promise forms of the callback efuns
 (`call_out(delay)`, `async_read(path)`, `external_start(index, args)`,
 `external_run(handle)`, ...). They are consumed with
@@ -77,7 +77,7 @@ tagged `int`; nothing re-checks it at settle time.
 
 ## See also
 
-* [`async` functions, `await` and `acatch`](../constructs/async) — the syntax
+* [`async` functions, `await` and `acatch`](../../concepts/general/async) — the syntax
 * [The async/await execution model](../../concepts/general/async) — scheduling,
   suspension and resource limits
 * `promise_create`, `promise_resolve`, `promise_reject`, `promise_then`,

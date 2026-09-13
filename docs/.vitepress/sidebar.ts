@@ -5,6 +5,7 @@ const SIDEBAR = [
         items: [
             {text: 'FluffOS', link: '/'},
             {text: 'FluffOS_XK Overview', link: '/fluffos-xk-overview.html'},
+            {text: 'Project Scope / 项目范围', link: '/project-scope.html'},
             {text: 'Getting Started', link: '/build.html'},
             {text: 'Troubleshooting', link: '/bug.html'}
         ]

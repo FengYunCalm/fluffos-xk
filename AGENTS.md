@@ -2,7 +2,7 @@
 
 ## 1. 文档定位与项目边界
 
-本文件是代理进入仓库后的操作规则和架构导航，不替代完整设计文档、API 参考或发布门禁。
+本文件是代理进入仓库后的操作规则和架构导航，不替代完整设计文档、API 参考或运行时合同。
 
 - 稳定的项目事实写在这里；详细语义以 `README.md` 和 `docs/` 下的归属文档为准。
 - 构建选项以 `CMakePresets.json` 和 `src/CMakeLists.txt` 为准。
@@ -10,6 +10,11 @@
 - 不把当前分支、提交号、临时构建目录、机器负载或一次性 benchmark 数值写成永久规则。
 - 只修改与任务相关的文件；不覆盖工作区已有改动，不提交构建产物、日志、账号、密钥或下游 mudlib 数据。
 - 提交、推送、部署和其他外部副作用必须有明确授权。
+
+FluffOS_XK 是独立 fork，主要供团队自用，不以官方 FluffOS 的正规公开发布为默认目标。
+默认交付是经过本地验证的源码和可重建二进制；公开 Release、registry 推广、签名、
+provenance、attestation、分支保护和官方容量门禁不属于普通任务范围。详见
+`docs/project-scope.md`。
 
 FluffOS_XK 是面向现代 LPC/MUD 项目的 FluffOS 引擎维护分支。仓库提供可重建的 `driver`、`lpcc` 及相关工具；游戏 mudlib、世界数据、账号、部署配置和运维策略应保留在下游游戏仓库。
 
@@ -20,7 +25,7 @@ FluffOS_XK 是面向现代 LPC/MUD 项目的 FluffOS 引擎维护分支。仓库
 | 路径 | 作用 | 常见入口 |
 | --- | --- | --- |
 | `CMakeLists.txt` | 项目级 CMake 配置、版本信息、GTest 探测，并进入 `src/` | `cmake -S . ...` |
-| `CMakePresets.json` | 本地开发、发布和 sanitizer 预设 | `cmake --preset <name>` |
+| `CMakePresets.json` | 本地开发、优化构建和 sanitizer 预设 | `cmake --preset <name>` |
 | `cmake/` | CMake 查找模块和构建辅助函数 | `Find*.cmake`、`helper.cmake` |
 | `src/` | driver、编译器、VM、网络、功能包、工具和 C++ 测试 | `src/CMakeLists.txt` |
 | `src/base/` | 配置、日志、文件、内存、统计和平台基础设施 | `src/base/internal/` |
@@ -33,7 +38,7 @@ FluffOS_XK 是面向现代 LPC/MUD 项目的 FluffOS 引擎维护分支。仓库
 | `testsuite/` | 使用实际 driver 执行的 LPC 层测试 mudlib | `testsuite/etc/config.test` |
 | `docs/` | VitePress 文档站、API 参考、架构说明和验收记录 | `docs/index.md` |
 | `compat/` | 兼容层和平台适配辅助代码 | `compat/` |
-| `.github/workflows/` | CI、发布、静态分析和安全扫描 | `.github/workflows/` |
+| `.github/workflows/` | CI、静态分析和安全扫描 | `.github/workflows/` |
 | `src/thirdparty/` | 随源码构建的第三方库 | 不做无关重构 |
 
 ## 3. 核心架构与代码入口
@@ -98,11 +103,11 @@ owner/service 多核路径必须遵守以下边界：
 - main thread 保留 IO adapter、cleanup adapter、明确兼容 fallback 和 documented main-required surface；新增 fallback 必须有明确原因、计数或合同测试。
 - owner、epoch、destruct 和 stale task 检查属于对象生命周期安全边界，不能为省事绕过。
 
-详细 owner API、运行时合同和生产门禁见：
+详细 owner API、运行时合同和自用验收口径见：
 
 - `docs/owner-multicore-api.md`
 - `docs/multicore-runtime-v4.md`
-- `docs/multicore-production-gate.md`
+- `docs/multicore-production-gate.md`（运行时验收合同，历史文件名保留兼容）
 - `src/vm/owner.h`
 - `src/vm/worker.h`
 
@@ -115,7 +120,7 @@ owner/service 多核路径必须遵守以下边界：
 | 预设 | 输出目录 | 用途 | 关键约束 |
 | --- | --- | --- | --- |
 | `dev-debug` | `build-dev-debug/` | 日常开发和调试 | Debug、`MARCH_NATIVE=ON`、LTO 关闭 |
-| `portable-release` | `build-portable-release/` | 可移植发布构建 | Release、`MARCH_NATIVE=OFF`、LTO 开启 |
+| `portable-release` | `build-portable-release/` | 可移植优化构建 | Release、`MARCH_NATIVE=OFF`、LTO 开启 |
 | `asan` | `build-asan/` | AddressSanitizer | Debug、LTO 关闭、固定低并行 |
 | `ubsan` | `build-ubsan/` | UndefinedBehaviorSanitizer | Debug、LTO 关闭 |
 | `tsan` | `build-tsan/` | ThreadSanitizer | Debug、LTO 关闭 |
@@ -143,7 +148,7 @@ Sanitizer 使用对应预设；ASan 编译固定 `--parallel 2`。已存在的 `
 - 不使用 `-j$(nproc)` 或其他无限制并行构建；普通构建固定 `-j4`（内存充足且确认安全时才提高到 `-j8`），ASan 固定 `-j2`。
 - 同一时刻只运行一个构建目录；构建期间不要并行运行 driver、全量 `-ftest` 或 benchmark。
 - 可用内存低于 2 GiB 时，先停止无关进程并清理确认可重建的旧构建输出，再开始构建。
-- `ENABLE_LTO` 在非 Debug 构建默认可能开启；开发和 sanitizer 构建保持 LTO 关闭，发布构建是否开启以预设为准。
+- `ENABLE_LTO` 在非 Debug 构建默认可能开启；开发和 sanitizer 构建保持 LTO 关闭，优化构建是否开启以预设为准。
 - 构建失败或无输出时，先检查 `free -h` 和 `dmesg | grep -i oom`，排除 OOM 后再分析编译错误。
 
 ## 5. 测试与验证规则
@@ -157,7 +162,7 @@ Sanitizer 使用对应预设；ASan 编译固定 `--parallel 2`。已存在的 `
 | LPC 行为 | 从 `testsuite/` 运行对应 `-ftest:路径` |
 | 内存或并发行为 | 相关 ASan/UBSan/TSan 预设和定向测试 |
 | 生成器、grammar 或生成文件 | 运行生成步骤，检查源文件与生成结果一致 |
-| 发布或架构级变更 | 在定向验证通过后扩大到对应全量门禁 |
+| 架构或运行时变更 | 在定向验证通过后扩大到对应全量检查 |
 
 报告验证时给出实际数字：通过/失败数量、失败测试、构建目标、耗时或 diff 行数。没有运行的检查不能写成已通过。
 

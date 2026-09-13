@@ -111,27 +111,20 @@ external_downloads:
   url: https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2
   sha256: 2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa
   license: BSD-2-Clause
-  used_by: .github/workflows/release.yml (Linux static build)
+  used_by: Dockerfile (local static container build)
   verification: sha256 must be checked before extraction; failure aborts the build
 toolchain:
 - name: alpine-base-image
   version: 3.18
   digest: sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7
   license: MIT (Docker base image licensing per component)
-  used_by: .github/workflows/release.yml (Linux static build), Dockerfile
-  notes: Docker official alpine:3.18 digest (amd64). Verify before each release.
-- name: trivy
-  version: 0.50.1
-  digest: sha256:586cf142d41727a184b2982ade6a4d94ada9e243d64fcd52e6dcfba9cce56df6
-  upstream: https://github.com/aquasecurity/trivy
-  used_by: .github/workflows/release.yml (image vulnerability scan)
-  notes: Pinned by digest; the vulnerability DB version is recorded in the scan report
-    at scan time.
+  used_by: Dockerfile (local container build)
+  notes: Docker official alpine:3.18 digest (amd64), pinned for local and CI smoke builds.
 - name: github-actions
   note: Every action is pinned to a full commit SHA in workflows; the readable version
-    tag is kept as a trailing comment. The checker (tools/docs/check-actions-pins.py,
-    T08/R2-F09 gate) fails when a workflow uses a mutable tag, an undeclared action,
-    or a manifest entry that is unused.
+    tag is kept as a trailing comment. The checker (tools/docs/check-actions-pins.py)
+    fails when a workflow uses a mutable tag, an undeclared action, or a manifest
+    entry that is unused.
   entries:
   - name: actions/checkout
     version: v4
@@ -152,11 +145,6 @@ toolchain:
     version: v4
     sha: d3f86a106a0bac45b974a628896c90dbdf5c8093
     upstream: https://github.com/actions/download-artifact
-    review_date: 2026-08-10
-  - name: actions/github-script
-    version: v7
-    sha: f28e40c7f34bde8b3046d885e986cb6290c5673b
-    upstream: https://github.com/actions/github-script
     review_date: 2026-08-10
   - name: actions/configure-pages
     version: v5
@@ -182,11 +170,6 @@ toolchain:
     version: v3
     sha: 8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
     upstream: https://github.com/docker/setup-buildx-action
-    review_date: 2026-08-10
-  - name: docker/metadata-action
-    version: v5
-    sha: c299e40c65443455700f0fdfc63efafe5b349051
-    upstream: https://github.com/docker/metadata-action
     review_date: 2026-08-10
   - name: docker/build-push-action
     version: v5

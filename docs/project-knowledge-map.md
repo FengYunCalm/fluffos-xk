@@ -1,17 +1,16 @@
 # FluffOS_XK 项目知识文档
 
 > 当前状态说明：本文是仓库知识地图和历史学习产物，用于理解 FluffOS_XK
-> 的结构与多核化演进。当前生产事实以
-> [`multicore-runtime-v2.md`](multicore-runtime-v2.md)、
-> [`multicore-production-gate.md`](multicore-production-gate.md) 和
-> [`releases/multicore-production-baseline-2026-06-27.md`](releases/multicore-production-baseline-2026-06-27.md)
-> 为准；归档计划不再代表当前待办。
+> 的结构与多核化演进。项目范围和默认交付方式以
+> [`project-scope.md`](project-scope.md) 为准；当前运行时事实以
+> [`multicore-runtime-v2.md`](multicore-runtime-v2.md) 和
+> [`multicore-production-gate.md`](multicore-production-gate.md) 为准；归档计划不再代表当前待办。
 
 ## 结论
 
-FluffOS_XK 是一个面向实际 MUD/LPC 运行项目的 FluffOS 维护分支。仓库核心仍是传统 driver、LPC VM、事件循环和对象系统，但当前主线已经在 owner/actor 方向上完成生产多核化执行面：线程本地 `VMContext`、受控 `VMWorkerRuntime`、owner metadata、owner mailbox、主线程 owner queue、ObjectHandle、owner shard 状态索引、cross-owner 访问审计、enforced 模式边界、gateway/player command、heartbeat、callout、async/DNS/socket callback 和 `socket_release` owner-safe handshake。
+FluffOS_XK 是一个主要供团队自用的独立 FluffOS fork，面向实际 MUD/LPC 运行项目。仓库核心仍是传统 driver、LPC VM、事件循环和对象系统，但当前主线已经在 owner/actor 方向上完成受控多核运行时执行面：线程本地 `VMContext`、受控 `VMWorkerRuntime`、owner metadata、owner mailbox、主线程 owner queue、ObjectHandle、owner shard 状态索引、cross-owner 访问审计、enforced 模式边界、gateway/player command、heartbeat、callout、async/DNS/socket callback 和 `socket_release` owner-safe handshake。
 
-必须明确：生产多核化完成不等于“任意 LPC 在后台线程自由并行执行”。普通 legacy LPC 仍默认关闭，只能通过显式 allowlist、same-owner、frozen payload/ObjectHandle 和 driver callback 合同进入 owner executor；这正是当前生产边界，而不是未完成缺口。
+必须明确：受控多核运行时完成不等于“任意 LPC 在后台线程自由并行执行”。普通 legacy LPC 仍默认关闭，只能通过显式 allowlist、same-owner、frozen payload/ObjectHandle 和 driver callback 合同进入 owner executor；这正是当前生产边界，而不是未完成缺口。
 
 ## 仓库概况
 
@@ -375,7 +374,7 @@ payload 约束：
 - `/adm/daemons/gateway_d` system message 入口使用 daemon owner/epoch 绑定 `VMOwnerScope` 并记录 `receive_system_message` trace，C++ 回归验证 daemon 在玩家 owner scope 内仍归 `legacy/main`。
 - gateway `exec()` 路径通过 `gateway_session_exec_update()` 迁移 session lookup；`gateway_session_info()` 暴露 live object 的 `object_name`、`owner_id`、`owner_epoch`，C++ 回归验证 disconnect/remove interactive 不改写新 user owner/epoch。
 - 普通 interactive `exec()` 路径已有 C++ 回归，验证 interactive 指针和 command giver 迁移后，新旧对象 owner/epoch 均保持原值。
-- socket read/write/close callbacks 生产正常路径投递 owner executor；`off` 或 executor unavailable 只作为显式兼容 fallback。`socket_release` 仍保持 efun 同步返回语义，但 release 时捕获目标 owner epoch，`socket_acquire()` 时校验同一 owner epoch，成功、拒绝、stale 和 owner mismatch 都记录 owner trace。
+- socket read/write/close callbacks 正常运行路径投递 owner executor；`off` 或 executor unavailable 只作为显式兼容 fallback。`socket_release` 仍保持 efun 同步返回语义，但 release 时捕获目标 owner epoch，`socket_acquire()` 时校验同一 owner epoch，成功、拒绝、stale 和 owner mismatch 都记录 owner trace。
 
 ## 测试体系
 
@@ -449,16 +448,16 @@ payload 约束：
 - snapshot API 和 owner async/future API。
 - 普通 off-main LPC 仍默认关闭；18 类生产 owner domain allowlist 已可在线程侧执行，`vm_owner_ordinary_lpc_task()` 也已支持显式开放的 same-owner generic LPC dispatch，并通过 owner future 暴露 pending/completed/failed 与 frozen result。
 
-## 当前生产边界
+## 当前运行时边界
 
 - 真实 XiaKeXing mudlib cross-owner hotspot audit 已收口，delayed callback 裸 `object` payload 已迁为 key/path/snapshot，未分类 hotspot 和直接 cross-owner mutable write 要求保持为 0。
-- 高频同步返回路径的生产口径是 snapshot、owner message 或 owner future；新增同步 cross-owner 写路径必须先进入 audit 并迁移后才能进入 enforced。
+- 高频同步返回路径的运行时口径是 snapshot、owner message 或 owner future；新增同步 cross-owner 写路径必须先进入 audit 并迁移后才能进入 enforced。
 - array、mapping、object ref 的完整跨线程内存模型仍不允许绕过 frozen payload/ObjectHandle 边界。
 - `owner_lpc_task_allowed()` 仍是显式开放合同，不开放任意 legacy LPC 默认后台执行。
 - `normal_path_main_fallback_count` 必须保持为 0；main 线程只保留 IO adapter、cleanup adapter、显式 fallback 和 documented main-required compatibility surface。
-- gateway command、heartbeat、callout、async/db/file completion、DNS callback 和 socket read/write/close callback 已有 owner executor 入口，并已按当前接受的 10 用户 30 分钟 audit 压测口径验收。
-- 10 用户 30 分钟 audit 压测、真实 XiaKeXing mudlib final audit 和 `socket_release` owner-safe release/acquire handshake 均已收口（**均为 2026-06 历史证据；当前 checkout 需重跑产生 `fluffos.evidence.manifest.v1` 当前证据后，`production_gate_ready` 才能作为 release 门禁**）。
-- production rollout 策略、回滚指标和发布阻断条件以 `docs/multicore-production-gate.md` 为准；任何证据失效都必须回退对应 ready 字段并重跑验收。
+- gateway command、heartbeat、callout、async/db/file completion、DNS callback 和 socket read/write/close callback 已有 owner executor 入口；下游可按实际部署负载安排 smoke 或压力复核。
+- 10 用户 30 分钟 audit 压测、真实 XiaKeXing mudlib final audit 和 `socket_release` owner-safe release/acquire handshake 均已有历史记录；下游启用相关能力前应按实际 checkout 重新复核，`production_gate_ready` 只是兼容的机器可读运行时字段。
+- 下游部署策略、回滚指标和运行时验收口径以 `docs/multicore-production-gate.md` 为准；任何证据失效都必须回退对应 ready 字段并重跑验收。
 
 ## 维护原则
 
@@ -479,14 +478,14 @@ payload 约束：
 | mutable value 跨线程共享 | array/mapping/object ref 可能被双方修改 | owner payload 只允许 frozen/deep-copy 风格数据 |
 | legacy scope 误判 | `legacy/main` 与显式 owner 混用会掩盖问题 | effective owner、command_giver 特判、trace |
 | 后台 LPC 执行风险 | 任意 LPC 会触碰全局 VM 和对象系统 | 普通 LPC 默认关闭，只开放受控只读 allowlist |
-| 验收口径漂移 | 旧计划曾要求更长时长和更高并发档位 | 当前以已接受的 10 用户 30 分钟 audit、final audit 和 production gate 文档为准 |
+| 验收口径漂移 | 旧计划曾要求更长时长和更高并发档位 | 当前以自用 runtime contract、定向测试和下游 smoke 为准 |
 
 ## 建议阅读顺序
 
 1. `README.md`
-2. `docs/multicore-runtime-v2.md`
-3. `docs/multicore-production-gate.md`
-4. `docs/releases/multicore-production-baseline-2026-06-27.md`
+2. `docs/project-scope.md`
+3. `docs/multicore-runtime-v2.md`
+4. `docs/multicore-production-gate.md`
 5. `docs/owner-multicore-api.md`
 6. `docs/archive/multicore/README.md`
 7. `src/vm/context.h`

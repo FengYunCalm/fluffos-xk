@@ -2,13 +2,15 @@
 
 ## Positioning / 项目定位
 
-FluffOS_XK is a production-oriented FluffOS maintenance fork for modern LPC/MUD
-projects. It is meant to be consumed as an engine repository: game mudlibs,
-world data, accounts, deployment secrets, and operational policy stay in
-downstream game repositories.
+FluffOS_XK is an independent FluffOS maintenance fork used primarily for team
+self-use with modern LPC/MUD projects. It is meant to be consumed as an engine
+repository: game mudlibs, world data, accounts, deployment secrets, and
+operational policy stay in downstream game repositories. It does not follow the
+official public release process.
 
-FluffOS_XK 是面向现代 LPC/MUD 项目的生产型 FluffOS 维护分支。它应作为引擎仓库被下游消费：
-游戏 mudlib、世界数据、账号、部署密钥和运维策略应保留在下游游戏仓库。
+FluffOS_XK 是独立维护、主要供团队自用的 FluffOS 分支，面向现代 LPC/MUD 项目。
+它应作为引擎仓库被下游消费：游戏 mudlib、世界数据、账号、部署密钥和运维策略
+应保留在下游游戏仓库。本项目不采用官方正规公开发布流程。
 
 The upstream FluffOS project remains the canonical base. FluffOS_XK is a
 downstream-friendly engine line for projects that need a stable integration
@@ -20,28 +22,28 @@ target, controlled multicore execution, and modern LPC migration tools.
 ## What It Adds / 新增能力
 
 - Predictable CMake builds on current Linux, WSL, and Windows/MSYS2 toolchains.
-- Owner/service multicore execution for production mudlib migration.
+- Owner/service multicore execution for downstream mudlib migration.
 - LPC Modern Runtime with opt-in pragmas, owner audit, owner-safe APIs, and
   source encoding boundaries.
 - Gateway/session behavior for WebSocket-facing clients and explicit session
   FIFO contracts.
 - VM hot-path profiling, owner runtime benchmark reports, object-store fast-path
   diagnostics, and stress smoke gates.
-- Security and CI maintenance suitable for public review.
+- Security and CI maintenance suitable for repeated self-use builds.
 
 - 面向当前 Linux、WSL 和 Windows/MSYS2 工具链的稳定 CMake 构建。
-- 面向生产 mudlib 迁移的 owner/service 多核执行。
+- 面向下游 mudlib 迁移的 owner/service 多核执行。
 - LPC Modern Runtime：按需启用 pragma、owner audit、owner-safe API 和源码编码边界。
 - 面向 WebSocket 客户端的 gateway/session 行为，以及明确的 session FIFO 合同。
 - VM 热路径 profiling、owner runtime benchmark 报告、object-store fast-path 诊断和 stress smoke 门禁。
-- 适合公开审查的安全与 CI 维护。
+- 适合反复自用构建的安全与 CI 维护。
 
-## Production Multicore Baseline / 生产多核基线
+## Multicore Runtime Baseline / 多核运行时基线
 
 The multicore model is controlled, explicit, and compatibility-minded. It does
 not make arbitrary legacy LPC run freely on background threads.
 
-The sealed production path covers:
+The validated runtime path covers:
 
 - owner-local object lifecycle;
 - OwnerExecutor callback tasks;
@@ -57,7 +59,7 @@ owner future, commit proposal, or service shard domain.
 
 多核模型是受控、显式且兼容优先的。它不会把任意 legacy LPC 自动放到后台线程执行。
 
-已封版的生产路径覆盖：
+已验证的运行时路径覆盖：
 
 - owner-local object lifecycle；
 - OwnerExecutor callback task；
@@ -100,7 +102,7 @@ contracts.
 
 Recommended downstream flow:
 
-1. Pin a FluffOS_XK commit or release tag.
+1. Pin a tested FluffOS_XK commit (or an internal tag).
 2. Build `driver`, `lpcc`, and `lpc_tests`.
 3. Run engine tests and runtime contracts.
 4. Copy built binaries into the downstream runtime tree.
@@ -109,7 +111,7 @@ Recommended downstream flow:
 
 推荐下游流程：
 
-1. 固定一个 FluffOS_XK commit 或 release tag。
+1. 固定一个经过测试的 FluffOS_XK commit（或内部 tag）。
 2. 构建 `driver`、`lpcc` 和 `lpc_tests`。
 3. 运行引擎测试和 runtime contract。
 4. 将构建产物复制到下游运行树。
@@ -129,19 +131,19 @@ FluffOS_XK is intentionally conservative:
   shard-domain contracts;
 - main-thread work is limited to IO adapters, cleanup adapters, explicit
   fallback, and documented compatibility surfaces;
-- production status is represented by machine-readable runtime contracts rather
-  than informal claims.
+- runtime status is represented by machine-readable contracts rather than
+  informal claims.
 
 FluffOS_XK 有意保持保守：
 
 - 普通 legacy LPC 默认不开放后台执行；
 - 可变 cross-owner state 必须使用 snapshot、message、future、commit 或 shard-domain 合同；
 - main-thread 工作只限 IO adapter、cleanup adapter、显式 fallback 和明确兼容面；
-- 生产状态由机器可读 runtime contract 表达，而不是靠非正式说明宣称。
+- 运行时状态由机器可读 runtime contract 表达，而不是靠非正式说明宣称。
 
-These boundaries are part of the production design, not deferred work.
+These boundaries are part of the runtime design, not deferred work.
 
-这些边界是生产设计的一部分，不是延期未完成工作。
+这些边界是运行时设计的一部分，不是延期未完成工作。
 
 ## When To Use It / 什么时候使用
 
@@ -175,5 +177,5 @@ deployment scripts, or project-specific secrets.
 - [Owner Multicore API / Owner 多核接口](./owner-multicore-api.md)
 - [Multicore Runtime v4 / 多核运行时 v4](./multicore-runtime-v4.md)
 - [Multicore Runtime v2 / 多核运行时 v2](./multicore-runtime-v2.md)
-- [Production Gate / 生产门禁](./multicore-production-gate.md)
-- [Production Baseline Release Note / 生产基线发布说明](./releases/multicore-production-baseline-2026-06-27.md)
+- [Runtime Acceptance / 运行时验收合同](./multicore-production-gate.md)
+- [Project Scope / 项目范围](./project-scope.md)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify supply-chain pins (T08/R2-F09 gate).
+"""Verify supply-chain pins for local and CI builds.
 
 Checks:
 
@@ -8,9 +8,9 @@ Checks:
    (owner/repo, sha) pair must be declared in third_party/manifest.yaml's
    github-actions entries; no manifest entry may be unused.
 2. Dockerfile `FROM` lines and any container image references in workflows
-   (e.g. trivy) must carry a `@sha256:<64-hex>` digest, and every digest
-   must be declared in the manifest toolchain section. A mutable image tag
-   (e.g. alpine:3.18 without digest, trivy:0.50.1 without digest) fails.
+   must carry a `@sha256:<64-hex>` digest, and every digest must be declared
+   in the manifest toolchain section. A mutable image tag (e.g. alpine:3.18
+   without digest) fails.
 3. Dockerfile downloads (wget|curl piped into tar) are forbidden: they must
    download to a file, verify the manifest sha256, then extract.
 

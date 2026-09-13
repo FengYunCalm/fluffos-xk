@@ -33,7 +33,7 @@ grep "Accepting \[Gateway\] connections on 127.0.0.1" <log>
 
 - `testsuite/etc/cert.pem` 与 `testsuite/etc/key.pem` 是**测试专用 fixture**，
   非生产凭证。
-- 发布资产必须不含 `*.pem`/`*.key` 私钥（release.yml 已有打包前检查，失败即阻断）。
+- 自用构建和部署资产必须不含 `*.pem`/`*.key` 私钥；构建前应显式检查，失败即停止。
 - 仓库扫描器规则应将 `testsuite/etc/` 下的 fixture 标记为测试用途，避免误报。
 
 ## 4b. `sys_reload_tls()` 管理合同（R2-F12）
