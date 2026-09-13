@@ -677,15 +677,28 @@ void f_unique_mapping(void) {
   }
 
   // Translate result into LPC mapping
-  mapping_t *m = allocate_mapping(0);
+  //
+  // The mapping build below can error() (find_for_insert on the maximum
+  // mapping size, allocate_empty_array on the maximum array size), and so can
+  // the callback loop above. Release the copied keys exactly once, and drop
+  // the partially built mapping unless it was handed off to the stack.
+  mapping_t *m = nullptr;
+  bool completed = false;
+  DEFER {
+    for (auto &item : result) {
+      svalue_t key = item.first;
+      free_svalue(&key, "unique_mapping key");
+    }
+    if (!completed && m) {
+      free_mapping(m);
+    }
+  };
+
+  m = allocate_mapping(0);
   for (auto &item : result) {
     auto key = item.first;
     auto values = item.second;
 
-    // FIXME: find_for_insert can actually throw error if we exceeded maximum
-    // mapping size! we will leave garbage when that happens.
-    //
-    // key is copied, but not freed, the value is freed at the end of the loop.
     svalue_t *l = find_for_insert(m, &key, 0);
     l->type = T_ARRAY;
     l->u.arr = allocate_empty_array(values.size());
@@ -693,9 +706,8 @@ void f_unique_mapping(void) {
       // values are copied.
       assign_svalue_no_free(&l->u.arr->item[i], values[i]);
     }
-    // Free reference
-    free_svalue(&key, "unique_mapping");
   }
+  completed = true;
   pop_n_elems(num_arg);
   push_refed_mapping(m);
 }

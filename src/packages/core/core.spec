@@ -97,7 +97,7 @@ void move_object(object | string);
 void add_action(string | function, string | string *, void | int);
 string query_verb();
 int command(string);
-int remove_action(string, string);
+int remove_action(string | function, string);
 int living(object default: F__THIS_OBJECT);
 mixed *commands();
 void disable_commands();
@@ -236,6 +236,9 @@ void set_hide(int);
 
 #ifndef NO_RESETS
 void set_clean_up(object, void | int);
+// Re-arms the clean_up() sweep for an object whose clean_up() previously
+// returned 0 (the driver clears O_WILL_CLEAN_UP and never queries it again).
+int request_clean_up(object default: F__THIS_OBJECT);
 int recompile_object(object);
 void set_reset(object, void | int);
 #endif

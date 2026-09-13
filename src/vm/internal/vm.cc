@@ -57,13 +57,18 @@ void preload_objects() {
   // so we have to increase ref here to make sure it is around.
   prefiles->ref++;
 
-  debug_message("\nLoading preload files ...\n");
+  bool const display_progress = CONFIG_INT(__RC_DISPLAY_PRELOAD_PROGRESS__) != 0;
+  if (display_progress) {
+    debug_message("\nLoading preload files ...\n");
+  }
 
   for (int i = 0; i < prefiles->size; i++) {
     if (prefiles->item[i].type != T_STRING) {
       continue;
     }
-    debug_message("%s...\n", prefiles->item[i].u.string);
+    if (display_progress) {
+      debug_message("%s...\n", prefiles->item[i].u.string);
+    }
 
     push_svalue(&prefiles->item[i]);
     set_eval(max_eval_cost);

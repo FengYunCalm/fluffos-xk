@@ -114,6 +114,7 @@ const FlagEntry INT_FLAGS[] = {
     {"max suspended async functions", __RC_MAX_SUSPENDED_ASYNC__, 10000},
     {"async drain eval budget", __RC_ASYNC_DRAIN_EVAL_BUDGET__, 1000},
     {"max pending promise deliveries", __RC_MAX_PENDING_DELIVERIES__, 100000},
+    {"display preload progress", __RC_DISPLAY_PRELOAD_PROGRESS__, 1, 0, 1},
 };
 
 /*

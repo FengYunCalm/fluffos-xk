@@ -530,6 +530,48 @@ static int at_end(int i, int imax, int z, const int *lens) {
   return 1;
 }
 
+/* Byte length of the UTF-8 sequence starting with lead byte c (1 for ASCII
+ * and for invalid lead bytes). */
+static inline int tc_u8_seqlen(unsigned char c) {
+  if ((c & 0xE0) == 0xC0) return 2;
+  if ((c & 0xF0) == 0xE0) return 3;
+  if ((c & 0xF8) == 0xF0) return 4;
+  return 1;
+}
+
+/* Per-byte column-width tracker for the terminal_colour wrap passes.
+ * Byte counters stay byte-based; only `col` advances by display width,
+ * and a codepoint's width lands when its LAST byte is consumed so lines
+ * can only break at codepoint boundaries and double-width (CJK) characters
+ * count as two columns. */
+struct tc_colwidth_state {
+  int pending = 0; /* continuation bytes left in the current sequence */
+  int width = 0;   /* display width of the current sequence */
+  int bytes = 1;   /* byte length of the current sequence */
+
+  /* Returns the columns to add for consuming byte p[z]. */
+  int advance(const char *p, int z, int len) {
+    unsigned char const c = p[z];
+    if ((c & 0xC0) == 0x80) {
+      /* continuation byte: width lands on the sequence's last byte */
+      return (pending > 0 && --pending == 0) ? width : 0;
+    }
+    if (c < 0x80) {
+      pending = 0;
+      width = 1;
+      bytes = 1;
+      return 1;
+    }
+    bytes = tc_u8_seqlen(c);
+    if (bytes > len - z) {
+      bytes = len - z; /* truncated sequence at segment end */
+    }
+    width = u8_width(p + z, bytes);
+    pending = bytes - 1;
+    return pending == 0 ? width : 0;
+  }
+};
+
 void f_terminal_colour() {
   auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
 
@@ -802,6 +844,7 @@ void f_terminal_colour() {
     if (wrap) {
       int z;
       const char *p = parts[i];
+      tc_colwidth_state cw;
       // This is where we figure out the size of the lines and
       // the final output string.  j is the size of the final output
       // string and max_buflen is the size of the line.
@@ -821,7 +864,7 @@ void f_terminal_colour() {
           buflen = 0;
         } else {
           if (col > start || (c != ' ' && c != '\t')) {
-            col++;
+            col += cw.advance(p, z, lens[i]);
           } else {
             j--;
             buflen--;
@@ -836,7 +879,7 @@ void f_terminal_colour() {
             strncpy(colouratstartword, curcolour, MAX_COLOUR_STRING - 1);
             colourstartlen = curcolourlen;
           }
-          if (col == wrap + 1) {
+          if (col > wrap) {
             if (space) {
               if (fillout) {
                 j += wrap - space;
@@ -850,11 +893,11 @@ void f_terminal_colour() {
               space_buflen = 0;
             } else {
               j++;
-              col = 1;
+              col = cw.width;
               j += resetstrlen + curcolourlen;
               buflen += resetstrlen + curcolourlen;
               max_buflen = (buflen > max_buflen ? buflen : max_buflen);
-              buflen = 1;
+              buflen = cw.bytes;
             }
             start = indent;
           } else {
@@ -903,6 +946,7 @@ void f_terminal_colour() {
     for (i = 0; i < num; i++) {
       int kind;
       const char *p = parts[i];
+      tc_colwidth_state cw;
       if (lens[i] < 0) {
         memcpy(pt, p, -lens[i]);
         pt += -lens[i];
@@ -938,7 +982,7 @@ void f_terminal_colour() {
           colourstartlen = curcolourlen;
         } else {
           if (col > start || (c != ' ' && c != '\t')) {
-            col++;
+            col += cw.advance(p, k, lens[i]);
           } else {
             pt--;
             buflen--;
@@ -954,7 +998,7 @@ void f_terminal_colour() {
             strncpy(colouratstartword, curcolour, MAX_COLOUR_STRING - 1);
             colourstartlen = curcolourlen;
           }
-          if (col == wrap + 1) {
+          if (col > wrap) {
             if (space) {
               endpad = wrap - space;
               col -= space;
@@ -963,9 +1007,9 @@ void f_terminal_colour() {
               buflen -= space_buflen;
               space_buflen = 0;
             } else {
-              col = 1;
+              col = cw.width;
               kind = 2;
-              buflen = 1;
+              buflen = cw.bytes;
               strncpy(colouratstartword, curcolour, MAX_COLOUR_STRING - 1);
               colourstartlen = curcolourlen;
             }
@@ -1267,6 +1311,12 @@ static char *pluralize(const char *str) {
       if (!strcasecmp(rel + 1, "ech")) {
         found = PLURAL_SUFFIX;
         suffix = "s";
+        break;
+      }
+      if (!strcasecmp(rel + 1, "arquis")) {
+        /* not the Latin -is -> -es chop (issue #936) */
+        found = PLURAL_SUFFIX;
+        suffix = "es";
       }
       break;
     case 'O':
@@ -1280,6 +1330,12 @@ static char *pluralize(const char *str) {
     case 'p':
       if (!strcasecmp(rel + 1, "ants")) {
         found = PLURAL_SAME;
+        break;
+      }
+      if (!strcasecmp(rel + 1, "enis")) {
+        /* not the Latin -is -> -es chop (issue #936) */
+        found = PLURAL_SUFFIX;
+        suffix = "es";
       }
       break;
     case 'Q':
@@ -1411,10 +1467,12 @@ static char *pluralize(const char *str) {
         if ((end - pre) > 1 && (end[-2] == 'e' || end[-2] == 'E')) {
           break;
         }
-        found = PLURAL_CHOP + 1;
         if ((end - pre) > 1 && (end[-2] == 'f' || end[-2] == 'F')) {
-          found++;
+          /* words ending in -ff normally just take -s (bluffs, cliffs);
+           * staff -> staves lives in the exception table (issue #936) */
+          break;
         }
+        found = PLURAL_CHOP + 1;
         suffix = "ves";
         break;
       case 'H':

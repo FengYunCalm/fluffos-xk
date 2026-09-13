@@ -791,6 +791,19 @@ static array_t *MySQL_fetch(dbconn_t *c, int row) {
           }
           break;
 
+        case FIELD_TYPE_TIMESTAMP:
+        case FIELD_TYPE_DATE:
+        case FIELD_TYPE_NEWDATE:
+        case FIELD_TYPE_DATETIME:
+        case FIELD_TYPE_TIME:
+        case FIELD_TYPE_YEAR:
+          /* Date/time columns come back in their string representation;
+           * they used to fall through to default and fetch as 0. */
+          v->item[i].type = T_STRING;
+          v->item[i].subtype = STRING_MALLOC;
+          v->item[i].u.string = string_copy(target_row[i], "MySQL_fetch");
+          break;
+
         default:
           v->item[i] = const0u;
           break;
@@ -1099,13 +1112,14 @@ static array_t *SQLite3_fetch(dbconn_t *c, int row) {
    * so if fetch is called again on a completed or errornous statement we can
    * fail out sooner saving time.
    */
-  if ((row != last_row) && (last_row < row)) {
+  if (last_row < row) {
+    /* Step exactly (row - last_row) times. Breaking out after the first
+     * successful step made a direct db_fetch(handle, N) return the row
+     * after last_row instead of row N. */
     for (i = last_row; i < row; i++) {
       c->SQLite3.step_res = sqlite3_step(c->SQLite3.results);
 
-      if (c->SQLite3.step_res == SQLITE_ROW) {
-        break;
-      } else {
+      if (c->SQLite3.step_res != SQLITE_ROW) {
         return &the_null_array;
       }
     }

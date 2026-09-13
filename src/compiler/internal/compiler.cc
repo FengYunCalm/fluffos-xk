@@ -1001,8 +1001,11 @@ static int find_matching_function(program_t *prog, const char *name, parse_node_
           flags = prog->function_flags[ri];
 
           if (flags & (FUNC_UNDEFINED | FUNC_PROTOTYPE)) {
-              yywarn("BUG: inherit function is undefined or prototype, flags: %d", flags);
-              return 0;
+            // Only a prototype here (e.g. from a header this program included);
+            // the real definition may live in one of this program's own
+            // inherits, so fall through to the inherit search below instead of
+            // failing the whole lookup.
+            break;
           }
           if (flags & DECL_PRIVATE) {
               return -1;
@@ -1177,10 +1180,10 @@ int define_new_function(const char *name, int num_arg, int num_local, int flags,
       /* This should be changed to catch two prototypes which disagree */
       if (funtype != TYPE_UNKNOWN) {
         if (funp->num_arg != num_arg && !((flags | funflags) & FUNC_VARARGS)) {
-          yywarn("Number of arguments disagrees with previous definition.");
+          yywarn("Number of arguments to '%s' disagrees with previous definition.", name);
         }
         if (!(funflags & FUNC_STRICT_TYPES)) {
-          yywarn("Called function not compiled with type testing.");
+          yywarn("Called function '%s' not compiled with type testing.", name);
         }
 
         /* Now check that argument types wasn't changed. */

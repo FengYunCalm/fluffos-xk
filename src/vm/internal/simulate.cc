@@ -655,13 +655,18 @@ object_t *load_object(const char *lname, int callcreate) {
   // historical limit.
   char real_name[sizeof(name) + 5], obname[sizeof(real_name)];
 
-  const char *pname = check_valid_path(lname, master_ob, "load_object", 0);
-  if (!pname) {
-    error("Read access denied.\n");
-  }
+  // Count this load BEFORE the valid_read master apply: a master whose
+  // valid_read itself triggers loads used to recurse through
+  // check_valid_path without ever reaching this limit, overflowing the C
+  // stack before the VM's call-depth limit could catch it.
   vm_context_adjust_load_object_depth(vm_context(), 1);
   if (num_objects_this_thread > inherit_chain_size) {
     error("Inherit chain too deep: > %d when trying to load '%s'.\n", inherit_chain_size, lname);
+  }
+
+  const char *pname = check_valid_path(lname, master_ob, "load_object", 0);
+  if (!pname) {
+    error("Read access denied.\n");
   }
 #ifdef PACKAGE_UIDS
   if (current_object && current_object->euid == nullptr) {

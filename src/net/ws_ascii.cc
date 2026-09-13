@@ -138,33 +138,44 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
 
       static unsigned char buf[LWS_PRE + 2048];
       auto numbytes = evbuffer_copyout(pss->buffer, &buf[LWS_PRE], sizeof(buf) - LWS_PRE);
-      if (numbytes > 0) {
-        auto new_numbytes = u8_truncate(&buf[LWS_PRE], numbytes);
-        if (new_numbytes != numbytes) {
-          auto rest = new_numbytes - numbytes;
-          evbuffer_prepend(pss->buffer, &buf[LWS_PRE + new_numbytes], rest);
-          numbytes = new_numbytes;
-        }
+      if (numbytes <= 0) {
+        break;
+      }
+      // Hold back a trailing incomplete UTF-8 sequence so a codepoint is
+      // never split across ws messages. evbuffer_copyout() does not drain, so
+      // the held-back bytes stay at the front of pss->buffer and go out with
+      // the next write; re-prepending them here (the old code did, with a
+      // negative length) both duplicated and overflowed.
+      auto new_numbytes = static_cast<ev_ssize_t>(u8_truncate(&buf[LWS_PRE], numbytes));
+      if (new_numbytes == 0) {
+        // Only an incomplete codepoint is buffered; the exit below keeps a
+        // writeable callback requested until the rest of it arrives.
+        break;
+      }
+      numbytes = new_numbytes;
 #ifdef DEBUG
-        if (!u8_validate(&buf[LWS_PRE], numbytes)) {
-          char buf1[sizeof(buf) + 1] = {};
-          strncpy(buf1, reinterpret_cast<const char *>(&buf[LWS_PRE]), numbytes);
-          debug_message("Illegal UTF8 Websocket output string: %s.", buf1);
-        }
+      if (!u8_validate(&buf[LWS_PRE], numbytes)) {
+        char buf1[sizeof(buf) + 1] = {};
+        strncpy(buf1, reinterpret_cast<const char *>(&buf[LWS_PRE]), numbytes);
+        debug_message("Illegal UTF8 Websocket output string: %s.", buf1);
+      }
 #endif
-        // TODO: we could use LWS_WRITE_TEXT , however it is much safer to use binary mode, its
-        // better to let client deal with incorrect encoding.
-        auto m = lws_write(wsi, buf + LWS_PRE, numbytes, LWS_WRITE_BINARY);
-        if (m < 0) {
-          lwsl_warn("ERROR %d writing to ws socket.\n", m);
-          return -1;
-        }
-        evbuffer_drain(pss->buffer, m);
-        total -= m;
-        // May have more text to write.
-        if (total > 0) {
-          lws_callback_on_writable(wsi);
-        }
+      // TODO: we could use LWS_WRITE_TEXT , however it is much safer to use binary mode, its
+      // better to let client deal with incorrect encoding.
+      auto m = lws_write(wsi, buf + LWS_PRE, numbytes, LWS_WRITE_BINARY);
+      // A short return means the connection failed. On success lws consumed
+      // the whole payload (partials are buffered and flushed internally), and
+      // the return can EXCEED numbytes on TLS -- never use it as a drain
+      // count.
+      if (m < static_cast<int>(numbytes)) {
+        lwsl_warn("ERROR %d writing to ws socket.\n", m);
+        return -1;
+      }
+      evbuffer_drain(pss->buffer, numbytes);
+      total = evbuffer_get_length(pss->buffer);
+      // May have more text to write.
+      if (total > 0) {
+        lws_callback_on_writable(wsi);
       }
       break;
     }

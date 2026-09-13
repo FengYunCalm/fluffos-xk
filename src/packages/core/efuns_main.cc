@@ -1130,7 +1130,20 @@ void f_member_array() {
       if (flag & 2) {
         tmp = size - tmp - 1;
       }
-      switch (find->type | (sv = v->item + tmp)->type) {
+      sv = v->item + tmp;
+      if ((flag & 4) && find->type == T_FUNCTION) {
+        // Predicate search: return the first index whose element makes the
+        // function return truthy. Previously flag 4 was silently ignored, so
+        // such a call fell through to the value-comparison switch and
+        // compared the function pointer itself against every element.
+        push_svalue(sv);
+        svalue_t *ret = call_function_pointer(find->u.fp, 1);
+        if (ret && !(ret->type == T_NUMBER && ret->u.number == 0)) {
+          break;
+        }
+        continue;
+      }
+      switch (find->type | sv->type) {
         case T_STRING:
           if (flag & 1) {
             if (flen && (sv->subtype & STRING_COUNTED) && flen > MSTR_SIZE(sv->u.string)) {
@@ -3564,6 +3577,22 @@ void f_recompile_object() {
   free_object(&ob, "f_recompile_object");
   sp--;
   push_number(count);
+}
+#endif
+
+#ifdef F_REQUEST_CLEAN_UP
+void f_request_clean_up() {
+  object_t *ob = sp->u.ob;
+  int success = 0;
+
+  // Same condition as at load/clone time: only objects that actually
+  // define clean_up() are put back on the sweep's query list.
+  if (!(ob->flags & O_DESTRUCTED) && function_exists(APPLY_CLEAN_UP, ob, 1)) {
+    ob->flags |= O_WILL_CLEAN_UP;
+    success = 1;
+  }
+  free_object(&sp->u.ob, "f_request_clean_up");
+  put_number(success);
 }
 #endif
 

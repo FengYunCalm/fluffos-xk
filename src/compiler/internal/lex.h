@@ -1,6 +1,9 @@
 #ifndef _LEX_H_
 #define _LEX_H_
 
+#include <functional>
+#include <string_view>
+
 #include "compiler/internal/LexStream.h"
 #include "vm/internal/base/svalue.h" /* lpc_type_t */
 
@@ -46,7 +49,7 @@ typedef struct defn_s {
 
 /* must be a power of 4 */
 #define DEFHASH 128
-#define defhash(s) (whashstr((s)) & (DEFHASH - 1))
+#define defhash(s) (std::hash<std::string_view>{}(std::string_view(s)) & (DEFHASH - 1))
 
 #define DEF_IS_UNDEFINED 1
 #define DEF_IS_PREDEF 2

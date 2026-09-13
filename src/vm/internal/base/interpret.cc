@@ -5713,8 +5713,22 @@ void restore_context(error_context_t *econ) {
     restore_command_giver();
   }
   DEBUG_CHECK(csp < econ->save_csp, "csp is below econ->csp before unwinding.\n");
+  DEBUG_CHECK(sp < econ->save_sp, "sp is below econ->save_sp before unwinding.\n");
 
-  pop_n_elems(sp - econ->save_sp);
+  // A broken error path can leave sp *below* the saved mark (e.g. a
+  // direct_* parser apply that throws with mismatched stack accounting).
+  // pop_n_elems() with a negative count walks garbage and segfaults in
+  // release builds, so repair the stack instead: re-point sp at the mark and
+  // neutralize the revived slots so a later pop can't free stale pointers.
+  if (sp > econ->save_sp) {
+    pop_n_elems(sp - econ->save_sp);
+  } else if (sp < econ->save_sp) {
+    debug_message("restore_context: value stack underflow by %td elements, repairing.\n",
+                  econ->save_sp - sp);
+    while (sp < econ->save_sp) {
+      *++sp = const0;
+    }
+  }
   refp = global_ref_list;
   while (refp) {
     if (refp->csp >= csp) {

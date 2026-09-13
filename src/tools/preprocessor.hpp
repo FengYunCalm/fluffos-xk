@@ -12,6 +12,8 @@
 #include <string.h>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <string_view>
 #include <vector>
 #include <iostream>
 
@@ -19,15 +21,6 @@
 namespace fs = ghc::filesystem;
 
 #define YYLEX_EOF 0
-
-unsigned int whashstr(const char *s) {
-  int i = 0;
-  unsigned long __h = 0;
-  for (; *s && i++ < 100; ++s) {
-    __h = 37 * __h + *s;
-  }
-  return __h;
-}
 
 /* The ANSI versions must take an unsigned char, and must work on EOF.  These
  * versions take a (possibly signed) char, and do not work correctly on EOF.
@@ -541,7 +534,7 @@ static void handle_cond(int);
 
 /* must be a power of 4 */
 #define DEFHASH 128
-#define defhash(s) (whashstr((s)) & (DEFHASH - 1))
+#define defhash(s) (std::hash<std::string_view>{}(std::string_view(s)) & (DEFHASH - 1))
 
 #define DEF_IS_UNDEFINED 1
 #define DEF_IS_PREDEF 2
