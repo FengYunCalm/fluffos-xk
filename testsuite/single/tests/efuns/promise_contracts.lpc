@@ -1,0 +1,80 @@
+// Promise contracts that had no LPC-visible assertions (issue #1319).
+//
+// Adoption is the important half: promise_resolve_with() commits a pending
+// promise to another promise deliberately WITHOUT taking a reference on the
+// source, so the only thing that carries the adopted value across is the
+// delivery path exercised here. If the compensation in dealloc_promise()
+// ever regresses, this probe hangs instead of reporting a wrong value --
+// hence the explicit "settled in time" assertions in the call_out check.
+
+int adopt_done;
+mixed adopt_value;
+
+async mixed adopt_probe() {
+  mixed inner = promise_create();
+  mixed outer = promise_create();
+
+  // Resolving with a pending promise adopts it: outer stays pending until
+  // inner settles, then takes inner's value (it does not nest).
+  promise_resolve(outer, inner);
+  ASSERT_EQ(0, promise_status(outer));
+  ASSERT_EQ(0, promise_status(inner));
+
+  promise_resolve(inner, 42);
+  return await outer;
+}
+
+int reason_done;
+mixed reason_value;
+
+async mixed default_reason_probe() {
+  mixed p = promise_create();
+  // A rejection reason must be truthy by default: acatch()/catch() signal
+  // success with 0, so a falsy reason would be indistinguishable from
+  // success in the documented `mixed err = acatch(await p); if (err)` idiom.
+  promise_reject(p);
+  return await p;
+}
+
+int destruct_done;
+mixed destruct_reason;
+
+void do_tests() {
+  adopt_done = 0;
+  adopt_value = 0;
+  reason_done = 0;
+  reason_value = 0;
+  destruct_done = 0;
+  destruct_reason = 0;
+
+  promise_then(adopt_probe(), function(mixed v) {
+    adopt_value = v;
+    adopt_done = 1;
+  });
+
+  promise_catch(default_reason_probe(), function(mixed reason) {
+    reason_value = reason;
+    reason_done = 1;
+  });
+
+  // Run the destruct probe on a throwaway clone: the probe destroys its own
+  // object, which must not be this test object.
+  {
+    object probe = clone_object("/single/promise_destruct_probe");
+    if (objectp(probe)) {
+      promise_catch(probe->run_destructed_await(), function(mixed reason) {
+        destruct_reason = reason;
+        destruct_done = 1;
+      });
+    }
+  }
+
+  call_out(function() {
+    ASSERT_EQ(1, adopt_done);
+    ASSERT_EQ(42, adopt_value);
+    ASSERT_EQ(1, reason_done);
+    ASSERT_EQ("*promise rejected", reason_value);
+    ASSERT_EQ(1, destruct_done);
+    ASSERT(strsrch(destruct_reason, "cannot suspend inside a destructed object") != -1);
+  }, 2);
+}

@@ -1,0 +1,14 @@
+// Throwaway object for the destructed-suspension contract. The probe
+// destructs its own object before awaiting, so it cannot live inside the
+// test object: loaded once per run by clone_object() from
+// /single/tests/efuns/promise_contracts.
+//
+// Parking inside an already-destructed object would create a frame that
+// nothing can clean up (abandon_coroutines_of_object() runs once, from
+// destruct_object()), so await must fail instead of suspending.
+
+async mixed run_destructed_await() {
+  destruct(this_object());
+  mixed p = promise_create();
+  return await p;
+}

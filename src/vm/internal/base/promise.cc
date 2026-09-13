@@ -585,8 +585,15 @@ void deliver_reaction(QueuedReaction* qr) {
     }
     free_svalue(&out, "deliver_reaction");
   } else {
-    /* pass-through: propagate the source's state to the chained promise */
+    /* pass-through: propagate the source's state to the chained promise.
+     *
+     * This delivery IS how an adoption is honored -- the source has settled
+     * and the commitment made by promise_resolve_with() is being paid out.
+     * Clear the target's `resolving` first: promise_settle() refuses to
+     * settle a promise whose fate is still committed to an adoption, and
+     * without this the pay-out would be mistaken for a competing settle. */
     if (qr->next) {
+      qr->next->resolving = false;
       if (rejected) {
         promise_settle(qr->next, &src->result, 1);
       } else {
@@ -1440,6 +1447,10 @@ void dealloc_promise(promise_t* p) {
           err.type = T_STRING;
           err.subtype = STRING_CONSTANT;
           err.u.string = "*promise adoption source was collected before settling";
+          /* The commitment ends here as well: clearing `resolving` first keeps
+           * promise_settle()'s adoption guard from treating this compensation
+           * as a competing settle. */
+          r.next->resolving = false;
           (void)promise_settle(r.next, &err, 1);
         }
         free_promise(r.next);
@@ -1490,6 +1501,10 @@ int promise_settle(promise_t* p, svalue_t* value, int rejected) {
     promise_clear_cancel_handler(p);
   }
   p->state = rejected ? PROMISE_REJECTED : PROMISE_FULFILLED;
+  /* A settled promise has no pending adoption commitment left, whatever
+   * brought it here (efun, delivery pay-out, or the source-died
+   * compensation above). */
+  p->resolving = false;
   assign_svalue(&p->result, value);
   if (p->reactions) {
     std::vector<promise_reaction_t>* reactions = p->reactions;
