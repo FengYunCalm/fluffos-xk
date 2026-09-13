@@ -372,6 +372,10 @@ enable msdp : 1
 # External commands
 external_cmd_1 : /usr/bin/curl
 external_cmd_2 : c:\Windows\System32\curl.exe
+external_cmd_3 : /bin/echo
+external_cmd_4 : c:\Windows\System32\cmd.exe
+external_cmd_5 : /bin/sleep
+external_cmd_6 : /bin/cat
 
 ###############################################################################
 #          The following aren't currently used or implemented (yet)           #

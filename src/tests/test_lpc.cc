@@ -4859,6 +4859,184 @@ TEST_F(DriverTest, TestExternalEmptyCommandDoesNotPublishSocket) {
   ASSERT_EQ(active_after, active_before);
 }
 
+TEST_F(DriverTest, TestExternalPromiseHandleAndStart) {
+  clear_tick_events();
+  struct FixtureGuard {
+    object_t* object = nullptr;
+    promise_t* handle_promise = nullptr;
+    promise_t* start_promise = nullptr;
+#ifndef _WIN32
+    promise_t* cat_promise = nullptr;
+#endif
+    ~FixtureGuard() {
+      clear_tick_events();
+      if (object != nullptr) {
+        destruct_object_for_test(object);
+      }
+      if (handle_promise != nullptr) {
+        free_promise(handle_promise);
+      }
+      if (start_promise != nullptr) {
+        free_promise(start_promise);
+      }
+#ifndef _WIN32
+      if (cat_promise != nullptr) {
+        free_promise(cat_promise);
+      }
+#endif
+      vm_apply_return_clear();
+    }
+  } guard;
+
+  guard.object = load_object_for_test("single/tests/efuns/external_promise");
+  ASSERT_NE(guard.object, nullptr);
+
+  auto invoke = [&](const char* method) -> promise_t* {
+    auto* result = safe_apply(method, guard.object, 0, ORIGIN_DRIVER);
+    if (result == nullptr || result->type != T_PROMISE) {
+      vm_apply_return_clear();
+      return nullptr;
+    }
+    auto* promise = result->u.prom;
+    promise->ref++;
+    vm_apply_return_clear();
+    return promise;
+  };
+
+  auto drain = [&](promise_t* promise) {
+    for (int pass = 0; pass < 256 && promise->state == PROMISE_PENDING; pass++) {
+      if (tick_event_queue_size_for_test() != 0) {
+        ASSERT_GT(run_tick_events_for_test(), 0u);
+      }
+      if (walltime_event_queue_size_for_test() != 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+      }
+      if (tick_event_queue_size_for_test() == 0 &&
+          walltime_event_queue_size_for_test() == 0 &&
+          promise->state == PROMISE_PENDING) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+    }
+    ASSERT_NE(promise->state, PROMISE_PENDING);
+  };
+
+#ifdef _WIN32
+  const char* handle_method = "run_handle_windows";
+  const char* start_method = "run_start_windows";
+#else
+  const char* handle_method = "run_handle_posix";
+  const char* start_method = "run_start_posix";
+#endif
+
+  guard.handle_promise = invoke(handle_method);
+  ASSERT_NE(guard.handle_promise, nullptr);
+  drain(guard.handle_promise);
+  ASSERT_EQ(guard.handle_promise->state, PROMISE_FULFILLED);
+  ASSERT_EQ(guard.handle_promise->result.type, T_ARRAY);
+  auto* handle_result = guard.handle_promise->result.u.arr;
+  ASSERT_EQ(handle_result->size, 3);
+  ASSERT_EQ(handle_result->item[0].type, T_ARRAY);
+  auto* process_result = handle_result->item[0].u.arr;
+  ASSERT_EQ(process_result->size, 3);
+  ASSERT_EQ(process_result->item[0].type, T_STRING);
+  EXPECT_NE(std::string(process_result->item[0].u.string).find("fluffos-external-promise"),
+            std::string::npos);
+  ASSERT_EQ(process_result->item[1].type, T_STRING);
+  EXPECT_STREQ(process_result->item[1].u.string, "");
+  ASSERT_EQ(process_result->item[2].type, T_NUMBER);
+  EXPECT_EQ(process_result->item[2].u.number, 0);
+  ASSERT_EQ(handle_result->item[1].type, T_STRING);
+  EXPECT_EQ(std::string(handle_result->item[1].u.string),
+            std::string(process_result->item[0].u.string));
+  ASSERT_EQ(handle_result->item[2].type, T_NUMBER);
+  EXPECT_EQ(handle_result->item[2].u.number, 0);
+
+  guard.start_promise = invoke(start_method);
+  ASSERT_NE(guard.start_promise, nullptr);
+  drain(guard.start_promise);
+  ASSERT_EQ(guard.start_promise->state, PROMISE_FULFILLED);
+  ASSERT_EQ(guard.start_promise->result.type, T_ARRAY);
+  auto* start_result = guard.start_promise->result.u.arr;
+  ASSERT_EQ(start_result->size, 3);
+  ASSERT_EQ(start_result->item[0].type, T_STRING);
+  EXPECT_NE(std::string(start_result->item[0].u.string).find("fluffos-external-promise"),
+            std::string::npos);
+  ASSERT_EQ(start_result->item[1].type, T_STRING);
+  EXPECT_STREQ(start_result->item[1].u.string, "");
+  ASSERT_EQ(start_result->item[2].type, T_NUMBER);
+  EXPECT_EQ(start_result->item[2].u.number, 0);
+
+#ifndef _WIN32
+  guard.cat_promise = invoke("run_cat_posix");
+  ASSERT_NE(guard.cat_promise, nullptr);
+  drain(guard.cat_promise);
+  ASSERT_EQ(guard.cat_promise->state, PROMISE_FULFILLED);
+  ASSERT_EQ(guard.cat_promise->result.type, T_ARRAY);
+  auto* cat_result = guard.cat_promise->result.u.arr;
+  ASSERT_EQ(cat_result->size, 3);
+  ASSERT_EQ(cat_result->item[0].type, T_STRING);
+  EXPECT_STREQ(cat_result->item[0].u.string, "fluffos-external-stdin");
+  ASSERT_EQ(cat_result->item[1].type, T_STRING);
+  EXPECT_STREQ(cat_result->item[1].u.string, "");
+  ASSERT_EQ(cat_result->item[2].type, T_NUMBER);
+  EXPECT_EQ(cat_result->item[2].u.number, 0);
+#endif
+}
+
+#ifndef _WIN32
+TEST_F(DriverTest, TestExternalPromiseCancellationKillsChildAndDestructCleansHandle) {
+  clear_tick_events();
+  struct FixtureGuard {
+    object_t* object = nullptr;
+    promise_t* promise = nullptr;
+    ~FixtureGuard() {
+      clear_tick_events();
+      if (object != nullptr) {
+        destruct_object_for_test(object);
+      }
+      if (promise != nullptr) {
+        free_promise(promise);
+      }
+      vm_apply_return_clear();
+    }
+  } guard;
+
+  guard.object = load_object_for_test("single/tests/efuns/external_promise");
+  ASSERT_NE(guard.object, nullptr);
+  auto* result = safe_apply("run_long_posix", guard.object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  guard.promise = result->u.prom;
+  guard.promise->ref++;
+  vm_apply_return_clear();
+  ASSERT_EQ(guard.promise->state, PROMISE_PENDING);
+
+  svalue_t reason = const0u;
+  reason.type = T_STRING;
+  reason.subtype = STRING_CONSTANT;
+  reason.u.string = const_cast<char*>("cancel external process");
+  ASSERT_EQ(promise_settle(guard.promise, &reason, 1), 1);
+  guard.promise->handled = true;
+  ASSERT_EQ(guard.promise->state, PROMISE_REJECTED);
+
+  destruct_object_for_test(guard.object);
+  guard.object = nullptr;
+  for (int pass = 0; pass < 128; pass++) {
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    if (walltime_event_queue_size_for_test() == 0) {
+      break;
+    }
+  }
+  ASSERT_EQ(walltime_event_queue_size_for_test(), 0u);
+}
+#endif
+
 TEST_F(DriverTest, TestReadJsonRejectsUnsignedIntegerOutsideLpcRange) {
   const char* relative_path = "log/read-json-integer-boundary.json";
   const char* mudlib_path = "/log/read-json-integer-boundary.json";

@@ -31,6 +31,9 @@
 #ifdef PACKAGE_ASYNC
 #include "packages/async/async.h"
 #endif
+#ifdef PACKAGE_EXTERNAL
+#include "packages/external/external.h"
+#endif
 
 #if (defined(DEBUGMALLOC) && defined(DEBUGMALLOC_EXTENSIONS))
 
@@ -645,6 +648,7 @@ void check_all_blocks(int flag) {
         DO_MARK(external_cmd[i], TAG_STRING);
       }
     }
+    mark_external();
 #endif
 
     // Check to verify no duplicated heartbeats

@@ -64,6 +64,33 @@ capacity artifact 的运行时构建配置为 GCC 13.3、Linux x86_64、4 核；
 
 这些记录是当前判定依据，不是本执行批次的开放清单。新的架构或外部门禁实施属于独立范围，并以独立合同、授权和证据边界为准。
 
+## 4.1 后续独立架构实施记录（2026-09）
+
+本节是对上方历史审计截止点的当前工作区更新。上方第 4 节中
+Promise、stack-lvalue 和 external-handle 的 `deferred` 记录描述的是当时
+尚未实施的状态；它们不再代表下列已经落地的本地代码，但不改变发布判定。
+
+- A：`8fa24188` 完成 stack-resident indexed lvalue 的栈所有权、引用转移和
+  异常清理。
+- B1：`84c338f9` 完成 `T_PROMISE` substrate、引用/反应队列和微任务生命周期。
+- B2：`46568b7c` 完成 async/await 的编译器、park/resume 和错误传播。
+- B3：`6f45e262` 完成 callback async efun 的 Promise 形式。
+- C：当前原子单元完成 external handle：`external_create` / `external_run`、
+  stdin/stdout/stderr、exit code、kill/close、generation/owner/epoch 绑定、
+  POSIX `posix_spawn` 与 Win32 `CreateProcess` 路径，以及 Promise 取消、
+  owner destruct 和 driver shutdown 清理；经典 `external_start` 的 fd/callback
+  ABI 保留。Promise substrate 增加了一次性取消回调，用于把拥有外部工作的
+  Promise 拒绝路由到子进程终止，而不让 worker 直接修改 LPC 引用。
+
+C 单元的当前定向证据：Debug/ASan/UBSan/TSan `lpc_tests` 外部 Promise
+回归集均为 `2/2`；testsuite 从 `testsuite/` 运行
+`external_promise` 与 `external_start` 均 `Checks succeeded.`；构建目标为
+`driver lpcc lpc_tests`，生成 efun 源已重建，`check-docs.py` 与
+`git diff --check` 通过。TSan 在本机必须使用既有 WSL2 workaround：
+`setarch x86_64 -R`。未在本机执行 Windows/macOS runtime，不能把本地
+Linux 结果写成跨平台证据；canonical owner-sharded object-store 收口仍是
+独立的 D 单元。
+
 ## 5. 最终判定
 
 当前不能写 `release-ready`，原因是 Promise/stack-lvalue/external-handle 仍 deferred，运行时风险尚无逐项 current gate，且 branch protection、签名/provenance、registry 和生产容量仍 external-required。

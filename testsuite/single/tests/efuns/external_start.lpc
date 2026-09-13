@@ -1,0 +1,11 @@
+void rcb(int fd) {}
+void do_tests() {
+#ifdef __PACKAGE_EXTERNAL__
+  // An out-of-range slot must fail cleanly without dereferencing a null
+  // command entry.
+  mixed result;
+  mixed err = catch(result = external_start(99, ({ "x" }), "rcb", "rcb"));
+  ASSERT(err || result < 0);
+#endif
+  ASSERT(1);
+}

@@ -48,6 +48,9 @@
 #ifdef PACKAGE_ASYNC
 #include "packages/async/async.h"
 #endif
+#ifdef PACKAGE_EXTERNAL
+#include "packages/external/external.h"
+#endif
 #ifdef PACKAGE_DB
 void db_cleanup(void);  // FIXME
 #endif
@@ -195,6 +198,9 @@ void shutdownMudOS(int exit_code) {
   free_mapping(owner_output_quiesce);
 #endif
   vm_owner_thread_stop();
+#ifdef PACKAGE_EXTERNAL
+  external_cleanup();
+#endif
   promise_cleanup();
 
 #ifdef PACKAGE_DB
@@ -1146,6 +1152,9 @@ void destruct_object(object_t *ob) {
   if (ob->flags & O_EFUN_SOCKET) {
     close_referencing_sockets(ob);
   }
+#endif
+#ifdef PACKAGE_EXTERNAL
+  external_owner_destructed(ob);
 #endif
 #ifdef PACKAGE_PARSER
   if (ob->pinfo) {

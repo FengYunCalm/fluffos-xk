@@ -1,41 +1,1078 @@
 #include "base/package_api.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cerrno>
+#include <chrono>
+#include <cinttypes>
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>  // for exit
-#include <iterator>
+#include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include <event2/event.h>
 
+#include "backend.h"
+#include "base/internal/strutils.h"
 #include "include/socket_err.h"
+#include "packages/external/external.h"
 #include "packages/sockets/socket_efuns.h"
+#include "vm/owner.h"
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <fcntl.h>
+extern int socketpair_win32(SOCKET socks[2], int make_overlapped);  // in socketpair.cc
+#endif
 
 #ifndef _WIN32
+#include <csignal>
+#include <fcntl.h>
 #include <sstream>
 #include <spawn.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
+#include <unistd.h>
+#endif
 
+namespace {
+
+constexpr int kMaxHandles = 1024;
+constexpr int kPipeBuf = 4096;
+
+enum class HandleState : uint8_t { Created, Running, Done };
+
+struct PipeWatch {
+  int handle;
+  uint64_t gen;
+  int stream; /* 0 = stdout, 1 = stderr */
+};
+
+struct ExternalHandle {
+  int id = 0;
+  object_t* owner = nullptr;
+  std::string owner_id;
+  uint64_t owner_epoch = 0;
+  uint64_t gen = 0;
+  int cmd_index = -1; /* 0-based */
+  std::vector<std::string> args;
+  HandleState state = HandleState::Created;
+  promise_t* prom = nullptr;
+  /* Omit-callback form: not visible to LPC. Fulfill with
+   * ({ stdout, stderr, exit_code }) and free the slot. */
+  bool ephemeral = false;
+  std::string out;
+  std::string err;
+  LPC_INT exit_code = -1;
+  bool out_eof = false;
+  bool err_eof = false;
+  bool status_done = false;
+  evutil_socket_t out_fd = -1;
+  evutil_socket_t err_fd = -1;
+  evutil_socket_t in_fd = -1;
+  struct event* ev_out = nullptr;
+  struct event* ev_err = nullptr;
+  struct event* ev_in = nullptr;
+  PipeWatch* out_watch = nullptr;
+  PipeWatch* err_watch = nullptr;
+  std::string in_buf;
+  bool in_closed = false;
+  bool close_stdin_after_flush = false;
+  bool stdin_retry_armed = false;
+#ifndef _WIN32
+  pid_t pid = -1;
+#else
+  PROCESS_INFORMATION pi{};
+  /* Separate from the stdout socketpair: console programs ReadFile
+   * stdin and WriteFile stdout. One TCP socket for both deadlocks
+   * (findstr) and closesocket() can RST unread stdout. */
+  HANDLE in_handle = nullptr;
+#endif
+};
+
+std::vector<ExternalHandle*> g_handles; /* handle id = index + 1 */
+uint64_t g_next_handle_gen = 1;
+
+std::mutex g_exit_mu;
+struct ChildExitNote {
+  int handle = 0;
+  uint64_t gen = 0;
+  LPC_INT code = -1;
+#ifndef _WIN32
+  pid_t pid = -1;
+#else
+  HANDLE process = nullptr;
+  HANDLE thread = nullptr;
+#endif
+};
+std::vector<ChildExitNote> g_exit_notes;
+std::atomic<bool> g_external_shutting_down{false};
+
+void reject_with_number(promise_t* p, LPC_INT n) {
+  push_number(n);
+  promise_settle(p, sp, 1);
+  pop_stack();
+}
+
+void append_capped(std::string& dest, const char* data, size_t len) {
+  if (!data || len == 0) {
+    return;
+  }
+  auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
+  size_t room = (max_string_length > 0 && static_cast<size_t>(max_string_length) > dest.size())
+                    ? static_cast<size_t>(max_string_length) - dest.size()
+                    : 0;
+  if (room > 0) {
+    dest.append(data, std::min(len, room));
+  }
+}
+
+ExternalHandle* lookup_handle(int id, int require_owner) {
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    error("Bad argument 1 to external efun: invalid handle.\n");
+  }
+  ExternalHandle* h = g_handles[id - 1];
+  if (require_owner) {
+    if (h->owner != current_object) {
+      error("Bad argument 1 to external efun: handle is not owned by this object.\n");
+    }
+    if (!vm_owner_epoch_matches(h->owner, h->owner_id.c_str(), h->owner_epoch)) {
+      error("Bad argument 1 to external efun: handle owner epoch is stale.\n");
+    }
+  }
+  return h;
+}
+
+int alloc_handle_id() {
+  for (size_t i = 0; i < g_handles.size(); i++) {
+    if (!g_handles[i]) {
+      return static_cast<int>(i + 1);
+    }
+  }
+  if (static_cast<int>(g_handles.size()) >= kMaxHandles) {
+    error("external_create: too many handles.\n");
+  }
+  g_handles.push_back(nullptr);
+  return static_cast<int>(g_handles.size());
+}
+
+void parse_cmd_args(svalue_t* args, std::vector<std::string>* extra) {
+  extra->clear();
+  if (args->type == T_ARRAY) {
+    for (int i = 0; i < args->u.arr->size; i++) {
+      auto item = args->u.arr->item[i];
+      if (item.type != T_STRING) {
+        error("Bad argument list item %d to external efun\n", i);
+      }
+      extra->emplace_back(item.u.string);
+    }
+  } else {
+    std::istringstream iss(args->u.string);
+    std::string item;
+    while (std::getline(iss, item, ' ')) {
+      if (!item.empty()) {
+        extra->push_back(item);
+      }
+    }
+  }
+}
+
+int validate_cmd_index(LPC_INT which) {
+  int idx = static_cast<int>(which) - 1;
+  if (idx < 0 || idx > (g_num_external_cmds - 1) || !external_cmd[idx]) {
+    error("Bad argument 1 to external efun: unconfigured command.\n");
+  }
+  return idx;
+}
+
+void close_pipe_fd(evutil_socket_t* fd) {
+  if (*fd < 0) {
+    return;
+  }
+#ifdef _WIN32
+  evutil_closesocket(*fd);
+#else
+  close(*fd);
+#endif
+  *fd = -1;
+}
+
+bool stdin_writable(const ExternalHandle* h) {
+  if (h->in_closed) {
+    return false;
+  }
+#ifdef _WIN32
+  if (h->in_handle) {
+    return true;
+  }
+#endif
+  return h->in_fd >= 0;
+}
+
+#ifdef _WIN32
+void close_win32_stdin(ExternalHandle* h) {
+  if (h->in_handle) {
+    CloseHandle(h->in_handle);
+    h->in_handle = nullptr;
+  }
+}
+#endif
+
+void free_pipe_events(ExternalHandle* h) {
+  if (h->ev_out) {
+    event_free(h->ev_out);
+    h->ev_out = nullptr;
+  }
+  if (h->ev_err) {
+    event_free(h->ev_err);
+    h->ev_err = nullptr;
+  }
+  if (h->ev_in) {
+    event_free(h->ev_in);
+    h->ev_in = nullptr;
+  }
+  delete h->out_watch;
+  h->out_watch = nullptr;
+  delete h->err_watch;
+  h->err_watch = nullptr;
+#ifdef _WIN32
+  close_win32_stdin(h);
+#endif
+  if (h->in_fd >= 0 && h->in_fd != h->out_fd) {
+    close_pipe_fd(&h->in_fd);
+  } else {
+    h->in_fd = -1;
+  }
+  close_pipe_fd(&h->out_fd);
+  close_pipe_fd(&h->err_fd);
+}
+
+void push_external_result(const std::string& out, const std::string& err, LPC_INT code) {
+  array_t* arr = allocate_array(3);
+  arr->item[0].type = T_STRING;
+  arr->item[0].subtype = STRING_MALLOC;
+  arr->item[0].u.string = string_copy(out.c_str(), "external_stdout");
+  arr->item[1].type = T_STRING;
+  arr->item[1].subtype = STRING_MALLOC;
+  arr->item[1].u.string = string_copy(err.c_str(), "external_stderr");
+  arr->item[2].u.number = code;
+  push_refed_array(arr);
+}
+
+void kill_handle_child(ExternalHandle* h) {
+  /* status_done means the waiter has already reaped: the pid/HANDLE must
+   * not be signalled (PID recycle / closed HANDLE). */
+  if (h->state != HandleState::Running || h->status_done) {
+    return;
+  }
+#ifndef _WIN32
+  if (h->pid > 0) {
+    kill(h->pid, SIGTERM);
+  }
+#else
+  if (h->pi.hProcess) {
+    /* 143 == 128 + SIGTERM so Win32 reports the same wait status as POSIX. */
+    TerminateProcess(h->pi.hProcess, 143);
+  }
+#endif
+}
+
+/* promise_reject() / last-ref drop: stop the child. The promise is already
+ * settling or dying -- do not settle it again. Pipes stay armed so a
+ * non-ephemeral handle can still collect leftover output + the wait status. */
+void on_external_cancel(void* data) {
+  auto* h = static_cast<ExternalHandle*>(data);
+  if (!h || h->id < 1 || h->id > static_cast<int>(g_handles.size()) ||
+      g_handles[h->id - 1] != h || h->gen == 0 ||
+      g_handles[h->id - 1]->gen != h->gen || !h->prom) {
+    return;
+  }
+  promise_t* p = h->prom;
+  h->prom = nullptr;
+  kill_handle_child(h);
+  /* Drop the driver ref. Safe during dealloc (ref already 0) and during
+   * promise_settle(reject): LPC still holds the caller's ref. */
+  if (p) {
+    free_promise(p);
+  }
+}
+
+void attach_start_promise(ExternalHandle* h, int id, promise_t* p) {
+  /* Driver-owned ref keeps the promise alive across `await external_run()`
+   * / `await external_start()` (the temporary is consumed when await
+   * parks). Reject still cancels. */
+  h->prom = p;
+  p->ref++;
+  promise_set_cancel_handler(p, on_external_cancel, h);
+}
+
+void fulfill_handle_promise(int id) {
+  ExternalHandle* h = g_handles[id - 1];
+  if (!h->prom) {
+    if (h->ephemeral) {
+      delete h;
+      g_handles[id - 1] = nullptr;
+    }
+    return;
+  }
+  promise_t* p = h->prom;
+  h->prom = nullptr;
+  promise_clear_cancel_handler(p);
+  push_external_result(h->out, h->err, h->exit_code);
+  promise_settle(p, sp, 0);
+  pop_stack();
+  free_promise(p);
+  if (h->ephemeral) {
+    delete h;
+    g_handles[id - 1] = nullptr;
+  }
+}
+
+void try_finish_handle(int id) {
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    return;
+  }
+  ExternalHandle* h = g_handles[id - 1];
+  if (h->state != HandleState::Running) {
+    return;
+  }
+  if (!h->out_eof || !h->err_eof || !h->status_done) {
+    return;
+  }
+  h->state = HandleState::Done;
+  free_pipe_events(h);
+  fulfill_handle_promise(id);
+}
+
+void abort_handle(int id, int kill_child) {
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    return;
+  }
+  ExternalHandle* h = g_handles[id - 1];
+  if (kill_child) {
+    kill_handle_child(h);
+  }
+  free_pipe_events(h);
+  if (h->prom) {
+    promise_t* p = h->prom;
+    h->prom = nullptr;
+    /* Clear first: settle(reject) would otherwise fire the cancel handler
+     * and free_promise a second time. */
+    promise_clear_cancel_handler(p);
+    if (p->state == PROMISE_PENDING) {
+      push_constant_string("*external process aborted");
+      promise_settle(p, sp, 1);
+      pop_stack();
+    }
+    free_promise(p);
+  }
+  h->state = HandleState::Done;
+}
+
+void destroy_handle(int id, int kill_child) {
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    return;
+  }
+  abort_handle(id, kill_child);
+  delete g_handles[id - 1];
+  g_handles[id - 1] = nullptr;
+}
+
+void reap_exit_note(const ChildExitNote& note) {
+#ifndef _WIN32
+  if (note.pid > 0) {
+    int st = 0;
+    (void)waitpid(note.pid, &st, 0);
+  }
+#else
+  if (note.process) {
+    CloseHandle(note.process);
+  }
+  if (note.thread) {
+    CloseHandle(note.thread);
+  }
+#endif
+}
+
+void drain_child_exits() {
+  std::vector<ChildExitNote> notes;
+  {
+    std::lock_guard<std::mutex> const lock(g_exit_mu);
+    notes.swap(g_exit_notes);
+  }
+  for (auto& note : notes) {
+    /* Always reap/close from the note. The handle may already have been
+     * destroyed (close / owner destruct); the pid must not stay a zombie
+     * and the Win32 HANDLEs must not leak. */
+    reap_exit_note(note);
+    if (note.handle < 1 || note.handle > static_cast<int>(g_handles.size()) ||
+        !g_handles[note.handle - 1]) {
+      continue;
+    }
+    ExternalHandle* h = g_handles[note.handle - 1];
+    if (h->gen != note.gen || h->state != HandleState::Running) {
+      continue;
+    }
+    if (!vm_owner_epoch_matches(h->owner, h->owner_id.c_str(), h->owner_epoch)) {
+      h->status_done = true;
+#ifndef _WIN32
+      h->pid = -1;
+#else
+      h->pi.hProcess = nullptr;
+      h->pi.hThread = nullptr;
+#endif
+      destroy_handle(note.handle, /*kill_child=*/0);
+      continue;
+    }
+    h->exit_code = note.code;
+    h->status_done = true;
+#ifndef _WIN32
+    h->pid = -1;
+#else
+    h->pi.hProcess = nullptr;
+    h->pi.hThread = nullptr;
+#endif
+    try_finish_handle(note.handle);
+  }
+}
+
+void post_child_exit(ChildExitNote note) {
+  bool discard = false;
+  {
+    std::lock_guard<std::mutex> const lock(g_exit_mu);
+    if (g_external_shutting_down.load(std::memory_order_relaxed)) {
+      discard = true;
+    } else {
+      g_exit_notes.push_back(note);
+      add_walltime_event(std::chrono::milliseconds(0),
+                         TickEvent::callback_type([] { drain_child_exits(); }));
+    }
+  }
+  if (discard) {
+    reap_exit_note(note);
+  }
+}
+
+void on_handle_pipe_read(evutil_socket_t fd, short /*what*/, void* arg) {
+  auto* watch = static_cast<PipeWatch*>(arg);
+  int const id = watch->handle;
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    return;
+  }
+  ExternalHandle* h = g_handles[id - 1];
+  if (h->gen != watch->gen) {
+    return;
+  }
+  char buf[kPipeBuf];
+  for (;;) {
+#ifdef _WIN32
+    int cc = recv(fd, buf, sizeof(buf) - 1, 0);
+#else
+    int cc = static_cast<int>(read(fd, buf, sizeof(buf) - 1));
+#endif
+    if (cc > 0) {
+      buf[cc] = '\0';
+      auto res = u8_sanitize(buf);
+      append_capped(watch->stream == 0 ? h->out : h->err, res.c_str(), res.size());
+      continue;
+    }
+    if (cc < 0) {
+#ifdef _WIN32
+      if (evutil_socket_geterror(fd) == WSAEWOULDBLOCK) {
+        return;
+      }
+#else
+      if (errno == EINTR) {
+        continue;
+      }
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return;
+      }
+#endif
+    }
+    if (watch->stream == 0) {
+      h->out_eof = true;
+    } else {
+      h->err_eof = true;
+    }
+    try_finish_handle(id);
+    return;
+  }
+}
+
+void arm_pipe_reader(ExternalHandle* h, int id, int stream, evutil_socket_t fd) {
+  auto* watch = new PipeWatch{id, h->gen, stream};
+  struct event* ev =
+      event_new(g_event_base, fd, EV_READ | EV_PERSIST, on_handle_pipe_read, watch);
+  if (stream == 0) {
+    h->out_watch = watch;
+    h->ev_out = ev;
+    h->out_fd = fd;
+  } else {
+    h->err_watch = watch;
+    h->ev_err = ev;
+    h->err_fd = fd;
+  }
+  event_add(ev, nullptr);
+}
+
+void close_stdin_write(ExternalHandle* h) {
+  if (h->in_closed) {
+    return;
+  }
+  if (h->ev_in) {
+    event_free(h->ev_in);
+    h->ev_in = nullptr;
+  }
+#ifdef _WIN32
+  close_win32_stdin(h);
+#endif
+  if (h->in_fd >= 0) {
+    if (h->in_fd == h->out_fd) {
+#ifdef _WIN32
+      shutdown(h->in_fd, SD_SEND);
+#else
+      shutdown(h->in_fd, SHUT_WR);
+#endif
+      h->in_fd = -1;
+    } else {
+      close_pipe_fd(&h->in_fd);
+    }
+  }
+  h->in_closed = true;
+  h->in_buf.clear();
+}
+
+void arm_stdin_writer(ExternalHandle* h, int id);
+void flush_stdin(ExternalHandle* h, int id);
+
+void on_handle_stdin_writable(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
+  int const id = static_cast<int>(reinterpret_cast<intptr_t>(arg));
+  if (id < 1 || id > static_cast<int>(g_handles.size()) || !g_handles[id - 1]) {
+    return;
+  }
+  flush_stdin(g_handles[id - 1], id);
+}
+
+void arm_stdin_writer(ExternalHandle* h, int id) {
+  if (!stdin_writable(h) || h->in_fd < 0) {
+    return;
+  }
+  if (!h->ev_in) {
+    h->ev_in = event_new(g_event_base, h->in_fd, EV_WRITE | EV_PERSIST, on_handle_stdin_writable,
+                         reinterpret_cast<void*>(static_cast<intptr_t>(id)));
+  }
+  event_add(h->ev_in, nullptr);
+}
+
+void flush_stdin(ExternalHandle* h, int id) {
+  if (!stdin_writable(h)) {
+    return;
+  }
+#ifdef _WIN32
+  if (h->in_handle) {
+    while (!h->in_buf.empty()) {
+      DWORD written = 0;
+      size_t chunk = std::min(h->in_buf.size(), static_cast<size_t>(kPipeBuf));
+      if (!WriteFile(h->in_handle, h->in_buf.data(), static_cast<DWORD>(chunk), &written, nullptr)) {
+        DWORD const err = GetLastError();
+        /* PIPE_NOWAIT: buffer full. Retry on a short timer so the driver
+         * event loop is not blocked by a synchronous WriteFile. */
+        if (err == ERROR_NO_DATA || err == ERROR_IO_PENDING) {
+          if (!h->stdin_retry_armed) {
+            h->stdin_retry_armed = true;
+            int const retry_id = id;
+            uint64_t const retry_gen = h->gen;
+            add_walltime_event(std::chrono::milliseconds(10), TickEvent::callback_type([retry_id,
+                                                                                       retry_gen] {
+              if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
+                  !g_handles[retry_id - 1]) {
+                return;
+              }
+              ExternalHandle* rh = g_handles[retry_id - 1];
+              if (rh->gen != retry_gen) {
+                return;
+              }
+              rh->stdin_retry_armed = false;
+              flush_stdin(rh, retry_id);
+            }));
+          }
+          return;
+        }
+        close_stdin_write(h);
+        return;
+      }
+      if (written == 0) {
+        if (!h->stdin_retry_armed) {
+          h->stdin_retry_armed = true;
+          int const retry_id = id;
+          uint64_t const retry_gen = h->gen;
+          add_walltime_event(std::chrono::milliseconds(10), TickEvent::callback_type([retry_id,
+                                                                                     retry_gen] {
+            if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
+                !g_handles[retry_id - 1]) {
+              return;
+            }
+            ExternalHandle* rh = g_handles[retry_id - 1];
+            if (rh->gen != retry_gen) {
+              return;
+            }
+            rh->stdin_retry_armed = false;
+            flush_stdin(rh, retry_id);
+          }));
+        }
+        return;
+      }
+      h->in_buf.erase(0, static_cast<size_t>(written));
+    }
+    if (h->close_stdin_after_flush) {
+      close_stdin_write(h);
+    }
+    return;
+  }
+#endif
+  while (!h->in_buf.empty()) {
+    size_t chunk = std::min(h->in_buf.size(), static_cast<size_t>(kPipeBuf));
+#ifdef _WIN32
+    int n = send(h->in_fd, h->in_buf.data(), static_cast<int>(chunk), 0);
+#else
+    int n = static_cast<int>(write(h->in_fd, h->in_buf.data(), chunk));
+#endif
+    if (n > 0) {
+      h->in_buf.erase(0, static_cast<size_t>(n));
+      continue;
+    }
+    if (n < 0) {
+#ifdef _WIN32
+      if (evutil_socket_geterror(h->in_fd) == WSAEWOULDBLOCK) {
+        arm_stdin_writer(h, id);
+        return;
+      }
+#else
+      if (errno == EINTR) {
+        continue;
+      }
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        arm_stdin_writer(h, id);
+        return;
+      }
+#endif
+    }
+    close_stdin_write(h);
+    return;
+  }
+  if (h->ev_in) {
+    event_del(h->ev_in);
+  }
+  if (h->close_stdin_after_flush) {
+    close_stdin_write(h);
+  }
+}
+
+int queue_stdin(ExternalHandle* h, int id, const char* data, size_t len) {
+  if (h->in_closed || h->close_stdin_after_flush || h->state == HandleState::Done) {
+    return 0;
+  }
+  append_capped(h->in_buf, data, len);
+  if (h->state == HandleState::Running) {
+    flush_stdin(h, id);
+  }
+  return 1;
+}
+
+#ifndef _WIN32
+/* Shared by the classic callback form and the handle/promise form.
+ * POSIX_SPAWN_USEVFORK (glibc) is the fast path: vfork/clone instead of
+ * a full fork of the driver address space. Win32 has no posix_spawn;
+ * see win32_create_process(). */
+int posix_spawn_fast(pid_t* pid, const char* path,
+                     const posix_spawn_file_actions_t* file_actions, char** argv, char** envp) {
+  posix_spawnattr_t attr;
+  if (posix_spawnattr_init(&attr) != 0) {
+    return posix_spawn(pid, path, file_actions, nullptr, argv, envp);
+  }
+  short flags = 0;
+#ifdef POSIX_SPAWN_USEVFORK
+  flags |= POSIX_SPAWN_USEVFORK;
+#endif
+  if (flags != 0) {
+    posix_spawnattr_setflags(&attr, flags);
+  }
+  int const ret = posix_spawn(pid, path, file_actions, &attr, argv, envp);
+  posix_spawnattr_destroy(&attr);
+  return ret;
+}
+
+void close_pipe_pair(int p[2]) {
+  if (p[0] >= 0) {
+    close(p[0]);
+  }
+  if (p[1] >= 0) {
+    close(p[1]);
+  }
+  p[0] = p[1] = -1;
+}
+
+/* Parent read end is nonblocking; write end stays blocking so the child
+ * does not see EAGAIN. CLOEXEC so the child's unused ends vanish at exec
+ * without extra file_actions_addclose. */
+int open_spawn_pipe(int p[2]) {
+  p[0] = p[1] = -1;
+  if (pipe(p) != 0) {
+    return -1;
+  }
+  fcntl(p[0], F_SETFD, FD_CLOEXEC);
+  fcntl(p[1], F_SETFD, FD_CLOEXEC);
+  if (evutil_make_socket_nonblocking(p[0]) == -1) {
+    close_pipe_pair(p);
+    return -1;
+  }
+  return 0;
+}
+
+/* Parent write end is nonblocking (EV_WRITE). Child read end stays blocking. */
+int open_stdin_pipe(int p[2]) {
+  p[0] = p[1] = -1;
+  if (pipe(p) != 0) {
+    return -1;
+  }
+  fcntl(p[0], F_SETFD, FD_CLOEXEC);
+  fcntl(p[1], F_SETFD, FD_CLOEXEC);
+  if (evutil_make_socket_nonblocking(p[1]) == -1) {
+    close_pipe_pair(p);
+    return -1;
+  }
+  return 0;
+}
+
+int spawn_handle_posix(ExternalHandle* h, int id) {
+  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds ||
+      !external_cmd[h->cmd_index] || external_cmd[h->cmd_index][0] == '\0') {
+    return EESOCKET;
+  }
+  std::vector<std::string> argv_data = {std::string(external_cmd[h->cmd_index])};
+  argv_data.insert(argv_data.end(), h->args.begin(), h->args.end());
+  std::vector<char*> argv;
+  for (auto& a : argv_data) {
+    argv.push_back(a.data());
+  }
+  argv.push_back(nullptr);
+
+  int outp[2] = {-1, -1};
+  int errp[2] = {-1, -1};
+  int inp[2] = {-1, -1};
+  if (open_spawn_pipe(outp) != 0 || open_spawn_pipe(errp) != 0 || open_stdin_pipe(inp) != 0) {
+    close_pipe_pair(outp);
+    close_pipe_pair(errp);
+    close_pipe_pair(inp);
+    return EESOCKET;
+  }
+
+  posix_spawn_file_actions_t file_actions;
+  int ret = posix_spawn_file_actions_init(&file_actions);
+  if (ret != 0) {
+    close_pipe_pair(outp);
+    close_pipe_pair(errp);
+    close_pipe_pair(inp);
+    return EESOCKET;
+  }
+  DEFER { posix_spawn_file_actions_destroy(&file_actions); };
+
+  /* CLOEXEC drops the parent ends at exec; dup2 stdin/stdout/stderr. */
+  ret = posix_spawn_file_actions_adddup2(&file_actions, outp[1], 1) ||
+        posix_spawn_file_actions_adddup2(&file_actions, errp[1], 2) ||
+        posix_spawn_file_actions_adddup2(&file_actions, inp[0], 0);
+  if (ret != 0) {
+    close_pipe_pair(outp);
+    close_pipe_pair(errp);
+    close_pipe_pair(inp);
+    return EESOCKET;
+  }
+
+  pid_t pid;
+  char* newenviron[] = {nullptr};
+  ret = posix_spawn_fast(&pid, argv[0], &file_actions, argv.data(), newenviron);
+  if (ret != 0) {
+    debug(external_start, "external_start: posix_spawn() error: %s\n", strerror(ret));
+    close_pipe_pair(outp);
+    close_pipe_pair(errp);
+    close_pipe_pair(inp);
+    return EESOCKET;
+  }
+  close(outp[1]);
+  close(errp[1]);
+  close(inp[0]);
+  h->pid = pid;
+  h->in_fd = inp[1];
+
+  arm_pipe_reader(h, id, 0, outp[0]);
+  arm_pipe_reader(h, id, 1, errp[0]);
+  flush_stdin(h, id);
+
+  uint64_t const gen = h->gen;
+  std::thread([id, gen, pid]() {
+    siginfo_t si{};
+    /* WNOWAIT leaves the zombie so the pid cannot be recycled until the
+     * main thread reaps in drain_child_exits(). kill() between waitid and
+     * drain therefore cannot hit a reused pid. */
+    if (waitid(P_PID, pid, &si, WEXITED | WNOWAIT) == -1) {
+      post_child_exit(ChildExitNote{id, gen, -1, pid});
+      return;
+    }
+    LPC_INT code = (si.si_code == CLD_EXITED) ? si.si_status : 128 + si.si_status;
+    post_child_exit(ChildExitNote{id, gen, code, pid});
+  }).detach();
+  return 0;
+}
+#endif
+
+#ifdef _WIN32
+/* Win32 special case: no posix_spawn. CreateProcess is used by both the
+ * classic callback form and the handle/promise form. Returns 1 on
+ * success. The caller decides whether to error() or reject. */
+int win32_create_process(std::string* cmdline, HANDLE h_in, HANDLE h_out, HANDLE h_err,
+                         PROCESS_INFORMATION* pi) {
+  HANDLE inherited_handles[3] = {};
+  SIZE_T inherited_count = 0;
+  for (HANDLE handle : {h_in, h_out, h_err}) {
+    if (handle == nullptr) {
+      continue;
+    }
+    bool duplicate = false;
+    for (SIZE_T i = 0; i < inherited_count; ++i) {
+      if (inherited_handles[i] == handle) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      inherited_handles[inherited_count++] = handle;
+    }
+  }
+  if (inherited_count == 0) {
+    return 0;
+  }
+  for (SIZE_T i = 0; i < inherited_count; ++i) {
+    if (!SetHandleInformation(inherited_handles[i], HANDLE_FLAG_INHERIT,
+                              HANDLE_FLAG_INHERIT)) {
+      return 0;
+    }
+  }
+
+  SIZE_T attribute_list_size = 0;
+  const BOOL attribute_size_result =
+      InitializeProcThreadAttributeList(nullptr, 1, 0, &attribute_list_size);
+  if (attribute_size_result != FALSE || GetLastError() != ERROR_INSUFFICIENT_BUFFER ||
+      attribute_list_size == 0) {
+    return 0;
+  }
+  std::vector<unsigned char> attribute_storage(attribute_list_size);
+  auto* attribute_list =
+      reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attribute_storage.data());
+  if (!InitializeProcThreadAttributeList(attribute_list, 1, 0, &attribute_list_size)) {
+    return 0;
+  }
+  DEFER { DeleteProcThreadAttributeList(attribute_list); };
+  if (!UpdateProcThreadAttribute(attribute_list, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                                 inherited_handles,
+                                 inherited_count * sizeof(HANDLE), nullptr, nullptr)) {
+    return 0;
+  }
+
+  STARTUPINFOEXA si{};
+  si.StartupInfo.cb = sizeof(si);
+  si.StartupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+  si.StartupInfo.wShowWindow = SW_HIDE;
+  si.StartupInfo.hStdInput = h_in;
+  si.StartupInfo.hStdOutput = h_out;
+  si.StartupInfo.hStdError = h_err;
+  si.lpAttributeList = attribute_list;
+  return CreateProcessA(nullptr, cmdline->data(), nullptr, nullptr, TRUE,
+                        EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr,
+                        reinterpret_cast<LPSTARTUPINFOA>(&si), pi)
+             ? 1
+             : 0;
+}
+
+std::string quote_argument(const std::string& arg) {
+  if (arg.empty()) {
+    return "\"\"";
+  }
+  if (arg.find_first_of(" \t\n\v\"") == std::string::npos) {
+    return arg;
+  }
+  std::string res = "\"";
+  for (auto It = arg.begin();; ++It) {
+    unsigned NumberBackslashes = 0;
+    while (It != arg.end() && *It == '\\') {
+      ++It;
+      ++NumberBackslashes;
+    }
+    if (It == arg.end()) {
+      res.append(NumberBackslashes * 2, '\\');
+      break;
+    } else if (*It == '"') {
+      res.append(NumberBackslashes * 2 + 1, '\\');
+      res.push_back(*It);
+    } else {
+      res.append(NumberBackslashes, '\\');
+      res.push_back(*It);
+    }
+  }
+  res.push_back('"');
+  return res;
+}
+
+int spawn_handle_win32(ExternalHandle* h, int id) {
+  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds ||
+      !external_cmd[h->cmd_index]) {
+    return EESOCKET;
+  }
+  std::string cmd = external_cmd[h->cmd_index];
+  cmd = trim(cmd, " ");
+  if (cmd.empty()) {
+    return EESOCKET;
+  }
+  if (cmd[0] != '"') {
+    cmd = fmt::format("\"{}\"", cmd);
+  }
+  std::string cmdline = cmd + " ";
+  std::vector<std::string> quoted;
+  for (auto& a : h->args) {
+    quoted.emplace_back(quote_argument(a));
+  }
+  cmdline += fmt::to_string(fmt::join(quoted.begin(), quoted.end(), " "));
+
+  /* stdout/stderr still share one socketpair (separate output pairs do
+   * not deliver data through CreateProcess). stdin is a real anonymous
+   * pipe: console tools ReadFile stdin and WriteFile stdout, so one TCP
+   * socket for both deadlocks, and cmd.exe treats `^` as an escape.
+   * stderr is reported empty. */
+  SOCKET sv[2];
+  if (socketpair_win32(sv, 0) != 0) {
+    return EESOCKET;
+  }
+  if (!SetHandleInformation(reinterpret_cast<HANDLE>(sv[1]), HANDLE_FLAG_INHERIT, 0)) {
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    return EESOCKET;
+  }
+  if (evutil_make_socket_nonblocking(sv[1]) == -1) {
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    return EESOCKET;
+  }
+
+  SECURITY_ATTRIBUTES sa{};
+  sa.nLength = sizeof(sa);
+  sa.bInheritHandle = TRUE;
+  HANDLE stdin_rd = nullptr;
+  HANDLE stdin_wr = nullptr;
+  if (!CreatePipe(&stdin_rd, &stdin_wr, &sa, 65536)) {
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    return EESOCKET;
+  }
+  /* Child must not inherit the write end, or CloseHandle never delivers EOF. */
+  if (!SetHandleInformation(stdin_wr, HANDLE_FLAG_INHERIT, 0)) {
+    CloseHandle(stdin_rd);
+    CloseHandle(stdin_wr);
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    return EESOCKET;
+  }
+  /* Anonymous pipes are synchronous; PIPE_NOWAIT keeps WriteFile from
+   * stalling the driver when the child's stdin buffer is full. */
+  {
+    DWORD mode = PIPE_NOWAIT;
+    (void)SetNamedPipeHandleState(stdin_wr, &mode, nullptr, nullptr);
+  }
+
+  PROCESS_INFORMATION processInfo{};
+  if (!win32_create_process(&cmdline, stdin_rd, reinterpret_cast<HANDLE>(sv[0]),
+                            reinterpret_cast<HANDLE>(sv[0]), &processInfo)) {
+    CloseHandle(stdin_rd);
+    CloseHandle(stdin_wr);
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    return EESOCKET;
+  }
+  CloseHandle(stdin_rd);
+  h->pi = processInfo;
+  h->err_eof = true;
+  arm_pipe_reader(h, id, 0, sv[1]);
+  h->in_handle = stdin_wr;
+  flush_stdin(h, id);
+
+  uint64_t const gen = h->gen;
+  std::thread([id, gen, processInfo, child_fd = sv[0]]() {
+    WaitForSingleObject(processInfo.hProcess, INFINITE);
+    DWORD exitCode = static_cast<DWORD>(-1);
+    GetExitCodeProcess(processInfo.hProcess, &exitCode);
+    /* Do not CloseHandle here: the main thread reaps in drain_child_exits
+     * so TerminateProcess cannot run on a recycled HANDLE. */
+    shutdown(child_fd, SD_SEND);
+    evutil_closesocket(child_fd);
+    post_child_exit(
+        ChildExitNote{id, gen, static_cast<LPC_INT>(exitCode), processInfo.hProcess, processInfo.hThread});
+  }).detach();
+  return 0;
+}
+#endif
+
+int spawn_handle(ExternalHandle* h, int id) {
+#ifndef _WIN32
+  return spawn_handle_posix(h, id);
+#else
+  return spawn_handle_win32(h, id);
+#endif
+}
+
+/* Spawn a Created handle. On failure the handle is deleted and the
+ * returned promise is already rejected (caller just pushes it). */
+promise_t* start_created_handle(ExternalHandle* h, int id) {
+  promise_t* p = promise_alloc();
+  int const rc = spawn_handle(h, id);
+  if (rc < 0) {
+    g_handles[id - 1] = nullptr;
+    delete h;
+    reject_with_number(p, rc);
+    return p;
+  }
+  h->state = HandleState::Running;
+  attach_start_promise(h, id, p);
+  return p;
+}
+
+#ifndef _WIN32
 template <typename Out>
-void split(const std::string &s, char delim, Out result) {
+void split(const std::string& s, char delim, Out result) {
   std::istringstream iss(s);
   std::string item;
   while (std::getline(iss, item, delim)) {
     *result++ = item;
   }
 }
+#endif
 
-int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, svalue_t *arg3) {
-  if (which < 0 || which >= g_num_external_cmds || external_cmd[which] == nullptr ||
+}  // namespace
+
+#ifndef _WIN32
+/* Classic callback form: same posix_spawn_fast() as the handle path.
+ * Stdio still shares one socketpair so the LPC socket callbacks work. */
+int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2, svalue_t* arg3) {
+  if (which < 0 || which >= g_num_external_cmds || !external_cmd[which] ||
       external_cmd[which][0] == '\0') {
     debug(external_start, "external_start: command is empty\n");
     return EESOCKET;
   }
-
   std::vector<std::string> newargs_data = {std::string(external_cmd[which])};
   if (args->type == T_ARRAY) {
     for (int i = 0; i < args->u.arr->size; i++) {
@@ -49,8 +1086,8 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
     split(std::string(args->u.string), ' ', std::back_inserter(newargs_data));
   }
 
-  std::vector<char *> newargs;
-  for (auto &arg : newargs_data) {
+  std::vector<char*> newargs;
+  for (auto& arg : newargs_data) {
     newargs.push_back(arg.data());
   }
   newargs.push_back(nullptr);
@@ -58,12 +1095,13 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
   posix_spawn_file_actions_t file_actions;
   int ret = posix_spawn_file_actions_init(&file_actions);
   if (ret != 0) {
-    debug(external_start, "external_start: posix_spawn_file_actions_init() error: %s\n", strerror(ret));
+    debug(external_start, "external_start: posix_spawn_file_actions_init() error: %s\n",
+          strerror(ret));
     return EESOCKET;
   }
   DEFER { posix_spawn_file_actions_destroy(&file_actions); };
 
-  evutil_socket_t sv[2] = {-1, -1};
+  evutil_socket_t sv[2];
   if (evutil_socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1) {
     return EESOCKET;
   }
@@ -81,27 +1119,13 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
       evutil_make_socket_closeonexec(sv[1]) == -1) {
     return EESOCKET;
   }
-
-  for (int child_fd = 0; child_fd <= 2; ++child_fd) {
-    ret = posix_spawn_file_actions_adddup2(&file_actions, sv[1], child_fd);
-    if (ret != 0) {
-      debug(external_start,
-            "external_start: posix_spawn_file_actions_adddup2() error: %s\n",
-            strerror(ret));
-      return EESOCKET;
-    }
-  }
-  for (const auto endpoint : sv) {
-    if (endpoint <= 2) {
-      continue;
-    }
-    ret = posix_spawn_file_actions_addclose(&file_actions, endpoint);
-    if (ret != 0) {
-      debug(external_start,
-            "external_start: posix_spawn_file_actions_addclose() error: %s\n",
-            strerror(ret));
-      return EESOCKET;
-    }
+  ret = posix_spawn_file_actions_adddup2(&file_actions, sv[1], 0) ||
+        posix_spawn_file_actions_adddup2(&file_actions, sv[1], 1) ||
+        posix_spawn_file_actions_adddup2(&file_actions, sv[1], 2);
+  if (ret != 0) {
+    debug(external_start, "external_start: posix_spawn_file_actions_adddup2() error: %s\n",
+          strerror(ret));
+    return EESOCKET;
   }
 
   int fd = find_new_socket();
@@ -109,26 +1133,7 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
     return fd;
   }
 
-  pid_t pid;
-  char *newenviron[] = {nullptr};
-  ret = posix_spawn(&pid, newargs[0], &file_actions, nullptr, newargs.data(), newenviron);
-  if (ret) {
-    debug(external_start, "external_start: posix_spawn() error: %s\n", strerror(ret));
-    // #1247 EXTERNAL-1: the socket slot above is fully provisioned (fd,
-    // callbacks, event listeners, STATE_DATA_XFER). Tear it down so we don't
-    // leak the event listeners / callback strings and leave a dangling
-    // half-open efun socket pointing at sv[0]. socket_close() closes
-    // lpc_socks[fd].fd (== sv[0]); clear sv[0] afterwards so the DEFER
-    // doesn't double-close it.
-    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
-    sv[0] = -1;
-    return EESOCKET;
-  }
-
-  evutil_closesocket(sv[1]);
-  sv[1] = -1;
-
-  auto *sock = lpc_socks_get(fd);
+  auto* sock = lpc_socks_get(fd);
   new_lpc_socket_event_listener(fd, sock, sv[0]);
 
   sock->fd = sv[0];
@@ -139,8 +1144,9 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
   sock->owner_ob = current_object;
   sock->mode = STREAM;
   sock->state = STATE_DATA_XFER;
-  memset(reinterpret_cast<char *>(&sock->l_addr), 0, sizeof(sock->l_addr));
-  memset(reinterpret_cast<char *>(&sock->r_addr), 0, sizeof(sock->r_addr));
+  memset(reinterpret_cast<char*>(&sock->l_addr), 0, sizeof(sock->l_addr));
+  memset(reinterpret_cast<char*>(&sock->r_addr), 0, sizeof(sock->r_addr));
+  sock->owner_ob = current_object;
   sock->release_ob = nullptr;
   sock->r_buf = nullptr;
   sock->r_off = 0;
@@ -150,107 +1156,52 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
   sock->w_len = 0;
 
   current_object->flags |= O_EFUN_SOCKET;
+
   event_add(sock->ev_write, nullptr);
   event_add(sock->ev_read, nullptr);
+
+  pid_t pid;
+  char* newenviron[] = {nullptr};
+  ret = posix_spawn_fast(&pid, newargs[0], &file_actions, newargs.data(), newenviron);
+  if (ret) {
+    debug(external_start, "external_start: posix_spawn() error: %s\n", strerror(ret));
+    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+    sv[0] = -1;
+    return EESOCKET;
+  }
+
+  evutil_closesocket(sv[1]);
+  sv[1] = -1;
   sv[0] = -1;
 
-  debug(external_start, "external_start: Launching external command '%s %s', pid: %jd.\n", external_cmd[which],
-                args->type == T_STRING ? args->u.string : "<ARRAY>", (intmax_t)pid);
+  debug(external_start, "external_start: Launching external command '%s %s', pid: %jd.\n",
+        external_cmd[which], args->type == T_STRING ? args->u.string : "<ARRAY>", (intmax_t)pid);
 
   std::thread([=]() {
-    int status = 0;
-    for (;;) {
+    int status;
+    do {
       const int s = waitpid(pid, &status, WUNTRACED | WCONTINUED);
-      if (s == -1 && errno == EINTR) {
-        continue;
-      }
       if (s == -1) {
-        debug(external_start, "external_start: waitpid() error: %s (%d).\n", strerror(errno), errno);
         return;
       }
-      std::string status_message =
-          fmt::format(FMT_STRING("external_start(): child {} status: "), pid);
-      if (WIFEXITED(status)) {
-        status_message += fmt::format(FMT_STRING("exited, status={}\n"), WEXITSTATUS(status));
-      } else if (WIFSIGNALED(status)) {
-        status_message += fmt::format(FMT_STRING("killed by signal {}\n"), WTERMSIG(status));
-      } else if (WIFSTOPPED(status)) {
-        status_message += fmt::format(FMT_STRING("stopped by signal {}\n"), WSTOPSIG(status));
-      } else if (WIFCONTINUED(status)) {
-        status_message += "continued\n";
-      }
-
-      debug(external_start, "external_start: %s\n", status_message.c_str());
-      if (WIFEXITED(status) || WIFSIGNALED(status)) {
-        break;
-      }
-    }
+    } while (!WIFEXITED(status) && !WIFSIGNALED(status));
   }).detach();
 
   return fd;
 }
 #endif
 
-namespace {
-std::string quote_argument(const std::string &arg) {
-  if (arg.empty()) {
-    return "\"\"";
-  }
-  if (arg.find_first_of(" \t\n\v\"") == std::string::npos) {
-    return arg;
-  }
-  std::string res = "\"";
-  // from
-  // https://learn.microsoft.com/en-us/archive/blogs/twistylittlepassagesallalike/everyone-quotes-command-line-arguments-the-wrong-way
-  for (auto It = arg.begin();; ++It) {
-    unsigned NumberBackslashes = 0;
-
-    while (It != arg.end() && *It == '\\') {
-      ++It;
-      ++NumberBackslashes;
-    }
-
-    if (It == arg.end()) {
-      //
-      // Escape all backslashes, but let the terminating
-      // double quotation mark we add below be interpreted
-      // as a metacharacter.
-      //
-      res.append(NumberBackslashes * 2, '\\');
-      break;
-    } else if (*It == '"') {
-      //
-      // Escape all backslashes and the following
-      // double quotation mark.
-      //
-      res.append(NumberBackslashes * 2 + 1, '\\');
-      res.push_back(*It);
-    } else {
-      //
-      // Backslashes aren't special here.
-      //
-      res.append(NumberBackslashes, '\\');
-      res.push_back(*It);
-    }
-  }
-  res.push_back('"');
-  return res;
-}
-}  // namespace
-
 #ifdef _WIN32
-#include <windows.h>
-extern int socketpair_win32(SOCKET socks[2], int make_overlapped);  // in socketpair.cc
-
-int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, svalue_t *arg3) {
-  if (which < 0 || which >= g_num_external_cmds || external_cmd[which] == nullptr) {
+/* Classic callback form, Win32 special case: CreateProcess (no posix_spawn). */
+int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2, svalue_t* arg3) {
+  if (which < 0 || which >= g_num_external_cmds || !external_cmd[which]) {
     debug(external_start, "external_start: command is empty\n");
     return EESOCKET;
   }
+  int fd;
 
   std::string cmd = external_cmd[which];
-  // guard against long path with spaces.
-  cmd = trim(std::move(cmd));
+  cmd = trim(cmd, " ");
   if (cmd.empty()) {
     debug(external_start, "external_start: command is empty\n");
     return EESOCKET;
@@ -275,121 +1226,28 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
     cmdline += std::string(args->u.string);
   }
 
-  SOCKET sv[2] = {INVALID_SOCKET, INVALID_SOCKET};
-  if (socketpair_win32(sv, 0) == SOCKET_ERROR) {
-    debug(external_start, "external_start: socketpair_win32() failed: %lu\n",
-          static_cast<unsigned long>(WSAGetLastError()));
-    return EESOCKET;
-  }
-  DEFER {
-    if (sv[0] != INVALID_SOCKET) {
-      closesocket(sv[0]);
-    }
-    if (sv[1] != INVALID_SOCKET) {
-      closesocket(sv[1]);
-    }
-  };
-
-  if (evutil_make_socket_nonblocking(sv[1]) == -1) {
-    debug(external_start, "external_start: failed to make parent socket nonblocking\n");
-    return EESOCKET;
-  }
-  if (!SetHandleInformation(reinterpret_cast<HANDLE>(sv[0]), HANDLE_FLAG_INHERIT,
-                            HANDLE_FLAG_INHERIT)) {
-    const DWORD error_code = GetLastError();
-    debug(external_start, "external_start: failed to make child socket inheritable: %lu\n",
-          static_cast<unsigned long>(error_code));
-    return EESOCKET;
-  }
-  if (!SetHandleInformation(reinterpret_cast<HANDLE>(sv[1]), HANDLE_FLAG_INHERIT, 0)) {
-    const DWORD error_code = GetLastError();
-    debug(external_start, "external_start: failed to make parent socket private: %lu\n",
-          static_cast<unsigned long>(error_code));
-    return EESOCKET;
-  }
-
-  SIZE_T attribute_list_size = 0;
-  const BOOL attribute_size_result =
-      InitializeProcThreadAttributeList(nullptr, 1, 0, &attribute_list_size);
-  const DWORD attribute_size_error = GetLastError();
-  if (attribute_size_result != FALSE || attribute_size_error != ERROR_INSUFFICIENT_BUFFER ||
-      attribute_list_size == 0) {
-    debug(external_start, "external_start: failed to size process attribute list: %lu\n",
-          static_cast<unsigned long>(attribute_size_error));
-    return EESOCKET;
-  }
-  std::vector<unsigned char> attribute_storage(attribute_list_size);
-  auto *attribute_list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attribute_storage.data());
-  if (!InitializeProcThreadAttributeList(attribute_list, 1, 0, &attribute_list_size)) {
-    const DWORD error_code = GetLastError();
-    debug(external_start, "external_start: failed to initialize process attribute list: %lu\n",
-          static_cast<unsigned long>(error_code));
-    return EESOCKET;
-  }
-  DEFER { DeleteProcThreadAttributeList(attribute_list); };
-
-  HANDLE inherited_handles[] = {reinterpret_cast<HANDLE>(sv[0])};
-  if (!UpdateProcThreadAttribute(attribute_list, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                 inherited_handles, sizeof(inherited_handles), nullptr, nullptr)) {
-    const DWORD error_code = GetLastError();
-    debug(external_start, "external_start: failed to restrict inherited handles: %lu\n",
-          static_cast<unsigned long>(error_code));
-    return EESOCKET;
-  }
-
-  STARTUPINFOEXA startup_info{};
-  startup_info.StartupInfo.cb = sizeof(startup_info);
-  startup_info.StartupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-  startup_info.StartupInfo.wShowWindow = SW_HIDE;
-  startup_info.StartupInfo.hStdInput = reinterpret_cast<HANDLE>(sv[0]);
-  startup_info.StartupInfo.hStdError = reinterpret_cast<HANDLE>(sv[0]);
-  startup_info.StartupInfo.hStdOutput = reinterpret_cast<HANDLE>(sv[0]);
-  startup_info.lpAttributeList = attribute_list;
-  PROCESS_INFORMATION process_info{};
-
-  // Start the child process with only the stdio socket in its handle table.
-  if (!CreateProcessA(nullptr, cmdline.data(), nullptr, nullptr, TRUE,
-                      EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr,
-                      reinterpret_cast<LPSTARTUPINFOA>(&startup_info), &process_info)) {
-    const DWORD error_code = GetLastError();
-    debug(external_start, "external_start: CreateProcess() failed: %lu\n",
-          static_cast<unsigned long>(error_code));
-    return EESOCKET;
-  }
-
-  auto terminate_child = [&]() {
-    if (process_info.hProcess != nullptr) {
-      if (TerminateProcess(process_info.hProcess, 1)) {
-        constexpr DWORD kProcessCleanupTimeoutMs = 5000;
-        WaitForSingleObject(process_info.hProcess, kProcessCleanupTimeoutMs);
-      } else {
-        const DWORD error_code = GetLastError();
-        debug(external_start, "external_start: failed to terminate child process: %lu\n",
-              static_cast<unsigned long>(error_code));
-      }
-      CloseHandle(process_info.hProcess);
-      process_info.hProcess = nullptr;
-    }
-  };
-  bool child_cleanup_needed = true;
-  DEFER {
-    if (child_cleanup_needed) {
-      terminate_child();
-    }
-  };
-
-  if (process_info.hThread != nullptr) {
-    CloseHandle(process_info.hThread);
-    process_info.hThread = nullptr;
-  }
-  closesocket(sv[0]);
-  sv[0] = INVALID_SOCKET;
-
-  const int fd = find_new_socket();
+  fd = find_new_socket();
   if (fd < 0) {
     return fd;
   }
-  auto *sock = lpc_socks_get(fd);
+
+  auto* sock = lpc_socks_get(fd);
+
+  SOCKET sv[2] = {INVALID_SOCKET, INVALID_SOCKET};
+  if (socketpair_win32(sv, 0) == SOCKET_ERROR) {
+    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+    return EESOCKET;
+  }
+  if (evutil_make_socket_nonblocking(sv[1]) == -1 ||
+      !SetHandleInformation(reinterpret_cast<HANDLE>(sv[1]), HANDLE_FLAG_INHERIT, 0)) {
+    evutil_closesocket(sv[0]);
+    evutil_closesocket(sv[1]);
+    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+    return EESOCKET;
+  }
+
+  new_lpc_socket_event_listener(fd, sock, sv[1]);
+
   sock->fd = sv[1];
   sv[1] = INVALID_SOCKET;
   sock->flags = S_EXTERNAL;
@@ -399,68 +1257,291 @@ int external_start(int which, svalue_t *args, svalue_t *arg1, svalue_t *arg2, sv
   sock->owner_ob = current_object;
   sock->mode = STREAM;
   sock->state = STATE_DATA_XFER;
-  memset(reinterpret_cast<char *>(&sock->l_addr), 0, sizeof(sock->l_addr));
-  memset(reinterpret_cast<char *>(&sock->r_addr), 0, sizeof(sock->r_addr));
-  sock->release_ob = nullptr;
-  sock->r_buf = nullptr;
+  memset(reinterpret_cast<char*>(&sock->l_addr), 0, sizeof(sock->l_addr));
+  memset(reinterpret_cast<char*>(&sock->r_addr), 0, sizeof(sock->r_addr));
+  sock->owner_ob = current_object;
+  sock->release_ob = NULL;
+  sock->r_buf = NULL;
   sock->r_off = 0;
   sock->r_len = 0;
-  sock->w_buf = nullptr;
+  sock->w_buf = NULL;
   sock->w_off = 0;
   sock->w_len = 0;
 
-  new_lpc_socket_event_listener(fd, sock, sock->fd);
-  if (sock->ev_read == nullptr || sock->ev_write == nullptr ||
-      event_add(sock->ev_write, nullptr) != 0 || event_add(sock->ev_read, nullptr) != 0) {
-    debug(external_start, "external_start: failed to register socket events\n");
-    socket_close(fd, 0);
-    return EESOCKET;
-  }
   current_object->flags |= O_EFUN_SOCKET;
 
-  const auto process_handle = process_info.hProcess;
-  const auto process_id = process_info.dwProcessId;
-  try {
-    std::thread([process_handle, process_id]() {
-      WaitForSingleObject(process_handle, INFINITE);
-      DWORD exit_code = static_cast<DWORD>(-1);
-      GetExitCodeProcess(process_handle, &exit_code);
-      debug(external_start, "external_start: pid: %lu exited with %lu.\n",
-            static_cast<unsigned long>(process_id), static_cast<unsigned long>(exit_code));
-      CloseHandle(process_handle);
-    }).detach();
-  } catch (...) {
-    debug(external_start, "external_start: failed to create process monitor thread\n");
-    socket_close(fd, 0);
+  event_add(sock->ev_write, NULL);
+  event_add(sock->ev_read, NULL);
+
+  PROCESS_INFORMATION processInfo{};
+  if (!win32_create_process(&cmdline, reinterpret_cast<HANDLE>(sv[0]),
+                            reinterpret_cast<HANDLE>(sv[0]), reinterpret_cast<HANDLE>(sv[0]),
+                            &processInfo)) {
+    debug(external_start, "CreateProcess() in external_start() failed: %lu\n",
+          static_cast<unsigned long>(GetLastError()));
+    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+    evutil_closesocket(sv[0]);
     return EESOCKET;
   }
-  process_info.hProcess = nullptr;
-  child_cleanup_needed = false;
+  debug(external_start, "external_start: Launching external command '%s', pid: %d.\n",
+        cmdline.c_str(), processInfo.dwProcessId);
 
-  debug(external_start, "external_start: Launching external command '%s', pid: %lu.\n",
-        cmdline.c_str(), static_cast<unsigned long>(process_id));
+  std::thread([=]() {
+    WaitForSingleObject(processInfo.hProcess, INFINITE);
+    DWORD exitCode = -1;
+    GetExitCodeProcess(processInfo.hProcess, &exitCode);
+    CloseHandle(processInfo.hProcess);
+    CloseHandle(processInfo.hThread);
+    evutil_closesocket(sv[0]);
+  }).detach();
+
   return fd;
+}
+#endif
+
+void external_owner_destructed(object_t* ob) {
+  for (int i = 0; i < static_cast<int>(g_handles.size()); i++) {
+    if (g_handles[i] && g_handles[i]->owner == ob) {
+      destroy_handle(i + 1, /*kill_child=*/1);
+    }
+  }
+}
+
+void external_cleanup() {
+  std::vector<ChildExitNote> notes;
+  {
+    std::lock_guard<std::mutex> const lock(g_exit_mu);
+    g_external_shutting_down.store(true, std::memory_order_relaxed);
+    notes.swap(g_exit_notes);
+  }
+  for (int i = 0; i < static_cast<int>(g_handles.size()); i++) {
+    if (g_handles[i]) {
+      destroy_handle(i + 1, /*kill_child=*/1);
+    }
+  }
+  g_handles.clear();
+  for (const auto& note : notes) {
+    reap_exit_note(note);
+  }
+}
+
+#ifdef DEBUGMALLOC_EXTENSIONS
+void mark_external() {
+  for (auto* h : g_handles) {
+    if (h && h->prom) {
+      h->prom->extra_ref++;
+    }
+  }
+}
+#endif
+
+#ifdef F_EXTERNAL_CREATE
+void f_external_create() {
+  int const num_arg = st_num_arg;
+  svalue_t* arg = sp - num_arg + 1;
+
+  /* Allocation is not privileged; valid_socket is checked at run. */
+  int const cmd = validate_cmd_index(arg[0].u.number);
+  std::vector<std::string> extra;
+  parse_cmd_args(arg + 1, &extra);
+
+  int const id = alloc_handle_id();
+  auto* h = new ExternalHandle{};
+  h->id = id;
+  h->owner = current_object;
+  h->owner_id = vm_owner_id(current_object);
+  h->owner_epoch = vm_owner_epoch(current_object);
+  h->gen = ++g_next_handle_gen;
+  h->cmd_index = cmd;
+  h->args = std::move(extra);
+  g_handles[id - 1] = h;
+
+  pop_n_elems(num_arg);
+  push_number(id);
+}
+#endif
+
+#ifdef F_EXTERNAL_RUN
+void f_external_run() {
+  /* Latch arity first: check_valid_socket() runs a master apply that
+   * overwrites st_num_arg (same trap as f_async_read). */
+  int const num_arg = st_num_arg;
+  int const id = static_cast<int>(sp->u.number);
+  ExternalHandle* h = lookup_handle(id, /*require_owner=*/1);
+  if (h->state != HandleState::Created) {
+    error("external_run: handle has already been started.\n");
+  }
+  if (!check_valid_socket("external", -1, current_object, "N/A", -1)) {
+    st_num_arg = num_arg;
+    promise_t* p = promise_alloc();
+    reject_with_number(p, EESECURITY);
+    pop_n_elems(num_arg);
+    push_refed_promise(p);
+    return;
+  }
+  st_num_arg = num_arg;
+  /* check_valid_socket() is a master apply: the owner may have been
+   * destructed and this slot reused. Re-lookup before spawn. */
+  h = lookup_handle(id, /*require_owner=*/1);
+  if (h->state != HandleState::Created) {
+    error("external_run: handle has already been started.\n");
+  }
+
+  int const rc = spawn_handle(h, id);
+  promise_t* p = promise_alloc();
+  if (rc < 0) {
+    reject_with_number(p, rc);
+    pop_n_elems(num_arg);
+    push_refed_promise(p);
+    return;
+  }
+  h->state = HandleState::Running;
+  attach_start_promise(h, id, p);
+  pop_n_elems(num_arg);
+  push_refed_promise(p);
 }
 #endif
 
 #ifdef F_EXTERNAL_START
 void f_external_start() {
-  int fd, num_arg = st_num_arg;
-  svalue_t *arg = sp - num_arg + 1;
+  /* Latch arity first: check_valid_socket() runs a master apply that
+   * overwrites st_num_arg (same trap as f_async_read). */
+  int const num_arg = st_num_arg;
+  svalue_t* arg = sp - num_arg + 1;
+
+  if (num_arg == 2) {
+    /* Issue #1319 omit-callback form: same efun, no callbacks, promise of
+     * ({ stdout, stderr, exit_code }). Classic 4/5-arg path below is
+     * unchanged. Drive stdin on a handle with external_write(). */
+    if (!check_valid_socket("external", -1, current_object, "N/A", -1)) {
+      st_num_arg = num_arg;
+      promise_t* p = promise_alloc();
+      reject_with_number(p, EESECURITY);
+      pop_n_elems(num_arg);
+      push_refed_promise(p);
+      return;
+    }
+    st_num_arg = num_arg;
+
+    auto which = arg[0].u.number;
+    if (--which < 0 || which > (g_num_external_cmds - 1) || !external_cmd[which]) {
+      error("Bad argument 1 to external_start()\n");
+    }
+
+    std::vector<std::string> extra;
+    parse_cmd_args(arg + 1, &extra);
+
+    int const id = alloc_handle_id();
+    auto* h = new ExternalHandle{};
+    h->id = id;
+    h->owner = current_object;
+    h->owner_id = vm_owner_id(current_object);
+    h->owner_epoch = vm_owner_epoch(current_object);
+    h->gen = ++g_next_handle_gen;
+    h->cmd_index = static_cast<int>(which);
+    h->args = std::move(extra);
+    h->ephemeral = true;
+    g_handles[id - 1] = h;
+
+    promise_t* p = start_created_handle(h, id);
+    pop_n_elems(num_arg);
+    push_refed_promise(p);
+    return;
+  }
+
+  if (num_arg != 4 && num_arg != 5) {
+    error(
+        "external_start: omit the callbacks for the promise form, or pass "
+        "the classic read/write callbacks. Use external_run() for a handle "
+        "from external_create().\n");
+  }
 
   if (!check_valid_socket("external", -1, current_object, "N/A", -1)) {
+    st_num_arg = num_arg;
     pop_n_elems(num_arg - 1);
     sp->u.number = EESECURITY;
     return;
   }
+  st_num_arg = num_arg;
 
   auto which = arg[0].u.number;
   if (--which < 0 || which > (g_num_external_cmds - 1) || !external_cmd[which]) {
     error("Bad argument 1 to external_start()\n");
   }
 
-  fd = external_start(which, arg + 1, arg + 2, arg + 3, (num_arg == 5 ? arg + 4 : nullptr));
+  int fd = external_start(which, arg + 1, arg + 2, arg + 3, (num_arg == 5 ? arg + 4 : nullptr));
   pop_n_elems(num_arg - 1);
   sp->u.number = fd;
+}
+#endif
+
+#ifdef F_EXTERNAL_STDOUT
+void f_external_stdout() {
+  ExternalHandle* h = lookup_handle(static_cast<int>(sp->u.number), /*require_owner=*/1);
+  copy_and_push_string(h->out.c_str());
+  assign_svalue(sp - 1, sp);
+  pop_stack();
+}
+#endif
+
+#ifdef F_EXTERNAL_STDERR
+void f_external_stderr() {
+  ExternalHandle* h = lookup_handle(static_cast<int>(sp->u.number), /*require_owner=*/1);
+  copy_and_push_string(h->err.c_str());
+  assign_svalue(sp - 1, sp);
+  pop_stack();
+}
+#endif
+
+#ifdef F_EXTERNAL_EXIT_CODE
+void f_external_exit_code() {
+  ExternalHandle* h = lookup_handle(static_cast<int>(sp->u.number), /*require_owner=*/1);
+  sp->u.number = h->exit_code;
+}
+#endif
+
+#ifdef F_EXTERNAL_KILL
+void f_external_kill() {
+  int const id = static_cast<int>(sp->u.number);
+  ExternalHandle* h = lookup_handle(id, /*require_owner=*/1);
+  if (h->state != HandleState::Running || h->status_done) {
+    sp->u.number = 0;
+    return;
+  }
+  kill_handle_child(h);
+  sp->u.number = 1;
+}
+#endif
+
+#ifdef F_EXTERNAL_CLOSE
+void f_external_close() {
+  int const id = static_cast<int>(sp->u.number);
+  lookup_handle(id, /*require_owner=*/1);
+  destroy_handle(id, /*kill_child=*/1);
+  pop_stack();
+}
+#endif
+
+#ifdef F_EXTERNAL_WRITE
+void f_external_write() {
+  int const num_arg = st_num_arg;
+  svalue_t* arg = sp - num_arg + 1;
+  int const id = static_cast<int>(arg[0].u.number);
+  ExternalHandle* h = lookup_handle(id, /*require_owner=*/1);
+  int const ok = queue_stdin(h, id, arg[1].u.string, SVALUE_STRLEN(arg + 1));
+  pop_n_elems(num_arg);
+  push_number(ok);
+}
+#endif
+
+#ifdef F_EXTERNAL_CLOSE_STDIN
+void f_external_close_stdin() {
+  int const id = static_cast<int>(sp->u.number);
+  ExternalHandle* h = lookup_handle(id, /*require_owner=*/1);
+  h->close_stdin_after_flush = true;
+  if (h->state == HandleState::Running) {
+    flush_stdin(h, id);
+  }
+  pop_stack();
 }
 #endif
