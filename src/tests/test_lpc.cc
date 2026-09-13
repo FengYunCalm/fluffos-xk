@@ -7239,6 +7239,47 @@ TEST_F(DriverTest, TestGameTickAndOwnerMainDrainsUseBoundedPositiveDelaySlices) 
   ASSERT_LT(owner_drain, continuation_check);
 }
 
+TEST_F(DriverTest, TestBackendWakeupPipeRoutesWorkerWakeupToMainThreadDrain) {
+  // P7-2 contract: a thread that is not running the loop must not build or
+  // activate libevent events; it writes one byte into the backend self-pipe and
+  // the loop (or the test tick pump) runs the registered main-thread drain.
+  std::atomic<int> drain_count{0};
+  std::atomic<bool> drained_on_main{false};
+  struct HandlerGuard {
+    ~HandlerGuard() { backend_set_wakeup_handler(check_reqs); }
+  } handler_guard;
+  backend_set_wakeup_handler([&drain_count, &drained_on_main] {
+    drained_on_main.store(vm_context_is_main_thread(), std::memory_order_relaxed);
+    drain_count.fetch_add(1, std::memory_order_relaxed);
+  });
+
+  run_tick_events_for_test();  // drop any wakeup queued by an earlier test
+  drain_count.store(0);
+
+  bool wrote = false;
+  std::thread worker([&wrote] { wrote = backend_wakeup_event_loop(); });
+  worker.join();
+  ASSERT_TRUE(wrote) << "init_backend() must have created the wakeup pipe";
+  EXPECT_EQ(drain_count.load(), 0)
+      << "the writing thread must not run the main-thread drain itself";
+
+  run_tick_events_for_test();
+  EXPECT_EQ(drain_count.load(), 1) << "the pump must drain the pending wakeup";
+  EXPECT_TRUE(drained_on_main.load()) << "the drain must run on the main thread";
+
+  // A second pump with nothing pending must not re-run the drain.
+  run_tick_events_for_test();
+  EXPECT_EQ(drain_count.load(), 1);
+
+  auto async_source = read_source_file_for_test("../src/packages/async/async.cc");
+  ASSERT_FALSE(async_source.empty());
+  EXPECT_NE(async_source.find("backend_wakeup_event_loop();"), std::string::npos)
+      << "async worker completion must wake the loop through the self-pipe";
+  EXPECT_EQ(async_source.find("add_walltime_event(std::chrono::milliseconds(0),"),
+            std::string::npos)
+      << "the async worker must not create libevent events off the main thread";
+}
+
 TEST_F(DriverTest, TestWalltimeEventsShareInteractivePriorityAndCleanup) {
   clear_tick_events();
   struct TickQueueGuard {

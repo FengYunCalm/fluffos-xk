@@ -265,8 +265,12 @@ void thread_func() {
         reqs.push_back(w);
       }
 
-      add_walltime_event(std::chrono::milliseconds(0),
-                         TickEvent::callback_type([] { check_reqs(); }));
+      // P7-2: this runs on a detached worker thread. Creating and activating a
+      // libevent event here used to race the main loop's base; instead write to
+      // the backend self-pipe so the loop wakes up and drains on the main
+      // thread. A missing pipe (no backend loop in this process) simply means
+      // the main thread's own tick pump will call check_reqs().
+      backend_wakeup_event_loop();
     }
   }
 }

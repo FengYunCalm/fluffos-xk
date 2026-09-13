@@ -2,6 +2,7 @@
 #include "base/std.h"
 
 #include "backend.h"
+#include "packages/async/async.h"                // for check_reqs
 
 #include <chrono>
 #include <event2/dns.h>     // for evdns_set_log_fn
@@ -46,6 +47,9 @@
 // FIXME: rewrite other part so this could become static.
 struct event_base *g_event_base = nullptr;
 
+// Creates the self-pipe registered by init_backend(); defined with the rest of
+// the wakeup machinery further down.
+void init_backend_wakeup_pipe(struct event_base *base);
 namespace {
 constexpr size_t kDestructedObjectCleanupTickBudget = 1024;
 
@@ -103,12 +107,149 @@ event_base *init_backend() {
   }
   vm_context_set_event_base(vm_context(), g_event_base);
   debug_message("Event backend in use: %s\n", event_base_get_method(g_event_base));
+  init_backend_wakeup_pipe(g_event_base);
+  // The main-thread drain for off-loop wakeups. Registered here because every
+  // entry path (driver_main and the native test harness) goes through
+  // init_backend(), and the async package owns the request bookkeeping.
+  backend_set_wakeup_handler(check_reqs);
   return g_event_base;
 }
 
 namespace {
 // This is the current game time. Use a large type to avoid dealing with rollover.
 std::atomic<uint64_t> g_current_gametick{0};
+}
+
+// Thread-safe wakeup for main-loop work produced by worker threads (the async
+// package completes requests on detached threads). libevent's own event
+// creation/addition is not safe to drive from those threads while the loop
+// runs, so workers only write one byte into a pipe whose read end is a
+// persistent event on the backend: the loop wakes up, drains the pipe and runs
+// the registered main-thread handler.
+namespace {
+int g_wakeup_pipe[2] = {-1, -1};
+struct event *g_wakeup_read_event = nullptr;
+std::atomic<bool> g_wakeup_pending{false};
+std::function<void()> g_wakeup_handler;
+std::mutex g_wakeup_handler_mutex;
+
+/* Walltime events that an off-loop thread asked for. libevent event creation
+ * and activation are main-thread operations (add_walltime_event asserts it), so
+ * an off-thread caller parks its callback here and wakes the loop; the main
+ * thread materializes the real event and keeps honouring TickEvent::cancel(). */
+struct ParkedWalltimeEvent {
+  std::chrono::milliseconds delay;
+  TickEvent *tick;
+  BackendEventPriority priority;
+};
+
+std::mutex g_parked_walltime_mutex;
+std::deque<ParkedWalltimeEvent> g_parked_walltime_events;
+std::atomic<uint64_t> g_cross_thread_walltime_events{0};
+
+void materialize_parked_walltime_events() {
+  std::deque<ParkedWalltimeEvent> parked;
+  {
+    std::lock_guard<std::mutex> lock(g_parked_walltime_mutex);
+    parked.swap(g_parked_walltime_events);
+  }
+  for (auto &entry : parked) {
+    TickEvent *tick = entry.tick;
+    add_walltime_event(
+        entry.delay,
+        [tick] {
+          if (tick->is_valid()) {
+            tick->callback();
+          }
+          // Same lifetime as the native path: the TickEvent handle is spent
+          // once its event has run. A cancelled handle still frees here.
+          delete tick;
+        },
+        entry.priority);
+  }
+}
+
+void drain_wakeup_requests() {
+  if (!g_wakeup_pending.exchange(false)) {
+    return;
+  }
+  materialize_parked_walltime_events();
+  if (g_wakeup_pipe[0] >= 0) {
+    char buf[128];
+    while (recv(g_wakeup_pipe[0], buf, sizeof(buf), 0) > 0) {
+    }
+  }
+  std::function<void()> handler;
+  {
+    std::lock_guard<std::mutex> lock(g_wakeup_handler_mutex);
+    handler = g_wakeup_handler;
+  }
+  if (handler) {
+    handler();
+  }
+}
+
+void on_wakeup_pipe_read(evutil_socket_t /*fd*/, short /*what*/, void * /*arg*/) {
+  drain_wakeup_requests();
+}
+}  // namespace
+
+void init_backend_wakeup_pipe(struct event_base *base) {
+  if (g_wakeup_pipe[0] >= 0 || !base) {
+    return;
+  }
+  if (evutil_socketpair(AF_UNIX, SOCK_STREAM, 0, g_wakeup_pipe) != 0) {
+    g_wakeup_pipe[0] = g_wakeup_pipe[1] = -1;
+    return;
+  }
+  evutil_make_socket_nonblocking(g_wakeup_pipe[0]);
+  evutil_make_socket_nonblocking(g_wakeup_pipe[1]);
+  g_wakeup_read_event = event_new(base, g_wakeup_pipe[0], EV_READ | EV_PERSIST,
+                                  on_wakeup_pipe_read, nullptr);
+  if (!g_wakeup_read_event || event_add(g_wakeup_read_event, nullptr) != 0) {
+    if (g_wakeup_read_event) {
+      event_free(g_wakeup_read_event);
+      g_wakeup_read_event = nullptr;
+    }
+    evutil_closesocket(g_wakeup_pipe[0]);
+    evutil_closesocket(g_wakeup_pipe[1]);
+    g_wakeup_pipe[0] = g_wakeup_pipe[1] = -1;
+  }
+}
+
+void backend_set_wakeup_handler(std::function<void()> handler) {
+  std::lock_guard<std::mutex> lock(g_wakeup_handler_mutex);
+  g_wakeup_handler = std::move(handler);
+}
+
+/* Parks a walltime event asked for by a non-main thread. The returned TickEvent
+ * stays valid (cancel() and is_valid() remain usable) until clear_tick_events(),
+ * which retires parked holders together with the rest of the event state. */
+TickEvent *enqueue_cross_thread_walltime_event(std::chrono::milliseconds delay_msecs,
+                                               TickEvent::callback_type callback,
+                                               BackendEventPriority priority) {
+  g_cross_thread_walltime_events.fetch_add(1, std::memory_order_relaxed);
+  auto *tick = new TickEvent(callback);
+  {
+    std::lock_guard<std::mutex> lock(g_parked_walltime_mutex);
+    g_parked_walltime_events.push_back({delay_msecs, tick, priority});
+  }
+  backend_wakeup_event_loop();
+  return tick;
+}
+
+bool backend_wakeup_event_loop() {
+  if (g_wakeup_pipe[1] < 0) {
+    return false;
+  }
+  g_wakeup_pending.store(true, std::memory_order_release);
+  char const byte = 1;
+  // Non-blocking socketpair: a failed send means either the pipe is full (a
+  // wakeup is already queued) or the backend is going away. Neither is an
+  // error here -- the pending flag above still lets the main thread drain
+  // without the event.
+  (void)send(g_wakeup_pipe[1], &byte, 1, 0);
+  return true;
 }
 
 uint64_t current_gametick() { return g_current_gametick.load(std::memory_order_relaxed); }
@@ -327,6 +468,9 @@ void drain_game_tick_slice(struct event **tick_event, bool continuation) {
 
 // Call one bounded event slice for the current tick.
 inline size_t call_tick_events() {
+  // A wakeup written while no loop iteration was running must not be lost, and
+  // the native test harness pumps ticks instead of the event loop.
+  drain_wakeup_requests();
   return call_tick_events_slice().processed;
 }
 
@@ -434,6 +578,14 @@ TickEvent *add_walltime_event(std::chrono::milliseconds delay_msecs,
   if (!g_event_base) {
     fatal("Cannot schedule walltime event without a Libevent backend.\n");
   }
+  // libevent event creation and activation must happen on the loop's thread.
+  // Off-thread producers (async workers, child-exit reaping) park their
+  // callback and wake the loop instead; the debug check keeps a new off-thread
+  // caller from reintroducing the race through this path.
+  if (!vm_context_is_main_thread()) {
+    return enqueue_cross_thread_walltime_event(delay_msecs, std::move(callback),
+                                               priority);
+  }
   if (delay_msecs.count() < 0) {
     delay_msecs = std::chrono::milliseconds(0);
   }
@@ -467,6 +619,14 @@ TickEvent *add_walltime_event(std::chrono::milliseconds delay_msecs,
 void clear_tick_events() {
   TickQueue leftover_events;
   std::vector<WalltimeEvent *> leftover_walltime_events;
+  std::deque<ParkedWalltimeEvent> parked_walltime_events;
+  {
+    std::lock_guard<std::mutex> lock(g_parked_walltime_mutex);
+    parked_walltime_events.swap(g_parked_walltime_events);
+  }
+  for (auto &entry : parked_walltime_events) {
+    delete entry.tick;
+  }
   {
     std::lock_guard<std::mutex> lock(g_tick_queue_mutex);
     leftover_events.swap(g_tick_queue);
@@ -509,9 +669,21 @@ void look_for_objects_to_swap_for_test() { look_for_objects_to_swap(); }
 
 bool backend_in_tick_events() { return g_in_tick_events; }
 
+bool backend_wakeup_pending_for_test() {
+  if (g_wakeup_pending.load(std::memory_order_acquire)) {
+    return true;
+  }
+  std::lock_guard<std::mutex> parked_lock(g_parked_walltime_mutex);
+  return !g_parked_walltime_events.empty();
+}
+
 size_t walltime_event_queue_size_for_test() {
   std::lock_guard<std::mutex> lock(g_walltime_events_mutex);
-  return g_walltime_events.size();
+  // Parked off-thread requests count as pending walltime work: the native test
+  // harness pumps the libevent loop only while this is non-zero, and that pump
+  // is what materializes them.
+  std::lock_guard<std::mutex> parked_lock(g_parked_walltime_mutex);
+  return g_walltime_events.size() + g_parked_walltime_events.size();
 }
 
 int walltime_event_priority_for_test(TickEvent *event) {

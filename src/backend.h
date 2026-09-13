@@ -95,6 +95,10 @@ size_t run_tick_events_for_test();
 /* True while the main thread is dispatching one tick-event callback. */
 bool backend_in_tick_events();
 size_t walltime_event_queue_size_for_test();
+/* True while a cross-thread wakeup (worker completion, parked walltime event)
+ * is waiting for the main thread to drain it. Tests that poll a promise settled
+ * by a worker use this instead of sleeping on the tick queues. */
+bool backend_wakeup_pending_for_test();
 int walltime_event_priority_for_test(TickEvent *event);
 // Move the game tick clock forward the way finish_game_tick() does, without
 // running the event loop (next_reset/clean_up deadlines are compared against
@@ -108,6 +112,15 @@ void look_for_objects_to_swap_for_test();
 // Util to help translate gameticks with time.
 uint64_t current_gametick();
 int time_to_next_gametick(std::chrono::milliseconds msec);
+
+// Thread-safe wakeup for work produced off the event-loop thread.
+// init_backend() creates the self-pipe; backend_wakeup_event_loop() writes to
+// it from any thread and returns false when no backend pipe exists (unit-test
+// harnesses without a loop), in which case callers keep their previous
+// main-thread scheduling. backend_set_wakeup_handler() installs the handler the
+// main thread runs when woken (see mainlib.cc for the async drain).
+bool backend_wakeup_event_loop();
+void backend_set_wakeup_handler(std::function<void()> handler);
 std::chrono::milliseconds gametick_to_time(int ticks);
 
 void update_load_av();
