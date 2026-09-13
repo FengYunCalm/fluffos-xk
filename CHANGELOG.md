@@ -2,6 +2,19 @@
 
 ## Current self-use baseline (independent fork)
 
+- Sockets: `lpc_socks_closeall()` releases each entry through `socket_close()`
+  instead of only closing the descriptor, so the TLS context, the SSL object,
+  and the libevent watches are freed at shutdown. LeakSanitizer no longer
+  reports the server context created by `tls_server_init()`; the async-side
+  leaks from the August evidence were already fixed and re-verified clean.
+- ops.cc: compound-assign efuns clear the lvalue's subtype, so a value that
+  started as `undefined` stops reporting `undefinedp() == 1` after a real
+  arithmetic result lands in it (upstream 7a471202, re-applied to the local
+  structure). `f_xor_eq` also clears the pushed result now, and plain `|`
+  stops inheriting the left operand's subtype.
+- docs: `docs/backlog-plan-2026-09.md` records the four-item backlog
+  disposition (async/TLS exit cleanup, selective upstream absorption, the
+  pr-1237/1276 evaluation, and the P9 correction).
 - Compiler: persist `DECL_NOSAVE` in the variable-type table when a global
   shadows an inherited name (#1381); restore no longer writes both lines into
   the inherited slot and leaves the child undefined.
