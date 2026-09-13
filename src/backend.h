@@ -101,6 +101,10 @@ int walltime_event_priority_for_test(TickEvent *event);
 // it, so tests that need a deadline to be due use this).
 void advance_gametick_for_test(uint64_t ticks);
 
+// Run the periodic object sweep (reset deadlines, set_clean_up() deadlines,
+// idle-time clean_up) synchronously instead of waiting for its 5-minute tick.
+void look_for_objects_to_swap_for_test();
+
 // Util to help translate gameticks with time.
 uint64_t current_gametick();
 int time_to_next_gametick(std::chrono::milliseconds msec);

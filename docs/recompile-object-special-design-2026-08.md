@@ -178,12 +178,12 @@ v0.1 没有选定范围，也没有回答全 VM 静默点、变量布局、commi
 
 | 项目 | 原记录 | 纠正状态 | 转为 `accepted` 的最低条件 |
 |---|---|---|---|
-| S16 lws 4.5.8 | accepted | `blocked` | vhost 修复、vendor manifest、live ws/wss smoke、相邻 C++ 测试 |
-| E1 cycles | accepted | `conditional` | 定向测试继续通过，copy 相邻回归和 ASan/UBSan 通过，全量基线转绿 |
-| E2 fuzz harness | accepted | `blocked` | compile/restore 两个 harness 的输入与 scratch I/O 失败可见、各自自校准通过、bounded AFL smoke 有有效路径证据 |
-| T1 OS env | accepted | `blocked` | main-thread 合同、完整 LPC 测试、配置和敏感变量策略 |
-| T2 `set_clean_up` | accepted | `partial` | deadline/sweep/取消/无 `clean_up`/one-shot 测试和文档 |
-| T4 `lpcc --batch` | accepted | `blocked` | argc 修复、CLI 表驱动合同、batch 回归 |
+| S16 lws 4.5.8 | accepted | `accepted` | 已满足：vhost 修复、vendor manifest、live ws/wss smoke（`docs/evidence/s16-ws-wss-smoke.md`）、ASan 零报告 |
+| E1 cycles | accepted | `accepted` | 已满足：定向测试继续通过，copy 相邻回归和 ASan 全量零报告，全量基线转绿 |
+| E2 fuzz harness | accepted | `blocked-env` | 仅剩 bounded AFL smoke 的 `afl-clang-fast` 环境；不得以自校准替代 |
+| T1 OS env | accepted | `accepted` | 已满足：main-thread 合同、完整 LPC 测试、owner-worker 拒绝的 C++ 证据（canary 合同测试） |
+| T2 `set_clean_up` | accepted | `accepted` | 已满足：deadline/sweep/取消/无 `clean_up`/one-shot 测试与文档，另加 deadline-sweep 集成冒烟 |
+| T4 `lpcc --batch` | accepted | `accepted` | 已满足：argc 修复、CLI 表驱动合同（`TestLpccCliArgumentMatrix`）、batch 回归 |
 | E3 `recompile_object` | 已授权未实施 | `blocked` | 本表前置项关闭、当前全量基线转绿、v0.4 强制合同全部进入测试门禁、另获实施授权 |
 | T3 lpcshell | 未实施 | `deferred` | 只有诊断渲染基建另立项后才重评 |
 | E4 source-line 优化 | deferred | `deferred` | 与 T3 一起重评 |

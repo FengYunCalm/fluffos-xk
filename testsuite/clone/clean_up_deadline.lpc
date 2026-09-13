@@ -1,0 +1,13 @@
+// set_clean_up() deadline-sweep fixture.
+//
+// clean_up() destructs the object, so the backend sweep's invocation is
+// observable from C++ (O_DESTRUCTED) without an LPC-side counter that a
+// cross-thread sweep would have to expose. Driven by
+// DriverTest.TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot in
+// src/tests/test_lpc.cc.
+void create() {
+}
+
+void clean_up(int inherited) {
+    destruct(this_object());
+}

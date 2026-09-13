@@ -501,6 +501,12 @@ size_t tick_event_queue_size_for_test() {
 
 size_t run_tick_events_for_test() { return call_tick_events(); }
 
+namespace {
+void look_for_objects_to_swap();
+}
+
+void look_for_objects_to_swap_for_test() { look_for_objects_to_swap(); }
+
 bool backend_in_tick_events() { return g_in_tick_events; }
 
 size_t walltime_event_queue_size_for_test() {

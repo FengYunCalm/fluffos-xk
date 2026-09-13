@@ -97,13 +97,22 @@ T2 无独立 commit 且无生命周期合同（A7）、"12 项全量回归全绿
 
 | 项 | 纠正 commit | 状态 | 剩余门禁 |
 |---|---|---|---|
-| S16 lws 4.5.8 | a7344288（default-vhost + vendor manifest） | conditional | live ws/wss smoke + ASan |
-| E1 cycles | —（原 a3865995） | conditional | copy 相邻回归 + sanitizer（基线已转绿） |
-| E2 fuzz | 1437c4cf（fail-closed + 自校准） | conditional | bounded AFL smoke（需 clang 环境） |
-| T1 os_env | 39289f4b（main-thread 合同 + 测试） | conditional | owner-worker 拒绝的 C++ 层证据 |
-| T2 set_clean_up | 7f0fdea5（生命周期合同测试） | conditional | deadline-sweep 集成冒烟 |
-| T4 lpcc | 24cec31f（argc 精确校验） | conditional | CLI 表驱动矩阵 |
+| S16 lws 4.5.8 | a7344288（default-vhost + vendor manifest） | accepted | live ws/wss smoke + ASan 零报错：`docs/evidence/s16-ws-wss-smoke.md` |
+| E1 cycles | —（原 a3865995） | accepted | copy 相邻回归 + sanitizer：全量 `-ftest` 0 failed、ASan 全量 0 报告 |
+| E2 fuzz | 1437c4cf（fail-closed + 自校准） | blocked-env | bounded AFL smoke 需 `afl-clang-fast`，本机不存在（不得以自校准替代） |
+| T1 os_env | 39289f4b（main-thread 合同 + 测试） | accepted | owner-worker 拒绝的 C++ 证据：canary 合同测试同时校验进程环境未被改写 |
+| T2 set_clean_up | 7f0fdea5（生命周期合同测试） | accepted | deadline-sweep 集成冒烟：`TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot` |
+| T4 lpcc | 24cec31f（argc 精确校验） | accepted | CLI 表驱动矩阵：`TestLpccCliArgumentMatrix`、`TestLpccUnknownConfigFailsCleanly` |
 | 基线回归 | 67e02680（EGC thread_local / valid hook / restore NUL / bounded drain） | **全绿** | lpc_tests 424/424 + driver -ftest 0 failed |
+
+### 2026-09 P4 收口证据（本轮）
+
+- S16：live ws/wss 握手、收发、断开 + MCCP2 在 websocket 上被拒（纯 telnet 仍协商）+ ASan 驱动所有连接后 0 报告；脚本
+  `src/tests/ws_smoke.py`，证据 `docs/evidence/s16-ws-wss-smoke.md`。
+  注意：wss 写路径的 `numbytes` drain 修正为契约对齐（本地负对照未复现 over-drain），已在证据文档中如实标注。
+- E1：`has_cycle`/`find_cycles`/`break_cycles` 与 copy 相邻回归在全量 `-ftest` 与 ASan 全量运行中零失败。
+- T1/T2/T4：C++ 合同测试（canary os_env 拒绝、deadline-sweep、lpcc CLI 矩阵）在 `lpc_tests` 中通过。
+- E2：环境缺失，按纪律标记 `blocked-env`，未执行替代性自校准。
 
 ### R5 根因记录
 

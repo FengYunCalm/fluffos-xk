@@ -268,6 +268,20 @@ string call_sys_reload_tls_probe()
 
 int owner_lpc_canary()
 {
+  // Runs on the owner worker. Besides confirming the worker execution path
+  // itself, this probes the T1 contract for process-global efun families:
+  // get_os_env()/set_os_env() must be stably rejected there (contrib.cc
+  // guards them with vm_context_is_main_thread), never reaching
+  // getenv()/setenv() from a worker. A canary result other than 1 fails the
+  // executor canary contract test in src/tests/test_lpc.cc.
+  mixed err = catch(get_os_env("PATH"));
+  if (!stringp(err) || strsrch(err, "requires the main thread") == -1) {
+    return 0;
+  }
+  err = catch(set_os_env("FLUFFOS_XK_TEST_ENV", "worker"));
+  if (!stringp(err) || strsrch(err, "requires the main thread") == -1) {
+    return 0;
+  }
   return !vm_context_is_main_thread();
 }
 

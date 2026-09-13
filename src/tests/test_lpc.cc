@@ -4719,6 +4719,46 @@ TEST_F(DriverTest, TestInputAppendNeverWritesPastTheBuffer) {
 // error() involved, so safe_apply() inside try_reset() doesn't catch it).
 // move_object() must notice that and not link the item into an object that is
 // no longer live.
+TEST_F(DriverTest, TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot) {
+  // The backend sweep is scheduled 5 minutes out; drop the queued ticks so a
+  // manually driven sweep is the only one that can run, then restore the
+  // queue on the way out.
+  clear_tick_events();
+  struct TickQueueGuard {
+    ~TickQueueGuard() { clear_tick_events(); }
+  } tick_queue_guard;
+
+  ASSERT_GT(CONFIG_INT(__TIME_TO_CLEAN_UP__), 0) << "sweep requires a clean_up interval";
+
+  current_object = master_ob;
+  auto *ob = load_object_for_test("clone/clean_up_deadline");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_TRUE(ob->flags & O_WILL_CLEAN_UP)
+      << "an object that defines clean_up() is queried by the sweep";
+  // Control: an object whose deadline has not passed yet must survive the
+  // same sweep (a future deadline is not "due" and the idle-time rule does
+  // not apply to a freshly loaded object).
+  auto *future = load_object_for_test("clone/clean_up_deadline");
+  ASSERT_NE(future, nullptr);
+  future->next_cleanup = current_gametick() + 1000;
+
+  // An explicit deadline overrides the idle-time rule; make it due.
+  ob->next_cleanup = current_gametick() + 1;
+  advance_gametick_for_test(2);
+  look_for_objects_to_swap_for_test();
+
+  // clean_up() ran (the fixture destructs itself, which is the observable),
+  // and the deadline reverted to the idle rule (one-shot).
+  EXPECT_TRUE(ob->flags & O_DESTRUCTED) << "the due deadline must invoke clean_up()";
+  EXPECT_EQ(ob->next_cleanup, 0) << "one-shot: a fired deadline reverts to the idle rule";
+  EXPECT_FALSE(future->flags & O_DESTRUCTED) << "a not-yet-due deadline must not fire";
+  EXPECT_EQ(future->next_cleanup, current_gametick() + 1000 - 2);
+
+  // A second sweep must not re-fire anything for the already-dead object.
+  look_for_objects_to_swap_for_test();
+  EXPECT_TRUE(ob->flags & O_DESTRUCTED);
+}
+
 TEST_F(DriverTest, TestMoveObjectDestructDuringReset) {
   auto saved_lazy_resets = CONFIG_INT(__RC_LAZY_RESETS__);
   auto saved_no_resets = CONFIG_INT(__RC_NO_RESETS__);
@@ -14324,6 +14364,12 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
 
   auto* before = vm_owner_thread_status();
   auto before_executed = mapping_number(before, "thread_lpc_canary_executed");
+  // T1 evidence: the canary body also asserts that get_os_env()/set_os_env()
+  // are stably rejected on the worker, and this records the process-level
+  // variable the rejected set_os_env("FLUFFOS_XK_TEST_ENV", "worker") would
+  // have written if it had reached setenv().
+  const char* os_env_before = std::getenv("FLUFFOS_XK_TEST_ENV");
+  const std::string os_env_before_value = os_env_before ? os_env_before : "";
   auto before_succeeded = mapping_number(before, "thread_lpc_canary_succeeded");
   auto before_failed = mapping_number(before, "thread_lpc_canary_failed");
   auto before_rejected = mapping_number(before, "thread_lpc_canary_rejected");
@@ -14356,7 +14402,16 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
 
   auto* running = vm_owner_thread_status();
   ASSERT_GE(mapping_number(running, "thread_lpc_canary_executed"), before_executed + 1);
+  // The canary body (testsuite/single/void.c owner_lpc_canary()) also probes
+  // the T1 contract from the worker: get_os_env()/set_os_env() must be
+  // rejected with "requires the main thread" there. A probe failure makes the
+  // canary return 0, so this counter is the C++-level evidence for T1.
   ASSERT_GE(mapping_number(running, "thread_lpc_canary_succeeded"), before_succeeded + 1);
+  {
+    const char* os_env_after = std::getenv("FLUFFOS_XK_TEST_ENV");
+    EXPECT_EQ(os_env_after ? os_env_after : "", os_env_before_value)
+        << "the worker-side set_os_env() rejection must not reach setenv()";
+  }
   ASSERT_EQ(mapping_number(running, "thread_lpc_canary_failed"), before_failed);
   ASSERT_EQ(mapping_number(running, "thread_lpc_canary_rejected"), before_rejected);
   ASSERT_GE(mapping_number(running, "thread_owner_cleared"), before_owner_cleared + 1);
@@ -25819,6 +25874,68 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   deallocate_program(prog_c);
 }
 
+TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {
+  // E3 v2 contract: when a simul_efun name disappears from the table, an
+  // already-compiled call site (a live sindex) must get the stable runtime
+  // error, not a null call or an out-of-bounds dispatch read.
+  ASSERT_GT(num_simul_efun, 0) << "config.test must load a simul_efun file";
+  SimulTableSnapshot snap = SaveSimulTable();
+
+  const char *kFoo = "simul_efun_dropped_xyz";
+  ASSERT_EQ(lookup_ident(kFoo), nullptr) << "test name must not collide";
+
+  program_t *prog_a = CompileSimulProg(std::string("string ") + kFoo + "() { return \"a\"; }\n");
+  ASSERT_NE(prog_a, nullptr);
+  simul_efun_prepared_t prep_a;
+  simul_efuns_prepare(prog_a, &prep_a);
+  simul_efuns_activate(&prep_a);
+
+  int foo_idx = FindDispatchIndex(kFoo);
+  int foo_pidx = FindProgramIndex(prog_a, kFoo);
+  ASSERT_GE(foo_idx, 0);
+  ASSERT_GE(foo_pidx, 0);
+  ASSERT_EQ(simuls[foo_idx].func, find_func_entry(prog_a, foo_pidx));
+
+  // The next program drops foo: its dispatch slot survives with func null.
+  program_t *prog_b = CompileSimulProg("string simul_efun_dropped_other() { return \"b\"; }\n");
+  ASSERT_NE(prog_b, nullptr);
+  simul_efun_prepared_t prep_b;
+  simul_efuns_prepare(prog_b, &prep_b);
+  simul_efuns_activate(&prep_b);
+  ASSERT_EQ(FindDispatchIndex(kFoo), foo_idx) << "dropped name keeps its index";
+  ASSERT_EQ(simuls[foo_idx].func, nullptr) << "dropped name stays inactive";
+
+  auto *saved_current_object = current_object;
+  current_object = master_ob;
+  error_context_t econ{};
+  save_context(&econ);
+  bool errored = false;
+  push_number(0);  // the dropped simul_efun's single argument
+  try {
+    call_simul_efun(static_cast<unsigned short>(foo_idx), 1);
+  } catch (...) {
+    errored = true;
+    restore_context(&econ);
+  }
+  pop_context(&econ);
+  current_object = saved_current_object;
+  EXPECT_TRUE(errored) << "a dropped simul_efun must error at the call site";
+
+  // The message itself is a fixed literal at the only raise site; pin it so
+  // the runtime error cannot be renamed into something unrecognizable.
+  auto simul_source = read_source_file_for_test("../src/vm/internal/simul_efun.cc");
+  ASSERT_FALSE(simul_source.empty());
+  ASSERT_NE(simul_source.find("error(\"Function is no longer a simul_efun.\\n\");"),
+            std::string::npos)
+      << "call_simul_efun() must keep erroring for a dropped dispatch slot";
+
+  simul_efuns_finish(&prep_b);
+  simul_efuns_finish(&prep_a);
+  RestoreSimulTable(snap);
+  deallocate_program(prog_a);
+  deallocate_program(prog_b);
+}
+
 TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   ASSERT_GT(num_simul_efun, 0) << "config.test must load a simul_efun file";
   SimulTableSnapshot snap = SaveSimulTable();
@@ -26712,3 +26829,125 @@ TEST_F(DriverTest, TestTelnetZmpArgcVariants) {
   const char *argv3[] = {"cmd", "a", "b"};
   on_telnet_do_zmp(argv3, 3, &ip);
 }
+
+#ifndef _WIN32
+namespace {
+// The mudlib root is the driver's working directory (config.test's "mudlib
+// directory : ." is resolved against it), so the lpcc CLI contract must be
+// exercised with testsuite/ as the child's CWD. Both paths are derived from
+// the running test binary (<build>/src/tests/lpc_tests) so any build
+// directory works.
+std::string LpccTestBuildDir() {
+  static const std::string build_dir = [] {
+    std::error_code ec;
+    auto exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    if (ec) {
+      return std::string();
+    }
+    // <build>/src/tests/lpc_tests -> <build>
+    return exe.parent_path().parent_path().parent_path().string();
+  }();
+  return build_dir;
+}
+
+struct LpccCliResult {
+  int exit_code = -1;
+  std::string output;
+};
+
+LpccCliResult RunLpccCli(const std::string &args) {
+  LpccCliResult result;
+  const auto build_dir = LpccTestBuildDir();
+  if (build_dir.empty()) {
+    return result;
+  }
+  const auto mudlib = std::filesystem::path(build_dir).parent_path() / "testsuite";
+  const auto lpcc = std::filesystem::path(build_dir) / "bin" / "lpcc";
+  if (!std::filesystem::exists(lpcc) || !std::filesystem::exists(mudlib / "etc" / "config.test")) {
+    return result;
+  }
+  // trace_lpcc.json lands in the child's CWD; it is a gitignored artifact of
+  // the documented lpcc invocation from testsuite/.
+  const std::string command = "cd '" + mudlib.string() + "' && '" + lpcc.string() + "' " + args +
+                              " 2>&1";
+  FILE *pipe = popen(command.c_str(), "r");
+  if (pipe == nullptr) {
+    return result;
+  }
+  char buffer[4096];
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    result.output += buffer;
+  }
+  const int status = pclose(pipe);
+  result.exit_code = WEXITSTATUS(status);
+  return result;
+}
+}  // namespace
+
+TEST_F(DriverTest, TestLpccCliArgumentMatrix) {
+  const std::string cfg = "etc/config.test";
+  const std::string good = "/single/tests/efuns/has_cycle";
+  const std::string missing = "/single/tests/efuns/does_not_exist";
+
+  struct Case {
+    std::string args;
+    int exit_code;
+    bool expects_usage;
+  };
+  const std::vector<Case> cases = {
+      // argc 1/2 and any other arity that matches no mode: usage + exit 1.
+      {"", 1, true},
+      {cfg, 1, true},
+      {"--owner-audit --format=json " + cfg, 1, true},
+      // The owner-audit scanner reads the LPC file from the host filesystem
+      // (relative to the child's CWD), not through the mudlib path rules.
+      {"--owner-audit --format=json " + cfg + " single/tests/efuns/has_cycle.c", 0, false},
+      {cfg + " " + good + " extra", 1, true},
+      // argc 3: compile one file (0) or fail to load it (1).
+      {cfg + " " + good, 0, false},
+      {cfg + " " + missing, 1, false},
+      // --batch: batch exit code is 1 when any file fails.
+      {"--batch " + cfg + " " + good, 0, false},
+      {"--batch " + cfg + " " + missing, 1, false},
+      {"--batch " + cfg + " " + good + " " + missing, 1, false},
+  };
+
+  if (LpccTestBuildDir().empty()) {
+    GTEST_SKIP() << "cannot resolve the build directory from /proc/self/exe";
+  }
+  if (!std::filesystem::exists(std::filesystem::path(LpccTestBuildDir()) / "bin" / "lpcc")) {
+    GTEST_SKIP() << "lpcc is not built";
+  }
+
+  for (const auto &test_case : cases) {
+    const auto result = RunLpccCli(test_case.args);
+    ASSERT_NE(result.exit_code, -1)
+        << "lpcc could not be spawned for args: [" << test_case.args << "]";
+    EXPECT_EQ(result.exit_code, test_case.exit_code)
+        << "args: [" << test_case.args << "]\n"
+        << result.output;
+    if (test_case.expects_usage) {
+      EXPECT_NE(result.output.find("Usage: lpcc"), std::string::npos)
+          << "args: [" << test_case.args << "]\n"
+          << result.output;
+    }
+  }
+
+  // The batch path reports per-file results on stdout.
+  const auto batch = RunLpccCli("--batch " + cfg + " " + good + " " + missing);
+  EXPECT_NE(batch.output.find("PASS /single/tests/efuns/has_cycle"), std::string::npos)
+      << batch.output;
+  EXPECT_NE(batch.output.find("FAIL /single/tests/efuns/does_not_exist"), std::string::npos)
+      << batch.output;
+}
+
+TEST_F(DriverTest, TestLpccUnknownConfigFailsCleanly) {
+  // An unknown first argument is not a flag error: argc 3 means "compile
+  // argv[2] against the config in argv[1]", and an unreadable config must fail
+  // with the driver's own config error rather than a crash or a hang.
+  const auto result = RunLpccCli("--unknown-flag etc/config.test");
+  ASSERT_NE(result.exit_code, -1);
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_NE(result.output.find("config file"), std::string::npos) << result.output;
+}
+#endif  // !_WIN32
