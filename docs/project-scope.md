@@ -60,3 +60,31 @@ and runtime contract tests remain useful self-use safeguards.
 
 Docker workflow 只负责本地构建和运行 smoke，不发布镜像。CI、SBOM、依赖 pin 检查、
 CodeQL、sanitizer 构建和运行时合同测试仍是有价值的自用安全保障。
+
+## Verifying a build from source / 从源码自校验
+
+There is no signed release artifact to verify, so provenance is established by
+rebuilding from a pinned commit and comparing the checks you control:
+
+1. Record the commit and the toolchain: `git rev-parse HEAD`, `cmake --version`,
+   and the C++ compiler version.
+2. Build with the preset you intend to deploy (`portable-release` for optimized
+   binaries) and run the gates this repository expects: `ctest --test-dir
+   build-portable-release`, then the LPC suite from `testsuite/`.
+3. Compare `driver --version` and the SHA-256 of the produced binary against
+   your own recorded values from a previous build of the same commit.
+4. Optionally reconcile the dependency inventory against
+   `third_party/manifest.yaml` and `third_party/sbom.json`.
+
+A rebuild of the same commit with the same toolchain should behave the same; if
+it does not, that difference is the finding to investigate.
+
+没有已签名的发布产物可供校验，可追溯性来自"固定 commit 重建 + 对比你控制的校验值"：
+
+1. 记录 commit 与工具链：`git rev-parse HEAD`、`cmake --version`、C++ 编译器版本。
+2. 用准备部署的 preset 构建（优化二进制用 `portable-release`），并运行本仓库的门禁：
+   `ctest --test-dir build-portable-release`，以及在 `testsuite/` 目录下运行 LPC 套件。
+3. 对比 `driver --version` 与产物 SHA-256 是否与你记录的同 commit 上次构建一致。
+4. 可选：用 `third_party/manifest.yaml` 和 `third_party/sbom.json` 核对依赖清单。
+
+同一 commit、同一工具链的重建应产生相同行为；若不一致，这个差异本身就是需要追查的发现。
