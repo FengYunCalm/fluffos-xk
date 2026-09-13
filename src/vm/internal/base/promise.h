@@ -221,11 +221,6 @@ void run_async_function(char* entry_pc, const struct function_t* funp);
  * error()s (nothing parked) if the current frame cannot be suspended. */
 void coroutine_await_pending(promise_t* awaited);
 
-/* Release an orphaned parked coroutine (its promise is unreachable garbage,
- * so it can never resume). Frees every ref it holds without running LPC.
- * Used by the debug orphan-cycle collector. */
-void free_coroutine_orphan(lpc_coroutine_t* coro);
-
 /* Abandon every frame parked inside `ob` (destruct_object()). Rejects each
  * frame's promise; without it a frame awaiting a promise that never settles
  * stays suspended forever. */

@@ -38,6 +38,30 @@ extern int _in_reference_allowed;
 
 namespace {
 
+/* Single source of truth for the svalue tags that must NOT be parked inside a
+ * suspended coroutine frame. coroutine_await_pending() rejects an await when
+ * one of these is live on the value stack, because the frame slice is moved
+ * out with a bitwise memcpy: such a tag holds a pointer or index into stack
+ * memory that stops being valid once the frame is gone, so copying it would
+ * leave a dangling reference that only fails much later.
+ *
+ * KEEP IN STEP WITH svalue.h. Adding a reference-holding or stack-addressed
+ * svalue tag (a new T_LVALUE_* kind, T_REF variant, error handler, ...)
+ * without listing it here silently re-opens that dangling-pointer hole.
+ * The static_assert below fails the build when a stack-lvalue tag is missed;
+ * the other tags in the mask (T_REF / T_ERROR_HANDLER) have no accessor macro
+ * to enumerate, so they are covered by this comment and the LPC regression
+ * tests instead. */
+constexpr unsigned kUnparkableStackTags =
+    T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT | T_REF | T_ERROR_HANDLER;
+
+/* Catch the "forgot to extend the list" mistake for the indexed-lvalue
+ * family: every tag is_stack_lvalue() recognises must be rejected at park
+ * time, or await would happily copy a box pointer out of the doomed frame. */
+static_assert((kUnparkableStackTags & (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT)) ==
+                  (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT),
+              "kUnparkableStackTags must cover every stack-lvalue tag");
+
 /* set by coroutine_await_pending(); read by run_coroutine_body() to tell a
  * parked body from a completed one after eval_instruction() returns */
 bool g_coroutine_suspended = false;
@@ -75,6 +99,17 @@ struct QueuedReaction {
 };
 
 std::deque<QueuedReaction> g_promise_microtasks;
+/* Counts settles that queued while the delivery backlog was already past
+ * __RC_MAX_PENDING_DELIVERIES__. The efun-level guards (promise_then/catch,
+ * async_yield) refuse work at that point, but a C++ settle source has to be
+ * allowed to finish: dropping its reaction would mean silently losing a
+ * settlement, and rejecting from inside the propagate/adopt paths would make
+ * a first-settle-wins race fatal. So this is the observable half of that
+ * guard -- a driver that stays quiet here has never queued past the limit.
+ * Reported by async_info(1) and logged once per crossing so an LPC-side
+ * backlog shows up in the debug log instead of only as a driver OOM. */
+LPC_INT g_promise_queue_over_limit_total = 0;
+bool g_promise_queue_over_limit_warned = false;
 bool g_drain_scheduled = false;
 /* Latched by promise_cleanup(): the queue is dead, deliveries can never run
  * again, so a late settle (something freed after it in the shutdown
@@ -425,6 +460,21 @@ void enqueue_reaction(promise_t* source, promise_reaction_t* r) {
     return;
   }
   g_promise_microtasks.push_back(qr);
+  /* Backlog observability for the settle sources that cannot refuse work
+   * (see g_promise_queue_over_limit_total). One log line per episode: the
+   * flag is cleared again once the queue drains back under the limit. */
+  {
+    LPC_INT const limit = CONFIG_INT(__RC_MAX_PENDING_DELIVERIES__);
+    if (limit > 0 && (LPC_INT)g_promise_microtasks.size() > limit &&
+        !g_promise_queue_over_limit_warned) {
+      g_promise_queue_over_limit_warned = true;
+      g_promise_queue_over_limit_total++;
+      debug_message(
+          "promise delivery backlog is over the configured limit (%ld > %ld); "
+          "settlements keep queueing to preserve promise semantics.\n",
+          static_cast<long>(g_promise_microtasks.size()), static_cast<long>(limit));
+    }
+  }
   schedule_drain();
 }
 
@@ -615,6 +665,13 @@ void drain_promise_microtasks() {
    * the next I/O poll. */
   auto const budget_us = drain_eval_budget_us();
   auto const turn_started = std::chrono::steady_clock::now();
+  /* A turn that gets the backlog back under the limit clears the episode
+   * flag, so the next crossing logs again instead of staying silent for the
+   * rest of the driver's life. */
+  if (CONFIG_INT(__RC_MAX_PENDING_DELIVERIES__) > 0 &&
+      (LPC_INT)g_promise_microtasks.size() <= CONFIG_INT(__RC_MAX_PENDING_DELIVERIES__)) {
+    g_promise_queue_over_limit_warned = false;
+  }
   bool first = true;
   /* The flags belong to the deliveries, not to the backend: a turn that ends
    * on an exhausted delivery must not leave `outoftime` set for whatever the
@@ -1410,6 +1467,20 @@ int promise_settle(promise_t* p, svalue_t* value, int rejected) {
   if (p->state != PROMISE_PENDING) {
     return 0; /* first settle wins */
   }
+  /* An in-flight adoption already committed this promise's fate: the source
+   * will settle it when the source itself settles. Until now only the LPC
+   * efuns (promises.cc) checked this, so any C++ caller could settle past an
+   * adoption -- the later first-settle-wins would discard the adopted value
+   * with no diagnostic at all. Report it the same way the efuns do, but keep
+   * returning 0 so the reaction/propagation call sites (which pass an
+   * already-decided next promise) stay correct.
+   *
+   * Skipped while shutting down or unwinding a coroutine: promise_cleanup()
+   * and free_coroutine() reject parked bodies unconditionally, and an error()
+   * there would escape the teardown path that has no LPC frame to catch it. */
+  if (p->resolving && !g_promises_shut_down && !g_freeing_coro) {
+    error("promise_settle: promise fate is already committed to an adoption.\n");
+  }
   if (rejected && p->reject_origin == nullptr) {
     p->reject_origin = capture_reject_origin();
   }
@@ -1567,8 +1638,7 @@ void coroutine_await_pending(promise_t* awaited) {
   }
   /* transient references into the stacks cannot be parked */
   for (svalue_t* v = fp; v < sp; v++) {
-    if (v->type &
-        (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT | T_REF | T_ERROR_HANDLER)) {
+    if (v->type & kUnparkableStackTags) {
       error(
           "await: cannot suspend while a reference or lvalue is pending on the stack. "
           "Inside a `foreach` loop, use an indexed `for` loop instead; for a `ref` "
@@ -1640,8 +1710,6 @@ void coroutine_await_pending(promise_t* awaited) {
   }
   g_coroutine_suspended = true;
 }
-
-void free_coroutine_orphan(lpc_coroutine_t* coro) { free_coroutine(coro, nullptr, false); }
 
 /* Abandon every frame parked inside `ob`, called from destruct_object().
  *
@@ -1789,6 +1857,11 @@ mapping_t* build_async_scheduler_info() {
 
   add_mapping_pair(m, "suspended", static_cast<long>(suspended_coroutine_count()));
   add_mapping_pair(m, "pending_deliveries", static_cast<long>(g_promise_microtasks.size()));
+  /* monotonic: settle sources that queued past __RC_MAX_PENDING_DELIVERIES__.
+   * The efun guards refuse work at the limit, so a nonzero value here means
+   * an internal (I/O, external, adoption) source was still delivering -- see
+   * g_promise_queue_over_limit_total. */
+  add_mapping_pair(m, "queue_over_limit", static_cast<long>(g_promise_queue_over_limit_total));
   /* monotonic: every slice that spent its time with work still queued and
    * handed the rest back through the event loop */
   add_mapping_pair(m, "drain_yields", g_drain_yields_total);

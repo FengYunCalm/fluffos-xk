@@ -1,0 +1,37 @@
+// async_info() scheduler counters (issue #1319 follow-up).
+//
+// async_info(1) is the only operator-visible view of the delivery machinery;
+// these fields are what a mudlib watches when a promise backlog is suspected.
+// They were previously untested, so a rename or a dropped field would have
+// gone unnoticed until someone's monitoring dashboard went empty.
+
+void do_tests() {
+  mapping m;
+
+  // The scheduler variant needs the explicit 1; the default form reports the
+  // per-coroutine list instead.
+  m = async_info(1);
+  ASSERT(mapp(m));
+
+  ASSERT(intp(m["suspended"]));
+  ASSERT(intp(m["pending_deliveries"]));
+  ASSERT(intp(m["drain_yields"]));
+  ASSERT(intp(m["drain_arms_loop"]));
+  ASSERT(intp(m["queue_over_limit"]));
+  ASSERT(intp(m["drain_eval_budget"]));
+
+  // Counters are monotonic and non-negative. The absolute values are NOT
+  // asserted: the full suite runs every test in one driver, so earlier tests
+  // can leave parked coroutines or queued deliveries behind. Only the
+  // spelling and the type of each field belong to this file.
+  ASSERT(m["suspended"] >= 0);
+  ASSERT(m["pending_deliveries"] >= 0);
+  ASSERT(m["queue_over_limit"] >= 0);
+
+  // Same shape and same values on a repeat call (not one-shot state).
+  {
+    mapping again = async_info(1);
+    ASSERT_EQ(m["queue_over_limit"], again["queue_over_limit"]);
+    ASSERT_EQ(m["drain_arms_loop"], again["drain_arms_loop"]);
+  }
+}
