@@ -23682,6 +23682,53 @@ TEST_F(DriverTest, TestGatewayReliableIngressExecutesContinuousSequenceExactlyOn
   free_object(&ob, "TestGatewayReliableIngressExecutesContinuousSequenceExactlyOnce");
 }
 
+TEST_F(DriverTest, TestGatewayReliableIngressRecoversSequenceAfterProcessRestart) {
+  const char *session_id = "gw-test-reliable-restart";
+  auto *ob = create_gateway_session_for_test(session_id, "/clone/gateway_login_example");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(ob->interactive, nullptr);
+  add_ref(ob, "TestGatewayReliableIngressRecoversSequenceAfterProcessRestart");
+
+  gateway_reset_ingress_sequence_for_test();
+  ASSERT_TRUE(gateway_dispatch_message_for_test(
+      -1, R"({"type":"hello","data":{"ingress_id":"stream-recovered","version":2}})"));
+  ASSERT_TRUE(gateway_dispatch_message_for_test(
+      -1,
+      R"({"type":"data","cid":"gw-test-reliable-restart","ingress_id":"stream-recovered","ingress_seq":41,"data":{"cmd":"recovered"}})"));
+  ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
+
+  auto *payload = call_lpc_method(ob, "query_last_gateway_payload");
+  ASSERT_NE(payload, nullptr);
+  auto *command = find_string_in_mapping(payload->u.map, "cmd");
+  ASSERT_NE(command, nullptr);
+  ASSERT_STREQ(command->u.string, "recovered");
+
+  ASSERT_TRUE(gateway_dispatch_message_for_test(
+      -1,
+      R"({"type":"data","cid":"gw-test-reliable-restart","ingress_id":"stream-recovered","ingress_seq":42,"data":{"cmd":"next"}})"));
+  ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
+  payload = call_lpc_method(ob, "query_last_gateway_payload");
+  command = find_string_in_mapping(payload->u.map, "cmd");
+  ASSERT_STREQ(command->u.string, "next");
+
+  auto *status = gateway_status_internal();
+  ASSERT_NE(status, nullptr);
+  auto mapping_number = [](mapping_t *map, const char *key) -> long {
+    auto *value = find_string_in_mapping(map, key);
+    EXPECT_NE(value, nullptr);
+    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
+    return value && value->type == T_NUMBER ? value->u.number : 0;
+  };
+  ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_last_accepted"), 42);
+  ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_gaps"), 0);
+  free_mapping(status);
+
+  gateway_reset_ingress_sequence_for_test();
+  ASSERT_EQ(gateway_destroy_session_internal(session_id, "test_done", "done"), 1);
+  destruct_object(ob);
+  free_object(&ob, "TestGatewayReliableIngressRecoversSequenceAfterProcessRestart");
+}
+
 TEST_F(DriverTest, TestGatewayReliableIngressResetsOnlyForNewStreamIdentity) {
   const char *session_id = "gw-test-reliable-stream";
   auto *ob = create_gateway_session_for_test(session_id, "/clone/gateway_login_example");
