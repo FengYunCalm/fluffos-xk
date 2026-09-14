@@ -1,0 +1,19 @@
+Processing config file: etc/config.test
+New Debug log location: "log/debug.log".
+Execution root: ./
+Initializing internal stuff ....
+Event backend in use: epoll
+Loading simul_efun file : /single/simul_efun
+/std/base64.c line 56: Warning: Unused local variable 'p'
+  }
+   ^
+/std/base64.c line 56: Warning: Unused local variable 'rlen'
+  }
+   ^
+/std/number_string.c line 54: Warning: Unused local variable 'parts'
+  }
+   ^
+/std/number_string.c line 54: Warning: Unused local variable 'part'
+  }
+   ^
+Loading master file: /single/master

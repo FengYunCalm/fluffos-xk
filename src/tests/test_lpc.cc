@@ -25805,6 +25805,13 @@ int FindProgramIndex(program_t *prog, const char *name) {
   return -1;
 }
 
+
+// Prints the rendered diagnostic on a golden mismatch (the raw string is
+// escaped in gtest output otherwise).
+std::string actual_rendering(const std::string &text) {
+  return "\n--- actual rendering ---\n" + text + "--- end ---\n";
+}
+
 program_t *CompileSimulProg(const std::string &src) {
   std::istringstream stream(src);
   return compile_file(std::make_unique<IStreamLexStream>(stream), "simul_reload_test");

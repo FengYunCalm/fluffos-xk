@@ -127,7 +127,7 @@ std::atomic<uint64_t> g_current_gametick{0};
 // persistent event on the backend: the loop wakes up, drains the pipe and runs
 // the registered main-thread handler.
 namespace {
-int g_wakeup_pipe[2] = {-1, -1};
+evutil_socket_t g_wakeup_pipe[2] = {-1, -1};
 struct event *g_wakeup_read_event = nullptr;
 std::atomic<bool> g_wakeup_pending{false};
 std::function<void()> g_wakeup_handler;

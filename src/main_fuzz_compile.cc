@@ -67,6 +67,8 @@ constexpr size_t kMaxChunks = 8;  // compiles are heavier than restores
 // harness did not exercise the compiler and must fail closed.
 int g_compile_success = 0;
 int g_compile_diagnostic = 0;
+int g_compile_executions = 0;
+size_t g_compile_chunks = 0;
 
 // Fixed mudlib-internal scratch directory (host side + LPC side). The
 // compiler only resolves paths inside the mudlib, so scratch files cannot
@@ -99,6 +101,7 @@ bool compile_one(int index, const std::string& src) {
     return false;
   }
 
+  ++g_compile_executions;
   error_context_t econ{};
   save_context(&econ);
   try {
@@ -137,6 +140,7 @@ bool run_sequence(const std::vector<char>& raw) {
     size_t next = all.find(kDelim, pos);
     std::string_view piece =
         (next == std::string_view::npos) ? all.substr(pos) : all.substr(pos, next - pos);
+    ++g_compile_chunks;
     if (!compile_one(static_cast<int>(chunks), std::string(piece))) {
       return false;
     }
@@ -212,7 +216,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  fprintf(stderr, "fuzz_compile: success=%d diagnostic=%d\n", g_compile_success,
+  fprintf(stderr,
+          "HARNESS_OK target=compile executions=%d chunks=%zu success=%d diagnostic=%d\n",
+          g_compile_executions, g_compile_chunks, g_compile_success,
           g_compile_diagnostic);
   return 0;
 }

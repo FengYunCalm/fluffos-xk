@@ -1,0 +1,74 @@
+[1;92m[+] [0mEnabled environment variable AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES with value 1[0m
+[1;92m[+] [0mEnabled environment variable AFL_NO_AFFINITY with value 1[0m
+[1;92m[+] [0mEnabled environment variable AFL_SKIP_CPUFREQ with value 1[0m
+[1;92m[+] [0mEnabled environment variable AFL_NO_UI with value 1[0m
+[0;36mafl-fuzz++4.09c[0m based on afl by Michal Zalewski and a large online community
+[1;92m[+] [0mAFL++ is maintained by Marc "van Hauser" Heuse, Dominik Maier, Andrea Fioraldi and Heiko "hexcoder" Eißfeldt[0m
+[1;92m[+] [0mAFL++ is open source, get it at https://github.com/AFLplusplus/AFLplusplus[0m
+[1;92m[+] [0mNOTE: AFL++ >= v3 has changed defaults and behaviours - see README.md[0m
+[1;92m[+] [0mNo -M/-S set, autoconfiguring for "-S default"[0m
+[1;94m[*] [0mGetting to work...[0m
+[1;92m[+] [0mUsing exponential power schedule (FAST)[0m
+[1;92m[+] [0mEnabled testcache with 50 MB[0m
+[1;92m[+] [0mGenerating fuzz data with a length of min=1 max=1048576[0m
+[1;94m[*] [0mChecking core_pattern...[0m
+
+[1;91m[-] [0mHmm, your system is configured to send core dump notifications to an
+    external utility. This will cause issues: there will be an extended delay
+    between stumbling upon a crash and having this information relayed to the
+    fuzzer via the standard waitpid() API.
+    If you're just testing, set 'AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1'.
+
+    To avoid having crashes misinterpreted as timeouts, please log in as root
+    and temporarily modify /proc/sys/kernel/core_pattern, like so:
+
+    echo core >/proc/sys/kernel/core_pattern
+[1;92m[+] [0mDisabling the UI because AFL_NO_UI is set.[0m
+[1;92m[+] [0mYou have 16 CPU cores and 1 runnable tasks (utilization: 6%).[0m
+[1;92m[+] [0mTry parallel jobs - see docs/fuzzing_in_depth.md#c-using-multiple-cores[0m
+[1;94m[*] [0mSetting up output directories...[0m
+[1;93m[!] [1;97mWARNING: [0mNot binding to a CPU core (AFL_NO_AFFINITY set).[0m
+[1;94m[*] [0mScanning '../src/tests/fuzz/corpus/restore'...[0m
+[1;92m[+] [0mLoaded a total of 4 seeds.[0m
+[1;94m[*] [0mCreating hard links for all input files...[0m
+[1;94m[*] [0mValidating target binary...[0m
+[1;92m[+] [0m[1;95mDeferred forkserver binary detected.[0m
+[1;94m[*] [0mSpinning up the fork server...[0m
+[1;92m[+] [0mAll right - fork server is up.[0m
+[1;94m[*] [0mTarget map size: 121987[0m
+[1;94m[*] [0mNo auto-generated dictionary tokens to reuse.[0m
+[1;94m[*] [0mAttempting dry run with 'id:000000,time:0,execs:0,orig:invalid_sequence'...[0m
+[1;90m    len = 49, map size = 944, exec speed = 1720 us, hash = c5b71f1a0cd406dd
+[0m[1;94m[*] [0mAttempting dry run with 'id:000001,time:0,execs:0,orig:mixed_sequence'...[0m
+[1;90m    len = 44, map size = 972, exec speed = 1650 us, hash = 37ca6e560444d695
+[0m[1;94m[*] [0mAttempting dry run with 'id:000002,time:0,execs:0,orig:nested_mapping_error'...[0m
+[1;90m    len = 19, map size = 950, exec speed = 1501 us, hash = 40b545797c4c8f8b
+[0m[1;94m[*] [0mAttempting dry run with 'id:000003,time:0,execs:0,orig:valid_sequence'...[0m
+[1;90m    len = 42, map size = 970, exec speed = 1630 us, hash = d14f4c9c3e0fadb3
+[0m[1;92m[+] [0mAll test cases processed.[0m
+[1;92m[+] [0mHere are some useful stats:
+
+[1;90m    Test case count : [0m4 favored, 0 variable, 0 ignored, 4 total
+[1;90m       Bitmap range : [0m944 to 972 bits (average: 959.00 bits)
+[1;90m        Exec timing : [0m1501 to 1720 us (average: 1625 us)
+[0m
+[1;94m[*] [0mNo -t option specified, so I'll use an exec timeout of 20 ms.[0m
+[1;92m[+] [0mAll set and ready to roll![0m
+[1;94m[*] [0mEntering queue cycle 1.[0m
+[1;94m[*] [0mFuzzing test case #2 (4 total, 0 crashes saved, state: started :-), mode=explore, perf_score=0, weight=0, favorite=1, was_fuzzed=0, exec_us=1501, hits=0, map=950, ascii=0, run_time=0:00:00:00)...[0m
+[1;94m[*] [0mFuzzing test case #3 (4 total, 0 crashes saved, state: started :-), mode=explore, perf_score=100, weight=12, favorite=1, was_fuzzed=0, exec_us=1630, hits=0, map=970, ascii=0, run_time=0:00:00:00)...[0m
+[1;94m[*] [0mFuzzing test case #61 (202 total, 0 crashes saved, state: started :-), mode=explore, perf_score=0, weight=0, favorite=1, was_fuzzed=0, exec_us=1122, hits=12, map=320, ascii=0, run_time=0:00:00:21)...[0m
+[1;94m[*] [0mFuzzing test case #159 (202 total, 0 crashes saved, state: started :-), mode=explore, perf_score=50, weight=19, favorite=1, was_fuzzed=0, exec_us=1381, hits=1, map=322, ascii=0, run_time=0:00:00:21)...[0m
+[1;94m[*] [0mFuzzing test case #58 (207 total, 0 crashes saved, state: started :-), mode=explore, perf_score=50, weight=10, favorite=1, was_fuzzed=0, exec_us=1117, hits=2, map=327, ascii=0, run_time=0:00:00:22)...[0m
+[1;94m[*] [0mFuzzing test case #54 (209 total, 0 crashes saved, state: started :-), mode=explore, perf_score=50, weight=44, favorite=1, was_fuzzed=0, exec_us=1105, hits=1, map=357, ascii=0, run_time=0:00:00:22)...[0m
+[1;94m[*] [0mFuzzing test case #174 (211 total, 0 crashes saved, state: started :-), mode=explore, perf_score=100, weight=30, favorite=1, was_fuzzed=0, exec_us=1190, hits=1, map=901, ascii=0, run_time=0:00:00:22)...[0m
+[1;94m[*] [0mFuzzing test case #227 (232 total, 0 crashes saved, state: started :-), mode=explore, perf_score=0, weight=0, favorite=1, was_fuzzed=0, exec_us=1323, hits=1, map=932, ascii=0, run_time=0:00:00:25)...[0m
+[1;94m[*] [0mFuzzing test case #211 (232 total, 0 crashes saved, state: started :-), mode=explore, perf_score=100, weight=35, favorite=1, was_fuzzed=0, exec_us=1351, hits=2, map=994, ascii=0, run_time=0:00:00:25)...[0m
+[1;94m[*] [0mFuzzing test case #1 (258 total, 0 crashes saved, state: started :-), mode=explore, perf_score=100, weight=29, favorite=1, was_fuzzed=0, exec_us=1650, hits=0, map=972, ascii=0, run_time=0:00:00:44)...[0m
+[?25h[1;91m
+
++++ Testing aborted programmatically +++
+[0m[1;93m[!] [0mTime limit was reached
+[1;94m[*] [0mStatistics: 300 new corpus items found, 1.01% coverage achieved, 0 crashes saved, 0 timeouts saved, total runtime 0 days, 0 hrs, 1 min, 0 sec[0m
+[1;92m[+] [0mWe're done here. Have a nice day!
+[0m

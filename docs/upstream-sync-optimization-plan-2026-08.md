@@ -783,7 +783,7 @@ done
 |---|---|---|---|
 | E1a | contrib：`has_cycle()`、`find_cycles()`、`break_cycles()` | `deferred` | contrib spec、循环图/DAG/closure/mapping 测试 |
 | E1b | develop：`find_orphaned_cycles()`，仅 `DEBUGMALLOC && DEBUGMALLOC_EXTENSIONS` | `deferred` | debugmalloc 专用构建、检测/回收/幂等测试 |
-| E2 | `fuzz_compile`、`fuzz_restore` harness 与 corpus | `deferred` | Clang/libFuzzer 配置、bounded smoke、crash artifact 规则 |
+| E2 | `fuzz_compile`、`fuzz_restore` harness 与 corpus | **`accepted`** | fail-closed 自校准、I/O 负例、AFL++ 4.09c 各 60 秒 bounded smoke；证据 `docs/evidence/e2-fuzzing.md` |
 | E3 | `recompile_object()` 与 master applies | **`blocked`，待专项设计** | 见 §6.1 |
 | E4 | `read_source_line()` 优化（若未在 P3 完成） | `deferred` | 诊断字节一致和编译性能 |
 | T1 | contrib：`get_os_env()`/`set_os_env()` + allowlist | `deferred` | 权限、空值、不可写变量、配置测试 |

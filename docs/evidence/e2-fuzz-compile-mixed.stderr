@@ -1,0 +1,2 @@
+fuzz_compile: compile error: error handler error
+HARNESS_OK target=compile executions=4 chunks=4 success=3 diagnostic=1

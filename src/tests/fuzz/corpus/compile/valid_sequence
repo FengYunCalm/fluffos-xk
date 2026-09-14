@@ -1,0 +1,5 @@
+void create() { }
+#==#
+int answer() { return 42; }
+#==#
+mapping query() { return ([ "ok" : 1 ]); }

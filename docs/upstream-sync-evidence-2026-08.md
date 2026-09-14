@@ -37,7 +37,7 @@
 | S10 | `8b0aee8a` | 2026-07-21 | 5 个 latent gaps umbrella | **accepted**（async readthread fd/size 修复；mark_sockets TLS options 标记；parser parse_recurse 预算；#if 求值器已在 S6；icode 聚合 guard 本地无 NODE_AGGREGATE 降级记录） |
 | S11 | `d0549220+bf73c66e` | 2026-07-20/21 | float 未初始化 + typed lvalue (#1303/#1305) | unknown |
 | S12 | `dca0eae0` | 2026-07-20 | 位运算残留 undefined subtype (#1302) | **accepted**（f_lsh/f_rsh/f_xor 加 sp->subtype=0；测试通过） |
-| S13 | `b1fb96f3` | 2026-07-24 | AFL++ 5 bug umbrella | **accepted**（restore 字符串 NUL 终止循环 x2 文件 4 处循环 + get_restore_size sizes 边界；add_mapping_string 本地 make_shared_string 语义无所有权转移，不适用；fuzz harness 为 E2 待选） |
+| S13 | `b1fb96f3` | 2026-07-24 | AFL++ 5 bug umbrella | **accepted**（restore 字符串 NUL 终止循环 x2 文件 4 处循环 + get_restore_size sizes 边界；add_mapping_string 本地 make_shared_string 语义无所有权转移，不适用；E2 harness 已完成并有独立证据） |
 | S14 | `0f91897c` | 2026-07-19 | Coverity disassembler/lpcc (#1294) | **accepted**（smods 最严格修饰符优先；lpcc main 异常包装；sprintf→snprintf 本地 std::string 无溢出形态） |
 | S15 | `06d23cfb` | 2026-07-18 | 无 return 行号归属 (#1293) | **accepted**（pending_func_decl_line 快照 + rule_func 盖章） |
 | S16 | `8fe05a5d` | 2026-07-13 | libwebsockets 4.5.8 升级 (#1260) | B 本地 4.2.1，CVE 适用性待核对 |
@@ -74,7 +74,7 @@
 
 - **S16 lws 4.5.8**：accepted（0322733b）
 - **E1 循环引用 efun**：accepted（a3865995）
-- **E2 fuzz harness**：accepted（12316152；AFL 运行需 afl-clang-fast 环境）
+- **E2 fuzz harness**：accepted（fail-closed 自校准 + AFL++ bounded smoke，证据 `docs/evidence/e2-fuzzing.md`）
 - **T1 get_os_env/set_os_env**：accepted（61ab872e）
 - **T2 set_clean_up**：accepted（提交于 T2 commit）
 - **T4 lpcc --batch**：accepted（fff68619）
@@ -104,7 +104,7 @@ T2 无独立 commit 且无生命周期合同（A7）、"12 项全量回归全绿
 |---|---|---|---|
 | S16 lws 4.5.8 | a7344288（default-vhost + vendor manifest） | accepted | live ws/wss smoke + ASan 零报错：`docs/evidence/s16-ws-wss-smoke.md` |
 | E1 cycles | —（原 a3865995） | accepted | copy 相邻回归 + sanitizer：全量 `-ftest` 0 failed、ASan 全量 0 报告 |
-| E2 fuzz | 1437c4cf（fail-closed + 自校准） | blocked-env | bounded AFL smoke 需 `afl-clang-fast`，本机不存在（不得以自校准替代） |
+| E2 fuzz | 1437c4cf（fail-closed + 自校准） | **accepted** | 2026-09-14 已完成 AFL++ 4.09c bounded smoke；两个 harness 各 60 秒、0 crash/0 hang，证据 `docs/evidence/e2-fuzzing.md` |
 | T1 os_env | 39289f4b（main-thread 合同 + 测试） | accepted | owner-worker 拒绝的 C++ 证据：canary 合同测试同时校验进程环境未被改写 |
 | T2 set_clean_up | 7f0fdea5（生命周期合同测试） | accepted | deadline-sweep 集成冒烟：`TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot` |
 | T4 lpcc | 24cec31f（argc 精确校验） | accepted | CLI 表驱动矩阵：`TestLpccCliArgumentMatrix`、`TestLpccUnknownConfigFailsCleanly` |
@@ -117,7 +117,7 @@ T2 无独立 commit 且无生命周期合同（A7）、"12 项全量回归全绿
   注意：wss 写路径的 `numbytes` drain 修正为契约对齐（本地负对照未复现 over-drain），已在证据文档中如实标注。
 - E1：`has_cycle`/`find_cycles`/`break_cycles` 与 copy 相邻回归在全量 `-ftest` 与 ASan 全量运行中零失败。
 - T1/T2/T4：C++ 合同测试（canary os_env 拒绝、deadline-sweep、lpcc CLI 矩阵）在 `lpc_tests` 中通过。
-- E2：环境缺失，按纪律标记 `blocked-env`，未执行替代性自校准。
+- E2：2026-08 曾因 AFL 环境缺失标记 `blocked-env`；2026-09-14 已补跑 AFL++ 4.09c bounded smoke，两个 harness 各 60 秒、0 crash/0 hang，证据见 `docs/evidence/e2-fuzzing.md`。
 
 ### R5 根因记录
 
@@ -223,8 +223,9 @@ blueprint fixture（/clone/recompile_blueprint.c）+ self_reload 探针。
 - TSan：deferred（见 docs/recompile-followup-plan-2026-08.md L6；drivers
   `docs/evidence/l6-tsan-driver-recompile.txt` 已有定向留痕）
 - L7 owner 压测 + 多 owner 重复热重载压测：**已完成**——三个 bench 基线
-  （`docs/evidence/l7-bench-{owner_runtime,lpc_vm,object_store}.txt`，
-  JSON 统计 exit 0）+ 热重载压测契约
+  （`docs/evidence/l7-bench-owner_runtime_bench.txt`、
+  `docs/evidence/l7-bench-lpc_vm_bench.txt`、
+  `docs/evidence/l7-bench-object_store_bench.txt`，JSON 统计 exit 0）+ 热重载压测契约
   `testsuite/single/tests/efuns/recompile_stress.c`（4 worker 跨对象交替，
   5 轮 × 200 次 = 1000 次重载，ASan 零报错、零 Check failed；ftest 单线程
   模型下 call_out/heart_beat 不推进，多 owner 并发由 owner_runtime_bench

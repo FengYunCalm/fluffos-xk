@@ -97,7 +97,7 @@ orphan collector 若有需要，按第 2 节的核实流程单独移植，不走
 实现（`external.cc` `f_external_kill()`，与上游逐字一致）、spec
 （`int external_kill(int);`）、文档（`docs/efun/external/external_kill.md`，
 随 `722d8812` 引入）三者齐全。当时的审计子代理无法运行 git，把
-`722d8812` 中 `docs/efun/external/index.md` 的行数变化误读为功能缺失。
+`722d8812` 中 `docs/efun/external/external_kill.md` 的行数变化误读为功能缺失。
 
 P9 中剩余有效的只有两条代码质量建议（取消路径的顺序敏感、TLS 测试平台割
 裂），记录于 CHANGELOG 与本文件，不再作为待办。

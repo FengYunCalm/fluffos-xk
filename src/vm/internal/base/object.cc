@@ -704,7 +704,7 @@ static int restore_mapping(char **str, svalue_t *sv) {
   unsigned long oi;
   char c;
   mapping_t *m;
-  svalue_t key, value;
+  svalue_t key = const0, value = const0;
   mapping_node_t **a, *elt, *elt2;
   char *cp = *str;
   int err;
@@ -731,6 +731,12 @@ static int restore_mapping(char **str, svalue_t *sv) {
   mask = m->table_size;
 
   while (true) {
+    // Key/value ownership is transferred to the mapping node after each
+    // successful pair. Reset both slots before parsing the next pair so an
+    // early syntax error cannot free an uninitialized or already-transferred
+    // svalue from a malformed nested mapping.
+    key = const0;
+    value = const0;
     switch (c = *cp++) {
       case '"': {
         *str = cp;

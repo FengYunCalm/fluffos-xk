@@ -63,8 +63,11 @@ constexpr size_t kMaxChunks = 32;
 // the harness did not exercise restore_variable() and must fail closed.
 int g_restore_success = 0;
 int g_restore_diagnostic = 0;
+int g_restore_executions = 0;
+size_t g_restore_chunks = 0;
 
 void run_chunk(std::string chunk) {
+  ++g_restore_executions;
   error_context_t econ{};
   save_context(&econ);
   try {
@@ -104,6 +107,7 @@ void run_sequence(const std::vector<char>& raw) {
     // truncate the save string exactly like a real one read from a file
     // would if it somehow contained one (LPC strings can't, a fuzzed byte
     // can).
+    ++g_restore_chunks;
     run_chunk(std::string(piece));
     chunks++;
     if (next == std::string_view::npos) break;
@@ -149,7 +153,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  fprintf(stderr, "fuzz_restore: success=%d diagnostic=%d\n", g_restore_success,
+  fprintf(stderr,
+          "HARNESS_OK target=restore executions=%d chunks=%zu success=%d diagnostic=%d\n",
+          g_restore_executions, g_restore_chunks, g_restore_success,
           g_restore_diagnostic);
   return 0;
 }

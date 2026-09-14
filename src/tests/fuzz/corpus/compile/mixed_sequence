@@ -1,0 +1,7 @@
+void create() { }
+#==#
+void create() { int broken = ; }
+#==#
+string answer() { return "mixed"; }
+#==#
+int answer() { return ; }

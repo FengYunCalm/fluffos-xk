@@ -1,0 +1,5 @@
+void create() { int broken = ; }
+#==#
+this is not valid LPC
+#==#
+int answer() { return "wrong"; }

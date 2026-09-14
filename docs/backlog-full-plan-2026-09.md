@@ -34,7 +34,7 @@ gtest 425/425 + ftest 444/444）。S16 的 libwebsockets **本地已是 4.5.8**
 | P2 | 已完成 | compress/嵌套释放/深度限制/load_object 回归 + ASan |
 | P3 | 已完成 | parser/lex/member_array/remove_action/ws 等回归 + live ws smoke |
 | P4 | 已完成 | S16 live ws/wss smoke（docs/evidence/s16-ws-wss-smoke.md）、T1/T2/T4/E1/E3-v2 合同测试 |
-| P4-7 (E2 fuzz) | blocked-env | 需要 afl-clang-fast，本机不存在；corpus 就绪 |
+| P4-7 (E2 fuzz) | 已完成 | AFL++ 4.09c bounded smoke：两个 harness 各 60 秒、0 crash/0 hang；证据见 `docs/evidence/e2-fuzzing.md` |
 | P5 | 已完成 | E3 v2/L7/C-S2 状态改写 + lpcshell 前置修订 |
 | P6 | 已完成 | T3.1-T3.4（docs/evidence/t3-*.md）+ L7 master 轮次（docs/evidence/l7-master-reload-rounds.md） |
 | P7 | 已完成 | num_varargs 契约、libevent 跨线程 self-pipe、LSan 归零（P7-1/2/3 提交） |
@@ -209,9 +209,10 @@ flag——已是垃圾。入口先把 flag 拷入局部。
 | S16 lws smoke | live ws/wss smoke + ASan | **本地已 4.5.8** + default-vhost 修复（`websocket.cc:126-136`）+ vendor manifest；testsuite 无 ws 测试 | 真实 ws/wss 握手收发断开 + ASan 零报错 + evidence 留痕（S） |
 | E3 v2 dropped-name | 删除函数名的运行期报错路径 | `simul_efun.cc:375` 报错在位，零测试覆盖 | 合同测试：删除函数名后旧调用点稳定报错（S） |
 
-**E2 fuzz**（第 7 项）：bounded AFL smoke 需 `afl-clang-fast` 环境；corpus
-目录（`src/tests/fuzz/corpus/`）不存在需建最小集。无环境时按纪律标
-BLOCKED-env，不得以自校准替代。**估计 S-M（环境受限）**。
+**E2 fuzz**（第 7 项）已完成：`src/tests/fuzz/corpus/` 的 compile/restore
+最小集、两个 harness 的 fail-closed 自校准和 I/O 负例，以及 AFL++ 4.09c
+各 60 秒 bounded smoke 均通过；原始输出、`fuzzer_stats` 和退出码见
+`docs/evidence/e2-fuzzing.md`。
 
 ---
 

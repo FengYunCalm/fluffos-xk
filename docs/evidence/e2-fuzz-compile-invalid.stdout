@@ -1,0 +1,28 @@
+Processing config file: etc/config.test
+New Debug log location: "log/debug.log".
+Execution root: ./
+Initializing internal stuff ....
+Event backend in use: epoll
+Loading simul_efun file : /single/simul_efun
+/std/base64.c line 56: Warning: Unused local variable 'p'
+  }
+   ^
+/std/base64.c line 56: Warning: Unused local variable 'rlen'
+  }
+   ^
+/std/number_string.c line 54: Warning: Unused local variable 'parts'
+  }
+   ^
+/std/number_string.c line 54: Warning: Unused local variable 'part'
+  }
+   ^
+Loading master file: /single/master
+/data/fuzz_compile/chunk_0.c line 1: syntax error, unexpected ';'
+  void create() { int broken = ;
+                                ^
+/data/fuzz_compile/chunk_1.c line 1: syntax error, unexpected L_IDENTIFIER, expecting L_ASSIGN or ';' or '(' or ','
+  this is not valid LP
+         ^
+/data/fuzz_compile/chunk_2.c line 1: Type of returned value doesn't match function return type ( string vs int )
+  int answer() { return "wrong";
+                                ^

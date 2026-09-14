@@ -80,7 +80,7 @@ v0.3 的本机复核事实继续有效：A1-A4 静态复验属实；`CFG_INT(70)
 |---|---|---|---|---|---|
 | 1 | `0322733b` | lws 4.5.8（S16） | `blocked` | 漏移植 default vhost adoption；vendor 还存在未说明差异 | 纠正代码、补 manifest、跑 live WebSocket smoke |
 | 2 | `a3865995` | cycles efun（E1） | `conditional` | `cycles.cc` 与上游对应文件一致；三项定向 LPC 测试通过 | 补当前 HEAD sanitizer/相邻 copy 证据，等待全量基线转绿 |
-| 3 | `12316152` | fuzz harness（E2） | `blocked` | `fuzz_compile` scratch 可 no-op；compile/restore 都把 input I/O 失败当空输入并 exit 0 | 受控 scratch、两 harness I/O fail-closed、RAII、计数、自校准 |
+| 3 | `12316152` | fuzz harness（E2） | `accepted` | fail-closed scratch/input、执行计数和自校准已在位；AFL++ bounded smoke 已完成 | 证据：`docs/evidence/e2-fuzzing.md`（两个 harness 各 60 秒，0 crash/0 hang） |
 | 4 | `61ab872e` | OS env efun（T1） | `blocked` | 缺 main-thread/串行化合同，且没有新增 efun LPC 测试 | 限定主线程、补权限/并发/空值测试和配置文档 |
 | 5 | `fff68619` | `lpcc --batch`（T4） | `blocked` | owner-audit 参数检查越界；同时混入无测试的 T2 | 修 argc，补 CLI/T2 合同；不改写已推送历史 |
 | 6 | `eba5b62e` | 收尾证据 | `blocked` | accepted/全绿/T2 commit 归属均与当前事实不符 | 后续单独修订证据文档并绑定原始日志 |
@@ -180,7 +180,7 @@ v0.1 没有选定范围，也没有回答全 VM 静默点、变量布局、commi
 |---|---|---|---|
 | S16 lws 4.5.8 | accepted | `accepted` | 已满足：vhost 修复、vendor manifest、live ws/wss smoke（`docs/evidence/s16-ws-wss-smoke.md`）、ASan 零报告 |
 | E1 cycles | accepted | `accepted` | 已满足：定向测试继续通过，copy 相邻回归和 ASan 全量零报告，全量基线转绿 |
-| E2 fuzz harness | accepted | `blocked-env` | 仅剩 bounded AFL smoke 的 `afl-clang-fast` 环境；不得以自校准替代 |
+| E2 fuzz harness | accepted | `accepted` | AFL++ 4.09c bounded smoke 已通过；两个 harness 各 60 秒、0 crash/0 hang，证据 `docs/evidence/e2-fuzzing.md` |
 | T1 OS env | accepted | `accepted` | 已满足：main-thread 合同、完整 LPC 测试、owner-worker 拒绝的 C++ 证据（canary 合同测试） |
 | T2 `set_clean_up` | accepted | `accepted` | 已满足：deadline/sweep/取消/无 `clean_up`/one-shot 测试与文档，另加 deadline-sweep 集成冒烟 |
 | T4 `lpcc --batch` | accepted | `accepted` | 已满足：argc 修复、CLI 表驱动合同（`TestLpccCliArgumentMatrix`）、batch 回归 |
