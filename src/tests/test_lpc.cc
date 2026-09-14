@@ -22,10 +22,14 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <filesystem>
 #ifndef _WIN32
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #endif
 #include "base/package_api.h"
 #include "base/internal/rc.h"
@@ -27345,11 +27349,24 @@ namespace {
 // directory works.
 std::string LpccTestBuildDir() {
   static const std::string build_dir = [] {
+    std::filesystem::path exe;
+#ifdef __APPLE__
+    uint32_t size = 0;
+    if (_NSGetExecutablePath(nullptr, &size) != -1 || size == 0) {
+      return std::string();
+    }
+    std::string buffer(size, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+      return std::string();
+    }
+    exe = std::filesystem::path(buffer.c_str());
+#else
     std::error_code ec;
-    auto exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    exe = std::filesystem::read_symlink("/proc/self/exe", ec);
     if (ec) {
       return std::string();
     }
+#endif
     // <build>/src/tests/lpc_tests -> <build>
     return exe.parent_path().parent_path().parent_path().string();
   }();
