@@ -49,7 +49,7 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
     p = strput(buf, end, "Multiple access modifiers (");
     p = get_type_modifiers(p, end, acc_mod);
     p = strput(p, end, ") for inheritance");
-    yyerror(buf);
+    yyerror("%s", buf);
   }
 #endif
 
@@ -134,7 +134,7 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
     p = strput(buf, end, "Multiple access modifiers (");
     p = get_type_modifiers(p, end, flags);
     p = strput(p, end, ") for function");
-    yyerror(buf);
+    yyerror("%s", buf);
   }
 #endif
 

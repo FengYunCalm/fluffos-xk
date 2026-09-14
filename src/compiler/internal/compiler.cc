@@ -879,7 +879,7 @@ void type_error(const char *str, int type) {
   p = strput(p, end, ": \"");
   p = get_type_name(p, end, type);
   p = strput(p, end, "\"");
-  yyerror(buff);
+  yyerror("%s", buff);
 }
 
 /*
@@ -1212,7 +1212,7 @@ int define_new_function(const char *name, int num_arg, int num_local, int flags,
           p = strput(p, end, "current function in return type ");
           p = get_two_types(p, end, funtype, type);
 
-          yywarn(buff);
+          yywarn("%s", buff);
         }
 
         for (i = 0; i < num_arg; i++) {
@@ -1786,7 +1786,7 @@ int validate_function_call(int f, parse_node_t *args) {
           p = strput(p, end, funp->funcname);
           p = strput(p, end, " ");
           p = get_two_types(p, end, arg_types[i], tmp);
-          yyerror(buff);
+          yyerror("%s", buff);
         }
         enode = enode->r.expr;
       }
@@ -2939,7 +2939,7 @@ void prepare_cases(parse_node_t *pn, int start) {
       }
       p = strput_int(p, end, l2);
       p = strput(p, end, ".");
-      yyerror(buf);
+      yyerror("%s", buf);
     }
     (*(ce - 1))->l.expr = *ce;
     if ((*ce)->v.expr) {

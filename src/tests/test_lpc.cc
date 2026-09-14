@@ -26035,6 +26035,43 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   EXPECT_EQ(compiler_diag::records_outside_scope(), outside_before);
 }
 
+TEST_F(DriverTest, TestCompilerDiagnosticsTreatPrecomposedPercentMessagesAsText) {
+  // Overload warnings are assembled from program filenames.  A filename may
+  // contain '%', so the completed warning must be passed as data rather than
+  // interpreted as a printf format string.
+  compiler_diag::clear();
+  const char *base_path = "clone/diag_percent%base.c";
+  PathCleanupGuard base_file_guard{base_path};
+  std::ofstream base_file(base_path, std::ios::trunc);
+  ASSERT_TRUE(base_file.good());
+  base_file << "void dummy() { }\n";
+  base_file.close();
+  ASSERT_TRUE(base_file.good());
+  object_t *base = load_object_for_test("clone/diag_percent%base");
+  ASSERT_NE(base, nullptr);
+  std::istringstream stream(
+      "inherit \"/clone/diag_percent%base\";\n"
+      "inherit \"/clone/diag_percent%base\";\n"
+      "void create() { }\n");
+  program_t *program = compile_file(std::make_unique<IStreamLexStream>(stream),
+                                     "clone/diag_percent%root");
+  ASSERT_NE(program, nullptr);
+
+  bool found_percent_filename = false;
+  for (size_t i = 0; i < compiler_diag::size(); i++) {
+    const auto &diagnostic = compiler_diag::at(i);
+    if (diagnostic.message != nullptr &&
+        std::string(diagnostic.message).find("diag_percent%base") != std::string::npos) {
+      found_percent_filename = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_percent_filename)
+      << "the duplicate-inherit warning must preserve the percent-containing filename";
+  deallocate_program(program);
+  destruct_object_for_test(base);
+}
+
 TEST_F(DriverTest, TestDiagnosticRenderingGoldenStylesAndSnippets) {
   // T3.3 golden: read_source_line() plus both render styles over a fixture the
   // renderer can read back from disk. Fixtures live under the testsuite's

@@ -2932,7 +2932,7 @@ yyreduce:
           p = get_two_types(p, end, type, (yyvsp[0].node)->type);
           p = strput(p, end, " when initializing ");
           p = strput(p, end, (yyvsp[-2].string));
-          yyerror(buff);
+          yyerror("%s", buff);
         }
       } else type = 0;
       (yyvsp[0].node) = do_promotions((yyvsp[0].node), type);
@@ -3044,7 +3044,7 @@ yyreduce:
         p = strput(p, end, " when initializing ");
         p = strput(p, end, (yyvsp[-2].string));
 
-        yyerror(buff);
+        yyerror("%s", buff);
       }
 
       (yyvsp[0].node) = do_promotions((yyvsp[0].node), type);
@@ -3089,7 +3089,7 @@ yyreduce:
         p = strput(buff, end, "Type mismatch ");
         p = get_two_types(p, end, type, (yyvsp[0].node)->type);
         p = strput(p, end, " when initializing.");
-        yyerror(buff);
+        yyerror("%s", buff);
       }
 
       (yyvsp[0].node) = do_promotions((yyvsp[0].node), type);
@@ -3335,7 +3335,7 @@ yyreduce:
           p = strput(buf, end, "'");
           p = strput(p, end, (yyvsp[0].ihe)->name);
           p = strput(p, end, "' is not a local or a global variable.");
-          yyerror(buf);
+          yyerror("%s", buf);
           CREATE_OPCODE_1((yyval.decl).node, F_GLOBAL_LVALUE, 0, 0);
         }
       (yyval.decl).num = 0;
@@ -3367,7 +3367,7 @@ yyreduce:
       p = strput(buf, end, "'");
       p = strput(p, end, (yyvsp[0].string));
       p = strput(p, end, "' is not a local or a global variable.");
-      yyerror(buf);
+      yyerror("%s", buf);
       CREATE_OPCODE_1((yyval.decl).node, F_GLOBAL_LVALUE, 0, 0);
       scratch_free((yyvsp[0].string));
       (yyval.decl).num = 0;
@@ -3856,7 +3856,7 @@ yyreduce:
           p = strput(buf, end, "Bad assignment ");
           p = get_two_types(p, end, l->type, r->type);
           p = strput(p, end, ".");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
         CREATE_LOGICAL_ASSIGN((yyval.node), opcode, l, r);
       } else {
@@ -3900,7 +3900,7 @@ yyreduce:
           p = strput(buf, end, "Bad assignment ");
           p = get_two_types(p, end, l->type, r->type);
           p = strput(p, end, ".");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
 
         if (opcode == F_ASSIGN)
@@ -3932,7 +3932,7 @@ yyreduce:
         p = strput(buf, end, "Types in ?: do not match ");
         p = get_two_types(p, end, p1->type, p2->type);
         p = strput(p, end, ".");
-        yywarn(buf);
+        yywarn("%s", buf);
       }
 
       /* optimize if last expression did F_NOT */
@@ -3995,7 +3995,7 @@ yyreduce:
             p = strput(buf, end, "Incompatible types for | ");
             p = get_two_types(p, end, t1, t3);
             p = strput(p, end, ".");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           t1 = TYPE_ANY | TYPE_MOD_ARRAY;
         }
@@ -4031,7 +4031,7 @@ yyreduce:
             p = strput(buf, end, "Incompatible types for & ");
             p = get_two_types(p, end, t1, t3);
             p = strput(p, end, ".");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           t1 = TYPE_ANY | TYPE_MOD_ARRAY;
         }
@@ -4052,7 +4052,7 @@ yyreduce:
         p = strput(buf, end, "== always false because of incompatible types ");
         p = get_two_types(p, end, (yyvsp[-2].node)->type, (yyvsp[0].node)->type);
         p = strput(p, end, ".");
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       /* x == 0 -> !x */
       if (IS_NODE((yyvsp[-2].node), NODE_NUMBER, 0)) {
@@ -4078,7 +4078,7 @@ yyreduce:
         p = strput(buf, end, "!= always true because of incompatible types ");
         p = get_two_types(p, end, (yyvsp[-2].node)->type, (yyvsp[0].node)->type);
         p = strput(p, end, ".");
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       CREATE_BINARY_OP((yyval.node), F_NE, TYPE_NUMBER, (yyvsp[-2].node), (yyvsp[0].node));
     }
@@ -4103,7 +4103,7 @@ yyreduce:
           p = strput(p, end, "' : \"");
           p = get_type_name(p, end, t1);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!COMP_TYPE(t3, TYPE_NUMBER)
             && !COMP_TYPE(t3, TYPE_STRING)) {
           char buf[256];
@@ -4115,7 +4115,7 @@ yyreduce:
           p = strput(p, end, "' : \"");
           p = get_type_name(p, end, t3);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!compatible_types2(t1,t3)) {
           char buf[256];
           char *end = EndOf(buf);
@@ -4125,7 +4125,7 @@ yyreduce:
           p = strput(p, end, query_instr_name((yyvsp[-1].number)));
           p = strput(p, end, " do not have compatible types : ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
         }
       }
       CREATE_BINARY_OP((yyval.node), (yyvsp[-1].number), TYPE_NUMBER, (yyvsp[-2].node), (yyvsp[0].node));
@@ -4148,7 +4148,7 @@ yyreduce:
           p = strput(buf, end, "Bad left argument to '<' : \"");
           p = get_type_name(p, end, t1);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!COMP_TYPE(t3, TYPE_NUMBER)
             && !COMP_TYPE(t3, TYPE_STRING)) {
           char buf[200];
@@ -4158,7 +4158,7 @@ yyreduce:
           p = strput(buf, end, "Bad right argument to '<' : \"");
           p = get_type_name(p, end, t3);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!compatible_types2(t1,t3)) {
           char buf[256];
           char *end = EndOf(buf);
@@ -4166,7 +4166,7 @@ yyreduce:
 
           p = strput(buf, end, "Arguments to < do not have compatible types : ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
         }
       }
       CREATE_BINARY_OP((yyval.node), F_LT, TYPE_NUMBER, (yyvsp[-2].node), (yyvsp[0].node));
@@ -4259,7 +4259,7 @@ yyreduce:
 
                   p = strput(buf, end, "Invalid argument types to '+' ");
                   p = get_two_types(p, end, t1, t3);
-                  yyerror(buf);
+                  yyerror("%s", buf);
                   result_type = TYPE_ANY;
                 }
               }
@@ -4421,7 +4421,7 @@ yyreduce:
 
           p = strput(buf, end, "Invalid types to '-' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -4507,7 +4507,7 @@ yyreduce:
 
           p = strput(buf, end, "Invalid types to '*' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -4593,7 +4593,7 @@ yyreduce:
 
           p = strput(buf, end, "Invalid types to '/' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -4679,7 +4679,7 @@ yyreduce:
         p = get_type_name(p, end, (yyvsp[0].node)->type);
         p = strput(p, end, "to ");
         p = get_type_name(p, end, (yyvsp[-1].number));
-        yyerror(buf);
+        yyerror("%s", buf);
       }
     }
 #line 4686 "src/compiler/internal/grammar.autogen.cc"
@@ -4877,7 +4877,7 @@ yyreduce:
 
         p = strput(buf, end, "Type of returned value doesn't match function return type ");
         p = get_two_types(p, end, (yyvsp[-1].node)->type, exact_types);
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       if (IS_NODE((yyvsp[-1].node), NODE_NUMBER, 0)) {
         CREATE_RETURN((yyval.node), 0);
@@ -5167,7 +5167,7 @@ yyreduce:
             p = strput(buf, end, "Illegal to use private variable '");
             p = strput(p, end, (yyvsp[0].ihe)->name);
             p = strput(p, end, "'");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
         } else if ((yyvsp[0].ihe)->dn.function_num != -1) {
           /* Local function - create function pointer */
@@ -5212,7 +5212,7 @@ yyreduce:
             add_local_name((yyvsp[0].ihe)->name, TYPE_ANY);
           }
           CREATE_ERROR((yyval.node));
-          yyerror(buf);
+          yyerror("%s", buf);
         }
     }
 #line 5219 "src/compiler/internal/grammar.autogen.cc"
@@ -5616,7 +5616,7 @@ yyreduce:
             p = strput(buf, end, "Illegal to use private variable '");
             p = strput(p, end, VAR_TEMP((yyval.node)->l.expr->l.number)->name);
             p = strput(p, end, "'");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           break;
         default:
@@ -5663,7 +5663,7 @@ yyreduce:
 
                               p = strput(bff, end, "Too many arguments to ");
                               p = strput(p, end, predefs[f].word);
-                              yyerror(bff);
+                              yyerror("%s", bff);
                             }
                           } else if (max_arg != -1 && exact_types) {
                             /*
@@ -5690,7 +5690,7 @@ yyreduce:
                                 p = strput(p, end, " to efun ");
                                 p = strput(p, end, predefs[f].word);
                                 p = strput(p, end, "()");
-                                yyerror(buf);
+                                yyerror("%s", buf);
                               } else {
                                 /* this little section necessary b/c in the
                                    case float | int we dont want to do
@@ -6060,7 +6060,7 @@ yyreduce:
         p = strput(buf, end, "Undefined class '");
         p = strput(p, end, (yyvsp[-2].ihe)->name);
         p = strput(p, end, "'");
-        yyerror(buf);
+        yyerror("%s", buf);
         CREATE_ERROR((yyval.node));
         node = (yyvsp[-1].node);
         while (node) {
@@ -6097,7 +6097,7 @@ yyreduce:
       p = strput(buf, end, "Undefined class '");
       p = strput(p, end, (yyvsp[-2].string));
       p = strput(p, end, "'");
-      yyerror(buf);
+      yyerror("%s", buf);
       CREATE_ERROR((yyval.node));
       node = (yyvsp[-1].node);
       while (node) {
@@ -6198,7 +6198,7 @@ yyreduce:
           p = strput(buf, end, "Illegal to use private variable '");
           p = strput(p, end, (yyvsp[-4].ihe)->name);
           p = strput(p, end, "'");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
         
         /* Generate evaluate(func_var, args...) */

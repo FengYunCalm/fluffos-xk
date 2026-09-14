@@ -629,7 +629,7 @@ new_name:
           p = get_two_types(p, end, type, $4->type);
           p = strput(p, end, " when initializing ");
           p = strput(p, end, $2);
-          yyerror(buff);
+          yyerror("%s", buff);
         }
       } else type = 0;
       $4 = do_promotions($4, type);
@@ -724,7 +724,7 @@ new_local_def:
         p = strput(p, end, " when initializing ");
         p = strput(p, end, $2);
 
-        yyerror(buff);
+        yyerror("%s", buff);
       }
 
       $4 = do_promotions($4, type);
@@ -767,7 +767,7 @@ single_new_local_def_with_init:
         p = strput(buff, end, "Type mismatch ");
         p = get_two_types(p, end, type, $3->type);
         p = strput(p, end, " when initializing.");
-        yyerror(buff);
+        yyerror("%s", buff);
       }
 
       $3 = do_promotions($3, type);
@@ -962,7 +962,7 @@ foreach_var:
           p = strput(buf, end, "'");
           p = strput(p, end, $1->name);
           p = strput(p, end, "' is not a local or a global variable.");
-          yyerror(buf);
+          yyerror("%s", buf);
           CREATE_OPCODE_1($$.node, F_GLOBAL_LVALUE, 0, 0);
         }
       $$.num = 0;
@@ -986,7 +986,7 @@ foreach_var:
       p = strput(buf, end, "'");
       p = strput(p, end, $1);
       p = strput(p, end, "' is not a local or a global variable.");
-      yyerror(buf);
+      yyerror("%s", buf);
       CREATE_OPCODE_1($$.node, F_GLOBAL_LVALUE, 0, 0);
       scratch_free($1);
       $$.num = 0;
@@ -1345,7 +1345,7 @@ expr0:
           p = strput(buf, end, "Bad assignment ");
           p = get_two_types(p, end, l->type, r->type);
           p = strput(p, end, ".");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
         CREATE_LOGICAL_ASSIGN($$, opcode, l, r);
       } else {
@@ -1389,7 +1389,7 @@ expr0:
           p = strput(buf, end, "Bad assignment ");
           p = get_two_types(p, end, l->type, r->type);
           p = strput(p, end, ".");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
 
         if (opcode == F_ASSIGN)
@@ -1413,7 +1413,7 @@ expr0:
         p = strput(buf, end, "Types in ?: do not match ");
         p = get_two_types(p, end, p1->type, p2->type);
         p = strput(p, end, ".");
-        yywarn(buf);
+        yywarn("%s", buf);
       }
 
       /* optimize if last expression did F_NOT */
@@ -1460,7 +1460,7 @@ expr0:
             p = strput(buf, end, "Incompatible types for | ");
             p = get_two_types(p, end, t1, t3);
             p = strput(p, end, ".");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           t1 = TYPE_ANY | TYPE_MOD_ARRAY;
         }
@@ -1488,7 +1488,7 @@ expr0:
             p = strput(buf, end, "Incompatible types for & ");
             p = get_two_types(p, end, t1, t3);
             p = strput(p, end, ".");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           t1 = TYPE_ANY | TYPE_MOD_ARRAY;
         }
@@ -1505,7 +1505,7 @@ expr0:
         p = strput(buf, end, "== always false because of incompatible types ");
         p = get_two_types(p, end, $1->type, $3->type);
         p = strput(p, end, ".");
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       /* x == 0 -> !x */
       if (IS_NODE($1, NODE_NUMBER, 0)) {
@@ -1527,7 +1527,7 @@ expr0:
         p = strput(buf, end, "!= always true because of incompatible types ");
         p = get_two_types(p, end, $1->type, $3->type);
         p = strput(p, end, ".");
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       CREATE_BINARY_OP($$, F_NE, TYPE_NUMBER, $1, $3);
     }
@@ -1548,7 +1548,7 @@ expr0:
           p = strput(p, end, "' : \"");
           p = get_type_name(p, end, t1);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!COMP_TYPE(t3, TYPE_NUMBER)
             && !COMP_TYPE(t3, TYPE_STRING)) {
           char buf[256];
@@ -1560,7 +1560,7 @@ expr0:
           p = strput(p, end, "' : \"");
           p = get_type_name(p, end, t3);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!compatible_types2(t1,t3)) {
           char buf[256];
           char *end = EndOf(buf);
@@ -1570,7 +1570,7 @@ expr0:
           p = strput(p, end, query_instr_name($2));
           p = strput(p, end, " do not have compatible types : ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
         }
       }
       CREATE_BINARY_OP($$, $2, TYPE_NUMBER, $1, $3);
@@ -1589,7 +1589,7 @@ expr0:
           p = strput(buf, end, "Bad left argument to '<' : \"");
           p = get_type_name(p, end, t1);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!COMP_TYPE(t3, TYPE_NUMBER)
             && !COMP_TYPE(t3, TYPE_STRING)) {
           char buf[200];
@@ -1599,7 +1599,7 @@ expr0:
           p = strput(buf, end, "Bad right argument to '<' : \"");
           p = get_type_name(p, end, t3);
           p = strput(p, end, "\"");
-          yyerror(buf);
+          yyerror("%s", buf);
         } else if (!compatible_types2(t1,t3)) {
           char buf[256];
           char *end = EndOf(buf);
@@ -1607,7 +1607,7 @@ expr0:
 
           p = strput(buf, end, "Arguments to < do not have compatible types : ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
         }
       }
       CREATE_BINARY_OP($$, F_LT, TYPE_NUMBER, $1, $3);
@@ -1688,7 +1688,7 @@ expr0:
 
                   p = strput(buf, end, "Invalid argument types to '+' ");
                   p = get_two_types(p, end, t1, t3);
-                  yyerror(buf);
+                  yyerror("%s", buf);
                   result_type = TYPE_ANY;
                 }
               }
@@ -1846,7 +1846,7 @@ expr0:
 
           p = strput(buf, end, "Invalid types to '-' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -1928,7 +1928,7 @@ expr0:
 
           p = strput(buf, end, "Invalid types to '*' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -2006,7 +2006,7 @@ expr0:
 
           p = strput(buf, end, "Invalid types to '/' ");
           p = get_two_types(p, end, t1, t3);
-          yyerror(buf);
+          yyerror("%s", buf);
           result_type = TYPE_ANY;
         }
       } else result_type = TYPE_ANY;
@@ -2088,7 +2088,7 @@ expr0:
         p = get_type_name(p, end, $2->type);
         p = strput(p, end, "to ");
         p = get_type_name(p, end, $1);
-        yyerror(buf);
+        yyerror("%s", buf);
       }
     }
   | L_INC lvalue  %prec L_NOT  /* note lower precedence here */
@@ -2255,7 +2255,7 @@ return:
 
         p = strput(buf, end, "Type of returned value doesn't match function return type ");
         p = get_two_types(p, end, $2->type, exact_types);
-        yyerror(buf);
+        yyerror("%s", buf);
       }
       if (IS_NODE($2, NODE_NUMBER, 0)) {
         CREATE_RETURN($$, 0);
@@ -2510,7 +2510,7 @@ expr4:
             p = strput(buf, end, "Illegal to use private variable '");
             p = strput(p, end, $1->name);
             p = strput(p, end, "'");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
         } else if ($1->dn.function_num != -1) {
           /* Local function - create function pointer */
@@ -2555,7 +2555,7 @@ expr4:
             add_local_name($1->name, TYPE_ANY);
           }
           CREATE_ERROR($$);
-          yyerror(buf);
+          yyerror("%s", buf);
         }
     }
   | L_IDENTIFIER
@@ -2891,7 +2891,7 @@ expr4:
             p = strput(buf, end, "Illegal to use private variable '");
             p = strput(p, end, VAR_TEMP($$->l.expr->l.number)->name);
             p = strput(p, end, "'");
-            yyerror(buf);
+            yyerror("%s", buf);
           }
           break;
         default:
@@ -2934,7 +2934,7 @@ expr4:
 
                               p = strput(bff, end, "Too many arguments to ");
                               p = strput(p, end, predefs[f].word);
-                              yyerror(bff);
+                              yyerror("%s", bff);
                             }
                           } else if (max_arg != -1 && exact_types) {
                             /*
@@ -2961,7 +2961,7 @@ expr4:
                                 p = strput(p, end, " to efun ");
                                 p = strput(p, end, predefs[f].word);
                                 p = strput(p, end, "()");
-                                yyerror(buf);
+                                yyerror("%s", buf);
                               } else {
                                 /* this little section necessary b/c in the
                                    case float | int we dont want to do
@@ -3259,7 +3259,7 @@ function_call:
         p = strput(buf, end, "Undefined class '");
         p = strput(p, end, $4->name);
         p = strput(p, end, "'");
-        yyerror(buf);
+        yyerror("%s", buf);
         CREATE_ERROR($$);
         node = $5;
         while (node) {
@@ -3292,7 +3292,7 @@ function_call:
       p = strput(buf, end, "Undefined class '");
       p = strput(p, end, $4);
       p = strput(p, end, "'");
-      yyerror(buf);
+      yyerror("%s", buf);
       CREATE_ERROR($$);
       node = $5;
       while (node) {
@@ -3385,7 +3385,7 @@ function_call:
           p = strput(buf, end, "Illegal to use private variable '");
           p = strput(p, end, $1->name);
           p = strput(p, end, "'");
-          yyerror(buf);
+          yyerror("%s", buf);
         }
         
         /* Generate evaluate(func_var, args...) */
