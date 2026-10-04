@@ -2,6 +2,14 @@
 
 #include "vm/context.h"
 
+#include <cstdio>
+
+OwnerRuntimeCoordinator::~OwnerRuntimeCoordinator() {
+#ifdef _WIN32
+  std::fprintf(stderr, "OwnerRuntimeCoordinator destructor\\n");
+#endif
+}
+
 OwnerRuntimeMetrics &OwnerRuntimeCoordinator::metrics() { return metrics_; }
 
 OwnerFutureStore &OwnerRuntimeCoordinator::futures() { return futures_; }

@@ -44,6 +44,8 @@ struct OwnerRuntimeCounterSnapshot {
 
 class OwnerRuntimeCoordinator {
  public:
+  ~OwnerRuntimeCoordinator();
+
   OwnerRuntimeMetrics &metrics();
   OwnerFutureStore &futures();
   OwnerSchedulerState &scheduler();
