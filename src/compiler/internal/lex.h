@@ -136,6 +136,14 @@ char *get_defined_name(defined_name_t *);
 ident_hash_elem_t *find_or_add_ident(const char *, int);
 ident_hash_elem_t *find_or_add_perm_ident(const char *);
 ident_hash_elem_t *lookup_ident(const char *);
+// Find a permanent identifier without requiring a positive semantic reference.
+// This is read-only and includes inactive/orphan entries retained by cumulative
+// dispatch tables; it never moves the hash cursor or allocates.
+ident_hash_elem_t *lookup_perm_ident(const char *);
+// Remove one transaction-provisional permanent identifier without allocating.
+// The caller must own the exact node and keep its name string alive until this
+// function returns; ordinary permanent/active identifiers are rejected.
+bool remove_perm_ident(ident_hash_elem_t *);
 void free_unused_identifiers(void);
 void init_identifiers(void);
 char *show_error_context(void);

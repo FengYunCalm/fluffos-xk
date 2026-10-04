@@ -1,0 +1,43 @@
+// Fixtures for the VM temporary-stack accounting regression. A foreach opens
+// temporary values above the current frame; an error bypasses F_EXIT_FOREACH,
+// so the unwind must restore the counter to the caller's boundary.
+
+private void thrower() {
+  foreach (int i in ({ 1, 2, 3 })) {
+    error("boom");
+  }
+}
+
+int caught_in_foreach() {
+  return !!catch(thrower());
+}
+
+private void nested_thrower() {
+  foreach (int i in ({ 1, 2 })) {
+    thrower();
+  }
+}
+
+int caught_in_nested_foreach() {
+  return !!catch(nested_thrower());
+}
+
+int error_in_foreach() {
+  thrower();
+  return 0;
+}
+
+int normal_foreach() {
+  int total;
+  foreach (int i in ({ 1, 2, 3 })) {
+    total += i;
+  }
+  return total;
+}
+
+int return_inside_foreach() {
+  foreach (int i in ({ 1, 2, 3 })) {
+    return i + 10;
+  }
+  return 0;
+}

@@ -33,6 +33,15 @@ struct OwnerRecompileQuiesceResult {
   OwnerRecompileQuiesceFailure failure{OwnerRecompileQuiesceFailure::kNone};
 };
 
+struct OwnerRuntimeCounterSnapshot {
+  uint64_t active_owner_claims{0};
+  uint64_t quiesce_attempts{0};
+  uint64_t quiesce_success{0};
+  uint64_t quiesce_timeouts{0};
+  uint64_t recompile_epoch{0};
+  uint64_t admission_rejected{0};
+};
+
 class OwnerRuntimeCoordinator {
  public:
   OwnerRuntimeMetrics &metrics();
@@ -60,15 +69,13 @@ class OwnerRuntimeCoordinator {
   // the runtime mutex internally.
   OwnerRecompileState &recompile_state();
 
-  // Read-only counters (F1: observable in runtime status). Mutation happens
-  // only inside the state machine; external code cannot write these.
-  uint64_t active_owner_claims() const;
-  uint64_t quiesce_attempts() const;
-  uint64_t quiesce_success() const;
-  uint64_t quiesce_timeouts() const;
-  uint64_t recompile_epoch() const;
+  // Read-only counters (F1: observable in runtime status). A snapshot is the
+  // only public read surface so related values cannot be observed from
+  // different lock epochs. snapshot_locked() is for existing callers that
+  // already hold mutex(); snapshot() acquires it for external readers.
+  OwnerRuntimeCounterSnapshot snapshot();
+  OwnerRuntimeCounterSnapshot snapshot_locked() const;
   uint64_t advance_recompile_epoch();
-  uint64_t admission_rejected() const;
   // E3 P1: semantic increment points for the quiescence lifecycle. Only
   // these methods (plus the state machine itself) may touch the counters.
   // All _locked variants require the caller to hold the runtime mutex

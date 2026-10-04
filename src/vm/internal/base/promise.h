@@ -169,14 +169,14 @@ struct lpc_coroutine_t {
                               * (setup_new_frame() points current_prog at the
                               * base for an inherited function), which is what
                               * pc_offset / the index offsets are relative to */
-  /* the OWNER's top-level program at park time, i.e. current_object->prog --
-   * NOT ref-held (coro->ob holds the object, which holds its program; and if
-   * replace_program() swaps it, comparing a freed pointer for INEQUALITY is
-   * exactly the staleness answer we want). Distinct from `prog` above: for an
-   * async function defined in an inherited file those differ, so comparing
-   * ob->prog against `prog` would reject every inherited coroutine. */
-  struct program_t* object_prog;
-  uint32_t prog_generation;  /* hot-reload guard (cf. funptr owner_gen) */
+  /* the OWNER's top-level program at park time, i.e. current_object->prog.
+   * It has its own reference below. This is distinct from `prog`: for an async
+   * function defined in an inherited file those differ, so comparing ob->prog
+   * against `prog` would reject every inherited coroutine. Keeping this pin
+   * also makes the replace_program() pointer comparison safe after the old
+   * owner program is detached from the object. */
+  struct program_t* object_prog; /* reference_prog() held independently */
+  uint64_t prog_generation;  /* hot-reload guard (cf. funptr owner_gen) */
   int pc_offset;             /* resume point, relative to prog->program */
   short caller_type;
   int function_index_offset;

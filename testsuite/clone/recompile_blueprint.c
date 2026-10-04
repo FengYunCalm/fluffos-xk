@@ -15,6 +15,11 @@ int version() { return 1; }
 // goes stale when the family program is swapped.
 function make_fp() { return (: version :); }
 
+// A true functional closure must carry the same owner-generation snapshot as
+// a local funptr. The expression form keeps this on FP_FUNCTIONAL and remains
+// bindable so the stale state can be tested across bind().
+function make_functional_fp() { return (: 1 + 0 :); }
+
 // Self-reload probe: a family member calling recompile_object() on its own
 // blueprint must hit the "target program is executing" guard (top-level
 // frame). Returns 1 when the guard fires with the expected message.

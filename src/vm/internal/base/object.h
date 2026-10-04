@@ -97,6 +97,8 @@ void obj_vars_mark(const ObjectVariableBlock *block);
 // Bytes accounted to tot_alloc_object_size for this block's payload.
 size_t obj_vars_accounted_bytes(const ObjectVariableBlock *block) noexcept;
 
+struct funptr_t;
+
 struct object_t {
   uint32_t ref;         /* Reference count. */
   unsigned short flags; /* Bits or'ed together from above */
@@ -118,6 +120,10 @@ struct object_t {
    * live object; funptrs snapshot it so stale function pointers report a
    * stable error instead of resolving indices against the new program. */
   uint64_t prog_generation;
+  /* I05: intrusive weak registry of every function pointer whose owner is
+   * this object. The funptr owns the object reference; this index is only
+   * for transaction pinning and rollback invalidation. */
+  struct funptr_t *funptr_registry_head;
   struct object_t *next_all;
   struct object_t *prev_all;
   struct object_t *next_destruct; /* obj_list_destruct queue link (destruct_object() ->

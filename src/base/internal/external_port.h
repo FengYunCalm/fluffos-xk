@@ -10,7 +10,10 @@
 
 #include <event2/util.h>
 #include <openssl/ssl.h>
+#include <array>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 enum PORT_TYPE {
   PORT_TYPE_UNDEFINED = 0,
@@ -20,6 +23,12 @@ enum PORT_TYPE {
   PORT_TYPE_MUD = 4,
   PORT_TYPE_WEBSOCKET = 5,
   PORT_TYPE_GATEWAY = 6
+};
+
+struct websocket_trusted_proxy_cidr_t {
+  int family = AF_UNSPEC;
+  uint8_t prefix_length = 0;
+  std::array<unsigned char, 16> network{};
 };
 
 struct port_def_t {
@@ -38,6 +47,7 @@ struct port_def_t {
   SSL_CTX* ssl;
   std::string tls_cert;
   std::string tls_key;
+  std::vector<websocket_trusted_proxy_cidr_t> websocket_trusted_proxy_cidrs;
 };
 
 static inline const char* port_kind_name(int kind) {

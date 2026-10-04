@@ -12,6 +12,7 @@
 #include <functional>
 
 #include "packages/core/call_out.h"
+#include "vm/internal/base/function.h"
 
 enum { MAX_RECURSION = 25 };
 
@@ -57,8 +58,7 @@ static void check_svalue(svalue_t *v) {
          * performs the single symmetric decrement. The old manual
          * owner->prog->func_ref-- here double-decremented once
          * dealloc_funp() switched to local.prog (v0.4 §10.3). */
-        free_object(&v->u.fp->hdr.owner, "reclaim_objects");
-        v->u.fp->hdr.owner = nullptr;
+        funptr_detach_owner(v->u.fp);
         cleaned++;
       }
 

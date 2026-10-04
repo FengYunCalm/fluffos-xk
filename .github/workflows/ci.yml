@@ -132,7 +132,7 @@ jobs:
             cxx: g++
             build: Debug
             check_name: Ubuntu GCC Debug
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
           - platform: Ubuntu
             os: ubuntu-24.04
             compiler: gcc
@@ -140,7 +140,7 @@ jobs:
             cxx: g++
             build: RelWithDebInfo
             check_name: Ubuntu GCC RelWithDebInfo
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
 
           # Ubuntu - Clang
           - platform: Ubuntu
@@ -150,7 +150,7 @@ jobs:
             cxx: clang++
             build: Debug
             check_name: Ubuntu Clang Debug
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
           - platform: Ubuntu
             os: ubuntu-24.04
             compiler: clang
@@ -158,7 +158,7 @@ jobs:
             cxx: clang++
             build: RelWithDebInfo
             check_name: Ubuntu Clang RelWithDebInfo
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev
 
           # Ubuntu - Clang with Sanitizer (ASan)
           - platform: Ubuntu
@@ -170,7 +170,7 @@ jobs:
             sanitizer: asan
             cmake_flags: -DENABLE_ASAN=ON -DENABLE_LTO=OFF -DMARCH_NATIVE=OFF
             check_name: Ubuntu Clang ASan Debug
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
           - platform: Ubuntu
             os: ubuntu-24.04
             compiler: clang
@@ -180,7 +180,7 @@ jobs:
             sanitizer: asan
             cmake_flags: -DENABLE_ASAN=ON -DENABLE_LTO=OFF -DMARCH_NATIVE=OFF
             check_name: Ubuntu Clang ASan RelWithDebInfo
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
 
           # Ubuntu - Clang with UBSan
           - platform: Ubuntu
@@ -192,7 +192,7 @@ jobs:
             sanitizer: ubsan
             cmake_flags: -DENABLE_UBSAN=ON -DENABLE_LTO=OFF -DMARCH_NATIVE=OFF
             check_name: Ubuntu Clang UBSan Debug
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
 
           # Ubuntu - Clang with TSan (smaller test set; TSan is incompatible
           # with the full parallel CTest load, see sanitizer test step)
@@ -205,7 +205,7 @@ jobs:
             sanitizer: tsan
             cmake_flags: -DENABLE_TSAN=ON -DENABLE_LTO=OFF -DMARCH_NATIVE=OFF
             check_name: Ubuntu Clang TSan Debug
-            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
+            packages: build-essential autoconf automake bison expect libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev libdw-dev libbz2-dev
 
           # macOS
           - platform: macOS
@@ -213,7 +213,7 @@ jobs:
             build: Debug
             check_name: macOS Debug
             cmake_flags: -DMARCH_NATIVE=OFF -DENABLE_LTO=OFF
-            packages: cmake pkg-config pcre libgcrypt openssl jemalloc icu4c mysql sqlite3 googletest
+            packages: cmake pkg-config pcre2 libgcrypt openssl jemalloc icu4c mysql sqlite3 googletest
             openssl_root: /usr/local/opt/openssl
             icu_root: /opt/homebrew/opt/icu4c
           - platform: macOS
@@ -221,7 +221,7 @@ jobs:
             build: RelWithDebInfo
             check_name: macOS RelWithDebInfo
             cmake_flags: -DMARCH_NATIVE=OFF -DENABLE_LTO=OFF
-            packages: cmake pkg-config pcre libgcrypt openssl jemalloc icu4c mysql sqlite3 googletest
+            packages: cmake pkg-config pcre2 libgcrypt openssl jemalloc icu4c mysql sqlite3 googletest
             openssl_root: /usr/local/opt/openssl
             icu_root: /opt/homebrew/opt/icu4c
 
@@ -233,7 +233,7 @@ jobs:
             check_name: Windows Debug
             cmake_generator: MSYS Makefiles
             cmake_flags: -DMARCH_NATIVE=OFF -DPACKAGE_CRYPTO=OFF -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1
-            packages: mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre mingw-w64-x86_64-icu mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-jemalloc mingw-w64-x86_64-gtest bison make
+            packages: mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre2 mingw-w64-x86_64-icu mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-jemalloc mingw-w64-x86_64-gtest bison make
           - platform: Windows
             os: windows-latest
             shell: msys2 {0}
@@ -241,7 +241,7 @@ jobs:
             check_name: Windows RelWithDebInfo
             cmake_generator: MSYS Makefiles
             cmake_flags: -DMARCH_NATIVE=OFF -DPACKAGE_CRYPTO=OFF -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1
-            packages: mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre mingw-w64-x86_64-icu mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-jemalloc mingw-w64-x86_64-gtest bison make
+            packages: mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre2 mingw-w64-x86_64-icu mingw-w64-x86_64-sqlite3 mingw-w64-x86_64-jemalloc mingw-w64-x86_64-gtest bison make
 
     defaults:
       run:
@@ -394,7 +394,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y build-essential autoconf automake bison expect \
-            libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev \
+            libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev \
             libssl-dev libtool libz-dev telnet libgtest-dev libjemalloc-dev \
             libdw-dev libbz2-dev clang
 

@@ -480,6 +480,8 @@ struct lws_context_creation_info {
 	/**< VHOST: Any bits set here will be set as server SSL options */
 	long ssl_options_clear;
 	/**< VHOST: Any bits set here will be cleared as server SSL options */
+	int ssl_min_proto_version;
+	/**< VHOST: Minimum TLS protocol version, applied by the active TLS backend */
 	int simultaneous_ssl_restriction;
 	/**< CONTEXT: 0 (no limit) or limit of simultaneous SSL sessions
 	 * possible.*/

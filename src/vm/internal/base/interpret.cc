@@ -1591,6 +1591,9 @@ void push_control_stack(int frkind) {
   csp->pc = pc;
   csp->function_index_offset = function_index_offset;
   csp->variable_index_offset = variable_index_offset;
+#ifdef DEBUG
+  csp->save_temporaries = vm_context().execution.stack_in_use_as_temporary;
+#endif
   csp->defers = nullptr;
   csp->trace_id.reset();
 }
@@ -4922,14 +4925,10 @@ const char *function_name(program_t *prog, int findex) {
  * functions exist.  Note that if you actually intend to call the function,
  * it's faster to just try to call it and check if apply() returns zero.
  */
-const char *function_exists(const char *fun, object_t *ob, int flag) {
-  program_t *prog = ob->prog;
-
+const char *function_exists_in_program(const char *fun, program_t *prog, int flag) {
   if (!prog) {
     return nullptr;
   }
-
-  DEBUG_CHECK(ob->flags & O_DESTRUCTED, "function_exists() on destructed object\n");
 
   if (fun[0] == APPLY___INIT_SPECIAL_CHAR) {
     return nullptr;
@@ -4940,13 +4939,24 @@ const char *function_exists(const char *fun, object_t *ob, int flag) {
     return nullptr;
   }
 
-  int flags = ob->prog->function_flags[lookup_result.runtime_index];
+  int flags = prog->function_flags[lookup_result.runtime_index];
   if ((flags & FUNC_UNDEFINED) ||
       (!flag && (flags & (DECL_PROTECTED | DECL_PRIVATE | DECL_HIDDEN)))) {
     return nullptr;
   }
 
   return lookup_result.progp->filename;
+}
+
+const char *function_exists(const char *fun, object_t *ob, int flag) {
+  program_t *prog = ob->prog;
+
+  if (!prog) {
+    return nullptr;
+  }
+
+  DEBUG_CHECK(ob->flags & O_DESTRUCTED, "function_exists() on destructed object\n");
+  return function_exists_in_program(fun, prog, flag);
 }
 
 #ifndef NO_SHADOWS
@@ -5713,6 +5723,7 @@ void save_context(error_context_t *econ) {
   econ->save_csp = csp;
   econ->save_cgsp = cgsp;
   econ->save_context = current_error_context;
+  econ->save_stack_temporary_depth = vm_context().execution.stack_in_use_as_temporary;
 
   vm_context_set_current_error_context(vm_context(), econ);
 }
@@ -5768,4 +5779,5 @@ void restore_context(error_context_t *econ) {
       refp = refp->next;
     }
   }
+  vm_context_set_stack_temporary_depth(vm_context(), econ->save_stack_temporary_depth);
 }

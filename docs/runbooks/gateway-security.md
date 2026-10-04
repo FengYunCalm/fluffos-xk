@@ -54,6 +54,23 @@ grep "Accepting \[Gateway\] connections on 127.0.0.1" <log>
 生产部署建议：master object 的 `valid_sys_reload_tls()` 应默认拒绝，仅对
 受信运维路径（受保护代理、管理入口）放行。
 
+## 4c. WebSocket 代理地址信任
+
+`websocket trusted proxy cidrs` 是可选的启动配置，值为逗号分隔的数字 IPv4/IPv6
+CIDR，默认为空。非法 CIDR 会使启动失败；不执行 DNS 解析，也不默认信任 loopback
+或内网地址。
+
+只有真实 TCP peer 命中配置的 CIDR 时，WebSocket 握手中的唯一、完整、数字
+`X-Real-IP` 才会替换会话地址。非可信 peer 的 `X-Real-IP` 一律忽略；可信 peer
+的缺失头保持真实地址，重复、带逗号、非法或超长头拒绝握手。IPv4-mapped IPv6
+按 IPv4 规范化。配置示例：
+
+```text
+websocket trusted proxy cidrs : 10.0.0.0/8, 2001:db8:1234::/48
+```
+
+不要把客户端网段加入列表。代理必须先验证并清理 `X-Real-IP`，再连接 driver。
+
 ## 5. 资源耗尽边界（Gate A）
 
 | 边界 | 默认 | 验收 |

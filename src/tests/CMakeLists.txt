@@ -16,7 +16,18 @@ if(${GTEST_FOUND})
   target_link_libraries(ofile_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest  GTest::Main)
   target_compile_definitions(ofile_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
 
-  gtest_discover_tests(lpc_tests ofile_tests compile_arena_tests DISCOVERY_TIMEOUT 60)
+  gtest_discover_tests(lpc_tests
+    DISCOVERY_TIMEOUT 60
+    TEST_PREFIX "lpc_tests."
+  )
+  gtest_discover_tests(ofile_tests
+    DISCOVERY_TIMEOUT 60
+    TEST_PREFIX "ofile_tests."
+  )
+  gtest_discover_tests(compile_arena_tests
+    DISCOVERY_TIMEOUT 60
+    TEST_PREFIX "compile_arena_tests."
+  )
 endif()
 
 add_executable(owner_runtime_bench owner_runtime_bench.cc)

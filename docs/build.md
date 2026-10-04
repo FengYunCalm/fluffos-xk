@@ -9,12 +9,12 @@ title: Build
 
 ## Supported Environment
 
-The best platform to build FluffOS is ubuntu 22.04+ (including WSL), macOS latest (both Intel and Apple Silicon), and Windows on MSYS2/MINGW64.
+The best platform to build FluffOS is Ubuntu 24.04+ (including WSL), macOS latest (both Intel and Apple Silicon), and Windows on MSYS2/MINGW64.
 
 **Compilers**: FluffOS uses C++17 and C11, which requires at least GCC 7+ or LLVM clang 4+.
 
 **Tested Configurations** (validated by CI):
-- **Ubuntu 22.04**: GCC and Clang with Debug/RelWithDebInfo builds
+- **Ubuntu 24.04**: GCC and Clang with Debug/RelWithDebInfo builds
 - **macOS 14 (Apple Silicon)**: Clang with Debug/RelWithDebInfo builds
 - **Windows (MSYS2/MINGW64)**: GCC with Debug/RelWithDebInfo builds
 - **Alpine Linux 3.18**: Static builds for Docker containers
@@ -24,11 +24,16 @@ The best platform to build FluffOS is ubuntu 22.04+ (including WSL), macOS lates
 1. **ICU**: FluffOS uses ICU for UTF-8 and transcoding support.
 2. **jemalloc**: Release build use JEMALLOC by default, and is highly recommended in production.
 3. **OpenSSL** (if PACKAGE_CRYPTO enabled) - Note: typically disabled on Windows
-4. **PCRE** (if PACKAGE_PCRE enabled)
+4. **PCRE2 10.42+** (if PACKAGE_PCRE enabled; the 8-bit `pcre2-8` library)
 5. **MysqlClient** (if PACKAGE_DB enabled with MySQL support)
 6. **SQLite3** (if PACKAGE_DB_SQLITE enabled)
 7. **PostgreSQL** (if PACKAGE_DB enabled with PostgreSQL support)
 8. **GoogleTest** (for running unit tests)
+
+`PACKAGE_PCRE=ON` requires PCRE2 10.42 or newer, `pcre2.h`, and the 8-bit
+`pcre2-8` library. CMake rejects a stale PCRE1 header or library cache instead
+of silently linking the old `pcre` library. Set `PACKAGE_PCRE=OFF` for a build
+that does not provide PCRE2.
 
 Bundled thirdparty library (no need to install):
 
@@ -49,7 +54,7 @@ This is the best linux distro to build & run FluffOS, support for other distro i
 ```shell
 $ sudo apt update
 $ sudo apt install -y build-essential autoconf automake bison expect \
-  libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev \
+  libmysqlclient-dev libpcre2-dev libpq-dev libsqlite3-dev \
   libssl-dev libtool libz-dev telnet libjemalloc-dev libicu-dev \
   libgtest-dev
 ```
@@ -132,7 +137,7 @@ If not already installed, goto <https://brew.sh/> and follow instructions!
 ### Install Dependencies
 
 ```shell
-$ brew install cmake pkg-config mysql pcre libgcrypt openssl jemalloc icu4c \
+$ brew install cmake pkg-config mysql pcre2 libgcrypt openssl jemalloc icu4c \
   sqlite3 googletest
 ```
 
@@ -203,7 +208,7 @@ You may need to close and reopen the MSYS2 window. Keep running the update comma
 ```shell
 $ pacman --noconfirm -S --needed \
   git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake \
-  mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre \
+  mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre2 \
   mingw-w64-x86_64-icu mingw-w64-x86_64-sqlite3 \
   mingw-w64-x86_64-jemalloc mingw-w64-x86_64-gtest \
   bison make
@@ -360,7 +365,7 @@ Alpine Linux is used for building static binaries suitable for Docker containers
 $ apk add --no-cache linux-headers gcc g++ clang-dev make cmake bash \
     mariadb-dev mariadb-static postgresql-dev sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static zlib-dev zlib-static icu-dev icu-static \
-    pcre-dev bison git musl-dev libelf-static elfutils-dev \
+    pcre2-dev pcre2-static bison git musl-dev libelf-static elfutils-dev \
     zstd-static bzip2-static xz-static
 ```
 

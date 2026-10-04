@@ -1,46 +1,49 @@
-/* OVECCOUNT is the return vector of matches.
-   ovector[0] = start of entire match
-   ovector[1] = end of entire match
-   ovector[2] = start of first capture group
-   ovector[3] = end of first capture group
-   ovector[4] = start of second capture group
-     etc
-
-The maximum number of capturing groups is:
-   (n+1)*3
-*/
+/* PCRE2 match offsets are byte offsets into the subject. Each capture uses
+ * two entries in the copied ovector: start and end. PCRE2_UNSET marks an
+ * optional capture that did not participate. */
 #ifndef PACKAGS_PCRE_H
 #define PACKAGS_PCRE_H
 
 #define PCRE_CACHE_SIZE 256
+#ifndef PCRE2_CODE_UNIT_WIDTH
+#define PCRE2_CODE_UNIT_WIDTH 8
+#endif
 
-#include <pcre.h>
+#include <cstddef>
+#include <cstdint>
+
+#include <pcre2.h>
+
+struct pcre_cache_bucket_t;
 
 typedef struct {
-  pcre *re;
-  const char *error;
+  pcre2_code *re;
+  char error[256];
   const char *pattern;
   const char *subject;
-  unsigned char *name_table;
-  size_t s_length;
-  int erroffset;
-  int find_all;
-  int namecount;
-  int name_entry_size;
-  int compile_flags;
-  int exec_flags;
-  int *ovector;
-  int ovecsize;
+  PCRE2_SPTR name_table;
+  PCRE2_SIZE s_length;
+  PCRE2_SIZE erroffset;
+  PCRE2_SIZE start_offset;
+  uint32_t namecount;
+  uint32_t name_entry_size;
+  uint32_t compile_flags;
+  uint32_t exec_flags;
+  PCRE2_SIZE *ovector;
+  PCRE2_SIZE ovecsize;
   int rc;
-  /* EXTRA */
+  struct pcre_cache_bucket_t *cache_entry;
 } pcre_t;
 
 struct pcre_cache_bucket_t {
-  pcre *compiled_pattern;  // value1
-  const char *pattern;     // key
-  int compile_flags;       // compile options used
-  int size;                // size in bytes
+  pcre2_code *compiled_pattern;
+  const char *pattern;
+  uint32_t compile_flags;
+  size_t size;
+  unsigned int borrowers;
+  int detached;
   struct pcre_cache_bucket_t *next;
+  struct pcre_cache_bucket_t *detached_next;
 };
 
 struct pcre_cache_t {

@@ -1,6 +1,10 @@
 #ifndef FUNCTION_H
 #define FUNCTION_H
 
+#include <cstdint>
+
+class RecompileExecutionContext;
+
 /* It is usually better to include "lpc_incl.h" instead of including this
    directly */
 
@@ -41,11 +45,29 @@ struct funptr_hdr_t {
 #endif
   struct object_t *owner;
   struct array_t *args;
-  /* E3 P2: owner->prog_generation at creation/bind time. FP_LOCAL and
-   * FP_FUNCTIONAL call paths compare generations and report a stable
-   * stale-function-pointer error after recompile_object() swaps programs;
-   * a fresh funptr snapshots the new generation. */
+  /* E3 P2/I01: owner->prog_generation at creation/bind time. Every kind
+   * snapshots it through initialize_funp_header; FP_LOCAL and FP_FUNCTIONAL
+   * compare it before dispatch and report a stable stale-pointer error after
+   * recompile_object() swaps programs. */
   uint64_t owner_gen;
+  /* I05: a newborn pointer is staged until the transaction succeeds; a
+   * failed transaction changes it permanently to Invalid. */
+  enum class lifecycle_state : uint8_t { Live, StagedBorn, Invalid };
+  lifecycle_state state;
+  /* Every live funptr is linked into its owner's weak registry. */
+  bool registry_linked;
+  struct funptr_t *registry_prev;
+  struct funptr_t *registry_next;
+  /* The shared recompile birth journal holds one temporary reference. */
+  RecompileExecutionContext *birth_context;
+  struct funptr_t *birth_prev;
+  struct funptr_t *birth_next;
+  /* Existing target pointers receive a separate prepare pin. This link is
+   * independent of the owner registry so destruct cleanup can unlink the
+   * owner without losing the transaction's reference. */
+  RecompileExecutionContext *transaction_pin_context;
+  struct funptr_t *transaction_pin_prev;
+  struct funptr_t *transaction_pin_next;
 };
 
 struct funptr_t {
@@ -63,6 +85,11 @@ union string_or_func {
   const char *s;
 };
 
+void initialize_funp_header(funptr_t *, short, struct object_t *, bool retain_owner_ref = true);
+void funptr_register(funptr_t *) noexcept;
+void funptr_unlink(funptr_t *) noexcept;
+void funptr_detach_owner(funptr_t *) noexcept;
+void funptr_detach_all_for_object(struct object_t *) noexcept;
 void dealloc_funp(funptr_t *);
 void push_refed_funp(funptr_t *);
 void push_funp(funptr_t *);

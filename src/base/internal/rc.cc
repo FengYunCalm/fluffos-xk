@@ -19,6 +19,7 @@
 
 #include "base/internal/external_port.h"
 #include "base/internal/stralloc.h"
+#include "net/websocket.h"
 #include "base/internal/strutils.h"
 #include "log.h"
 
@@ -314,6 +315,9 @@ void read_config(const char *filename) {
   /* Process ports */
   {
     int i, port, port_start = 0;
+    for (auto &external : external_port) {
+      external.websocket_trusted_proxy_cidrs.clear();
+    }
     if (scan_config_line("port number : %d\n", &CONFIG_INT(__MUD_PORT__), 0)) {
       external_port[0].port = CONFIG_INT(__MUD_PORT__);
       external_port[0].kind = PORT_TYPE_TELNET;
@@ -364,6 +368,20 @@ void read_config(const char *filename) {
         }
       }
     }
+    std::vector<websocket_trusted_proxy_cidr_t> trusted_proxy_cidrs;
+    std::string trusted_proxy_error;
+    scan_config_line("websocket trusted proxy cidrs : %[^\n]", tmp, kOptional);
+    if (!websocket_parse_trusted_proxy_cidrs(tmp, &trusted_proxy_cidrs, &trusted_proxy_error)) {
+      debug_message("Invalid websocket trusted proxy cidrs: %s (%s)\n", tmp,
+                    trusted_proxy_error.c_str());
+      exit(-1);
+    }
+    for (i = port_start; i < 5; i++) {
+      if (external_port[i].kind == PORT_TYPE_WEBSOCKET) {
+        external_port[i].websocket_trusted_proxy_cidrs = trusted_proxy_cidrs;
+      }
+    }
+
     // TLS support status
     for (i = port_start; i < 5; i++) {
       if (external_port[i].kind != PORT_TYPE_UNDEFINED) {

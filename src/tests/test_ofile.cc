@@ -3,7 +3,11 @@
 #include <gtest/gtest.h>
 
 #include "ofile.h"
+#include "test_mudlib.h"
 
+#include <cerrno>
+#include <cstring>
+#include <exception>
 #include <string>
 #include <fstream>
 #include <sstream>
@@ -12,7 +16,15 @@
 class OFileTest : public ::testing::Test {
  public:
   static void SetUpTestSuite() {
-    chdir(TESTSUITE_DIR);
+    std::string mudlib;
+    try {
+      mudlib = fluffos_test_mudlib::root_string();
+    } catch (const std::exception &error) {
+      FAIL() << "invalid FLUFFOS_TEST_MUDLIB: " << error.what();
+      return;
+    }
+    ASSERT_EQ(0, fluffos_test_mudlib::change_directory(mudlib))
+        << "failed to chdir to " << mudlib << ": " << strerror(errno);
 
     config_init();
     init_strings();

@@ -5,6 +5,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#include <netdb.h>
 #include <string>
 
 void tls_library_init() {
@@ -36,6 +37,12 @@ SSL_CTX* tls_server_init(std::string_view file_cert, std::string_view file_key) 
     return nullptr;
   }
 
+  if (!tls_set_minimum_protocol_version(server_ctx)) {
+    debug_message("Couldn't set the minimum TLS protocol version.\n");
+    SSL_CTX_free(server_ctx);
+    return nullptr;
+  }
+
   if (!SSL_CTX_use_certificate_chain_file(server_ctx, file_cert.data()) ||
       !SSL_CTX_use_PrivateKey_file(server_ctx, file_key.data(), SSL_FILETYPE_PEM) ||
       !SSL_CTX_check_private_key(server_ctx)) {
@@ -46,7 +53,6 @@ SSL_CTX* tls_server_init(std::string_view file_cert, std::string_view file_key) 
   }
   SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv2);
   SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv3);
-  SSL_CTX_set_options(server_ctx, SSL_OP_NO_TLSv1_1);
 
   return server_ctx;
 }
@@ -78,6 +84,37 @@ int tls_verify_callback(int preverify_ok, X509_STORE_CTX* x509_ctx) {
   return preverify_ok;
 }
 
+bool tls_set_minimum_protocol_version(SSL_CTX* ctx) {
+  return ctx != nullptr && SSL_CTX_set_min_proto_version(ctx, kTlsMinimumProtocolVersion) == 1;
+}
+
+bool tls_configure_client_identity(SSL* ssl, const sockaddr* peer, size_t peer_len,
+                                   const char* sni_hostname, bool verify_peer) {
+  if (ssl == nullptr) {
+    return false;
+  }
+
+  if (sni_hostname != nullptr) {
+    if (*sni_hostname == '\0' || SSL_set_tlsext_host_name(ssl, sni_hostname) != 1) {
+      return false;
+    }
+    return !verify_peer || SSL_set1_host(ssl, sni_hostname) == 1;
+  }
+
+  if (!verify_peer || peer == nullptr) {
+    return !verify_peer;
+  }
+
+  char numeric_host[NI_MAXHOST] = {};
+  if (getnameinfo(peer, static_cast<socklen_t>(peer_len), numeric_host,
+                  sizeof(numeric_host), nullptr, 0, NI_NUMERICHOST) != 0) {
+    return false;
+  }
+  auto* verify_param = SSL_get0_param(ssl);
+  return verify_param != nullptr &&
+         X509_VERIFY_PARAM_set1_ip_asc(verify_param, numeric_host) == 1;
+}
+
 SSL_CTX* tls_client_init() {
   tls_library_init();
 
@@ -90,14 +127,20 @@ SSL_CTX* tls_client_init() {
     return nullptr;
   }
 
+  if (!tls_set_minimum_protocol_version(ctx)) {
+    debug_message("Couldn't set the minimum TLS protocol version.\n");
+    SSL_CTX_free(ctx);
+    return nullptr;
+  }
+
   SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
   SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
-  SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_1);
 
-  // Load system default CA certificates
-  auto ret = SSL_CTX_set_default_verify_paths(ctx);
-  if (ret != 1) {
-    debug_message("Warning: unable to load system default CA certificates.\n");
+  // Load system default CA certificates.
+  if (SSL_CTX_set_default_verify_paths(ctx) != 1) {
+    debug_message("Couldn't load system default CA certificates.\n");
+    SSL_CTX_free(ctx);
+    return nullptr;
   }
 
   // setup certificate verification

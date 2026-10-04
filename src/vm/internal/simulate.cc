@@ -36,6 +36,7 @@
 #include "vm/internal/master.h"
 #include "vm/internal/otable.h"
 #include "vm/internal/simul_efun.h"
+#include "vm/internal/recompile.h"
 #include "vm/object_handle.h"
 #include "compiler/internal/lex.h"  // for total_lines, FIXME
 #include "packages/core/replace_program.h"
@@ -462,6 +463,9 @@ static object_t *load_virtual_object(const char *name, int clone) {
     return nullptr;
   }
   new_ob = v->u.ob;
+  // A virtual-object response can alias a transaction target. Reject before
+  // renaming, indexing, or changing its clone/blueprint identity.
+  vm_recompile_reject_lifecycle(new_ob, "virtual object publication");
 
   if (!clone) {
     ob = vm_object_store_find_live_by_path(name);
@@ -756,6 +760,7 @@ object_t *load_object(const char *lname, int callcreate) {
   auto stream = std::make_unique<FileLexStream>(f);
   prog = compile_file(std::move(stream), obname);
   restore_command_giver();
+  vm_recompile_reject_program_publication(prog);
   update_compile_av(total_lines);
   total_lines = 0;
 
@@ -912,6 +917,7 @@ object_t *clone_object(const char *str1, int num_arg) {
     return (nullptr);
   }
 
+  vm_recompile_reject_clone_source(ob);
   if (ob->flags & O_CLONE) {
     error("Cannot clone from a clone\n");
   }
@@ -1124,6 +1130,9 @@ static void fix_object_names() {
 void destruct_object(object_t *ob) {
   object_t **pp;
 // int removed;
+  // This is the actual destruction entry, before on_destruct, socket close,
+  // coroutine cancellation, object-store removal, or the vital-object reload.
+  vm_recompile_reject_lifecycle(ob, "destruct");
 #ifndef NO_ENVIRONMENT
   object_t *super;
   object_t *save_restrict_destruct = restrict_destruct;
@@ -1882,6 +1891,11 @@ object_t *find_object2(const char *str) {
  */
 void move_object(object_t *item, object_t *dest) {
   object_t **pp, *ob;
+
+  // Moving a transaction target can invoke arbitrary move hooks and may
+  // transfer its owner before the explicit owner assignment below. Reject at
+  // the real mutation entry, before access tracing or environment changes.
+  vm_recompile_reject_lifecycle(item, "move_object");
 
   auto *owner_source = current_object ? current_object : item;
   if (!vm_owner_access_fast_bypass(owner_source, dest)) {

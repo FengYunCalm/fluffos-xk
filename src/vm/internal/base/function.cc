@@ -4,6 +4,8 @@
 #include "vm/context.h"
 #include "vm/vm.h"
 #include "vm/internal/base/machine.h"
+#include "vm/internal/base/object.h"
+#include "vm/internal/recompile.h"
 #include "vm/internal/base/promise.h"
 #include "vm/internal/lpc_vm_profile.h"
 #include "compiler/internal/lex.h"  // for instrs, FIXME
@@ -11,7 +13,93 @@
 #include "packages/core/replace_program.h"
 #include "backward.hpp"
 
+void initialize_funp_header(funptr_t *fp, short type, object_t *owner,
+                             bool retain_owner_ref) {
+  fp->hdr.ref = 1;
+  fp->hdr.type = type;
+  fp->hdr.owner = owner;
+  fp->hdr.args = nullptr;
+  fp->hdr.owner_gen = owner ? owner->prog_generation : 0;
+  fp->hdr.state = funptr_hdr_t::lifecycle_state::Live;
+  fp->hdr.registry_linked = false;
+  fp->hdr.registry_prev = nullptr;
+  fp->hdr.registry_next = nullptr;
+  fp->hdr.birth_context = nullptr;
+  fp->hdr.birth_prev = nullptr;
+  fp->hdr.birth_next = nullptr;
+  fp->hdr.transaction_pin_context = nullptr;
+  fp->hdr.transaction_pin_prev = nullptr;
+  fp->hdr.transaction_pin_next = nullptr;
+  if (owner && retain_owner_ref) {
+    add_ref(owner, "initialize_funp_header");
+  }
+}
+
+void funptr_unlink(funptr_t *fp) noexcept {
+  if (!fp || !fp->hdr.registry_linked) {
+    return;
+  }
+  object_t *owner = fp->hdr.owner;
+  if (fp->hdr.registry_prev) {
+    fp->hdr.registry_prev->hdr.registry_next = fp->hdr.registry_next;
+  } else if (owner && owner->funptr_registry_head == fp) {
+    owner->funptr_registry_head = fp->hdr.registry_next;
+  }
+  if (fp->hdr.registry_next) {
+    fp->hdr.registry_next->hdr.registry_prev = fp->hdr.registry_prev;
+  }
+  fp->hdr.registry_linked = false;
+  fp->hdr.registry_prev = nullptr;
+  fp->hdr.registry_next = nullptr;
+}
+
+void funptr_register(funptr_t *fp) noexcept {
+  if (!fp || fp->hdr.registry_linked) {
+    return;
+  }
+  object_t *owner = fp->hdr.owner;
+  if (owner) {
+    fp->hdr.registry_prev = nullptr;
+    fp->hdr.registry_next = owner->funptr_registry_head;
+    if (fp->hdr.registry_next) {
+      fp->hdr.registry_next->hdr.registry_prev = fp;
+    }
+    owner->funptr_registry_head = fp;
+    fp->hdr.registry_linked = true;
+  }
+
+  auto *context = vm_recompile_execution_context();
+  if (context && context->phase() == RecompileExecutionPhase::Swapped) {
+    if (fp->hdr.state == funptr_hdr_t::lifecycle_state::Live) {
+      fp->hdr.state = funptr_hdr_t::lifecycle_state::StagedBorn;
+    }
+    context->record_funptr_birth(fp);
+  }
+}
+
+void funptr_detach_owner(funptr_t *fp) noexcept {
+  if (!fp || !fp->hdr.owner) {
+    return;
+  }
+  funptr_unlink(fp);
+  object_t *owner = fp->hdr.owner;
+  fp->hdr.owner = nullptr;
+  free_object(&owner, "reclaim_objects");
+}
+
+void funptr_detach_all_for_object(object_t *owner) noexcept {
+  if (!owner) {
+    return;
+  }
+  while (owner->funptr_registry_head) {
+    funptr_t *fp = owner->funptr_registry_head;
+    funptr_unlink(fp);
+    fp->hdr.owner = nullptr;
+  }
+}
+
 void dealloc_funp(funptr_t *fp) {
+  funptr_unlink(fp);
   program_t *prog = nullptr;
 
   switch (fp->hdr.type) {
@@ -101,9 +189,7 @@ funptr_t *make_efun_funp(int opcode, svalue_t *args) {
   funptr_t *fp;
 
   fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_efun_funp"));
-  fp->hdr.owner = current_object;
-  add_ref(current_object, "make_efun_funp");
-  fp->hdr.type = FP_EFUN;
+  initialize_funp_header(fp, FP_EFUN, current_object);
 
   fp->f.efun.index = opcode;
 
@@ -114,7 +200,7 @@ funptr_t *make_efun_funp(int opcode, svalue_t *args) {
     fp->hdr.args = nullptr;
   }
 
-  fp->hdr.ref = 1;
+  funptr_register(fp);
   return fp;
 }
 
@@ -129,14 +215,11 @@ funptr_t *make_lfun_funp(int index, svalue_t *args) {
   }
 
   fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_lfun_funp"));
-  fp->hdr.owner = current_object;
-  add_ref(current_object, "make_lfun_funp");
-  fp->hdr.type = FP_LOCAL | FP_NOT_BINDABLE;
+  initialize_funp_header(fp, FP_LOCAL | FP_NOT_BINDABLE, current_object);
 
   /* E3 P2: snapshot the creation-time program and generation. The program
    * pointer is the func_ref accounting object for this funptr. */
   fp->f.local.prog = fp->hdr.owner->prog;
-  fp->hdr.owner_gen = fp->hdr.owner->prog_generation;
   fp->f.local.prog->func_ref++;
   debug(d_flag, "add func ref /%s: now %i\n", fp->f.local.prog->filename,
         fp->f.local.prog->func_ref);
@@ -154,7 +237,7 @@ funptr_t *make_lfun_funp(int index, svalue_t *args) {
     fp->hdr.args = nullptr;
   }
 
-  fp->hdr.ref = 1;
+  funptr_register(fp);
   return fp;
 }
 
@@ -162,9 +245,7 @@ funptr_t *make_simul_funp(int index, svalue_t *args) {
   funptr_t *fp;
 
   fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_simul_funp"));
-  fp->hdr.owner = current_object;
-  add_ref(current_object, "make_simul_funp");
-  fp->hdr.type = FP_SIMUL;
+  initialize_funp_header(fp, FP_SIMUL, current_object);
 
   fp->f.simul.index = index;
 
@@ -175,7 +256,7 @@ funptr_t *make_simul_funp(int index, svalue_t *args) {
     fp->hdr.args = nullptr;
   }
 
-  fp->hdr.ref = 1;
+  funptr_register(fp);
   return fp;
 }
 
@@ -190,10 +271,7 @@ funptr_t *make_functional_funp(short num_arg, short num_local, short len, svalue
   }
 
   fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_functional_funp"));
-  fp->hdr.owner = current_object;
-  add_ref(current_object, "make_functional_funp");
-  fp->hdr.type = FP_FUNCTIONAL + flag;
-  fp->hdr.owner_gen = current_object->prog_generation;  // E3 P2
+  initialize_funp_header(fp, FP_FUNCTIONAL + flag, current_object);
 
   current_prog->func_ref++;
   debug(d_flag, "add func ref /%s: now %i\n", current_prog->filename, current_prog->func_ref);
@@ -214,8 +292,8 @@ funptr_t *make_functional_funp(short num_arg, short num_local, short len, svalue
     fp->hdr.args = nullptr;
   }
 
-  fp->hdr.ref = 1;
   md_record_ref_journal(PTR_TO_NODET(fp), true, 1, "make_functional_funp");
+  funptr_register(fp);
   return fp;
 }
 
@@ -230,6 +308,17 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
   if (!funp->hdr.owner || (funp->hdr.owner->flags & O_DESTRUCTED)) {
     error("Owner (/%s) of function pointer is destructed.\n",
           (funp->hdr.owner ? funp->hdr.owner->obname : "(null)"));
+  }
+  if (funp->hdr.state == funptr_hdr_t::lifecycle_state::Invalid) {
+    error("stale function pointer: the target program was recompiled\n");
+  }
+  switch (funp->hdr.type & FP_MASK) {
+    case FP_LOCAL:
+    case FP_FUNCTIONAL:
+      if (funp->hdr.owner_gen != funp->hdr.owner->prog_generation) {
+        error("stale function pointer: the target program was recompiled\n");
+      }
+      break;
   }
   setup_fake_frame(funp);
   if ((v = funp->hdr.args)) {
@@ -300,14 +389,9 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
     case FP_LOCAL | FP_NOT_BINDABLE: {
       function_t *func;
 
-      /* E3 P2: after recompile_object() swaps the owner's program, this
-       * funptr's index refers to the OLD program; never re-resolve it
-       * against the new one. Report a stable stale-pointer error (the old
-       * program stays alive via local.prog's func_ref for this message). */
-      if (funp->hdr.owner_gen != funp->hdr.owner->prog_generation) {
-        error("stale function pointer: the target program was recompiled\n");
-      }
-
+      /* E3 P2: the generation check above runs before fake-frame setup, so
+       * this index is never re-resolved against a swapped owner program. The
+       * old program stays alive via local.prog's func_ref for deallocation. */
       if (current_object->prog->function_flags[funp->f.local.index] &
           (FUNC_PROTOTYPE | FUNC_UNDEFINED)) {
         error("Undefined lfun pointer called: %s\n",

@@ -33,6 +33,31 @@ done
 SERIAL_RUNS=$([ "$QUICK" -eq 1 ] && echo 1 || echo 5)
 CONCURRENT_RUNS=$([ "$QUICK" -eq 1 ] && echo 4 || echo 20)
 
+# Existing sandboxes and driver processes may belong to an earlier run or a
+# different checkout. Snapshot them before this run so the final check only
+# reports resources introduced by this invocation.
+BASELINE_SANDBOXES="$(find "$ROOT/testsuite" -maxdepth 1 -type d -name '.run-isolated-??????' -print | sort)"
+BASELINE_LOCKDIR=0
+if [ -d "$ROOT/testsuite/.run-isolated.lockdir" ]; then
+  BASELINE_LOCKDIR=1
+fi
+case "$DRIVER" in
+  /*) DRIVER_ABS="$DRIVER" ;;
+  *) DRIVER_ABS="$(cd "$(dirname "$DRIVER")" && pwd)/$(basename "$DRIVER")" ;;
+esac
+DRIVER_REAL="$(readlink -f "$DRIVER_ABS")"
+DRIVER_NAME="$(basename "$DRIVER_ABS")"
+list_matching_driver_pids() {
+  local pid exe
+  while read -r pid; do
+    exe="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+    if [ "$exe" = "$DRIVER_REAL" ]; then
+      printf '%s\n' "$pid"
+    fi
+  done < <(pgrep -x "$DRIVER_NAME" || true)
+}
+BASELINE_DRIVER_PIDS="$(list_matching_driver_pids | sort -n)"
+
 FAIL=0
 fail() {
   echo "FAIL: $1"
@@ -69,15 +94,21 @@ echo "== residual check =="
 # Sandbox dirs and the mkdir fallback lockdir are transient; the flock
 # lock FILE (.run-isolated.lock) is intentionally persistent (flock needs
 # a stable inode), so it is not a leak.
-LEFTOVERS="$(find "$ROOT/testsuite" -maxdepth 1 \( -name '.run-isolated-??????' -o -name '.run-isolated.lockdir' \) | wc -l)"
-if [ "$LEFTOVERS" -ne 0 ]; then
-  fail "leftover sandbox/lock entries: $LEFTOVERS"
+CURRENT_SANDBOXES="$(find "$ROOT/testsuite" -maxdepth 1 -type d -name '.run-isolated-??????' -print | sort)"
+NEW_SANDBOXES="$(comm -13 <(printf '%s\n' "$BASELINE_SANDBOXES") <(printf '%s\n' "$CURRENT_SANDBOXES") | sed '/^$/d')"
+if [ -n "$NEW_SANDBOXES" ]; then
+  fail "leftover sandbox entries introduced by this run: $NEW_SANDBOXES"
 fi
-# No leftover driver processes from this test run (the ports-only phase
-# starts real driver binaries; match the exact executable name so this
-# script's own command line is not matched).
-if pgrep -x driver >/dev/null 2>&1; then
-  fail "leftover driver processes"
+if [ "$BASELINE_LOCKDIR" -eq 0 ] && [ -d "$ROOT/testsuite/.run-isolated.lockdir" ]; then
+  fail "leftover fallback lock directory introduced by this run"
+fi
+# No leftover driver processes from this test run. Match the exact executable
+# path and ignore processes that existed before this invocation, including
+# drivers belonging to another checkout.
+CURRENT_DRIVER_PIDS="$(list_matching_driver_pids | sort -n)"
+NEW_DRIVER_PIDS="$(comm -13 <(printf '%s\n' "$BASELINE_DRIVER_PIDS") <(printf '%s\n' "$CURRENT_DRIVER_PIDS") | sed '/^$/d')"
+if [ -n "$NEW_DRIVER_PIDS" ]; then
+  fail "leftover driver processes introduced by this run: $NEW_DRIVER_PIDS"
 fi
 
 if [ "$FAIL" -ne 0 ]; then

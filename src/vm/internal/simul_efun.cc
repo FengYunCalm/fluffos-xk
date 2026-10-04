@@ -80,12 +80,51 @@ static int add_simul_entry(simul_entry *names, function_lookup_info_t *funcs, vo
   return first;
 }
 
+static void forget_provisional_entries(simul_efun_prepared_t *p) noexcept {
+  if (p->provisional) {
+    FREE(p->provisional);
+  }
+  p->provisional = nullptr;
+  p->provisional_count = 0;
+}
+
+static void release_provisional_entries(simul_efun_prepared_t *p) noexcept {
+  if (!p->provisional) {
+    return;
+  }
+
+  // Remove identifiers before releasing their name strings: the hash nodes
+  // still use the string as their key. Only nodes recorded as newly allocated
+  // by this prepare may be removed; existing orphan/efun identifiers survive.
+  for (int i = 0; i < p->provisional_count; i++) {
+    auto *ident = static_cast<ident_hash_elem_t *>(p->provisional[i].ident);
+    if (ident) {
+      // Keep the cleanup call outside assert: NDEBUG must not remove the
+      // side effect that unlinks the provisional identifier.
+      const bool removed = remove_perm_ident(ident);
+      assert(removed);
+      (void)removed;
+    }
+  }
+  for (int i = 0; i < p->provisional_count; i++) {
+    free_string(p->provisional[i].name);
+  }
+  forget_provisional_entries(p);
+}
+
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_simuls() {
   int i;
 
   for (i = 0; i < num_simul_efun; i++) {
     EXTRA_REF(BLOCK(simul_names[i].name))++;
+    // Cumulative dispatch retains inactive/orphan identifiers so old
+    // F_SIMUL_EFUN indices remain valid. Root that exact live-table entry
+    // without marking unrelated newborn identifiers from a failed prepare.
+    if (ident_hash_elem_t *ihe = lookup_perm_ident(simul_names[i].name);
+        ihe && (ihe->token & IHE_ORPHAN) && !(ihe->token & (IHE_SIMUL | IHE_EFUN))) {
+      DO_MARK(ihe, TAG_PERM_IDENT);
+    }
   }
 }
 #endif
@@ -238,6 +277,12 @@ void simul_efuns_prepare(program_t *prog, simul_efun_prepared_t *out) {
       DCALLOC(capacity, sizeof(function_lookup_info_t), TAG_SIMULS, "simul_efuns_prepare: 2"));
   void **idents = reinterpret_cast<void **>(
       DCALLOC(capacity, sizeof(void *), TAG_SIMULS, "simul_efuns_prepare: 3"));
+  auto *provisional = num_new
+                           ? reinterpret_cast<simul_efun_prepared_t::ProvisionalEntry *>(
+                                 DCALLOC(num_new, sizeof(simul_efun_prepared_t::ProvisionalEntry),
+                                         TAG_SIMULS, "simul_efuns_prepare: provisional"))
+                           : nullptr;
+  out->provisional = provisional;
 
   int count = 0;
   for (int i = 0; i < num_simul_efun; i++) {
@@ -266,12 +311,16 @@ void simul_efuns_prepare(program_t *prog, simul_efun_prepared_t *out) {
     // Pre-insert the identifier-hash entry now (allocation allowed here);
     // activation only writes fields on the stable element. The ident slot
     // is POSITION-keyed (idents[i] aligns with names[i]): the fresh entry
-    // sits at sorted position pos while its dispatch index is count. A name
-    // later abandoned by a failed transaction stays an inert perm-ident
-    // (token 0, simul_num -1) for the driver lifetime -- harmless, and the
-    // normal loader's ident semantics are identical.
-    idents[pos] = find_or_add_perm_ident(funp->funcname);
+    // sits at sorted position pos while its dispatch index is count. Track
+    // the name reference and only an identifier allocated by this prepare so
+    // rollback can release both without touching old cumulative entries.
+    bool had_perm_ident = lookup_perm_ident(funp->funcname) != nullptr;
+    ident_hash_elem_t *ident = find_or_add_perm_ident(funp->funcname);
+    idents[pos] = ident;
     ref_string(funp->funcname);
+    auto &entry = provisional[out->provisional_count++];
+    entry.name = funp->funcname;
+    entry.ident = !had_perm_ident ? ident : nullptr;
     count++;
   }
 
@@ -284,6 +333,7 @@ void simul_efuns_prepare(program_t *prog, simul_efun_prepared_t *out) {
     FREE(names);
     FREE(funcs);
     FREE(idents);
+    forget_provisional_entries(out);
     return;
   }
   out->names = names;
@@ -366,6 +416,8 @@ void simul_efuns_finish(simul_efun_prepared_t *p) noexcept {
   p->old_names = nullptr;
   p->old_funcs = nullptr;
   p->old_count = 0;
+  // The provisional names/identifiers are now owned by the live table.
+  forget_provisional_entries(p);
   p->state = simul_efun_prepared_t::State::Finalized;
 }
 
@@ -410,6 +462,9 @@ void simul_efuns_rollback(simul_efun_prepared_t *p) noexcept {
       activate_ident(ihe, old[i].index);
     }
   }
+  // Fresh names and identifiers were visible only through the new table;
+  // release their prepare-time ownership before freeing that table.
+  release_provisional_entries(p);
   // 3. Free the new tables, swap the old ones back. free() only -- still
   //    within the no-fail segment.
   if (num_simul_efun) {
@@ -432,6 +487,7 @@ void simul_efuns_discard(simul_efun_prepared_t *p) noexcept {
   // held old tables only.
   // Finalized: no-op.
   if (p->state == simul_efun_prepared_t::State::Prepared) {
+    release_provisional_entries(p);
     if (p->names) {
       FREE(p->names);
     }
@@ -442,6 +498,9 @@ void simul_efuns_discard(simul_efun_prepared_t *p) noexcept {
       FREE(p->idents);
     }
   } else if (p->state == simul_efun_prepared_t::State::Activated) {
+    // The new table is live in this defensive path, so its provisional
+    // ownership has transferred to the table; only forget the journal.
+    forget_provisional_entries(p);
     if (p->old_names) {
       FREE(p->old_names);
     }

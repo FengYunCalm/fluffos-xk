@@ -879,32 +879,59 @@ int socket_connect(int fd, const char *name, svalue_t *read_callback, svalue_t *
     auto *ssl_ctx = tls_client_init();
     if (ssl_ctx == nullptr) {
       debug(sockets, "socket_connect: tls_client_init error.\n");
+      socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
       return EECONNECT;
     }
     lpc_socks[fd].ssl_ctx = ssl_ctx;
 
     auto *ssl = SSL_new(ssl_ctx);
+    if (ssl == nullptr) {
+      debug(sockets, "socket_connect: SSL_new error.\n");
+      socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+      return EECONNECT;
+    }
     lpc_socks[fd].ssl = ssl;
 
-    SSL_set_fd(ssl, lpc_socks[fd].fd);
+    if (SSL_set_fd(ssl, lpc_socks[fd].fd) != 1) {
+      debug(sockets, "socket_connect: SSL_set_fd error.\n");
+      socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+      return EECONNECT;
+    }
 
-    if (lpc_socks[fd].options[SO_TLS_VERIFY_PEER].type == T_NUMBER &&
-        lpc_socks[fd].options[SO_TLS_VERIFY_PEER].u.number != 0) {
+    const bool verify_peer =
+        lpc_socks[fd].options[SO_TLS_VERIFY_PEER].type == T_NUMBER &&
+        lpc_socks[fd].options[SO_TLS_VERIFY_PEER].u.number != 0;
+    if (verify_peer) {
       SSL_set_verify(ssl, SSL_VERIFY_PEER, tls_verify_callback);
     } else {
       SSL_set_verify(ssl, SSL_VERIFY_NONE, nullptr);
     }
 
+    const char *sni_hostname = nullptr;
     if (lpc_socks[fd].options[SO_TLS_SNI_HOSTNAME].type == T_STRING) {
-      SSL_set_tlsext_host_name(ssl, lpc_socks[fd].options[SO_TLS_SNI_HOSTNAME].u.string);
-      // Drop the string ref once applied to SSL.
+      sni_hostname = lpc_socks[fd].options[SO_TLS_SNI_HOSTNAME].u.string;
+    }
+    if (!tls_configure_client_identity(
+            ssl, reinterpret_cast<const sockaddr *>(&lpc_socks[fd].r_addr),
+            lpc_socks[fd].r_addrlen, sni_hostname, verify_peer)) {
+      debug(sockets, "socket_connect: TLS peer identity configuration failed.\n");
+      socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+      return EECONNECT;
+    }
+
+    // Drop the string ref once SNI and hostname verification are configured.
+    if (sni_hostname != nullptr) {
       free_svalue(&lpc_socks[fd].options[SO_TLS_SNI_HOSTNAME], "socket_connect");
       lpc_socks[fd].options[SO_TLS_SNI_HOSTNAME] = const0u;
     }
   }
 
-  event_add(lpc_socks[fd].ev_read, nullptr);
-  event_add(lpc_socks[fd].ev_write, nullptr);
+  if (event_add(lpc_socks[fd].ev_read, nullptr) != 0 ||
+      event_add(lpc_socks[fd].ev_write, nullptr) != 0) {
+    debug(sockets, "socket_connect: event_add error.\n");
+    socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
+    return EECONNECT;
+  }
 
   debug(sockets, "socket_connect: lpc socket %d (real fd %" FMT_SOCKET_FD ") connecting.\n", fd,
         lpc_socks[fd].fd);
@@ -1214,6 +1241,7 @@ struct SocketQueuedCallback {
   std::string owner_id;
   uint64_t owner_epoch{0};
   std::string task_key;
+  VMOwnerCallbackCleanupRecord cleanup_record;
 };
 
 static const char *socket_callback_task_key(SocketQueuedCallback *task) {
@@ -1265,6 +1293,10 @@ static void free_socket_queued_callback(SocketQueuedCallback *task) {
   delete task;
 }
 
+static void free_socket_queued_callback_cleanup(void *context) {
+  free_socket_queued_callback(static_cast<SocketQueuedCallback *>(context));
+}
+
 static void cleanup_socket_queued_callback(SocketQueuedCallback *task, bool main_required) {
   if (!task) {
     return;
@@ -1273,12 +1305,8 @@ static void cleanup_socket_queued_callback(SocketQueuedCallback *task, bool main
     free_socket_queued_callback(task);
     return;
   }
-  auto task_id = vm_owner_enqueue_executor_callback_cleanup(
-      task->owner_id.c_str(), task->owner_epoch, "socket_callback", socket_callback_task_key(task),
-      [task] { free_socket_queued_callback(task); });
-  if (task_id == 0) {
-    free_socket_queued_callback(task);
-  }
+  task->cleanup_record.task_key = socket_callback_task_key(task);
+  (void)vm_owner_enqueue_executor_callback_cleanup(&task->cleanup_record);
 }
 
 static bool socket_queued_callback_owner_stale(SocketQueuedCallback *task, object_t *owner) {
@@ -1323,6 +1351,9 @@ static void bind_socket_queued_callback_owner(SocketQueuedCallback *task, object
   task->owner_id = vm_owner_id(owner);
   task->owner_epoch = vm_owner_epoch(owner);
   task->task_key = task_key ? task_key : "";
+  task->cleanup_record.prepare(task->owner_id.c_str(), task->owner_epoch, "socket_callback",
+                               socket_callback_task_key(task),
+                               free_socket_queued_callback_cleanup, task);
 }
 
 static SocketQueuedCallback *capture_socket_callback_args(object_t *owner, bool is_function,

@@ -11,8 +11,24 @@ int same_array(mixed *x, mixed *y) {
   return 1;
 }
 
+#ifdef __PACKAGE_PCRE__
+string pcre_reentrant_callback(string value, int index) {
+  // Force cache eviction while the outer callback still owns its pattern.
+  for (int i = 0; i < 520; i++) {
+    string subject = sprintf("nested%d", i);
+    string pattern = sprintf("^nested%d$", i);
+    if (!pcre_match(subject, pattern)) return "unexpected";
+  }
+  return value + "->";
+}
+#endif
+
 void do_tests() {
   string tmp, re;
+  buffer invalid_bytes = allocate_buffer(1);
+  invalid_bytes[0] = 0xC0;
+  string invalid_utf = read_buffer(invalid_bytes);
+  mixed bad_type = 1;
 
 #ifndef __PACKAGE_PCRE__
   write("PACKAGE_PCRE not defined, test skipped.");
@@ -25,6 +41,16 @@ void do_tests() {
   ASSERT(catch(pcre_extract("abc", "(")));
   ASSERT(catch(pcre_replace("abc", "(", ({"x"}))));
   ASSERT(catch(pcre_replace("abc", "(a)", ({1}))));
+  ASSERT(catch(pcre_match(bad_type, "abc")));
+  ASSERT(catch(pcre_match("abc", bad_type)));
+  ASSERT(catch(pcre_match_all("abc", bad_type)));
+  ASSERT(catch(pcre_extract(bad_type, "abc")));
+  ASSERT(catch(pcre_assoc("abc", bad_type, ({1}), 0, 0)));
+
+  // PCRE2_UTF rejects malformed pattern and subject bytes instead of treating
+  // them as an unchecked byte stream.
+  ASSERT(catch(pcre_match("abc", invalid_utf)));
+  ASSERT(catch(pcre_match(invalid_utf, "abc")));
 
   ASSERT_EQ(1, pcre_match("123", "^[0-9]+$")); // or other pattern
 
@@ -236,6 +262,14 @@ TEXT;
   mixed *assoc_res = pcre_assoc("HelloWorld", ({"hello"}), ({1}), 0, flag_i);
   ASSERT_EQ(({({"", "Hello", "World"}), ({0,1,0})}), assoc_res);
 
+  // Separate calls must not reuse the previous call's subject, offsets, or
+  // capture vector when the compiled pattern is cached.
+  mixed *first_interleaved = pcre_match_all("a1b2", "([ab])");
+  mixed *second_interleaved = pcre_match_all("a1b2", "([0-9])");
+  ASSERT_EQ(({({"a", "a"}), ({"b", "b"})}), first_interleaved);
+  ASSERT_EQ(({({"1", "1"}), ({"2", "2"})}), second_interleaved);
+
   tmp = "foobar";
   ASSERT_EQ("foo->bar", pcre_replace_callback(tmp, "(foo)", (: $1 + "->" :)));
+  ASSERT_EQ("foo->bar", pcre_replace_callback(tmp, "(foo)", (: pcre_reentrant_callback :)));
 }

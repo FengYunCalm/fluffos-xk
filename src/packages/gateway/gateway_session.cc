@@ -1750,6 +1750,7 @@ void cleanup_temp_gateway_interactive(object_t *owner) {
     return;
   }
 
+  cancel_user_logon(ip);
   if (ip->ev_command) {
     evtimer_del(ip->ev_command);
     event_free(ip->ev_command);

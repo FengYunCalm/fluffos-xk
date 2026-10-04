@@ -2,6 +2,7 @@
 
 #include "packages/core/replace_program.h"
 #include "vm/internal/source_spelling.h"
+#include "vm/internal/recompile.h"
 
 /*
  * replace_program.c
@@ -191,6 +192,7 @@ void f_replace_program() {
   if (!current_object) {
     error("replace_program called with no current object\n");
   }
+  vm_recompile_reject_lifecycle(current_object, "replace_program");
   if (current_object == simul_efun_ob) {
     error("replace_program on simul_efun object\n");
   }

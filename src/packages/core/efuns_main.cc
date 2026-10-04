@@ -154,10 +154,23 @@ void f_bind() {
     error("New owner was destructed during valid_bind().\n");
   }
 
+  const auto old_kind = old_fp->hdr.type & FP_MASK;
+  const bool inherited_invalid =
+      old_fp->hdr.state == funptr_hdr_t::lifecycle_state::Invalid ||
+      !old_fp->hdr.owner ||
+      ((old_kind == FP_LOCAL || old_kind == FP_FUNCTIONAL) &&
+       old_fp->hdr.owner_gen != old_fp->hdr.owner->prog_generation);
+
   new_fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "f_bind"));
-  *new_fp = *old_fp;
-  new_fp->hdr.ref = 1;
-  new_fp->hdr.owner = ob; /* one ref from being on stack */
+  auto *bound_args = old_fp->hdr.args;
+  new_fp->f = old_fp->f;
+  // The original object argument's stack reference is transferred to the
+  // bound funptr when the argument slot is removed below.
+  initialize_funp_header(new_fp, old_fp->hdr.type, ob, false);
+  new_fp->hdr.args = bound_args;
+  if (inherited_invalid) {
+    new_fp->hdr.state = funptr_hdr_t::lifecycle_state::Invalid;
+  }
   /* E3 P2: bind re-homes the funptr on the new owner -- snapshot the new
    * owner's generation, and for FP_LOCAL move the func_ref accounting to
    * the new owner's program (the index is resolved against the caller's
@@ -174,8 +187,7 @@ void f_bind() {
     new_fp->f.local.prog = ob->prog;
     new_fp->f.local.prog->func_ref++;
   }
-  new_fp->hdr.owner_gen = ob->prog_generation;
-
+  funptr_register(new_fp);
   free_funp(old_fp);
   sp--;
   sp->u.fp = new_fp;
@@ -558,6 +570,7 @@ void f_deep_inventory() {
 
 #ifdef F_DESTRUCT
 void f_destruct() {
+  vm_recompile_reject_lifecycle(sp->u.ob, "destruct");
   destruct_object(sp->u.ob);
   sp--; /* Ok since the object was removed from the stack */
 }
@@ -3431,13 +3444,6 @@ void f_query_shadowing() {
 #ifdef F_SET_RESET
 #ifdef F_SET_CLEAN_UP
 #ifdef F_RECOMPILE_OBJECT
-namespace {
-// Process-local transaction guard: only the main thread competes for it,
-// and it is held before the master hook so nested recompile attempts (from
-// valid_recompile_object itself) are rejected. (v0.4 §5.3.)
-std::atomic<bool> g_recompile_transaction_active{false};
-}  // namespace
-
 void f_recompile_object() {
   object_t *ob = sp->u.ob;
 
@@ -3447,14 +3453,11 @@ void f_recompile_object() {
     error("recompile_object requires the main thread\n");
   }
 
-  // 2. Transaction guard.
-  bool expected = false;
-  if (!g_recompile_transaction_active.compare_exchange_strong(expected, true)) {
-    error("recompile_object transaction already active\n");
-  }
-  struct Guard {
-    ~Guard() { g_recompile_transaction_active.store(false); }
-  } guard;
+  // 2. Install the one shared lifecycle context before the authorization
+  // hook. The context is Entered even before a target set exists, which makes
+  // nested recompile attempts fail at the public boundary rather than inside
+  // prepare.
+  RecompileExecutionContext recompile_context;
 
   // 3. Runtime switch (default off).
   if (!CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__)) {
@@ -3505,7 +3508,7 @@ void f_recompile_object() {
     }
     if (quiesce.failure == OwnerRecompileQuiesceFailure::kTimeout) {
       error("recompile_object owner quiescence timed out (claims=%llu)\n",
-            static_cast<unsigned long long>(owner_runtime_coordinator().active_owner_claims()));
+            static_cast<unsigned long long>(owner_runtime_coordinator().snapshot().active_owner_claims));
     } else {
       error("recompile_object owner quiescence failed: %s\n", reason);
     }

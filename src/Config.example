@@ -24,6 +24,9 @@ external_port_2 : binary 4001
 # external_port_3_tls: cert=etc/cert.pem key=etc/key.pem
 
 # websocket http dir : add relative path to fluffos/src/www
+# Optional: only these numeric proxies may set X-Real-IP on websocket handshakes.
+# Leave empty (or omit) to ignore X-Real-IP from every peer.
+# websocket trusted proxy cidrs : 127.0.0.1/32, ::1/128
 
 # absolute pathname of mudlib
 mudlib directory : /home/mmessier/mudos/mudos/beta/testsuite

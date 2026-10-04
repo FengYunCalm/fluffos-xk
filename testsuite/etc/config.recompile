@@ -86,13 +86,15 @@ maximum call depth : 30
 maximum evaluation cost : 300000000
 
 # This is the maximum array size allowed for one single array.
-maximum array size : 15000
+# Sized above 65535 so the foreach tests can cover containers whose size
+# does not fit in the loop cursor's 16-bit historical count.
+maximum array size : 100000
 
 # This is the maximum allowed size of a variable of type 'buffer'.
 maximum buffer size : 400000
 
 # Max size for a mapping
-maximum mapping size : 15000
+maximum mapping size : 100000
 
 # Max inherit chain size
 inherit chain size : 30

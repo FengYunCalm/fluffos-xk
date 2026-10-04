@@ -55,6 +55,35 @@ struct VMOwnerStringTaskSubmission {
   uint64_t target_owner_epoch{0};
 };
 
+// A cleanup record is prepared while the owning request is still on the
+// creating thread. Enqueueing only links this preallocated node into the
+// main-thread cleanup queue; it must not allocate or free LPC references.
+struct VMOwnerCallbackCleanupRecord {
+  VMOwnerCallbackCleanupRecord *next{nullptr};
+  uint64_t task_id{0};
+  uint64_t sequence{0};
+  uint64_t owner_epoch{0};
+  const char *owner_id{nullptr};
+  const char *task_type{nullptr};
+  const char *task_key{nullptr};
+  using CleanupCallback = void (*)(void *);
+  CleanupCallback callback{nullptr};
+  void *callback_context{nullptr};
+
+  void prepare(const char *owner, uint64_t epoch, const char *type,
+               const char *key, CleanupCallback cleanup, void *context) noexcept {
+    next = nullptr;
+    task_id = 0;
+    sequence = 0;
+    owner_epoch = epoch;
+    owner_id = owner ? owner : "";
+    task_type = type ? type : "executor_callback_cleanup";
+    task_key = key ? key : "";
+    callback = cleanup;
+    callback_context = context;
+  }
+};
+
 struct VMOwnerMainDrainResult {
   int dispatched{0};
   int64_t remaining_main_tasks{0};
@@ -133,9 +162,7 @@ uint64_t vm_owner_enqueue_executor_task(object_t *target, const char *task_type,
 VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(
     object_t *target, const char *task_type, const char *task_key,
     std::function<bool(std::string *)> projector);
-uint64_t vm_owner_enqueue_executor_callback_cleanup(const char *owner_id, uint64_t owner_epoch,
-                                                    const char *task_type, const char *task_key,
-                                                    std::function<void()> callback);
+uint64_t vm_owner_enqueue_executor_callback_cleanup(VMOwnerCallbackCleanupRecord *record);
 uint64_t vm_owner_enqueue_main_task_with_payload(object_t *target, const char *task_type,
                                                  const char *task_key, const char *payload_key,
                                                  svalue_t *payload, std::function<void()> callback,

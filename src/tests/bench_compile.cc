@@ -11,6 +11,7 @@
 //   - rounds: number of full-corpus passes (default 5)
 
 #include "base/package_api.h"
+#include "test_mudlib.h"
 
 #include "backend.h"
 #include "compiler/internal/LexStream.h"
@@ -120,8 +121,9 @@ int main(int argc, char **argv) {
   // Full driver environment (shared string table, mem blocks, error
   // context, master/simul_efun load) -- same bootstrap as the benches
   // in src/tests.
-  if (chdir(TESTSUITE_DIR) != 0) {
-    std::perror("chdir(TESTSUITE_DIR)");
+  const auto mudlib = fluffos_test_mudlib::root();
+  if (fluffos_test_mudlib::change_directory(mudlib) != 0) {
+    std::perror("chdir(test mudlib)");
     return 2;
   }
   init_main("etc/config.test");

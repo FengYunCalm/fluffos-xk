@@ -35,17 +35,16 @@ void OwnerRuntimeCoordinator::claim_end() {
 
 OwnerRecompileState &OwnerRuntimeCoordinator::recompile_state() { return recompile_state_; }
 
-uint64_t OwnerRuntimeCoordinator::active_owner_claims() const { return active_owner_claims_; }
+OwnerRuntimeCounterSnapshot OwnerRuntimeCoordinator::snapshot() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return snapshot_locked();
+}
 
-uint64_t OwnerRuntimeCoordinator::quiesce_attempts() const { return quiesce_attempts_; }
-
-uint64_t OwnerRuntimeCoordinator::quiesce_success() const { return quiesce_success_; }
-
-uint64_t OwnerRuntimeCoordinator::quiesce_timeouts() const { return quiesce_timeouts_; }
-
-uint64_t OwnerRuntimeCoordinator::admission_rejected() const { return admission_rejected_; }
-
-uint64_t OwnerRuntimeCoordinator::recompile_epoch() const { return recompile_epoch_; }
+OwnerRuntimeCounterSnapshot OwnerRuntimeCoordinator::snapshot_locked() const {
+  return OwnerRuntimeCounterSnapshot{
+      active_owner_claims_, quiesce_attempts_, quiesce_success_,
+      quiesce_timeouts_, recompile_epoch_, admission_rejected_};
+}
 
 uint64_t OwnerRuntimeCoordinator::advance_recompile_epoch() {
   // Caller must hold the runtime mutex (quiesce_end path).
@@ -128,7 +127,7 @@ OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(
   coordinator.recompile_state() = OwnerRecompileState::kClosing;
 
   auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (coordinator.active_owner_claims() != 0) {
+  while (coordinator.snapshot_locked().active_owner_claims != 0) {
     if (coordinator.thread_stopping()) {
       coordinator.recompile_state() = OwnerRecompileState::kOpen;
       coordinator.cv().notify_all();
@@ -147,7 +146,7 @@ OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(
   coordinator.recompile_state() = OwnerRecompileState::kFrozen;
   coordinator.note_quiesce_success_locked();
   result.ok = true;
-  result.epoch = coordinator.recompile_epoch();
+  result.epoch = coordinator.snapshot_locked().recompile_epoch;
   return result;
 }
 
@@ -155,7 +154,7 @@ void vm_owner_recompile_quiesce_end(uint64_t epoch) noexcept {
   auto &coordinator = owner_runtime_coordinator();
   std::lock_guard<std::mutex> lock(coordinator.mutex());
   if (coordinator.recompile_state() == OwnerRecompileState::kFrozen &&
-      coordinator.recompile_epoch() == epoch) {
+      coordinator.snapshot_locked().recompile_epoch == epoch) {
     coordinator.advance_recompile_epoch();
     coordinator.recompile_state() = OwnerRecompileState::kOpen;
     coordinator.cv().notify_all();

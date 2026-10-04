@@ -1,0 +1,54 @@
+// A mapping or array index is statically mixed even when the element holds a
+// float. An int-declared compound-assignment lvalue must coerce that RHS to
+// int, while an ordinary mixed lvalue and a character index must retain their
+// runtime type checks.
+
+float dynamic_float() {
+  return 1.5;
+}
+
+void do_tests() {
+  int i;
+  mapping mf = ([ "x": 1.5, "zero": 0 ]);
+  mixed *af = ({ 1.5 });
+
+  // Mapping index RHS: all four arithmetic compound assignments keep i int.
+  i = 10; i += mf["x"]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(11, i);
+  i = 10; i -= mf["x"]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(9, i);
+  i = 4; i *= mf["x"]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(4, i);
+  i = 7; i /= mf["x"]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(7, i);
+
+  // Mixed-array index RHS: the same coercion applies to forward indexing.
+  i = 10; i += af[0]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(11, i);
+  i = 10; i -= af[0]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(9, i);
+  i = 4; i *= af[0]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(4, i);
+  i = 7; i /= af[0]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(7, i);
+
+  // Reverse indexing is the same TYPE_ANY expression class.
+  i = 10; i += af[<1]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(11, i);
+  i = 10; i -= af[<1]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(9, i);
+  i = 4; i *= af[<1]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(4, i);
+  i = 7; i /= af[<1]; ASSERT_EQ(1, intp(i)); ASSERT_EQ(7, i);
+
+  // Dynamic call/evaluate RHS remains covered by the same int contract.
+  i = 10; i += this_object()->dynamic_float();
+  ASSERT_EQ(1, intp(i)); ASSERT_EQ(11, i);
+  function fp = (: dynamic_float :);
+  i = 10; i += evaluate(fp);
+  ASSERT_EQ(1, intp(i)); ASSERT_EQ(11, i);
+
+  // A mixed lvalue remains able to become float.
+  mixed m = 10;
+  m += 1.5;
+  ASSERT_EQ(1, floatp(m)); ASSERT_EQ(11.5, m);
+
+  // Indexing must not turn unrelated type errors into successful coercions.
+  mixed bad = "not-a-number";
+  ASSERT(catch(bad *= 2));
+  string text = "abc";
+  mixed rhs = "not-a-number";
+  ASSERT(catch(text[0] += rhs));
+
+  // Division-by-zero remains an error after RHS coercion.
+  ASSERT(catch(i /= mf["zero"]));
+}

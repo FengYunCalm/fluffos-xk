@@ -106,6 +106,7 @@ struct AddrNumberQuery {
   evutil_addrinfo *res{nullptr};
   std::string owner_id;
   uint64_t owner_epoch{0};
+  VMOwnerCallbackCleanupRecord cleanup_record;
 };
 
 class ControlledLpcScope {
@@ -118,6 +119,11 @@ class ControlledLpcScope {
  private:
   bool previous_;
 };
+
+void free_addr_number_query(AddrNumberQuery *query);
+void free_addr_number_query_cleanup(void *context) {
+  free_addr_number_query(static_cast<AddrNumberQuery *>(context));
+}
 
 object_t *dns_callback_owner(AddrNumberQuery *query) {
   if (!query) {
@@ -133,6 +139,8 @@ void bind_dns_query_owner(AddrNumberQuery *query) {
   auto *owner = dns_callback_owner(query);
   query->owner_id = vm_owner_id(owner);
   query->owner_epoch = vm_owner_epoch(owner);
+  query->cleanup_record.prepare(query->owner_id.c_str(), query->owner_epoch, "dns_callback", "<pending>",
+                                free_addr_number_query_cleanup, query);
 }
 
 const char *dns_query_task_key(AddrNumberQuery *query) {
@@ -174,12 +182,8 @@ void cleanup_addr_number_query(AddrNumberQuery *query, const char *task_key, boo
     free_addr_number_query(query);
     return;
   }
-  auto task_id = vm_owner_enqueue_executor_callback_cleanup(
-      query->owner_id.c_str(), query->owner_epoch, "dns_callback", task_key,
-      [query] { free_addr_number_query(query); });
-  if (task_id == 0) {
-    free_addr_number_query(query);
-  }
+  query->cleanup_record.task_key = task_key ? task_key : "";
+  (void)vm_owner_enqueue_executor_callback_cleanup(&query->cleanup_record);
 }
 
 // query finished, call the LPC callback.

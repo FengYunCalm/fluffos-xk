@@ -26,6 +26,7 @@
 #include <utility>
 
 #include "vm/internal/base/machine.h"  // for error(), FIXME
+#include "vm/internal/recompile.h"   // transaction compile barrier
 
 #ifdef PACKAGE_MUDLIB_STATS
 #include "packages/mudlib_stats/mudlib_stats.h"
@@ -2154,6 +2155,10 @@ void yywarn(const char *fmt, ...) {
  */
 program_t *compile_file(std::unique_ptr<LexStream> stream, const char *name) {
   int yyparse(void);
+  // During a simul_efun transaction, newly compiled bytecode would capture
+  // the temporary dispatch indices. Reject it before touching parser-global
+  // state; the transaction's own staged compile is still in Entered phase.
+  vm_recompile_reject_new_compile();
   static int guard = 0;
   program_t *prog;
   extern int func_present;
@@ -2370,7 +2375,16 @@ static void handle_functions() {
         /* except the case where new_index is actually final_index */
 
         if (new_index != final_index) {
-          prog_flags[new_index] = FUNC_ALIAS | final_index;
+          /* A hidden (inherited private) slot must keep its own definition.
+           * F_CALL_FUNCTION_BY_ADDRESS in the inherit's bytecode indexes
+           * this slot via function_index_offset; aliasing it to a later
+           * inherit's same-named private made pa->a_call() run pb's
+           * function. Public/visible overloads still alias. */
+          if (cur_def->flags & DECL_HIDDEN) {
+            prog_flags[new_index] = cur_def->flags;
+          } else {
+            prog_flags[new_index] = FUNC_ALIAS | final_index;
+          }
         }
       }
     }

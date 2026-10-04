@@ -55,6 +55,7 @@
 
 #include "base/package_api.h"
 #include "mainlib.h"
+#include "test_mudlib.h"
 #include "packages/gateway/gateway.h"
 
 namespace {
@@ -83,8 +84,9 @@ bool init_driver_once() {
   if (initialized) {
     return true;
   }
-  if (fuzz_chdir(TESTSUITE_DIR) != 0) {
-    std::fprintf(stderr, "gateway_fuzz: chdir %s failed\n", TESTSUITE_DIR);
+  const auto mudlib = fluffos_test_mudlib::root();
+  if (fuzz_chdir(mudlib.string().c_str()) != 0) {
+    std::fprintf(stderr, "gateway_fuzz: chdir %s failed\n", mudlib.string().c_str());
     return false;
   }
   if (!init_main("etc/config.test")) {

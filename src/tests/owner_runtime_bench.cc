@@ -1,4 +1,5 @@
 #include "base/package_api.h"
+#include "test_mudlib.h"
 
 #include "backend.h"
 #include "mainlib.h"
@@ -1046,9 +1047,10 @@ int main(int argc, char **argv) {
     if (!json_path.empty()) {
       json_path = std::filesystem::absolute(json_path).string();
     }
-    if (bench_chdir(TESTSUITE_DIR) != 0) {
+    const auto mudlib = fluffos_test_mudlib::root();
+    if (bench_chdir(mudlib.string().c_str()) != 0) {
       std::ostringstream error;
-      error << "failed to chdir to " << TESTSUITE_DIR << ": " << strerror(errno);
+      error << "failed to chdir to " << mudlib.string() << ": " << strerror(errno);
       throw std::runtime_error(error.str());
     }
     init_main("etc/config.test");

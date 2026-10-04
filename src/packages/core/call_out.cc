@@ -118,19 +118,22 @@ void free_call_on_main(pending_call_t *cop, bool called) {
   }
 }
 
+void free_callout_cleanup(void *context) {
+  auto *cop = static_cast<pending_call_t *>(context);
+  free_call_on_main(cop, cop->cleanup_called);
+}
+
 void cleanup_callout(pending_call_t *cop, bool called, bool main_required) {
   if (!cop) {
     return;
   }
+  cop->cleanup_called = called;
   if (!main_required || vm_context_is_main_thread()) {
     free_call_on_main(cop, called);
     return;
   }
-  std::string owner_id = callout_owner_id(cop);
-  std::string task_key = callout_task_key(cop);
-  uint64_t owner_epoch = cop->owner_epoch;
-  vm_owner_enqueue_executor_callback_cleanup(owner_id.c_str(), owner_epoch, "call_out", task_key.c_str(),
-                                             [cop, called] { free_call_on_main(cop, called); });
+  cop->cleanup_record->task_key = callout_task_key(cop);
+  (void)vm_owner_enqueue_executor_callback_cleanup(cop->cleanup_record);
 }
 }  // namespace
 
@@ -138,6 +141,10 @@ void cleanup_callout(pending_call_t *cop, bool called, bool main_required) {
  * Free a call out structure.
  */
 static void free_called_call(pending_call_t *cop) {
+  if (cop->cleanup_record) {
+    delete cop->cleanup_record;
+    cop->cleanup_record = nullptr;
+  }
   if (cop->ob) {
     free_string(cop->function.s);
     free_object(&cop->ob, "free_call");
@@ -237,6 +244,14 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
   const char *owner_id = vm_owner_id(owner_ob);
   cop->owner_id = std::strcmp(owner_id, vm_owner_default_id()) == 0 ? nullptr : make_shared_string(owner_id);
   cop->owner_epoch = vm_owner_epoch(owner_ob);
+  try {
+    cop->cleanup_record = new VMOwnerCallbackCleanupRecord();
+    cop->cleanup_record->prepare(callout_owner_id(cop), cop->owner_epoch, "call_out",
+                                 callout_task_key(cop), free_callout_cleanup, cop);
+  } catch (...) {
+    free_call(cop);
+    error("unable to reserve call_out cleanup record\n");
+  }
   vm_object_store_record_callout(owner_ob, static_cast<uint64_t>(cop->handle));
   vm_owner_record_task_trace(callout_owner_id(cop), "call_out", fun->type == T_STRING ? fun->u.string : "<function>",
                              cop->owner_epoch, "scheduled");

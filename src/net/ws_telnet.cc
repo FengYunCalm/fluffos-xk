@@ -9,7 +9,9 @@
 #include <cstdlib>
 
 #include "net/ws_telnet.h"
+#include "comm.h"
 #include "interactive.h"
+#include "net/websocket.h"
 #include "net/telnet.h"
 
 // from comm.cc
@@ -59,45 +61,21 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
       auto port = (port_def_t *)lws_context_user(lws_get_context(wsi));
       auto fd = lws_get_socket_fd(lws_get_network_wsi(wsi));
 
-      sockaddr_storage addr = {0};
+      sockaddr_storage addr = {};
       socklen_t addrlen = sizeof(addr);
-      auto result = getpeername(fd, reinterpret_cast<sockaddr *>(&addr), &addrlen);
-      if (result) {
-        lwsl_warn("LWS_CALLBACK_ESTABLISHED: getpeername error, %d\n", evutil_socket_geterror(fd));
-        return -1;  // TODO: maybe do something else?
-      }
-
-      // Process X-REAL-IP
-      {
-        char buf[64];  // maximum characters of ip address is 45.
-        auto buflen = lws_hdr_copy(wsi, buf, sizeof(buf), WSI_TOKEN_HTTP_X_REAL_IP);
-        if (buflen > 0) {
-          struct evutil_addrinfo hints = {0};
-          hints.ai_family = AF_UNSPEC;
-          hints.ai_socktype = SOCK_STREAM;
-          hints.ai_flags = AI_NUMERICHOST;
-          hints.ai_protocol = 0; /* Any protocol */
-
-          struct evutil_addrinfo *res = nullptr;
-          auto ret = evutil_getaddrinfo(buf, nullptr, &hints, &res);
-          if (ret) {
-            lwsl_warn("LWS_CALLBACK_ESTABLISHED: invalid X-REAL-IP : %s , error: %s.\n", buf,
-                      evutil_gai_strerror(ret));
-            return false;
-          }
-          if (res && res->ai_addrlen > 0) {
-            memcpy(&addr, res->ai_addr, res->ai_addrlen);
-            addrlen = res->ai_addrlen;
-
-            evutil_freeaddrinfo(res);
-          }
-        }
+      if (!websocket_get_client_address(wsi, port, &addr, &addrlen)) {
+        lwsl_warn("LWS_CALLBACK_ESTABLISHED: invalid peer address or trusted X-Real-IP\n");
+        return -1;
       }
 
       auto ip = new_user(port, fd, reinterpret_cast<sockaddr *>(&addr), addrlen);
 
       pss->user = ip;
       pss->buffer = evbuffer_new();
+      if (!pss->buffer) {
+        websocket_session_teardown(wsi, &pss->user, &pss->buffer);
+        return -1;
+      }
 
       ip->iflags |= HANDSHAKE_COMPLETE;
       ip->lws = wsi;
@@ -107,31 +85,16 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
       send_initial_telnet_negotiations(ip);
 
       auto base = evconnlistener_get_base(port->ev_conn);
-      if (event_base_once(
-              base, -1, EV_TIMEOUT,
-              [](evutil_socket_t /*fd*/, short /*what*/, void *arg) {
-                auto user = reinterpret_cast<interactive_t *>(arg);
-                on_user_logon(user);
-              },
-              (void *)ip, nullptr) != 0) {
-        fatal("ws_telnet_callback: failed to schedule user logon");
+      if (!schedule_user_logon(base, ip)) {
+        websocket_session_teardown(wsi, &pss->user, &pss->buffer);
+        return -1;
       }
       break;
     }
     case LWS_CALLBACK_CLOSED: {
       lwsl_info("LWS_CALLBACK_CLOSED: wsi %p\n", wsi);
 
-      auto *ip = pss->user;
-      if (!ip) {
-        return -1;
-      }
-
-      remove_interactive(ip->ob, 0);
-      pss->user = nullptr;
-
-      evbuffer_free(pss->buffer);
-      pss->buffer = nullptr;
-
+      websocket_session_teardown(wsi, &pss->user, &pss->buffer);
       break;
     }
     case LWS_CALLBACK_SERVER_WRITEABLE: {

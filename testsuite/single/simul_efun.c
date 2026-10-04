@@ -23,6 +23,77 @@ inherit "std/percent" ;
 inherit "std/all_environment" ;
 inherit "std/present_clone" ;
 
+// I15 probe: mode 1 attempts to lazily compile an unrelated object from the
+// simul create phase. Simul dispatch must reject every new LPC compilation
+// until activation either commits or rolls back.
+int recompile_simul_probe_mode;
+object recompile_simul_probe_helper;
+
+void set_recompile_simul_probe(int mode) {
+    recompile_simul_probe_mode = mode;
+}
+
+void set_recompile_simul_probe_helper(object helper) {
+    recompile_simul_probe_helper = helper;
+}
+
+int query_recompile_simul_probe() {
+    return recompile_simul_probe_mode;
+}
+
+int recompile_simul_lifecycle_alive() {
+    return 1;
+}
+
+void create() {
+    function born;
+    int mode = recompile_simul_probe_mode;
+    if (!mode) return;
+    recompile_simul_probe_mode = 0;
+    switch (mode) {
+    case 1:
+        // A new compile is forbidden after temporary simul dispatch indices
+        // become live, even when the source appears unrelated.
+        load_object("/clone/recompile_simul_compile_probe");
+        break;
+    case 2:
+        destruct(this_object());
+        break;
+    case 3:
+        recompile_object(this_object());
+        break;
+    case 4:
+        replace_program("/single/simul_efun");
+        break;
+    case 5:
+        vm_set_owner_id(this_object(), "owner/recompile/probe");
+        break;
+    case 6:
+        move_object(this_object());
+        break;
+    case 7:
+        new("/single/simul_efun");
+        break;
+    case 8:
+        recompile_simul_probe_helper->destroy_target(this_object());
+        break;
+    case 9:
+        // A bound function pointer escapes to a non-target object before the
+        // create phase fails. I05 must make it permanently invalid on
+        // rollback, including after a later successful retry.
+        born = bind((: $1 :), recompile_simul_probe_helper);
+        recompile_simul_probe_helper->store_escaped_fp(born);
+        error("I05 staged function pointer rollback probe");
+        break;
+    case 10:
+        // The same escape is valid when the transaction commits. The shared
+        // journal must promote the newborn from StagedBorn to Live.
+        born = bind((: $1 :), recompile_simul_probe_helper);
+        recompile_simul_probe_helper->store_escaped_fp(born);
+        break;
+    }
+}
+
 async int async_simul_probe() {
     await async_yield();
     return 84;

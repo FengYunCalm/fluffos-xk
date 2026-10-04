@@ -445,20 +445,65 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
       send_initial_telnet_negotiations(user);
     }
 
-    if (event_base_once(
-            base, -1, EV_TIMEOUT,
-            [](evutil_socket_t /*fd*/, short /*what*/, void *arg) {
-              auto *user = reinterpret_cast<interactive_t *>(arg);
-              on_user_logon(user);
-            },
-            (void *)user, nullptr) != 0) {
-      fatal("new_conn_handler: failed to schedule user logon");
+    if (!schedule_user_logon(base, user)) {
+      remove_interactive(user->ob, 0);
+      return;
     }
   }
   debug(connections, ("new_conn_handler: end\n"));
 } /* new_conn_handler() */
 
 }  // namespace
+
+namespace {
+
+void user_logon_event_callback(evutil_socket_t /*fd*/, short /*what*/, void *arg) {
+  auto *user = reinterpret_cast<interactive_t *>(arg);
+  if (!user) {
+    return;
+  }
+
+  auto *event = user->ev_logon;
+  user->ev_logon = nullptr;
+  if (event) {
+    event_free(event);
+  }
+  if (user->iflags & CLOSING) {
+    return;
+  }
+  on_user_logon(user);
+}
+
+}  // namespace
+
+bool schedule_user_logon(struct event_base *base, interactive_t *user) {
+  if (!base || !user || user->ev_logon) {
+    return false;
+  }
+
+  auto *event = event_new(base, -1, EV_TIMEOUT, user_logon_event_callback, user);
+  if (!event) {
+    return false;
+  }
+  user->ev_logon = event;
+  const timeval zero_timeout = {0, 0};
+  if (event_add(event, &zero_timeout) != 0) {
+    user->ev_logon = nullptr;
+    event_free(event);
+    return false;
+  }
+  return true;
+}
+
+void cancel_user_logon(interactive_t *user) {
+  if (!user || !user->ev_logon) {
+    return;
+  }
+  auto *event = user->ev_logon;
+  user->ev_logon = nullptr;
+  event_del(event);
+  event_free(event);
+}
 
 bool decode_mud_port_payload_length_for_test(const char *header, size_t header_size,
                                              size_t *payload_length) {
@@ -1829,8 +1874,9 @@ void remove_interactive(object_t *ob, int dested) {
   }
   debug(connections, "Closing connection from %s.\n",
         sockaddr_to_string((struct sockaddr *)&ip->addr, ip->addrlen));
-  flush_message(ip);
+  cancel_user_logon(ip);
   ip->iflags |= CLOSING;
+  flush_message(ip);
 
 #ifdef OLD_ED
   if (ip->ed_buffer) {

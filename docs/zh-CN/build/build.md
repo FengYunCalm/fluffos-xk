@@ -9,7 +9,7 @@ FluffOS 目前分 v2017 和 v2019 二个版本，主要区别是 v2017 版可以
 
 v2017 版目前支持在以下系统中编译：ubuntu 14.04+, raspbian, centos 7+, CYGWIN 64。
 
-v2019 版目前支持在以下系统中编译：ubuntu 18.04+ (包括 WSL), raspbian, OSX, MSYS2/mingw64.
+v2019 版当前的 PCRE2 构建支持 Ubuntu 24.04+（包括 WSL）、raspbian、OSX 和 MSYS2/mingw64；旧系统必须另行提供 PCRE2 10.42+，或关闭 `PACKAGE_PCRE`。
 
 不管是 v2017 还是 v2019，编译配置文件都为 src 下面的 local_options 文件，请根据需要修改（非特别需求，推荐使用默认配置），如果需要驱动旧版MUD，请 `#undef SENSIBLE_MODIFIERS` 。
 
@@ -30,7 +30,9 @@ v2019 版目前支持在以下系统中编译：ubuntu 18.04+ (包括 WSL), rasp
 
 Ubuntu 系统请执行以下指令安装编译所需的包，包括编译 v2017 和 v2019 所需的库。
 
-    sudo apt install bison libjemalloc-dev zlib1g-dev libssl-dev libmariadb-dev libpcre3-dev libevent-dev libicu-dev libdw-dev binutils-dev gcc g++ autoconf automake cmake git -y
+    sudo apt install bison libjemalloc-dev zlib1g-dev libssl-dev libmariadb-dev libpcre2-dev libevent-dev libicu-dev libdw-dev binutils-dev gcc g++ autoconf automake cmake git -y
+
+现代 CMake 构建的 `PACKAGE_PCRE=ON` 要求 PCRE2 10.42 或更高版本、`pcre2.h` 和 8 位 `pcre2-8` 库。CMake 会拒绝旧的 PCRE1 头文件或库缓存；没有满足版本要求的 PCRE2 时请显式设置 `-DPACKAGE_PCRE=OFF`。
 
 ### v2017 编译
 
@@ -130,7 +132,7 @@ CYGWIN下载地址： http://www.cygwin.org/setup-x86_64.exe
 * libicu-devel
 * libmariadb-devel
 * libmysqlclient-devel
-* libpcre-devel
+* libpcre2-devel
 * make
 * python3
 * zlib-devel
@@ -176,7 +178,7 @@ MSYS2 官方网站：https://www.msys2.org/ 下载安装后需运行 Mingw-w64 6
 
     pacman -Syu
     pacman -S git make mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake
-    pacman -S mingw-w64-x86_64-zlib mingw-w64-x86_64-libevent mingw-w64-x86_64-pcre mingw-w64-x86_64-icu
+    pacman -S mingw-w64-x86_64-zlib mingw-w64-x86_64-libevent mingw-w64-x86_64-pcre2 mingw-w64-x86_64-icu
     pacman -S bison
 
 编译方式和 Ubuntu 下 v2019 类似，在 `fluffos` 目录执行以下指令：
@@ -189,7 +191,7 @@ MSYS2 官方网站：https://www.msys2.org/ 下载安装后需运行 Mingw-w64 6
 
 在最新的 macos 系统下编译只支持 FluffOS v2019，MAC 系统请执行以下指令安装编译所需的包：
 
-    brew install cmake pkg-config mysql pcre libgcrypt libevent openssl jemalloc icu4c
+    brew install cmake pkg-config mysql pcre2 libgcrypt libevent openssl jemalloc icu4c
 
 编译方式和 Ubuntu 下 v2019 类似，在 `fluffos` 目录执行以下指令：
 

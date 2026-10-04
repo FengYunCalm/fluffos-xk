@@ -12,11 +12,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <initializer_list>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -38,8 +40,10 @@
 #include "base/internal/stralloc.h"
 #include "base/internal/strutils.h"
 #include "net/tls.h"
+#include "net/websocket.h"
 
 #include "backend.h"
+#include "comm.h"
 #include "interactive.h"
 #include "net/sys_telnet.h"
 #include "net/telnet.h"
@@ -60,6 +64,7 @@
 #include "packages/gateway/gateway.h"
 #include "packages/sockets/socket_efuns.h"
 #include "vm/context.h"
+#include "vm/frozen_value.h"
 #include "vm/internal/apply.h"
 #include "vm/internal/base/apply_cache.h"
 #include "vm/internal/base/array.h"
@@ -81,6 +86,7 @@
 #include "vm/owner.h"
 #include "vm/vm.h"
 #include "vm/worker.h"
+#include "test_mudlib.h"
 
 extern uint64_t vm_owner_enqueue_test_main_required_message(const char* owner_id, const char* task_key);
 extern void vm_owner_test_support_reset_budget_yield_observations();
@@ -107,6 +113,12 @@ struct ExternalCommandGuard {
 object_t* load_object_for_test(const char* path);
 object_t* clone_object_for_test(const char* path);
 void destruct_object_for_test(object_t* object);
+
+[[noreturn]] void throw_recompile_non_lpc_exception_for_test() {
+  vm_context_set_current_object(vm_context(), nullptr);
+  vm_context_set_current_program(vm_context(), nullptr);
+  throw std::runtime_error("injected recompile create exception");
+}
 }
 extern bool vm_dns_test_support_dispatch_callback(object_t* owner, const char* method, LPC_INT key);
 extern bool vm_socket_test_support_dispatch_callback(object_t* owner, const char* method, LPC_INT fd);
@@ -122,6 +134,29 @@ extern int gateway_dispatch_buffered_frames_for_test(GatewayMaster *master, int 
 extern void gateway_set_read_dispatch_pending_for_test(GatewayMaster *master, bool pending);
 extern void gateway_service_admitted_receive_tasks_for_test();
 extern bool gateway_master_has_buffered_input_for_test(const GatewayMaster *master);
+
+TEST(StrUtilsTest, TrimCharsetMatchesUtf8Scalars) {
+  const std::string book = "\xE3\x80\x8A" "\xE4\xB8\x89" "\xE5\xAD\x97" "\xE7\xBB\x8F" "\xE3\x80\x8B";
+  const std::string ideographic_space = "\xE3\x80\x80";
+  const std::string wrapped = ideographic_space + book + ideographic_space;
+
+  EXPECT_EQ(book, trim(book, ideographic_space));
+  EXPECT_EQ(book, trim(wrapped, ideographic_space));
+  EXPECT_EQ(book + ideographic_space, ltrim(wrapped, ideographic_space));
+  EXPECT_EQ(ideographic_space + book, rtrim(wrapped, ideographic_space));
+  EXPECT_EQ("\xE4\xB8\x89" "\xE5\xAD\x97" "\xE7\xBB\x8F",
+            trim(book, "\xE3\x80\x8A" "\xE3\x80\x8B"));
+
+  EXPECT_EQ(wrapped, trim(wrapped, ""));
+  EXPECT_EQ(wrapped, trim(wrapped));
+
+  const std::string invalid_prefix = "\x80x";
+  const std::string invalid_suffix = "x\x80";
+  const std::string invalid = "\x80";
+  EXPECT_EQ(invalid_prefix, ltrim(invalid_prefix, "x"));
+  EXPECT_EQ(invalid_suffix, rtrim(invalid_suffix, "x"));
+  EXPECT_EQ(invalid, trim(invalid, invalid));
+}
 
 TEST(MudlibStatsTest, ArraySizeUpdatesAreAtomicAcrossVmThreads) {
   mudlib_stats_t stats{};
@@ -853,8 +888,15 @@ class ScopedLpcMapping {
 class DriverTest : public ::testing::Test {
  public:
   static void SetUpTestSuite() {
-    ASSERT_EQ(0, chdir(TESTSUITE_DIR))
-        << "failed to chdir to " << TESTSUITE_DIR << ": " << strerror(errno);
+    std::string mudlib;
+    try {
+      mudlib = fluffos_test_mudlib::root_string();
+    } catch (const std::exception &error) {
+      FAIL() << "invalid FLUFFOS_TEST_MUDLIB: " << error.what();
+      return;
+    }
+    ASSERT_EQ(0, fluffos_test_mudlib::change_directory(mudlib))
+        << "failed to chdir to " << mudlib << ": " << strerror(errno);
     // Initialize libevent, This should be done before executing LPC.
     auto* base = init_main("etc/config.test");
     vm_start();
@@ -898,6 +940,52 @@ TEST_F(DriverTest, TestPromisePassThroughDeliveryIsDeferredAndRefcounted) {
   free_promise(source);
   free_promise(next);
 }
+
+#ifdef DEBUG
+TEST_F(DriverTest, ForeachTemporariesRestoredOnUnwind) {
+  auto* object = load_object_for_test("single/tests/compiler/foreach_unwind");
+  ASSERT_NE(object, nullptr);
+  current_object = master_ob;
+
+  const int before = stack_in_use_as_temporary;
+  const auto context_before = vm_context().execution.stack_in_use_as_temporary;
+  ASSERT_EQ(before, context_before);
+
+  auto invoke_number = [&](const char* method, int expected) {
+    auto* result = safe_apply(method, object, 0, ORIGIN_DRIVER);
+    if (result == nullptr) {
+      ADD_FAILURE() << method << " unexpectedly failed";
+      return;
+    }
+    if (result->type != T_NUMBER) {
+      ADD_FAILURE() << method << " returned svalue type " << result->type;
+      vm_apply_return_clear();
+      return;
+    }
+    EXPECT_EQ(result->u.number, expected) << method;
+    vm_apply_return_clear();
+    EXPECT_EQ(stack_in_use_as_temporary, before) << method;
+    EXPECT_EQ(vm_context().execution.stack_in_use_as_temporary, context_before) << method;
+  };
+
+  // Catching an error unwinds one loop before F_EXIT_FOREACH can run.
+  invoke_number("caught_in_foreach", 1);
+  // The same boundary must restore both nested loop counters.
+  invoke_number("caught_in_nested_foreach", 1);
+  // A later normal statement must still execute the DEBUG stack check path.
+  invoke_number("normal_foreach", 6);
+  // Returning from an open loop follows the ordinary F_EXIT_FOREACH path.
+  invoke_number("return_inside_foreach", 11);
+
+  // safe_apply()/restore_context() uses the same boundary and must not leak a
+  // temporary count when the error escapes the LPC function entirely.
+  auto* failed = safe_apply("error_in_foreach", object, 0, ORIGIN_DRIVER);
+  EXPECT_EQ(failed, nullptr);
+  vm_apply_return_clear();
+  EXPECT_EQ(stack_in_use_as_temporary, before);
+  EXPECT_EQ(vm_context().execution.stack_in_use_as_temporary, context_before);
+}
+#endif  // DEBUG
 
 TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   clear_tick_events();
@@ -994,6 +1082,8 @@ TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   ASSERT_EQ(inherited->result.type, T_NUMBER);
   ASSERT_EQ(inherited->result.u.number, 7);
 
+  program_t* rejection_owner_program = guard.object->prog;
+  const unsigned int rejection_owner_program_ref_before = rejection_owner_program->ref;
   guard.source = promise_alloc();
   guard.source->ref++;  // retain the source while the async call owns its argument
   push_refed_promise(guard.source);
@@ -1002,6 +1092,8 @@ TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   ASSERT_EQ(result->type, T_PROMISE);
   auto* caught = result->u.prom;
   caught->ref++;
+  EXPECT_EQ(rejection_owner_program->ref, rejection_owner_program_ref_before + 2u)
+      << "rejected suspended frames must hold both program pins";
   vm_apply_return_clear();
   guard.results.push_back(caught);
   ASSERT_EQ(caught->state, PROMISE_PENDING);
@@ -1015,6 +1107,158 @@ TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   ASSERT_EQ(caught->state, PROMISE_FULFILLED);
   ASSERT_EQ(caught->result.type, T_STRING);
   ASSERT_STREQ(caught->result.u.string, "expected rejection");
+  EXPECT_EQ(rejection_owner_program->ref, rejection_owner_program_ref_before)
+      << "rejection delivery must release both program pins";
+}
+
+TEST_F(DriverTest, TestRecompileSafetyCoroutineGeneration64AndProgramPin) {
+  clear_tick_events();
+  object_t* object = load_object_for_test("single/async_phase2_probe");
+  ASSERT_NE(object, nullptr);
+
+  program_t* owner_program = object->prog;
+  const unsigned int owner_program_ref_before = owner_program->ref;
+  object->prog_generation =
+      static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 17u;
+
+  auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* promise = result->u.prom;
+  promise->ref++;
+  vm_apply_return_clear();
+  ASSERT_EQ(promise->state, PROMISE_PENDING);
+  EXPECT_EQ(owner_program->ref, owner_program_ref_before + 2u)
+      << "defining-program and owner-top-program pins must both be held";
+
+  for (int pass = 0; pass < 32 && promise->state == PROMISE_PENDING; pass++) {
+    if (tick_event_queue_size_for_test() != 0) {
+      ASSERT_GT(run_tick_events_for_test(), 0u);
+    }
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    }
+    if (tick_event_queue_size_for_test() == 0 &&
+        walltime_event_queue_size_for_test() == 0 &&
+        promise->state == PROMISE_PENDING) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+
+  EXPECT_EQ(promise->state, PROMISE_FULFILLED);
+  if (promise->state == PROMISE_FULFILLED) {
+    ASSERT_EQ(promise->result.type, T_NUMBER);
+    EXPECT_EQ(promise->result.u.number, 42);
+  } else {
+    promise->handled = true;
+  }
+  EXPECT_EQ(owner_program->ref, owner_program_ref_before)
+      << "all completion paths must release both program pins";
+  free_promise(promise);
+  destruct_object_for_test(object);
+}
+
+TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsRecompile) {
+  clear_tick_events();
+  object_t* object = load_object_for_test("single/async_phase2_probe");
+  ASSERT_NE(object, nullptr);
+
+  auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* promise = result->u.prom;
+  promise->ref++;
+  vm_apply_return_clear();
+  ASSERT_EQ(promise->state, PROMISE_PENDING);
+
+  program_t* old_program = object->prog;
+  RecompilePrepared prepared;
+  prepared.staged = compile_program_for_recompile(object);
+  ASSERT_NE(prepared.staged.prog, nullptr);
+  prepared.old_layout = describe_recompile_layout(old_program);
+  prepared.new_layout = describe_recompile_layout(prepared.staged.prog);
+  ASSERT_TRUE(recompile_layouts_match(prepared.old_layout, prepared.new_layout, nullptr));
+  start_recompile_transaction(object, RecompileTargetKind::BlueprintFamily, &prepared);
+  prepare_variable_migrations(&prepared);
+  ASSERT_TRUE(prepared.migrations.empty());
+  prepared.commit_swap();
+  ASSERT_NE(object->prog, old_program);
+  ASSERT_TRUE(prepared.run_create_guarded());
+  prepared.commit_finish();
+
+  for (int pass = 0; pass < 32 && promise->state == PROMISE_PENDING; pass++) {
+    if (tick_event_queue_size_for_test() != 0) {
+      ASSERT_GT(run_tick_events_for_test(), 0u);
+    }
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    }
+    if (tick_event_queue_size_for_test() == 0 &&
+        walltime_event_queue_size_for_test() == 0 &&
+        promise->state == PROMISE_PENDING) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+
+  ASSERT_EQ(promise->state, PROMISE_REJECTED);
+  ASSERT_EQ(promise->result.type, T_STRING);
+  ASSERT_STREQ(promise->result.u.string,
+               "*async function owner was recompiled while suspended");
+  promise->handled = true;
+  free_promise(promise);
+  destruct_object_for_test(object);
+}
+
+TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsReplaceProgram) {
+  clear_tick_events();
+  object_t* object = load_object_for_test("single/async_phase2_probe");
+  object_t* replacement = load_object_for_test("single/async_phase2_base");
+  ASSERT_NE(object, nullptr);
+  ASSERT_NE(replacement, nullptr);
+
+  auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_PROMISE);
+  auto* promise = result->u.prom;
+  promise->ref++;
+  vm_apply_return_clear();
+  ASSERT_EQ(promise->state, PROMISE_PENDING);
+
+  auto* entry = static_cast<replace_ob_t *>(
+      DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_async_replace_program"));
+  entry->ob = object;
+  entry->new_prog = replacement->prog;
+  entry->var_offset = 0;
+  entry->next = obj_list_replace;
+  obj_list_replace = entry;
+  replace_programs();
+  ASSERT_EQ(object->prog, replacement->prog);
+
+  for (int pass = 0; pass < 32 && promise->state == PROMISE_PENDING; pass++) {
+    if (tick_event_queue_size_for_test() != 0) {
+      ASSERT_GT(run_tick_events_for_test(), 0u);
+    }
+    if (walltime_event_queue_size_for_test() != 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
+    }
+    if (tick_event_queue_size_for_test() == 0 &&
+        walltime_event_queue_size_for_test() == 0 &&
+        promise->state == PROMISE_PENDING) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+
+  ASSERT_EQ(promise->state, PROMISE_REJECTED);
+  ASSERT_EQ(promise->result.type, T_STRING);
+  ASSERT_STREQ(promise->result.u.string,
+               "*async function owner's program was replaced while suspended");
+  promise->handled = true;
+  free_promise(promise);
+  destruct_object_for_test(object);
+  destruct_object_for_test(replacement);
 }
 
 TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
@@ -1057,6 +1301,8 @@ TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
   clear_tick_events();
   object_t* object = load_object_for_test("single/async_phase2_probe");
   ASSERT_NE(object, nullptr);
+  program_t* owner_program = object->prog;
+  const unsigned int owner_program_ref_before = owner_program->ref;
 
   auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
   ASSERT_NE(result, nullptr);
@@ -1065,6 +1311,8 @@ TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
   promise->ref++;
   vm_apply_return_clear();
   ASSERT_EQ(promise->state, PROMISE_PENDING);
+  EXPECT_EQ(owner_program->ref, owner_program_ref_before + 2u)
+      << "destructed suspended frames must hold both program pins";
 
   destruct_object_for_test(object);
   ASSERT_EQ(promise->state, PROMISE_REJECTED);
@@ -1167,6 +1415,159 @@ TEST_F(DriverTest, TestFutureFrozenWideArrayDoesNotConsumeDepthAcrossSiblings) {
   ASSERT_EQ(completion->record.error, "future_payload_single_byte_cap");
   ASSERT_EQ(store.terminal_payload_bytes(), 0);
   ASSERT_TRUE(store.take(1).consumed);
+}
+
+TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
+  auto build_nested = [](int depth) {
+    svalue_t root;
+    root = const0u;
+    root.type = T_ARRAY;
+    root.subtype = 0;
+    array_t *current = allocate_array(1);
+    for (int i = 1; i < depth; i++) {
+      array_t *next = allocate_array(1);
+      next->item[0].type = T_ARRAY;
+      next->item[0].subtype = 0;
+      next->item[0].u.arr = current;
+      current = next;
+    }
+    root.u.arr = current;
+    return root;
+  };
+
+  auto depth_eight = build_nested(8);
+  svalue_t copied = const0u;
+  ASSERT_TRUE(vm_copy_frozen_svalue(&copied, &depth_eight));
+  free_svalue(&copied, "frozen depth eight copy");
+  free_svalue(&depth_eight, "frozen depth eight source");
+
+  auto depth_nine = build_nested(9);
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &depth_nine));
+  ASSERT_EQ(copied.type, T_NUMBER);
+  std::string error;
+  ASSERT_FALSE(vm_frozen_value_safe(&depth_nine, 0, "frozen value", &error));
+  ASSERT_NE(error.find("nesting is too deep"), std::string::npos);
+  error.clear();
+  ASSERT_TRUE(vm_frozen_value_safe_with_max_depth(&depth_nine, 0, 9, "frozen value", &error));
+  free_svalue(&depth_nine, "frozen depth nine source");
+
+  svalue_t null_string = const0u;
+  null_string.type = T_STRING;
+  null_string.subtype = STRING_SHARED;
+  null_string.u.string = nullptr;
+  copied = const0u;
+  ASSERT_TRUE(vm_copy_frozen_svalue(&copied, &null_string));
+  free_svalue(&copied, "frozen null string copy");
+  ASSERT_TRUE(vm_frozen_value_safe(&null_string, 0, "frozen value", &error));
+
+  svalue_t null_array = const0u;
+  null_array.type = T_ARRAY;
+  null_array.u.arr = nullptr;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &null_array));
+  ASSERT_FALSE(vm_frozen_value_safe(&null_array, 0, "frozen value", &error));
+
+  svalue_t null_mapping = const0u;
+  null_mapping.type = T_MAPPING;
+  null_mapping.u.map = nullptr;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &null_mapping));
+  ASSERT_FALSE(vm_frozen_value_safe(&null_mapping, 0, "frozen value", &error));
+
+  auto *cycle = allocate_array(1);
+  cycle->item[0].type = T_ARRAY;
+  cycle->item[0].subtype = 0;
+  cycle->item[0].u.arr = cycle;
+  cycle->ref++;
+  svalue_t cycle_source = const0u;
+  cycle_source.type = T_ARRAY;
+  cycle_source.u.arr = cycle;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &cycle_source));
+  error.clear();
+  ASSERT_FALSE(vm_frozen_value_safe(&cycle_source, 0, "frozen value", &error));
+  ASSERT_NE(error.find("cycle"), std::string::npos);
+  ASSERT_EQ(cycle->ref, 2u);
+  // Detach the invalid self-reference before releasing the owner reference;
+  // the ordinary recursive free path is not a cycle collector.
+  cycle->item[0] = const0u;
+  cycle->ref--;
+  free_svalue(&cycle_source, "frozen cycle source");
+
+  auto *shared_child = allocate_array(1);
+  shared_child->item[0].type = T_STRING;
+  shared_child->item[0].subtype = STRING_SHARED;
+  shared_child->item[0].u.string = make_shared_string("dag");
+  auto *dag = allocate_array(2);
+  dag->item[0].type = T_ARRAY;
+  dag->item[0].subtype = 0;
+  dag->item[0].u.arr = shared_child;
+  shared_child->ref++;
+  dag->item[1].type = T_ARRAY;
+  dag->item[1].subtype = 0;
+  dag->item[1].u.arr = shared_child;
+  svalue_t dag_source = const0u;
+  dag_source.type = T_ARRAY;
+  dag_source.u.arr = dag;
+  copied = const0u;
+  ASSERT_TRUE(vm_copy_frozen_svalue(&copied, &dag_source));
+  ASSERT_EQ(copied.u.arr->size, 2);
+  free_svalue(&copied, "frozen dag copy");
+  free_svalue(&dag_source, "frozen dag source");
+
+  auto *partial = allocate_array(2);
+  partial->item[0].type = T_STRING;
+  partial->item[0].subtype = STRING_SHARED;
+  partial->item[0].u.string = make_shared_string("partial");
+  partial->item[1].type = T_BUFFER;
+  partial->item[1].subtype = 0;
+  partial->item[1].u.buf = allocate_buffer(1);
+  partial->item[1].u.buf->item[0] = 7;
+  svalue_t partial_source = const0u;
+  partial_source.type = T_ARRAY;
+  partial_source.u.arr = partial;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &partial_source));
+  ASSERT_EQ(copied.type, T_NUMBER);
+  free_svalue(&partial_source, "frozen partial failure source");
+
+  auto *partial_map = allocate_mapping(1);
+  svalue_t string_key = const0u;
+  string_key.type = T_STRING;
+  string_key.subtype = STRING_SHARED;
+  string_key.u.string = make_shared_string("partial-map");
+  auto *partial_map_slot = find_for_insert(partial_map, &string_key, 1);
+  free_svalue(&string_key, "frozen partial mapping key");
+  partial_map_slot->type = T_BUFFER;
+  partial_map_slot->subtype = 0;
+  partial_map_slot->u.buf = allocate_buffer(1);
+  partial_map_slot->u.buf->item[0] = 9;
+  svalue_t partial_map_source = const0u;
+  partial_map_source.type = T_MAPPING;
+  partial_map_source.u.map = partial_map;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &partial_map_source));
+  ASSERT_EQ(copied.type, T_NUMBER);
+  free_svalue(&partial_map_source, "frozen partial mapping failure source");
+
+  auto *bad_map = allocate_mapping(1);
+  svalue_t numeric_key = const0u;
+  numeric_key.type = T_NUMBER;
+  numeric_key.u.number = 42;
+  auto *bad_slot = find_for_insert(bad_map, &numeric_key, 1);
+  bad_slot->type = T_STRING;
+  bad_slot->subtype = STRING_SHARED;
+  bad_slot->u.string = make_shared_string("bad-key-value");
+  svalue_t bad_map_source = const0u;
+  bad_map_source.type = T_MAPPING;
+  bad_map_source.u.map = bad_map;
+  copied = const0u;
+  ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &bad_map_source));
+  error.clear();
+  ASSERT_FALSE(vm_frozen_value_safe(&bad_map_source, 0, "frozen value", &error));
+  ASSERT_NE(error.find("mapping keys must be strings"), std::string::npos);
+  free_svalue(&bad_map_source, "frozen invalid key source");
 }
 
 // R2-F05: the frozen weight visitor is depth- and node-bounded and uses
@@ -7077,12 +7478,33 @@ TEST_F(DriverTest, TestAddVmessageUsesThreadLocalBoundedBuffer) {
   ASSERT_NE(source.find("static_cast<size_t>(result) < sizeof(buf)"), std::string::npos);
 }
 
-TEST_F(DriverTest, TestUserLogonSchedulingChecksEventBaseOnceResult) {
-  for (const auto *path : {"../src/comm.cc", "../src/net/ws_ascii.cc", "../src/net/ws_telnet.cc"}) {
-    const auto source = read_source_file_for_test(path);
-    ASSERT_NE(source.find("if (event_base_once("), std::string::npos) << path;
-    ASSERT_NE(source.find("failed to schedule user logon"), std::string::npos) << path;
+TEST_F(DriverTest, TestUserLogonSchedulingUsesCancellableEvent) {
+  const std::string source_root = std::string(TESTSUITE_DIR) + "/../src/";
+  for (const auto *path : {"comm.cc", "net/ws_ascii.cc", "net/ws_telnet.cc"}) {
+    const auto source = read_source_file_for_test((source_root + path).c_str());
+    ASSERT_NE(source.find("schedule_user_logon("), std::string::npos) << path;
   }
+  const auto comm_source = read_source_file_for_test((source_root + "comm.cc").c_str());
+  ASSERT_NE(comm_source.find("cancel_user_logon"), std::string::npos);
+  for (const auto *path : {"net/ws_ascii.cc", "net/ws_telnet.cc"}) {
+    const auto source = read_source_file_for_test((source_root + path).c_str());
+    ASSERT_NE(source.find("websocket_session_teardown"), std::string::npos) << path;
+  }
+  const auto websocket_source = read_source_file_for_test((source_root + "net/websocket.cc").c_str());
+  ASSERT_NE(websocket_source.find("void websocket_session_teardown"), std::string::npos);
+  const auto gateway_source = read_source_file_for_test(
+      (source_root + "packages/gateway/gateway_session.cc").c_str());
+  ASSERT_NE(gateway_source.find("cancel_user_logon"), std::string::npos);
+
+  auto *ip = user_add();
+  ASSERT_NE(ip, nullptr);
+  ASSERT_TRUE(schedule_user_logon(g_event_base, ip));
+  ASSERT_NE(ip->ev_logon, nullptr);
+  cancel_user_logon(ip);
+  ASSERT_EQ(ip->ev_logon, nullptr);
+  ASSERT_FALSE(schedule_user_logon(nullptr, ip));
+  user_del(ip);
+  FREE(ip);
 }
 
 TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {
@@ -11349,6 +11771,27 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
   vm_owner_thread_stop();
   ASSERT_TRUE(vm_context_is_main_thread());
   destruct_object(probe);
+}
+
+TEST_F(DriverTest, TestVmOwnerPreparedCallbackCleanupSurvivesCallbackDestruction) {
+  struct CleanupProbe {
+    VMOwnerCallbackCleanupRecord *record;
+    bool *called;
+  };
+  bool called = false;
+  auto *record = new VMOwnerCallbackCleanupRecord();
+  CleanupProbe probe{record, &called};
+  record->prepare("owner/test/prepared-cleanup", 1, "socket_callback", "cleanup",
+                  [](void *context) {
+                    auto *probe = static_cast<CleanupProbe *>(context);
+                    *probe->called = true;
+                    delete probe->record;
+                  },
+                  &probe);
+
+  ASSERT_NE(vm_owner_enqueue_executor_callback_cleanup(record), 0u);
+  ASSERT_GE(vm_owner_drain_main_tasks(16), 1);
+  ASSERT_TRUE(called);
 }
 
 TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStaleTasks) {
@@ -16269,6 +16712,55 @@ TEST_F(DriverTest, TestVmOwnerWorkerNeverMutatesObjectRefcounts) {
 
   vm_owner_clear_id(probe);
   destruct_object(probe);
+}
+
+TEST_F(DriverTest, TestWebsocketTrustedProxyCidrParser) {
+  std::vector<websocket_trusted_proxy_cidr_t> cidrs;
+  std::string error;
+  ASSERT_TRUE(websocket_parse_trusted_proxy_cidrs(
+      "127.0.0.1/32, ::ffff:192.0.2.0/120, 2001:db8::/32", &cidrs, &error))
+      << error;
+  ASSERT_EQ(cidrs.size(), 3u);
+  EXPECT_EQ(cidrs[0].family, AF_INET);
+  EXPECT_EQ(cidrs[0].prefix_length, 32);
+  EXPECT_EQ(cidrs[0].network[0], 127);
+  EXPECT_EQ(cidrs[1].family, AF_INET);
+  EXPECT_EQ(cidrs[1].prefix_length, 24);
+  EXPECT_EQ(cidrs[1].network[0], 192);
+  EXPECT_EQ(cidrs[1].network[1], 0);
+  EXPECT_EQ(cidrs[1].network[2], 2);
+  EXPECT_EQ(cidrs[2].family, AF_INET6);
+  EXPECT_EQ(cidrs[2].prefix_length, 32);
+
+  for (const char *invalid : {"127.0.0.1/33", "example.com/32", "127.0.0.1/32,",
+                              "::ffff:192.0.2.0/95"}) {
+    cidrs.clear();
+    error.clear();
+    EXPECT_FALSE(websocket_parse_trusted_proxy_cidrs(invalid, &cidrs, &error)) << invalid;
+    EXPECT_TRUE(cidrs.empty()) << invalid;
+    EXPECT_FALSE(error.empty()) << invalid;
+  }
+}
+
+TEST_F(DriverTest, TestTlsClientIdentityAndMinimumProtocol) {
+  auto *ctx = tls_client_init();
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_EQ(SSL_CTX_get_min_proto_version(ctx), kTlsMinimumProtocolVersion);
+
+  auto *ssl = SSL_new(ctx);
+  ASSERT_NE(ssl, nullptr);
+  EXPECT_TRUE(tls_configure_client_identity(ssl, nullptr, 0, "example.com", true));
+  EXPECT_TRUE(tls_configure_client_identity(ssl, nullptr, 0, "example.com", false));
+  EXPECT_FALSE(tls_configure_client_identity(ssl, nullptr, 0, "", true));
+  EXPECT_FALSE(tls_configure_client_identity(ssl, nullptr, 0, nullptr, true));
+
+  auto *server = tls_server_init(external_port[3].tls_cert, external_port[3].tls_key);
+  ASSERT_NE(server, nullptr);
+  EXPECT_EQ(SSL_CTX_get_min_proto_version(server), kTlsMinimumProtocolVersion);
+  tls_server_close(server);
+
+  SSL_free(ssl);
+  SSL_CTX_free(ctx);
 }
 
 // R2-F12: sys_reload_tls() management contract matrix. Fixed check order:
@@ -26525,13 +27017,12 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   ASSERT_FALSE(ihe->token & IHE_ORPHAN);
   ASSERT_EQ(ihe->dn.simul_num, snap.names[survivor_slot].index);
   ASSERT_EQ(ihe->sem_value, surv_sem_before);
-  // The failed transaction's fresh name is inert residue (compile-time
-  // rejection state, matching dropped-name semantics).
-  ihe = find_or_add_perm_ident(kBad);
-  ASSERT_NE(ihe, nullptr);
-  ASSERT_FALSE(ihe->token & IHE_SIMUL);
-  ASSERT_TRUE(ihe->token & IHE_ORPHAN);
-  ASSERT_EQ(ihe->dn.simul_num, -1);
+  // The failed transaction's fresh name and temporary dispatch slot are
+  // withdrawn; unlike a formerly live dropped name, it must not leave an
+  // orphan identifier behind.
+  ihe = lookup_perm_ident(kBad);
+  ASSERT_EQ(ihe, nullptr);
+  ASSERT_LT(FindDispatchIndex(kBad), 0);
   // Target object back on the old program; dispatch entries still point at
   // old-program functions with consistent runtime indices.
   ASSERT_EQ(simul_efun_ob->prog, old_prog);
@@ -26765,6 +27256,109 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
   free_prog(&orig_prog);  // our pin
 }
 
+TEST_F(DriverTest, TestMasterReloadPublicEntryOutsideMasterApply) {
+  ASSERT_NE(master_ob, nullptr);
+  struct RecompileConfigGuard {
+    int saved;
+    ~RecompileConfigGuard() { CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved; }
+  } config_guard{CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__)};
+  CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = 1;
+
+  program_t *original_prog = master_ob->prog;
+  ASSERT_NE(original_prog, nullptr);
+  original_prog->ref++;
+  struct MasterProgramGuard {
+    object_t *target;
+    program_t *original;
+    ~MasterProgramGuard() {
+      if (!target || (target->flags & O_DESTRUCTED) || !target->prog) {
+        free_prog(&original);
+        return;
+      }
+      if (target->prog != original) {
+        program_t *current = target->prog;
+        target->prog = original;
+        original->ref++;
+        free_prog(&current);
+      }
+      free_prog(&original);
+    }
+  } master_guard{master_ob, original_prog};
+
+  object_t* probe = load_object_for_test("clone/recompile_lifecycle_probe");
+  ASSERT_NE(probe, nullptr);
+  struct ProbeGuard {
+    object_t* object;
+    ~ProbeGuard() { destruct_object_for_test(object); }
+  } probe_guard{probe};
+
+  auto invoke_mode = [probe](int mode) -> int {
+    push_number(mode);
+    auto* result = safe_apply("run_master_recompile_mode", probe, 1, ORIGIN_DRIVER);
+    if (result == nullptr || result->type != T_NUMBER) {
+      vm_apply_return_clear();
+      return -1;
+    }
+    int value = static_cast<int>(result->u.number);
+    vm_apply_return_clear();
+    return value;
+  };
+
+  auto query_last_mode = [probe]() -> int {
+    auto* result = safe_apply("query_last_mode", probe, 0, ORIGIN_DRIVER);
+    if (result == nullptr || result->type != T_NUMBER) {
+      vm_apply_return_clear();
+      return -1;
+    }
+    int value = static_cast<int>(result->u.number);
+    vm_apply_return_clear();
+    return value;
+  };
+
+  auto call_escaped_fp = [probe]() -> int {
+    auto* result = safe_apply("call_escaped_fp", probe, 0, ORIGIN_DRIVER);
+    if (result == nullptr || result->type != T_NUMBER) {
+      vm_apply_return_clear();
+      return -1;
+    }
+    int value = static_cast<int>(result->u.number);
+    vm_apply_return_clear();
+    return value;
+  };
+
+  // Every real lifecycle mutation entry used by master::create() must be
+  // rejected before it can destruct, rebind, move, or publish the target.
+  // The call originates from the already-loaded probe, not master::flag(), so
+  // this exercises the public recompile_object() entry without an outer
+  // master authorization frame.
+  for (int mode = 1; mode <= 7; mode++) {
+    ASSERT_EQ(invoke_mode(mode), 0) << "lifecycle mode " << mode;
+    ASSERT_EQ(query_last_mode(), mode) << "lifecycle mode " << mode;
+    ASSERT_FALSE(master_ob->flags & O_DESTRUCTED) << "lifecycle mode " << mode;
+    ASSERT_EQ(master_ob->prog, original_prog) << "lifecycle mode " << mode;
+  }
+
+  // A non-simul transaction must not turn the simul-only compilation barrier
+  // into a global ban: master::create() may load an unrelated object.
+  ASSERT_EQ(invoke_mode(8), 1);
+  ASSERT_EQ(query_last_mode(), 8);
+  ASSERT_FALSE(master_ob->flags & O_DESTRUCTED);
+
+  // I05: a function pointer created and bound during failed master create
+  // escapes into a non-target object. It stays Invalid after rollback and a
+  // later successful reload; generation restoration alone cannot revive it.
+  ASSERT_EQ(invoke_mode(9), 0);
+  ASSERT_EQ(call_escaped_fp(), 1);
+  ASSERT_EQ(invoke_mode(0), 1);
+  ASSERT_EQ(call_escaped_fp(), 1);
+  ASSERT_EQ(invoke_mode(10), 1);
+  ASSERT_EQ(call_escaped_fp(), 0);
+
+  // A later public call must still be able to publish master successfully
+  // after every rejected lifecycle attempt.
+  ASSERT_EQ(invoke_mode(0), 1);
+}
+
 // L7 extension (E3 v2): master-target rounds under repetition. The single
 // TestMasterReloadSuccess above proves one swap; this proves the master stays
 // functionally reloadable round after round - every round must publish a new
@@ -26828,11 +27422,63 @@ TEST_F(DriverTest, TestMasterReloadStressRounds) {
 // attempts and success (and never timeouts), proving the counters are
 // live on the success path (the pre-fix guard rejected before counting,
 // so attempts stayed 0 forever and quiescence failures were invisible).
+TEST_F(DriverTest, TestRecompileLifecycleBoundary) {
+  ASSERT_EQ(vm_recompile_execution_context(), nullptr);
+  object_t *target = master_ob;
+  ASSERT_NE(target, nullptr);
+
+  RecompilePrepared prepared;
+  add_ref(target, "TestRecompileLifecycleBoundary");
+  RecompileTarget snapshot;
+  snapshot.ob = target;
+  snapshot.old_generation = target->prog_generation;
+  prepared.targets.push_back(snapshot);
+  prepared.kind = RecompileTargetKind::SimulEfun;
+
+  {
+    RecompileExecutionContext context;
+    ASSERT_EQ(vm_recompile_execution_context(), &context);
+
+    context.attach_prepared(&prepared);
+    EXPECT_EQ(context.phase(), RecompileExecutionPhase::Prepared);
+    EXPECT_TRUE(context.blocks_target_lifecycle(target));
+    EXPECT_TRUE(context.blocks_clone_source(target));
+
+    context.mark_swapped();
+    EXPECT_EQ(context.phase(), RecompileExecutionPhase::Swapped);
+    EXPECT_TRUE(context.blocks_new_compile())
+        << "simul dispatch activation must close compilation";
+
+    context.mark_finished();
+    EXPECT_EQ(context.phase(), RecompileExecutionPhase::Finished);
+    EXPECT_FALSE(context.blocks_target_lifecycle(target));
+  }
+
+  ASSERT_EQ(vm_recompile_execution_context(), nullptr);
+}
+
+TEST_F(DriverTest, TestRecompileQuiesceSnapshotSerializesClaimAndTimeout) {
+  auto &coordinator = owner_runtime_coordinator();
+  const auto before = coordinator.snapshot();
+  {
+    std::lock_guard<std::mutex> lock(coordinator.mutex());
+    coordinator.claim_begin_locked();
+  }
+
+  const auto quiesce = vm_owner_recompile_quiesce_begin(std::chrono::milliseconds(1));
+  ASSERT_FALSE(quiesce.ok);
+  ASSERT_EQ(quiesce.failure, OwnerRecompileQuiesceFailure::kTimeout);
+  coordinator.claim_end();
+
+  const auto after = coordinator.snapshot();
+  ASSERT_EQ(after.active_owner_claims, 0u);
+  ASSERT_GE(after.quiesce_attempts, before.quiesce_attempts + 1);
+  ASSERT_GE(after.quiesce_timeouts, before.quiesce_timeouts + 1);
+}
+
 TEST_F(DriverTest, TestRecompileQuiesceCountsSuccess) {
   auto &coordinator = owner_runtime_coordinator();
-  const uint64_t attempts_before = coordinator.quiesce_attempts();
-  const uint64_t success_before = coordinator.quiesce_success();
-  const uint64_t timeouts_before = coordinator.quiesce_timeouts();
+  const auto before = coordinator.snapshot();
 
   auto quiesce = vm_owner_recompile_quiesce_begin(std::chrono::milliseconds(200));
   ASSERT_TRUE(quiesce.ok) << "main-thread quiesce with zero claims must succeed";
@@ -26840,11 +27486,12 @@ TEST_F(DriverTest, TestRecompileQuiesceCountsSuccess) {
   vm_owner_recompile_quiesce_end(quiesce.epoch);
   // begin() returns the CURRENT epoch as a handle; end() advances it, so the
   // pair must leave the epoch exactly one ahead of the handle.
-  ASSERT_EQ(coordinator.recompile_epoch(), quiesce.epoch + 1);
+  const auto after = coordinator.snapshot();
+  ASSERT_EQ(after.recompile_epoch, quiesce.epoch + 1);
 
-  ASSERT_GE(coordinator.quiesce_attempts(), attempts_before + 1);
-  ASSERT_GE(coordinator.quiesce_success(), success_before + 1);
-  ASSERT_EQ(coordinator.quiesce_timeouts(), timeouts_before);
+  ASSERT_GE(after.quiesce_attempts, before.quiesce_attempts + 1);
+  ASSERT_GE(after.quiesce_success, before.quiesce_success + 1);
+  ASSERT_EQ(after.quiesce_timeouts, before.quiesce_timeouts);
 }
 
 // #1247 B-S1: ObjectVariableBlock lifecycle and program_layout_digest.
@@ -27296,8 +27943,131 @@ TEST_F(DriverTest, TestRecompileMigrationInitFailureRollsBack) {
   destruct_object_for_test(bp);
 }
 
+// I03 fail-first: a new staged program may add clean_up() even when the old
+// program did not define it. The commit must derive the new flag from the
+// staged apply table rather than reusing the old snapshot.
+TEST_F(DriverTest, TestRecompileDerivedFlagsUseStagedProgram) {
+  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  ASSERT_NE(bp, nullptr);
+  ASSERT_EQ(function_exists(APPLY_CLEAN_UP, bp, 1), nullptr);
+  bp->flags &= ~O_WILL_CLEAN_UP;
+  const unsigned short old_flags = bp->flags;
+  program_t *old_prog = bp->prog;
+
+  program_t *new_prog = CompileSimulProg(
+      "int x = 100;\nint y = 200;\nvoid clean_up(int inherited) {}\n");
+  ASSERT_NE(new_prog, nullptr);
+
+  RecompilePrepared prep;
+  prep.staged = StagedProgram(new_prog);
+  prep.old_layout = describe_recompile_layout(old_prog);
+  prep.new_layout = describe_recompile_layout(new_prog);
+  ASSERT_TRUE(recompile_layouts_match(prep.old_layout, prep.new_layout, nullptr));
+  start_recompile_transaction(bp, RecompileTargetKind::BlueprintFamily, &prep);
+  prepare_variable_migrations(&prep);
+  ASSERT_TRUE(prep.migrations.empty());
+  prep.commit_swap();
+
+  EXPECT_NE(bp->flags & O_WILL_CLEAN_UP, 0u);
+  prep.rollback();
+  EXPECT_EQ(bp->prog, old_prog);
+  EXPECT_EQ(bp->flags, old_flags);
+  destruct_object_for_test(bp);
+}
+
+// I03: rollback must restore the exact old derived-bit snapshot, not infer it
+// again from the old program. A one-shot clean_up sweep may have cleared the
+// bit while the method remains present.
+TEST_F(DriverTest, TestRecompileDerivedFlagsRestoreOldSnapshot) {
+  object_t *ob = load_object_for_test("clone/clean_up_deadline");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(function_exists(APPLY_CLEAN_UP, ob, 1), nullptr);
+  ASSERT_NE(ob->flags & O_WILL_CLEAN_UP, 0u);
+  ob->flags &= ~O_WILL_CLEAN_UP;
+  const unsigned short old_flags = ob->flags;
+  program_t *old_prog = ob->prog;
+
+  program_t *new_prog = CompileSimulProg("void create() {}\n");
+  ASSERT_NE(new_prog, nullptr);
+  RecompilePrepared prep;
+  prep.staged = StagedProgram(new_prog);
+  prep.old_layout = describe_recompile_layout(old_prog);
+  prep.new_layout = describe_recompile_layout(new_prog);
+  prep.admission_diff = classify_recompile_layout(prep.old_layout, prep.new_layout);
+  ASSERT_TRUE(prep.admission_diff.migratable());
+  start_recompile_transaction(ob, RecompileTargetKind::BlueprintFamily, &prep);
+  prepare_variable_migrations(&prep);
+  ASSERT_TRUE(prep.migrations.empty());
+  prep.commit_swap();
+
+  EXPECT_EQ(ob->flags & O_WILL_CLEAN_UP, 0u);
+  prep.rollback();
+  EXPECT_EQ(ob->prog, old_prog);
+  EXPECT_EQ(ob->flags, old_flags);
+  destruct_object_for_test(ob);
+}
+
 // #1247 B-S3: exact-layout BlueprintFamily reload creates NO migration and
 // runs NO __INIT (v1 semantics preserved).
+TEST_F(DriverTest, TestRecompileCreateNonLpcExceptionRollsBack) {
+  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  ASSERT_NE(bp, nullptr);
+  program_t *old_prog = bp->prog;
+  const uint64_t old_generation = bp->prog_generation;
+  const unsigned short old_flags = bp->flags;
+  const uint32_t old_count = bp->variables.count;
+  ASSERT_EQ(old_count, 2u);
+  const LPC_INT old_x = bp->variables.data[0].u.number;
+  const LPC_INT old_y = bp->variables.data[1].u.number;
+  const unsigned int old_ref = old_prog->ref;
+
+  program_t *new_prog = CompileSimulProg("int x = 900;\nint y = 901;\n");
+  ASSERT_NE(new_prog, nullptr);
+  const unsigned int new_ref = new_prog->ref;
+
+  RecompilePrepared prep;
+  prep.staged = StagedProgram(new_prog);
+  prep.old_layout = describe_recompile_layout(old_prog);
+  prep.new_layout = describe_recompile_layout(new_prog);
+  ASSERT_TRUE(recompile_layouts_match(prep.old_layout, prep.new_layout, nullptr));
+
+  start_recompile_transaction(bp, RecompileTargetKind::BlueprintFamily, &prep);
+  prepare_variable_migrations(&prep);
+  ASSERT_TRUE(prep.migrations.empty());
+  prep.commit_swap();
+  ASSERT_EQ(bp->prog, new_prog);
+  ASSERT_NE(bp->prog_generation, old_generation);
+
+  // The injected C++ exception also corrupts the execution registers before
+  // it escapes. run_create_guarded() must restore the exact VM boundary before
+  // rollback, not merely repair the value/control stacks.
+  VMExecutionState failure_entry = vm_context_capture_execution();
+  failure_entry.current_object = bp;
+  failure_entry.current_prog = new_prog;
+  {
+    VMExecutionScope failure_scope(vm_context(), failure_entry);
+    prep.create_failure_hook_for_test = &throw_recompile_non_lpc_exception_for_test;
+    ASSERT_FALSE(prep.run_create_guarded());
+    ASSERT_EQ(current_object, bp);
+    ASSERT_EQ(current_prog, new_prog);
+    ASSERT_EQ(vm_context().execution.current_object, bp);
+    ASSERT_EQ(vm_context().execution.current_prog, new_prog);
+  }
+
+  ASSERT_EQ(bp->prog, old_prog);
+  ASSERT_EQ(bp->prog_generation, old_generation);
+  ASSERT_EQ(bp->flags, old_flags);
+  ASSERT_EQ(bp->variables.count, old_count);
+  ASSERT_EQ(bp->variables.data[0].u.number, old_x);
+  ASSERT_EQ(bp->variables.data[1].u.number, old_y);
+  ASSERT_EQ(bp->variables.layout_id, program_layout_digest(old_prog));
+  ASSERT_EQ(old_prog->ref, old_ref);
+  ASSERT_EQ(new_prog->ref, new_ref);
+  ASSERT_TRUE(prep.migrations.empty());
+
+  destruct_object_for_test(bp);
+}
+
 TEST_F(DriverTest, TestRecompileExactNoMigrationForBlueprint) {
   object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);

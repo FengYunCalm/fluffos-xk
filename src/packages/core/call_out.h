@@ -19,6 +19,7 @@
 #endif
 
 enum class BackendEventPriority : int;
+struct VMOwnerCallbackCleanupRecord;
 
 typedef struct pending_call_s {
   uint64_t target_time;
@@ -31,6 +32,8 @@ typedef struct pending_call_s {
   LPC_INT handle;
   struct TickEvent *tick_event;
   bool is_walltime;
+  bool cleanup_called;
+  VMOwnerCallbackCleanupRecord *cleanup_record;
 } pending_call_t;
 
 void call_out(pending_call_t *cop);

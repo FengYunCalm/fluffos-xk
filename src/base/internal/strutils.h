@@ -23,18 +23,10 @@
 /// @param chars characters to be removed, defaults to whitespace
 ///
 /// @return returns trimmed string
+///
+/// `chars` is a set of Unicode scalar values, not raw bytes.
 // --------------------------------------------------------------------------
-inline std::string ltrim(std::string &&str, const std::string &chars = "\t\n\v\f\r ") {
-  str.erase(0, str.find_first_not_of(chars));
-  return str;
-}
-
-inline std::string ltrim(const std::string &str, const std::string &chars = "\t\n\v\f\r ") {
-  std::string ret{str};
-
-  ret.erase(0, str.find_first_not_of(chars));
-  return ret;
-}
+std::string ltrim(const std::string &str, const std::string &chars = "\t\n\v\f\r ");
 
 // --------------------------------------------------------------------------
 /// @brief removes given characters from end of string
@@ -44,17 +36,7 @@ inline std::string ltrim(const std::string &str, const std::string &chars = "\t\
 ///
 /// @return returns trimmed string
 // --------------------------------------------------------------------------
-inline std::string rtrim(std::string &&str, const std::string &chars = "\t\n\v\f\r ") {
-  str.erase(str.find_last_not_of(chars) + 1);
-  return str;
-}
-
-inline std::string rtrim(const std::string &str, const std::string &chars = "\t\n\v\f\r ") {
-  std::string ret{str};
-
-  ret.erase(str.find_last_not_of(chars) + 1);
-  return ret;
-}
+std::string rtrim(const std::string &str, const std::string &chars = "\t\n\v\f\r ");
 
 // --------------------------------------------------------------------------
 /// @brief removes given chars from beginning and end of string
@@ -64,13 +46,7 @@ inline std::string rtrim(const std::string &str, const std::string &chars = "\t\
 ///
 /// @return returns trimmed string
 // --------------------------------------------------------------------------
-inline std::string trim(std::string &&str, const std::string &chars = "\t\n\v\f\r ") {
-  return ltrim(rtrim(std::move(str), chars), chars);
-}
-
-inline std::string trim(const std::string &str, const std::string &chars = "\t\n\v\f\r ") {
-  return ltrim(rtrim(str, chars), chars);
-}
+std::string trim(const std::string &str, const std::string &chars = "\t\n\v\f\r ");
 
 // --------------------------------------------------------------------------
 /// @brief checks beginning of string1 for presens of string2

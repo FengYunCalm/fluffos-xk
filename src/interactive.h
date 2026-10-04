@@ -82,6 +82,7 @@ struct interactive_t {
   // libevent event handle.
   struct bufferevent *ev_buffer;
   struct event *ev_command;
+  struct event *ev_logon;
 
   // libwebsocket handle
   struct lws *lws;

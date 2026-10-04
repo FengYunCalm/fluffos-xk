@@ -16,6 +16,7 @@
 #include "vm/internal/owner_task_manifest.h"
 #include "vm/internal/owner_trace_store.h"
 #include "vm/internal/lpc_vm_profile.h"
+#include "vm/internal/recompile.h"
 #include "vm/internal/apply.h"
 #include "compiler/internal/lpc_modern_profile.h"
 
@@ -293,6 +294,11 @@ struct OwnerExecutorCallbackCleanup {
   std::function<void()> callback;
 };
 
+// Package callbacks prepare their cleanup node before leaving the creating
+// thread. The intrusive stack is the no-allocation commit path used when a
+// worker must hand an LPC-owning cleanup back to main.
+std::atomic<VMOwnerCallbackCleanupRecord *> owner_prepared_callback_cleanups{nullptr};
+std::atomic<uint64_t> owner_prepared_callback_cleanup_depth{0};
 std::deque<OwnerExecutorCallbackCleanup> owner_executor_callback_main_cleanups;
 std::vector<object_t *> owner_deferred_target_releases;
 OwnerFutureStore &owner_future_store = owner_future_store_instance();
@@ -562,7 +568,9 @@ OwnerStatusSnapshot owner_status_snapshot_locked() {
   status.active_owner_count = owner_scheduler_state.active_owner_count();
   status.active_main_owner_count = owner_scheduler_state.active_main_owner_count();
   status.active_claim_count = owner_scheduler_state.active_claim_count();
-  status.callback_main_cleanup_backlog = owner_executor_callback_main_cleanups.size();
+  status.callback_main_cleanup_backlog =
+      owner_executor_callback_main_cleanups.size() +
+      owner_prepared_callback_cleanup_depth.load(std::memory_order_acquire);
   status.deferred_target_release_count = owner_deferred_target_releases.size();
   status.last_budget_yield_owner = owner_executor_last_budget_yield_owner;
   status.last_budget_yield_backlog = owner_executor_last_budget_yield_backlog;
@@ -570,11 +578,13 @@ OwnerStatusSnapshot owner_status_snapshot_locked() {
   // Read the yield counter under the same lock so callers that need the
   // counter and the recorded owner/backlog observe one consistent snapshot.
   status.executor_budget_yields = owner_executor_budget_yields.load(std::memory_order_relaxed);
-  // E3 P1 quiescence counters: read under the same lock (plain uint64_t).
-  status.quiesce_attempts = owner_runtime_coordinator().quiesce_attempts();
-  status.quiesce_success = owner_runtime_coordinator().quiesce_success();
-  status.quiesce_timeouts = owner_runtime_coordinator().quiesce_timeouts();
-  status.quiesce_admission_rejected = owner_runtime_coordinator().admission_rejected();
+  // E3 P1 quiescence counters: take one snapshot under the same lock so
+  // related values cannot straddle a worker claim/release.
+  const auto coordinator_snapshot = owner_runtime_coordinator().snapshot_locked();
+  status.quiesce_attempts = coordinator_snapshot.quiesce_attempts;
+  status.quiesce_success = coordinator_snapshot.quiesce_success;
+  status.quiesce_timeouts = coordinator_snapshot.quiesce_timeouts;
+  status.quiesce_admission_rejected = coordinator_snapshot.admission_rejected;
   status.fairness = owner_scheduler_state.fairness_snapshot(
       owner_task_executor_runnable, owner_task_executor_safe,
       owner_task_requires_main_drain);
@@ -2296,6 +2306,66 @@ int drain_owner_executor_callback_cleanups(int limit, uint64_t started_at_ns = 0
 
   auto budget = limit <= 0 ? kOwnerExecutorTaskBudget : limit;
   int dispatched = 0;
+
+  // First drain records prepared by package-owned requests. Detach and
+  // reverse the intrusive LIFO batch before invoking callbacks; no callback
+  // can run while the batch is being relinked, and no allocation is needed
+  // on the producer (often a worker) path.
+  auto *prepared = owner_prepared_callback_cleanups.exchange(nullptr, std::memory_order_acq_rel);
+  VMOwnerCallbackCleanupRecord *ordered_prepared = nullptr;
+  while (prepared) {
+    auto *next = prepared->next;
+    prepared->next = ordered_prepared;
+    ordered_prepared = prepared;
+    prepared = next;
+  }
+  while (ordered_prepared && dispatched < budget) {
+    auto *record = ordered_prepared;
+    ordered_prepared = record->next;
+    const auto task_id = record->task_id;
+    const auto sequence = record->sequence;
+    const auto owner_epoch = record->owner_epoch;
+    const char *owner_id = record->owner_id;
+    const char *task_type = record->task_type;
+    const char *task_key = record->task_key;
+    auto callback = record->callback;
+    auto *callback_context = record->callback_context;
+    append_owner_task_trace(task_id, sequence, owner_id ? owner_id : "", owner_epoch,
+                            task_type ? task_type : "executor_callback_cleanup",
+                            task_key ? task_key : "",
+                            "executor_callback_main_cleanup_queued");
+    append_owner_task_trace(task_id, sequence, owner_id ? owner_id : "", owner_epoch,
+                            task_type ? task_type : "executor_callback_cleanup",
+                            task_key ? task_key : "",
+                            "executor_callback_main_cleanup_dispatched");
+    // The callback may delete the object containing record. Do not touch
+    // record after this call.
+    if (callback) {
+      callback(callback_context);
+    }
+    owner_prepared_callback_cleanup_depth.fetch_sub(1, std::memory_order_acq_rel);
+    owner_executor_callback_main_cleanup_dispatched.fetch_add(1, std::memory_order_relaxed);
+    dispatched++;
+    if (wall_budget_ns > 0 && started_at_ns > 0 &&
+        owner_now_ns() - started_at_ns >= wall_budget_ns) {
+      if (wall_budget_reached) {
+        *wall_budget_reached = true;
+      }
+      break;
+    }
+  }
+  if (ordered_prepared) {
+    auto *head = owner_prepared_callback_cleanups.load(std::memory_order_relaxed);
+    VMOwnerCallbackCleanupRecord *tail = ordered_prepared;
+    while (tail->next) {
+      tail = tail->next;
+    }
+    do {
+      tail->next = head;
+    } while (!owner_prepared_callback_cleanups.compare_exchange_weak(
+        head, ordered_prepared, std::memory_order_release, std::memory_order_relaxed));
+  }
+
   while (dispatched < budget) {
     OwnerExecutorCallbackCleanup cleanup;
     {
@@ -3758,6 +3828,7 @@ void vm_owner_set_id(object_t *object, const char *owner_id) {
   if (!object) {
     return;
   }
+  vm_recompile_reject_lifecycle(object, "owner transfer");
   if (!valid_owner_id(owner_id)) {
     owner_id = kDefaultOwnerId;
   }
@@ -3795,6 +3866,7 @@ void vm_owner_assign_default(object_t *object, object_t *context_object, const c
 
 void vm_owner_clear_id(object_t *object) {
   if (object && object->vm_owner_id) {
+    vm_recompile_reject_lifecycle(object, "owner transfer");
     free_string(object->vm_owner_id);
     object->vm_owner_id = nullptr;
     object->vm_owner_epoch++;
@@ -4171,32 +4243,22 @@ VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(
   return submission;
 }
 
-uint64_t vm_owner_enqueue_executor_callback_cleanup(const char *owner_id, uint64_t owner_epoch,
-                                                    const char *task_type, const char *task_key,
-                                                    std::function<void()> callback) {
-  if (!callback) {
+uint64_t vm_owner_enqueue_executor_callback_cleanup(VMOwnerCallbackCleanupRecord *record) {
+  if (!record || !record->callback) {
     return 0;
   }
 
-  OwnerExecutorCallbackCleanup cleanup;
-  cleanup.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  cleanup.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  cleanup.owner_epoch = owner_epoch;
-  cleanup.owner_id = normalize_owner_id(owner_id);
-  cleanup.task_type = normalize_task_text(task_type, "executor_callback_cleanup");
-  cleanup.task_key = normalize_task_text(task_key, "");
-  cleanup.callback = std::move(callback);
-  auto task_id = cleanup.task_id;
+  record->task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
+  record->sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
+  owner_prepared_callback_cleanup_depth.fetch_add(1, std::memory_order_acq_rel);
 
-  {
-    std::lock_guard<std::mutex> lock(owner_runtime_mutex);
-    append_owner_task_trace(cleanup.task_id, cleanup.sequence, cleanup.owner_id, cleanup.owner_epoch,
-                            cleanup.task_type, cleanup.task_key,
-                            "executor_callback_main_cleanup_queued");
-    owner_executor_callback_main_cleanups.push_back(std::move(cleanup));
-    owner_executor_callback_main_cleanup_queued.fetch_add(1, std::memory_order_relaxed);
-  }
-  return task_id;
+  auto *head = owner_prepared_callback_cleanups.load(std::memory_order_relaxed);
+  do {
+    record->next = head;
+  } while (!owner_prepared_callback_cleanups.compare_exchange_weak(
+      head, record, std::memory_order_release, std::memory_order_relaxed));
+  owner_executor_callback_main_cleanup_queued.fetch_add(1, std::memory_order_relaxed);
+  return record->task_id;
 }
 
 uint64_t vm_owner_enqueue_test_main_required_message(const char *owner_id, const char *task_key) {
@@ -4791,7 +4853,8 @@ VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(
     if (owner_main_draining) {
       result.remaining_main_tasks = owner_main_queue_total_depth();
       result.remaining_cleanup_tasks = static_cast<int64_t>(
-          owner_executor_callback_main_cleanups.size());
+          owner_executor_callback_main_cleanups.size() +
+          owner_prepared_callback_cleanup_depth.load(std::memory_order_acquire));
       return result;
     }
     owner_main_draining = true;
@@ -4930,7 +4993,8 @@ VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(
     std::lock_guard<std::mutex> lock(owner_runtime_mutex);
     result.remaining_main_tasks = owner_main_queue_total_depth();
     result.remaining_cleanup_tasks = static_cast<int64_t>(
-        owner_executor_callback_main_cleanups.size());
+        owner_executor_callback_main_cleanups.size() +
+        owner_prepared_callback_cleanup_depth.load(std::memory_order_acquire));
     auto remaining = result.remaining_main_tasks + result.remaining_cleanup_tasks;
     result.task_budget_yielded = remaining > 0 && dispatched >= budget;
     result.wall_budget_yielded = remaining > 0 && wall_budget_reached &&

@@ -17,6 +17,9 @@ void do_tests() {
 
   // Text outside groups is preserved around a single group.
   ASSERT_EQ("aXc", pcre_replace("abc", "(b)", ({ "X" })));
+  // Array replacements are literal text; D2's string-template syntax is not
+  // part of this legacy contract.
+  ASSERT_EQ("$1b", pcre_replace("ab", "(a)", ({ "$1" })));
 }
 #endif
 

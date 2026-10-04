@@ -13,6 +13,68 @@ nosave string test_login_ob = 0;
 // production muds; the testsuite enables it and toggles it per test.
 nosave int sys_reload_tls_allowed = 1;
 
+// I15 transaction probes. The mode is stored in a separate already-loaded
+// helper object so the target's __INIT cannot reset the operation selector.
+public void set_recompile_create_probe(int mode)
+{
+    load_object("/clone/recompile_lifecycle_probe")->set_mode(mode);
+}
+
+public int query_recompile_create_probe()
+{
+    return load_object("/clone/recompile_lifecycle_probe")->query_mode();
+}
+
+void create()
+{
+    object probe = load_object("/clone/recompile_lifecycle_probe");
+    object escaped_probe;
+    function born;
+    int mode = probe->query_mode();
+    if (!mode) return;
+    probe->set_last_mode(mode);
+    probe->set_mode(0);
+    switch (mode) {
+      case 1:
+        destruct(this_object());
+        break;
+      case 2:
+        reload_object(this_object());
+        break;
+      case 3:
+        replace_program("/single/master");
+        break;
+      case 4:
+        vm_set_owner_id(this_object(), "owner/recompile/probe");
+        break;
+      case 5:
+        move_object(this_object());
+        break;
+      case 6:
+        new("/single/master");
+        break;
+      case 7:
+        probe->destroy_target(this_object());
+        break;
+      case 8:
+        // A non-simul transaction must still permit an unrelated LPC load;
+        // the simul-only compile barrier must not become a global ban.
+        load_object("/clone/recompile_unrelated_probe");
+        break;
+      case 9:
+        escaped_probe = load_object("/clone/recompile_lifecycle_probe");
+        born = bind((: $1 :), escaped_probe);
+        escaped_probe->store_escaped_fp(born);
+        error("I05 staged function pointer rollback probe");
+        break;
+      case 10:
+        escaped_probe = load_object("/clone/recompile_lifecycle_probe");
+        born = bind((: $1 :), escaped_probe);
+        escaped_probe->store_escaped_fp(born);
+        break;
+    }
+}
+
 public int valid_sys_reload_tls()
 {
     return sys_reload_tls_allowed;

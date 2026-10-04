@@ -10,6 +10,24 @@ int get_inherit_called() {
   return inherit_called;
 }
 
+private int nested_recompile_probe = 0;
+private int nested_recompile_probe_result = 0;
+private string nested_recompile_probe_error = "";
+
+public void set_recompile_nested_probe(int enabled) {
+  nested_recompile_probe = enabled;
+  nested_recompile_probe_result = 0;
+  nested_recompile_probe_error = "";
+}
+
+public int query_recompile_nested_probe_result() {
+  return nested_recompile_probe_result;
+}
+
+public string query_recompile_nested_probe_error() {
+  return nested_recompile_probe_error;
+}
+
 void create() {
 }
 
@@ -122,6 +140,15 @@ int valid_hide() {
 
 int valid_recompile_object(object binder, object target) {
     inherit_called++;
+    // The outer recompile context is installed before this hook. The nested
+    // call must fail at that public boundary, not reach authorization or
+    // modify the owner/runtime state.
+    if (nested_recompile_probe) {
+        nested_recompile_probe = 0;
+        mixed nested_error = catch(recompile_object(target));
+        nested_recompile_probe_error = sprintf("%O", nested_error);
+        nested_recompile_probe_result = stringp(nested_error);
+    }
     // Tests use this to exercise the recompile_object() path; production
     // mudlibs decide here.
     return 1;

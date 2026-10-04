@@ -27,6 +27,7 @@ import socket
 import ssl
 import struct
 import sys
+import time
 
 IAC, WILL, WONT, DO, DONT = 0xFF, 0xFB, 0xFC, 0xFD, 0xFE
 COMPRESS2 = 86  # TELNET_TELOPT_COMPRESS2 (MCCP2, RFC 1073-era option 86)
@@ -199,16 +200,21 @@ def run_mccp_plain(host, port):
     """Control: plain telnet is offered COMPRESS2 and must still accept it."""
     sock = socket.create_connection((host, port), timeout=10)
     sock.settimeout(8)
-    try:
-        sock.recv(4096)
-    except socket.timeout:
-        pass
+    initial = b""
+    deadline = time.monotonic() + 8
+    while bytes([IAC, WILL, COMPRESS2]) not in initial and time.monotonic() < deadline:
+        try:
+            initial += sock.recv(4096)
+        except socket.timeout:
+            break
     sock.sendall(bytes([IAC, WILL, COMPRESS2]))
     reply = b""
-    try:
-        reply = sock.recv(4096)
-    except socket.timeout:
-        pass
+    deadline = time.monotonic() + 8
+    while bytes([IAC, DO, COMPRESS2]) not in reply and time.monotonic() < deadline:
+        try:
+            reply += sock.recv(4096)
+        except socket.timeout:
+            break
     sock.close()
     accepted = bytes([IAC, DO, COMPRESS2]) in reply
     print(f"MCCP plain-telnet accepted={accepted} reply={reply[:16]!r}")

@@ -76,10 +76,17 @@ void call_simul_efun(unsigned short, int);
 struct simul_efun_prepared_t {
   enum class State { Prepared, Activated, Finalized };
 
+  struct ProvisionalEntry {
+    const char *name{nullptr};
+    void *ident{nullptr};  // ident_hash_elem_t* only when prepare allocated it
+  };
+
   void *names{nullptr};    // simul_entry* shadow array (live after activate)
   void *funcs{nullptr};    // function_lookup_info_t* shadow array
   void **idents{nullptr};  // ident_hash_elem_t* per entry, pre-inserted
   int count{0};
+  ProvisionalEntry *provisional{nullptr};  // prepare-owned names/ident nodes
+  int provisional_count{0};
   // After activate(), the OLD live tables (handed over alive so a failed
   // create can restore them). finish() frees them; rollback() swaps them
   // back into the live table and frees the new ones.

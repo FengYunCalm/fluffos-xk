@@ -49,6 +49,12 @@ struct control_stack_t {
   svalue_t *fp;
   svalue_t *save_sp;
   object_t **save_cgsp;
+#ifdef DEBUG
+  // Foreach temporaries live above the saved value-stack boundary. An error
+  // unwind removes those values without executing F_EXIT_FOREACH, so the
+  // DEBUG counter must return to the count held when this frame was pushed.
+  int save_temporaries;
+#endif
   struct defer_list *defers;
   int num_local_variables;   /* Local + arguments */
   int function_index_offset; /* Used when executing functions in inherited
@@ -75,6 +81,9 @@ struct error_context_t {
   struct svalue_t *save_sp;
   struct object_t **save_cgsp;
   struct error_context_t *save_context;
+  // Keep VMContext's temporary-stack mirror aligned across every
+  // restore_context() caller, including safe_apply().
+  int save_stack_temporary_depth;
 };
 
 struct function_lookup_info_t {
@@ -185,6 +194,9 @@ svalue_t *call_function_pointer(funptr_t *, int);
 svalue_t *safe_call_function_pointer(funptr_t *, int);
 void call___INIT(object_t *);
 array_t *call_all_other(array_t *, const char *, int);
+// Pure program-table lookup used by transaction preparation before a live
+// object is switched to the staged program.
+const char *function_exists_in_program(const char *, program_t *, int);
 const char *function_exists(const char *, object_t *, int);
 void mark_apply_low_cache(void);
 void translate_absolute_line(int, lpc_file_info_t *, int *, int *, lpc_file_info_t *end = nullptr);

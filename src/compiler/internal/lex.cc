@@ -4747,6 +4747,69 @@ ident_hash_elem_t *lookup_ident(const char *name) {
   return nullptr;
 }
 
+ident_hash_elem_t *lookup_perm_ident(const char *name) {
+  int h = IdentHash(name);
+  ident_hash_elem_t *first = ident_hash_head[h];
+  if (!first) {
+    return nullptr;
+  }
+
+  ident_hash_elem_t *hptr = first;
+  do {
+    if ((hptr->token & IHE_PERMANENT) && !strcmp(hptr->name, name)) {
+      return hptr;
+    }
+    hptr = hptr->next;
+  } while (hptr != first);
+  return nullptr;
+}
+
+bool remove_perm_ident(ident_hash_elem_t *victim) {
+  if (!victim || victim->sem_value != 0 ||
+      (victim->token & (IHE_RESWORD | IHE_EFUN | IHE_SIMUL))) {
+    return false;
+  }
+
+  int h = IdentHash(victim->name);
+  ident_hash_elem_t *head = ident_hash_head[h];
+  if (!head) {
+    return false;
+  }
+
+  ident_hash_elem_t *prev = head;
+  do {
+    if (prev->next == victim) {
+      break;
+    }
+    prev = prev->next;
+  } while (prev != head);
+  if (prev->next != victim) {
+    return false;
+  }
+
+  if (victim->next == victim) {
+    if (head != victim) {
+      return false;
+    }
+    ident_hash_head[h] = nullptr;
+    ident_hash_tail[h] = nullptr;
+    ident_hash_table[h] = nullptr;
+  } else {
+    prev->next = victim->next;
+    if (head == victim) {
+      ident_hash_head[h] = victim->next;
+      ident_hash_tail[h] = prev;
+    } else if (ident_hash_tail[h] == victim) {
+      ident_hash_tail[h] = prev;
+    }
+    if (ident_hash_table[h] == victim) {
+      ident_hash_table[h] = victim->next;
+    }
+  }
+  FREE(victim);
+  return true;
+}
+
 ident_hash_elem_t *find_or_add_perm_ident(const char *name) {
   int h = IdentHash(name);
   ident_hash_elem_t *hptr, *hptr2;

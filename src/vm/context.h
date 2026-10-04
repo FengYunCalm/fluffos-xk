@@ -9,6 +9,7 @@ struct event_base;
 struct error_context_t;
 struct object_t;
 struct program_t;
+class RecompileExecutionContext;
 
 struct VMExecutionState {
   object_t *current_object{nullptr};
@@ -110,6 +111,10 @@ struct VMContext {
   VMApplyReturnState apply_return;
   VMControlStackState control_stack;
   VMObjectStoreState object_store;
+  // Main-thread recompile lifecycle context. This is deliberately part of the
+  // VM context rather than a second process-global guard so every entry point
+  // observes the same transaction state.
+  RecompileExecutionContext *recompile_execution_context{nullptr};
 };
 
 VMContext &vm_context();

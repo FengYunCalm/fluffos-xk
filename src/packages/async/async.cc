@@ -54,6 +54,10 @@ enum atypes { AREAD, AWRITE, AGETDIR, ADBEXEC, ADONE };
 enum astates { BUSY, DONE };
 
 struct Request;
+void free_async_request(Request *req);
+void free_async_request_cleanup(void *context) {
+  free_async_request(static_cast<Request *>(context));
+}
 std::mutex reqs_lock;
 std::set<struct Request *> live_requests;
 
@@ -94,6 +98,7 @@ struct Request {
   struct Request *next;
   enum atypes type;
   int status;
+  VMOwnerCallbackCleanupRecord cleanup_record;
 };
 
 struct Work {
@@ -144,6 +149,8 @@ void bind_request_owner(Request *req) {
   auto *owner = request_owner(req);
   req->owner_id = vm_owner_id(owner);
   req->owner_epoch = vm_owner_epoch(owner);
+  req->cleanup_record.prepare(req->owner_id.c_str(), req->owner_epoch, "async_callback", "<pending>",
+                              free_async_request_cleanup, req);
 }
 
 svalue_t *safe_call_async_callback(Request *req, int narg, const char *operation) {
@@ -218,12 +225,8 @@ void cleanup_async_request(Request *req, const char *operation, bool main_requir
     free_async_request(req);
     return;
   }
-  auto task_id = vm_owner_enqueue_executor_callback_cleanup(
-      req->owner_id.c_str(), req->owner_epoch, "async_callback", operation,
-      [req] { free_async_request(req); });
-  if (task_id == 0) {
-    free_async_request(req);
-  }
+  req->cleanup_record.task_key = operation ? operation : "";
+  (void)vm_owner_enqueue_executor_callback_cleanup(&req->cleanup_record);
 }
 
 void thread_func() {

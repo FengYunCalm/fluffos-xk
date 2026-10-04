@@ -787,6 +787,9 @@ control_stack_t* find_acatch_marker(control_stack_t* floor_csp) {
  * state must be reset on the error path too). When restore_context() grows
  * another such reset, it belongs here as well. */
 char* unwind_to_acatch_marker(control_stack_t* marker) {
+#ifdef DEBUG
+  int const saved_temporaries = marker->save_temporaries;
+#endif
   /* Latch the caught value BEFORE anything below runs LPC. pop_control_stack()
    * invokes the frame's defer() handlers, and do_catch() assigns const1 to
    * catch_value on ENTRY -- so a handler containing any catch(...) wipes the
@@ -821,6 +824,9 @@ char* unwind_to_acatch_marker(control_stack_t* marker) {
     }
   }
   pop_control_stack();
+#ifdef DEBUG
+  vm_context_set_stack_temporary_depth(vm_context(), saved_temporaries);
+#endif
 
   /* kill ref lvalues created at or above the frame we just left */
   ref_t* refp = global_ref_list;
@@ -1037,6 +1043,10 @@ void free_coroutine(lpc_coroutine_t* coro, svalue_t* reject_with, bool run_lpc) 
     free_object(&coro->command_giver, "free_coroutine");
   }
   free_prog(&coro->prog);
+  /* `object_prog` is a separate owner-top-program pin even when it has the
+   * same address as the defining program above. Release it independently so
+   * replace_program() cannot free the pointer used by the staleness guard. */
+  free_prog(&coro->object_prog);
   /* Checks `queued`, not `abandoned`: abandoned implies queued, and reaching
    * the free path still queued is the fatal case either way -- it leaves a
    * dangling QueuedReaction::coro in the deque. */
@@ -1678,10 +1688,11 @@ void coroutine_await_pending(promise_t* awaited) {
   }
   coro->prog = current_prog;
   reference_prog(current_prog, "coroutine");
-  /* the owner's top-level program: for an INHERITED async function this is
-   * not current_prog (see the field comment), and resume_coroutine()'s
-   * replace_program() guard must compare against this one */
+  /* The owner's top-level program is a second, independent pin. For an
+   * INHERITED async function it differs from current_prog; when both pointers
+   * are equal, both references are still required and must both be released. */
   coro->object_prog = current_object->prog;
+  reference_prog(coro->object_prog, "coroutine owner program");
   coro->prog_generation = current_object->prog_generation;
   coro->pc_offset = pc - current_prog->program;
   coro->caller_type = caller_type;
@@ -2052,6 +2063,8 @@ void mark_coroutine(lpc_coroutine_t* coro) {
     coro->command_giver->extra_ref++;
   }
   coro->prog->extra_ref++;
+  /* object_prog owns a separate reference even when it aliases prog. */
+  coro->object_prog->extra_ref++;
   for (int i = 0; i < coro->frame_size; i++) {
     mark_svalue(&coro->frame[i]);
   }

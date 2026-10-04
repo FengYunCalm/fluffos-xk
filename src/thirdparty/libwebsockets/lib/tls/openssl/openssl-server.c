@@ -531,6 +531,20 @@ lws_tls_server_vhost_backend_init(const struct lws_context_creation_info *info,
 	SSL_CTX_set_options(vhost->tls.ssl_ctx, SSL_OP_SINGLE_DH_USE);
 	SSL_CTX_set_options(vhost->tls.ssl_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
+	if (info->ssl_min_proto_version) {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(USE_WOLFSSL)
+		if (SSL_CTX_set_min_proto_version(vhost->tls.ssl_ctx,
+						  info->ssl_min_proto_version) != 1) {
+			lwsl_err("%s: failed to set minimum TLS protocol version\n", __func__);
+			return 1;
+		}
+#else
+		lwsl_err("%s: configured minimum TLS protocol is unsupported by this TLS backend\n",
+			 __func__);
+		return 1;
+#endif
+	}
+
 	if (info->ssl_cipher_list)
 		SSL_CTX_set_cipher_list(vhost->tls.ssl_ctx, info->ssl_cipher_list);
 

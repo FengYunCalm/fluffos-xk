@@ -32,6 +32,21 @@ void do_tests() {
   ASSERT_EQ(" abc 12345", ltrim(target, "5544332211"));
   ASSERT_EQ("12345 abc ", rtrim(target, "5544332211"));
 
+  // The charset is a set of Unicode characters, not raw UTF-8 bytes.
+  string book = "《三字经》";
+  string ideographic_space = "　";
+  ASSERT_EQ(book, trim(book, ideographic_space));
+  ASSERT_EQ(book, trim(ideographic_space + book + ideographic_space, ideographic_space));
+  ASSERT_EQ(book + ideographic_space,
+            ltrim(ideographic_space + book + ideographic_space, ideographic_space));
+  ASSERT_EQ(ideographic_space + book,
+            rtrim(ideographic_space + book + ideographic_space, ideographic_space));
+  ASSERT_EQ("三字经", trim(book, "《》"));
+
+  // The package keeps its historical default when the optional argument is empty.
+  ASSERT_EQ("x", trim("  x  ", ""));
+  ASSERT_EQ("", trim("😀😀😀", "😀"));
+
   // not found at either end.
   ASSERT_EQ(target, trim(target, "abc"));
   ASSERT_EQ(target, ltrim(target, "abc"));

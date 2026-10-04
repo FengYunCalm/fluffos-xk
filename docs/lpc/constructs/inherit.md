@@ -49,6 +49,12 @@ sometimes act like armor. When special.c is to look like armor it
 can use `armor::query_long()` and when it is to look like a weapon it
 can use `weapon::query_long()`.
 
+Private functions with the same name in different inherited objects keep
+separate inherited slots. A private call or function pointer created inside
+one inherited object continues to call that object's definition; a later
+inherit does not override it. A public function with the same name in the
+child remains a separate child definition.
+
 See the tutorial named 'types/modifiers' for more information on how
 inherited objects may hide data and function definitions from objects that
 inherit them.

@@ -1359,10 +1359,15 @@ expr0:
         // callee's declared result is numeric. Preserve the declared type of
         // a compound-assignment lvalue without wrapping arbitrary mixed
         // variables, whose runtime type errors remain meaningful.
-        const bool unknown_dynamic_rhs =
+        const bool dynamic_call_rhs =
             r->kind == NODE_EFUN &&
             (r->v.number == predefs[arrow_efun].token ||
-             r->v.number == predefs[evaluate_efun].token) &&
+             r->v.number == predefs[evaluate_efun].token);
+        const bool index_rhs =
+            r->kind == NODE_BINARY_OP &&
+            (r->v.number == F_INDEX || r->v.number == F_RINDEX);
+        const bool unknown_dynamic_rhs =
+            (dynamic_call_rhs || index_rhs) &&
             (r->type == TYPE_ANY || r->type == TYPE_UNKNOWN);
         if (opcode == F_ADD_EQ || opcode == F_SUB_EQ || opcode == F_MULT_EQ ||
             opcode == F_DIV_EQ) {
