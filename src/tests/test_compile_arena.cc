@@ -9,6 +9,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -281,9 +282,13 @@ TEST(CompileArenaTest, StringAllocationIsTerminatedAndAccountingMatches) {
   std::memcpy(text, "compile_arena", 13);
   text[13] = '\0';
   EXPECT_STREQ(text, "compile_arena");
-  // Accounting is in max_align_t-aligned units: 31+NUL aligns to 32, the empty
-  // string's single byte aligns to 16.
-  EXPECT_EQ(session.bytes_live(), 32u + 16u);
+  // Accounting is in max_align_t-aligned units: 31+NUL aligns to 32, and the
+  // empty string's single byte consumes one platform max_align_t slot.
+  const auto align_up = [](size_t size) {
+    constexpr size_t alignment = alignof(std::max_align_t);
+    return (size + alignment - 1) & ~(alignment - 1);
+  };
+  EXPECT_EQ(session.bytes_live(), align_up(32u) + align_up(1u));
   session.end();
   EXPECT_EQ(session.bytes_live(), 0u);
 }

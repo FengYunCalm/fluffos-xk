@@ -78,6 +78,12 @@ KNOWN_STALE = {
         "tools/analyze-owner-scheduler-capacity.py",
         "tools/upstream-sync-owner-metrics.json",
     },
+    # The upstream absorption plan preserves upstream-only paths and an
+    # explicitly rejected generated docs page for auditability.
+    "docs/upstream-absorption-plan-2026-10.md": {
+        "tools/lpc-syntax",
+        "docs/build.mdx",
+    },
     # Evidence from a removed local build directory is retained for history.
     "docs/evidence/e3-v2-phase1-simul-efun-reload.md": {
         "testsuite/../build-sync/bin/driver etc/config.recompile -ftest",
@@ -115,6 +121,12 @@ def resolve(repo: str, ref: str, base_dir: str = ""):
         return True  # glob pattern, not a literal path
     if ref.endswith(".html"):
         return True  # generated docs-site page, built at publish time
+    # Strip commit annotations and C++/LPC symbol suffixes before resolving
+    # the path.  Historical evidence uses forms such as ``file.cc:32::fn``
+    # and ``CMakeLists.txt=deadbeef``.
+    ref = re.sub(r"=[0-9a-f]{7,64}$", "", ref)
+    if "::" in ref:
+        ref = ref.split("::", 1)[0]
     # Strip line/range and symbol suffixes ("file:12", "file.cc:52-60",
     # "file.cc:function").
     ref = re.sub(r":\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$", "", ref)

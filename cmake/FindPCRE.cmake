@@ -20,6 +20,14 @@ endif()
 find_path(PCRE_INCLUDE_DIR NAMES pcre2.h)
 find_library(PCRE_LIBRARY NAMES pcre2-8)
 
+# A static PCRE2 archive on Windows exports the API only when the consumer
+# defines PCRE2_STATIC. Keep the detection result with the selected library
+# so configure-time probes and package targets use the same ABI contract.
+set(PCRE2_LIBRARY_IS_STATIC FALSE)
+if(PCRE_LIBRARY MATCHES "\\.a$" AND NOT PCRE_LIBRARY MATCHES "\\.dll\\.a$")
+  set(PCRE2_LIBRARY_IS_STATIC TRUE)
+endif()
+
 set(PCRE_VERSION "")
 set(PCRE2_VERSION_OK FALSE)
 set(PCRE2_API_PROBE FALSE)
@@ -52,6 +60,9 @@ if(PCRE_INCLUDE_DIR AND PCRE_LIBRARY AND PCRE2_VERSION_OK)
   set(CMAKE_REQUIRED_INCLUDES "${PCRE_INCLUDE_DIR}")
   set(CMAKE_REQUIRED_LIBRARIES "${PCRE_LIBRARY}")
   set(CMAKE_REQUIRED_DEFINITIONS "-DPCRE2_CODE_UNIT_WIDTH=8")
+  if(PCRE2_LIBRARY_IS_STATIC)
+    list(APPEND CMAKE_REQUIRED_DEFINITIONS "-DPCRE2_STATIC")
+  endif()
   check_c_source_compiles("#define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 int main(void) {

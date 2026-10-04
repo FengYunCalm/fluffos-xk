@@ -365,7 +365,7 @@ Alpine Linux is used for building static binaries suitable for Docker containers
 $ apk add --no-cache linux-headers gcc g++ clang-dev make cmake bash \
     mariadb-dev mariadb-static postgresql-dev sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static zlib-dev zlib-static icu-dev icu-static \
-    pcre2-dev pcre2-static bison git musl-dev libelf-static elfutils-dev \
+    pcre2-dev bison git musl-dev libelf-static elfutils-dev \
     zstd-static bzip2-static xz-static
 ```
 

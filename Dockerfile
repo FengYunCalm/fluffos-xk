@@ -4,10 +4,11 @@ RUN apk add --no-progress --no-cache \
     linux-headers gcc g++ clang-dev make cmake bash \
     mariadb-dev mariadb-static postgresql-dev sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static zlib-dev zlib-static icu-dev icu-static \
-    pcre2-dev pcre2-static bison git musl-dev libelf-static elfutils-dev zstd-static bzip2-static xz-static
+    pcre2-dev bison git musl-dev libelf-static elfutils-dev zstd-static bzip2-static xz-static
 
-# The static image links PCRE2 directly; fail the builder if the pinned Alpine
-# package no longer provides the archive or the 8-bit header expected by CMake.
+# Alpine 3.18's pcre2-dev package provides both the 8-bit header and static
+# archive; fail the builder if the pinned package no longer provides either.
+# pcre2-static is not an Alpine 3.18 package.
 RUN test -f /usr/lib/libpcre2-8.a \
     && test -f /usr/include/pcre2.h
 

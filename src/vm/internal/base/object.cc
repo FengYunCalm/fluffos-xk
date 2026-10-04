@@ -24,12 +24,14 @@
 #include "vm/context.h"
 #include "vm/owner.h"
 #include "vm/internal/apply.h"
+#include "vm/internal/base/function.h"
 #include "vm/internal/base/interpret.h"  // mark_svalue
 #include "vm/internal/base/machine.h"
 #include "vm/internal/eval_limit.h"
 #include "vm/internal/otable.h"  // FIXME:
 #include "vm/internal/master.h"
 #include "vm/internal/simulate.h"
+#include "vm/internal/recompile.h"
 #include "ghc/filesystem.hpp"
 namespace fs = ghc::filesystem;
 
@@ -1732,6 +1734,7 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     auto base = fs::current_path(error_code);
     fs::rename(base / fs::path(tmp_name), base / fs::path(validated_file), error_code);
     if (error_code) {
+      success = 0;
       debug_message("Failed to rename /%s to /%s: Error: %d (%s)\n", tmp_name.c_str(),
                     validated_file.c_str(),
                     error_code.value(), error_code.message().c_str());
@@ -1978,6 +1981,9 @@ void dealloc_object(object_t *ob, const char *from) {
       return;
     }
   }
+  // Reclaim normally detaches owner references before this point. Keep the
+  // owner registry safe on any other destructed-object teardown path too.
+  funptr_detach_all_for_object(ob);
   DEBUG_CHECK(ob->interactive, "Tried to free an interactive object.\n");
   /*
    * If the program is freed, then we can also free the variable
@@ -2239,6 +2245,7 @@ void reload_object(object_t *obj) {
   if (!obj || !obj->prog) {
     return;
   }
+  vm_recompile_reject_lifecycle(obj, "reload_object");
   for (i = 0; i < obj->prog->num_variables_total; i++) {
     free_svalue(&obj->variables.data[i], "reload_object");
     obj->variables.data[i] = const0u;
