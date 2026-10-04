@@ -4266,6 +4266,9 @@ public:
   bool loaded() const { return true; }
 
   ~SignalHandling() {
+#ifdef _WIN32
+    std::fprintf(stderr, "backward SignalHandling destructor\\n");
+#endif
     // A static destructor must not let a teardown error replace a successful
     // process exit with std::terminate. If the reporter synchronization has
     // already become unavailable, detach the reporter instead of throwing or

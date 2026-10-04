@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <deque>
 #include <future>
 #include <limits>
@@ -310,7 +311,12 @@ std::vector<VMOwnerComputeResultField> compute_result_fields(const AsyncRecord &
 
 class VMWorkerRuntime {
  public:
-  ~VMWorkerRuntime() { stop(); }
+  ~VMWorkerRuntime() {
+#ifdef _WIN32
+    std::fprintf(stderr, "VMWorkerRuntime destructor\\n");
+#endif
+    stop();
+  }
 
   void start(int requested_workers) {
     std::lock_guard<std::mutex> lock(mutex_);
