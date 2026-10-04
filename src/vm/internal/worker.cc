@@ -4,7 +4,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstdio>
 #include <deque>
 #include <future>
 #include <limits>
@@ -311,12 +310,7 @@ std::vector<VMOwnerComputeResultField> compute_result_fields(const AsyncRecord &
 
 class VMWorkerRuntime {
  public:
-  ~VMWorkerRuntime() {
-#ifdef _WIN32
-    std::fprintf(stderr, "VMWorkerRuntime destructor\\n");
-#endif
-    stop();
-  }
+  ~VMWorkerRuntime() { stop(); }
 
   void start(int requested_workers) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -934,8 +928,16 @@ class VMWorkerRuntime {
 };
 
 VMWorkerRuntime &runtime() {
+#ifdef _WIN32
+  // The worker runtime is stopped explicitly by VM shutdown. Keep the
+  // process-lifetime object alive so its mutex and condition variable are not
+  // destroyed after the Windows threading runtime has started tearing down.
+  static auto *instance = new VMWorkerRuntime();
+  return *instance;
+#else
   static VMWorkerRuntime instance;
   return instance;
+#endif
 }
 
 }  // namespace
