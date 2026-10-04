@@ -80,8 +80,17 @@ void OwnerRuntimeCoordinator::note_quiesce_timeout_locked() {
 }
 
 OwnerRuntimeCoordinator &owner_runtime_coordinator() {
+#ifdef _WIN32
+  // Owner threads are stopped explicitly by VM shutdown. Keep the
+  // process-lifetime coordinator alive so its thread and synchronization
+  // members are not destroyed after the Windows threading runtime starts
+  // tearing down.
+  static auto *coordinator = new OwnerRuntimeCoordinator();
+  return *coordinator;
+#else
   static OwnerRuntimeCoordinator coordinator;
   return coordinator;
+#endif
 }
 
 OwnerRuntimeMetrics &owner_runtime_metrics_instance() { return owner_runtime_coordinator().metrics(); }
