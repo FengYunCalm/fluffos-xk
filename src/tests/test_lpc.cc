@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <fstream>
 #include <initializer_list>
 #include <limits>
@@ -859,6 +860,23 @@ void test_unset_env(const char* name) {
   (void)unsetenv(name);
 #endif
 }
+
+#ifdef _WIN32
+[[noreturn]] void test_terminate_handler() noexcept {
+  std::fprintf(stderr, "lpc_tests terminate thread=%zu\\n",
+               std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  if (auto exception = std::current_exception()) {
+    try {
+      std::rethrow_exception(exception);
+    } catch (const std::exception& error) {
+      std::fprintf(stderr, "lpc_tests terminate exception=%s\\n", error.what());
+    } catch (...) {
+      std::fprintf(stderr, "lpc_tests terminate exception=unknown\\n");
+    }
+  }
+  std::abort();
+}
+#endif
 }  // namespace
 
 // Test fixture class
@@ -888,6 +906,9 @@ class ScopedLpcMapping {
 class DriverTest : public ::testing::Test {
  public:
   static void SetUpTestSuite() {
+#ifdef _WIN32
+    std::set_terminate(&test_terminate_handler);
+#endif
     std::string mudlib;
     try {
       mudlib = fluffos_test_mudlib::root_string();
@@ -906,8 +927,25 @@ class DriverTest : public ::testing::Test {
   void SetUp() override { clear_state(); }
 
   void TearDown() override {
+#ifdef _WIN32
+    auto *before = vm_owner_thread_status();
+    auto *before_threads = find_string_in_mapping(before, "thread_count");
+    std::fprintf(stderr, "lpc_tests teardown before owner stop thread=%zu count=%lld\\n",
+                 std::hash<std::thread::id>{}(std::this_thread::get_id()),
+                 before_threads && before_threads->type == T_NUMBER ?
+                     static_cast<long long>(before_threads->u.number) : -1LL);
+    free_mapping(before);
+#endif
     vm_worker_stop();
     vm_owner_thread_stop();
+#ifdef _WIN32
+    auto *after = vm_owner_thread_status();
+    auto *after_threads = find_string_in_mapping(after, "thread_count");
+    std::fprintf(stderr, "lpc_tests teardown after owner stop count=%lld\\n",
+                 after_threads && after_threads->type == T_NUMBER ?
+                     static_cast<long long>(after_threads->u.number) : -1LL);
+    free_mapping(after);
+#endif
     clear_state();
   }
 };
