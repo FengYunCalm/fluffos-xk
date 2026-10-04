@@ -3580,10 +3580,25 @@ class OwnerExecutorRuntimeImpl final : public OwnerExecutorRuntime {
     }
   }
 
-  void release_owner_after_task(const std::string &owner_id) override {
-    // E3 P1: the claim is over; wake a possibly-waiting quiescence.
-    owner_runtime_coordinator().claim_end();
-    finish_active_owner_task(owner_id);
+  void release_owner_after_task(const std::string &owner_id) noexcept override {
+    // E3 P1: the claim is over; wake a possibly-waiting quiescence. This is
+    // called by an RAII destructor at the thread boundary, so platform
+    // synchronization failures must be contained instead of terminating the
+    // process from a noexcept cleanup path.
+    try {
+      owner_runtime_coordinator().claim_end();
+    } catch (const std::exception &error) {
+      debug_message("OwnerExecutor: failed to end owner claim: %s\n", error.what());
+    } catch (...) {
+      debug_message("OwnerExecutor: failed to end owner claim: unknown exception\n");
+    }
+    try {
+      finish_active_owner_task(owner_id);
+    } catch (const std::exception &error) {
+      debug_message("OwnerExecutor: failed to release owner '%s': %s\n", owner_id.c_str(), error.what());
+    } catch (...) {
+      debug_message("OwnerExecutor: failed to release owner '%s': unknown exception\n", owner_id.c_str());
+    }
   }
 
   void record_owner_exception(const std::string &owner_id, const char *what) override {

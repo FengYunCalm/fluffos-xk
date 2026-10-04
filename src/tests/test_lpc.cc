@@ -26130,7 +26130,7 @@ class ThrowingOwnerExecutorRuntime : public OwnerExecutorRuntime {
     }
     throw 42;  // non-std exception path
   }
-  void release_owner_after_task(const std::string &owner_id) override {
+  void release_owner_after_task(const std::string &owner_id) noexcept override {
     EXPECT_EQ(owner_id, claimed);
     releases++;
   }

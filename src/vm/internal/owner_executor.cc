@@ -15,7 +15,7 @@ void OwnerExecutor::run() {
     struct OwnerReleaseGuard {
       OwnerExecutorRuntime &runtime;
       const std::string &owner_id;
-      ~OwnerReleaseGuard() { runtime.release_owner_after_task(owner_id); }
+      ~OwnerReleaseGuard() noexcept { runtime.release_owner_after_task(owner_id); }
     } release_guard{runtime_, claimed_owner};
 
     try {
