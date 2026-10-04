@@ -3766,10 +3766,21 @@ class OwnerExecutorRuntimeImpl final : public OwnerExecutorRuntime {
   }
 };
 
-void owner_thread_loop() {
-  OwnerExecutorRuntimeImpl runtime;
-  OwnerExecutor executor(runtime);
-  executor.run();
+void owner_thread_loop() noexcept {
+  try {
+    OwnerExecutorRuntimeImpl runtime;
+    OwnerExecutor executor(runtime);
+    executor.run();
+  } catch (const std::exception &error) {
+    // A thread entry must not let a platform/runtime exception reach
+    // std::terminate. In particular, some Windows libstdc++ builds can throw
+    // from a condition-variable wait during shutdown; the owning stop path
+    // still joins this finished thread and restores the scheduler state.
+    debug_message("OwnerExecutor: worker thread stopped with exception: %s\n",
+                  error.what());
+  } catch (...) {
+    debug_message("OwnerExecutor: worker thread stopped with unknown exception\n");
+  }
 }
 }  // namespace
 

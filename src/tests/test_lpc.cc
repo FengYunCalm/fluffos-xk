@@ -906,6 +906,7 @@ class DriverTest : public ::testing::Test {
   void SetUp() override { clear_state(); }
 
   void TearDown() override {
+    vm_worker_stop();
     vm_owner_thread_stop();
     clear_state();
   }
@@ -5943,9 +5944,11 @@ TEST_F(DriverTest, TestPerformanceWallClockContainsCurrentThreadCpuInterval) {
   }
 
 #ifdef _WIN32
-  // GetThreadTimes may report the next 15.625 ms tick ahead of the wall clock.
+  // GetThreadTimes may report the next 15.625 ms tick ahead of the wall
+  // clock, and the Windows scheduler can add a small second tick while the
+  // test samples both clocks.
   constexpr int64_t kTargetCpuNs = 100000000;
-  constexpr int64_t kCpuClockQuantizationAllowanceNs = 16000000;
+  constexpr int64_t kCpuClockQuantizationAllowanceNs = 32000000;
 #else
   constexpr int64_t kTargetCpuNs = 10000000;
   constexpr int64_t kCpuClockQuantizationAllowanceNs = 0;
