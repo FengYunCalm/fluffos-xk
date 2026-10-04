@@ -83,6 +83,10 @@ KNOWN_STALE = {
     "docs/upstream-absorption-plan-2026-10.md": {
         "tools/lpc-syntax",
         "docs/build.mdx",
+        # Fixed upstream baseline/tag objects are intentionally not part of
+        # this fork's Git history and are verified through git ls-remote.
+        "795eb371f1af522280738f454b8fc81afe231f1c",
+        "9c33f463727d714b70e74650813c5fac83c35c10",
     },
     # Evidence from a removed local build directory is retained for history.
     "docs/evidence/e3-v2-phase1-simul-efun-reload.md": {
