@@ -1,6 +1,6 @@
 # FluffOS_XK 大改优化与上游吸收方案（2026-10）
 
-状态：已进入实施阶段。P0、I01–I09、I13、F、G、D1 的 Linux/WSL2 本地原子单元已按正文记录完成；I15/P1 集成、D2、H、P2/P3 及 Windows/macOS/Alpine/Docker/远端 CI 仍按各节保留 `unverified` 或 `external-required`。
+状态：已进入实施阶段。P0、I01–I09、I13、F、G、D1 的 Linux/WSL2 本地原子单元已按正文记录完成；D1 的 Windows/macOS/Alpine、Docker 和远端 CI 已由授权的 GitHub Actions 外部环境验证。I15/P1 集成、D2、H、P2/P3 仍按各节保留 `unverified` 或 `external-required`；本机未拥有的原生平台仍不冒充本地验证。
 
 本文同时承担实施记录和剩余执行合同；动态证据只以实际命令、二进制、日志和环境为准，不把未执行的平台或发布流程冒充通过。下游 mudlib、生产实例、发布和部署仍是独立边界。
 
@@ -543,8 +543,8 @@ SNI 修正：SSL/ctx 持有可追溯的原 vhost 身份（独立 ex_data 索引�
 |---|---|---|
 | A/B | `unverified` | 授权实施后 fail-first、定向回归与 ASan |
 | F/G | `unverified` | 白盒/类型反例先失败；G 生成链一致 |
-| C | `external-required` | Windows 两配置真实退出路径验证 |
-| D1 | `complete`（Linux/WSL2；外部平台 `external-required`） | 依赖探针、旧合同回归、内存与本地链接验证已完成；外部平台和 Docker 需对应环境 |
+| C | `complete`（GitHub Actions Windows Debug/RelWithDebInfo） | Windows 两配置真实退出路径已由远端 runner 验证；本机 Windows 仍无原生环境 |
+| D1 | `complete`（Linux/WSL2 + GitHub Actions 外部矩阵） | 依赖探针、旧合同回归、内存、本地链接、Windows/macOS/Alpine、Docker 和远端 CI 均有当前证据；本机 Docker/原生外部平台仍不可用 |
 | D2 | `design-reviewed/unverified` | §7 接口/错误/内存合同固定；D1 通过后实施 |
 | E1–E4 | `design-reviewed/unverified` | §8 设计固定；I 前置与 B 通过，解决 object.cc 外部改动归属 |
 | H1–H3 | `design-reviewed/unverified` | §9 原子/TLS身份设计固定；I06–I09 通过，有独立 loopback 验证环境 |
@@ -1068,10 +1068,17 @@ I15、I05 和 E 共用一个执行 context、目标边界和出生 journal，不
   6. `.github/workflows/*.yml` 已由 PyYAML 解析通过；Docker CLI 存在但 daemon 不可连接（`/var/run/docker.sock` 不存在），因此未执行 Alpine/Docker image build。Windows/macOS/Alpine 主机构建、真实 libFuzzer、远端 CI 仍待对应环境。
   7. 修正 `tools/testsuite/test-port-isolation.sh` 只比较本次新增的 sandbox、fallback lockdir 和同一 driver 可执行文件进程，避免既有目录或其他 checkout 的 driver 造成误报；`--quick`（`1+4`）和完整压力矩阵（`5+20`）均通过，日志为 `/tmp/portiso-serial-*.log`、`/tmp/portiso-conc-*.log`。工作区原有两个 `.run-isolated-*` 目录和 `/home/mechrevo/projects/xiakexing/driver/bin/driver` 均未删除或干扰结果。
   8. Release CTest 首次暴露 `TestSimulEfunReloadCreateFailureRollback`：`release_provisional_entries()` 把有副作用的 `remove_perm_ident()` 放在 `assert()` 参数内，`NDEBUG` 下整个清理调用被删除，导致 fresh identifier 残留；已将调用移出 `assert`，Debug/Release 定向测试均通过，随后四配置全量 LPC 和 Release CTest 均通过。
-- **范围限制**：发布、部署、重启或下游 mudlib 操作仍不属于 D1；P2/P3 集成矩阵和其他平台不属于本地 D1 闭合证据。
+- **范围限制**：发布、部署、重启或下游 mudlib 操作仍不属于 D1；P2/P3 集成矩阵不属于本地 D1 闭合证据。
 
 ### D1 follow-up 12：Alpine 3.18 static package fail-first（2026-10-04）
 
 - **fail-first 证据**：推送提交 `126eca85dff9eb7a8a51fb9aa57a7315a2f3317e` 后，远端 `Docker Smoke` run `37179603487` 在 `Dockerfile:3` 的 `apk add` 失败，原因为 Alpine 3.18 没有 `pcre2-static`（`unable to select packages: pcre2-static (no such package)`）；该失败不是源码编译或 PCRE2 API 失败。
 - **根因与修复**：查询 Alpine v3.18/main x86_64 的真实 APK 后确认 `pcre2-dev=10.42-r1` 同时提供 `usr/include/pcre2.h` 和 `usr/lib/libpcre2-8.a`，而 `pcre2-static` 不存在。已从 `Dockerfile` 与 `docs/build.md` 的安装列表移除不存在的包，并保留 Dockerfile 的头文件/静态库存在性断言；同步更正 D1 合同文案。
-- **本地验证**：真实 Alpine 3.18 `pcre2-dev-10.42-r1.apk` 内容已核对包含上述两个文件；本机 Docker daemon 不可连接，因此不伪造本地镜像构建通过。修复提交后的远端 CI/Docker Smoke 结果待本次推送回报。
+- **本地验证**：真实 Alpine 3.18 `pcre2-dev-10.42-r1.apk` 内容已核对包含上述两个文件；本机 Docker daemon 不可连接，因此不伪造本地镜像构建通过。修复后的外部 Docker Smoke 见 follow-up 13。
+
+### D1 follow-up 13：Windows static teardown 与外部矩阵闭环（2026-10-04）
+
+- **fail-first 与根因**：远端 CI 在 `8f452ec99c2a7ef01e744657dc89c02a4f006ab0` 的 Windows Debug/RelWithDebInfo 退出阶段仍因静态运行时对象销毁顺序触发 `std::system_error`/`terminate`。定向诊断确认 Windows 的 owner coordinator 和 worker runtime 在 CRT 线程同步原语完成后仍参与静态析构；正常业务 teardown 已执行，但进程退出阶段再次析构这些线程状态是不安全的。
+- **修复**：`adf41dea` 将 Windows `VMWorkerRuntime` 改为进程存活期实例；`b16a9524` 将 `OwnerRuntimeCoordinator` 改为进程存活期实例。两处仍由显式 `vm_worker_stop()`/`vm_owner_thread_stop()` 完成业务线程停止，不以泄漏替代运行时清理；删除临时诊断输出，不改变 Linux 生命周期。既有 `backward-cpp` 正常退出同步修复继续保留。
+- **外部验证**：提交 `b16a95240d46895bbb2105b9a2c6d05c3447eade` 的 GitHub Actions `CI` run `37206199647` 全部 `16/16` jobs 通过：Ubuntu GCC/Clang Debug、RelWithDebInfo、ASan、UBSan、TSan，Windows Debug/RelWithDebInfo，macOS Debug/RelWithDebInfo，WASM、gateway libFuzzer、workflow/evidence gates；`Docker Smoke` run `37206199666` 的 Alpine/static image build 通过；`CodeQL` run `37206199642` 通过。Dockerfile 的 `pcre2-dev` 同时提供 PCRE2 header 和 static library 的合同由远端镜像实际构建验证。
+- **本地收尾证据**：`cmake --build --preset dev-debug --target lpc_tests --parallel 4` 成功；owner/VM owner 定向 GTest `100/100` 通过（`build-dev-debug/src/tests/lpc_tests --gtest_filter='DriverTest.TestVmOwner*:DriverTest.TestOwner*'`），无测试失败。当前 follow-up 仅清理临时诊断输出；本次清理提交推送后需重新取得外部矩阵结果。

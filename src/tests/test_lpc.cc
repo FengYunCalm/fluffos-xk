@@ -9,7 +9,6 @@
 #include "compiler/internal/diagnostic_render.h"  // T3.3 rendering
 #include <cerrno>
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -860,22 +859,6 @@ void test_unset_env(const char* name) {
 #endif
 }
 
-#ifdef _WIN32
-[[noreturn]] void test_terminate_handler() noexcept {
-  std::fprintf(stderr, "lpc_tests terminate\\n");
-  if (auto exception = std::current_exception()) {
-    try {
-      std::rethrow_exception(exception);
-    } catch (const std::exception& error) {
-      std::fprintf(stderr, "lpc_tests terminate exception=%s\\n", error.what());
-    } catch (...) {
-      std::fprintf(stderr, "lpc_tests terminate exception=unknown\\n");
-    }
-  }
-  std::abort();
-}
-#endif
-
 }  // namespace
 
 // Test fixture class
@@ -905,9 +888,6 @@ class ScopedLpcMapping {
 class DriverTest : public ::testing::Test {
  public:
   static void SetUpTestSuite() {
-#ifdef _WIN32
-    std::set_terminate(&test_terminate_handler);
-#endif
     std::string mudlib;
     try {
       mudlib = fluffos_test_mudlib::root_string();

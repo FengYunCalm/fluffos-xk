@@ -2,7 +2,6 @@
 //
 // Generate driver tracing data to be viewed in chrome http://about:tracing
 
-#include <cstdio>
 #include <vector>
 #include <fstream>
 #include <mutex>
@@ -88,9 +87,6 @@ class TraceWriter {
 };
 
 TraceWriter::~TraceWriter() {
-#ifdef _WIN32
-  std::fprintf(stderr, "TraceWriter destructor\\n");
-#endif
   std::lock_guard<std::mutex> const lock(lock_);
   if (buffer_ && !buffer_->empty()) {
     debug_message("Uncollected profiling events: %ld.\n", buffer_->size());
