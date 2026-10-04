@@ -4266,14 +4266,27 @@ public:
   bool loaded() const { return true; }
 
   ~SignalHandling() {
-    {
-      std::unique_lock<std::mutex> lk(mtx());
-      crashed() = crash_status::normal_exit;
+    // A static destructor must not let a teardown error replace a successful
+    // process exit with std::terminate. If the reporter synchronization has
+    // already become unavailable, detach the reporter instead of throwing or
+    // leaving a joinable thread for its destructor.
+    try {
+      {
+        std::unique_lock<std::mutex> lk(mtx());
+        crashed() = crash_status::normal_exit;
+      }
+
+      cv().notify_one();
+      reporter_thread_.join();
+    } catch (...) {
+      try {
+        if (reporter_thread_.joinable()) {
+          reporter_thread_.detach();
+        }
+      } catch (...) {
+        // Process teardown has no recoverable action left.
+      }
     }
-
-    cv().notify_one();
-
-    reporter_thread_.join();
   }
 
 private:
@@ -4289,14 +4302,17 @@ private:
     return data;
   }
 
+  // These primitives are used by the static SignalHandling destructor. Keep
+  // them alive until process termination so their teardown cannot race the
+  // destructor's final lock/notify operations on MinGW/winpthreads.
   static std::mutex &mtx() {
-    static std::mutex data;
-    return data;
+    static std::mutex *data = new std::mutex();
+    return *data;
   }
 
   static std::condition_variable &cv() {
-    static std::condition_variable data;
-    return data;
+    static std::condition_variable *data = new std::condition_variable();
+    return *data;
   }
 
   static HANDLE &thread_handle() {
