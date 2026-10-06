@@ -847,6 +847,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 构建目标仅 bench_compile；候选目录为 build-organize-debug / build-organize-release，LTO 关闭，MARCH_NATIVE 开启。首次 configure 因系统缺 PCRE2 开发头而失败，随后显式复用 U00b 已冻结的 PCRE2 头和库路径，不关闭 package、不降低探针要求。后续性能 A/B 必须使用相同测量代码与优化配置。
 - U00c 内部出口完成。U01–U17 仍按依赖推进；真实下游兼容和平台缺席状态不变，不据此声称整体整理已完成。
 
+### 11.3 U01a：写入与 ed 失败路径
+
+- 证据根：/tmp/fluffos-xk-modernization-47ec0a9f-u01a-2zu1_9hk。write_file 现在核完整写入、流错误和最终关闭；空字符串、flags 0–3、打开失败异常保持原合同。ed 的行写入、换行、流错误和关闭失败返回既有 EDERR；活动会话的 w/x 保留修改标志和缓冲区，不发送写入成功回调。目标可能已部分改变，不新增原子替换或强制退出后的缓冲区持久化。
+- 反例：fail-first 中 5 个 write_file 故障场景失败、2 个原合同场景通过；fail-first-file 中 5 个 ed 场景全部命中状态丢失。早期缺 zlib 头、未生成新构建目标、ed 夹具缺 VM 错误上下文及受限改名失败均保留日志，不计为生产缺陷证据。夹具改为从已授权的私有文件启动编辑，不关闭权限检查。
+- 新增 Linux file_io_tests：链接包装仅在测试可执行文件生效，核短写、流错误、关闭、引用数和 fd 数；真实 /dev/full 覆盖普通/gzip 写入及 ed 的 w/x。临时链接仅位于夹具私有目录，不填满磁盘。CTest 经既有 runner 隔离执行；Python3_EXECUTABLE 选择具备 pidfd 能力的解释器。
+- 最终 Debug/ASan/UBSan 各 17/17、0 跳过；CTest 包装入口 1/1，通过记录指向 /tmp/fluffos-targeted-n8noh8qz。LPC file_io_failure 在三种构建各 1/1，覆盖正常追加/覆盖、压缩往返、空串和打开失败。ASan 沿用预设的 detect_leaks=0，未宣称做过 LSan 全堆泄漏验收；fd、ed buffer 与 callback 引用数另有断言。
+- 仅构建 file_io_tests 与 driver。主仓库保持 OLD_ED 原配置；私有副本的新式 ed + gateway 组合构建失败，gateway_session.cc 直接读取只在 OLD_ED 下存在的 ed_buffer。另建无 gateway 组合仍链接失败：comm.cc 的 gateway probe/计数引用没有随包边界关闭。两处文件与本单元基线完全一致，是既有条件编译缺口；交 U06/U12 处理，不修改到私有树制造通过，不把关闭 package 当成原组合通过。
+- 默认配置的正确性修复已验证；新式 ed 的完整配置验收仍阻塞。本条不代表 U01 全部完成，U01b–d 尚未实施。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

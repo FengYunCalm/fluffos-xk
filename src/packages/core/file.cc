@@ -390,39 +390,33 @@ int remove_file(const char *path) {
 /*
  * Append string to file. Return 0 for failure, otherwise 1.
  */
-int write_file(const char *file, const char *str, int flags) {
-  FILE *f;
-  gzFile gf;
-
+int write_file(const char* file, const char* str, int flags) {
   file = check_valid_path(file, current_object, "write_file", 1);
   if (!file) {
     return 0;
   }
+  const auto length = strlen(str);
   if (flags & 2) {
-    gf = gzopen(file, (flags & 1) ? "wb" : "ab");
-    if (!gf) {
+    gzFile stream = gzopen(file, (flags & 1) ? "wb" : "ab");
+    if (!stream) {
       error("Wrong permissions for opening file /%s for %s.\n\"%s\"\n", file,
             (flags & 1) ? "overwrite" : "append", strerror(errno));
     }
-  } else {
-    f = fopen(file, (flags & 1) ? "wb" : "ab");
-    if (f == nullptr) {
-      error("Wrong permissions for opening file /%s for %s.\n\"%s\"\n", file,
-            (flags & 1) ? "overwrite" : "append", strerror(errno));
-    }
-  }
-  if (flags & 2) {
-    gzwrite(gf, str, strlen(str));
-  } else {
-    fwrite(str, strlen(str), 1, f);
+    const bool wrote_all =
+        length <= std::numeric_limits<unsigned int>::max() &&
+        static_cast<size_t>(gzwrite(stream, str, static_cast<unsigned int>(length))) == length;
+    const int close_result = gzclose(stream);
+    return wrote_all && close_result == Z_OK;
   }
 
-  if (flags & 2) {
-    gzclose(gf);
-  } else {
-    fclose(f);
+  FILE* stream = fopen(file, (flags & 1) ? "wb" : "ab");
+  if (!stream) {
+    error("Wrong permissions for opening file /%s for %s.\n\"%s\"\n", file,
+          (flags & 1) ? "overwrite" : "append", strerror(errno));
   }
-  return 1;
+  const bool wrote_all = fwrite(str, 1, length, stream) == length && !ferror(stream);
+  const int close_result = fclose(stream);
+  return wrote_all && close_result == 0;
 }
 
 /* Reads file, starting from line of "start", with maximum lines of "lines".

@@ -28,6 +28,21 @@ if(${GTEST_FOUND})
     DISCOVERY_TIMEOUT 60
     TEST_PREFIX "compile_arena_tests."
   )
+
+  # GNU/LLVM ELF link wrapping injects failures only into this test executable.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(file_io_tests test_file_io.cc)
+    target_link_libraries(file_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
+    target_compile_definitions(file_io_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
+    foreach(symbol fopen fclose fwrite fputs fputc ferror gzopen gzwrite gzclose)
+      target_link_options(file_io_tests PRIVATE "-Wl,--wrap=${symbol}")
+    endforeach()
+    find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME file_io_tests
+      COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/run-targeted.py"
+        --binary $<TARGET_FILE:file_io_tests> --gtest-filter=FileIoTest.* --timeout 90
+    )
+  endif()
 endif()
 
 add_executable(owner_runtime_bench owner_runtime_bench.cc)

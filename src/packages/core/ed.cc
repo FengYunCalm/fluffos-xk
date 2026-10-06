@@ -862,19 +862,26 @@ static int dowrite(int from, int to, const char *fname, int apflg) {
     str = lptr->l_buff;
     lines++;
     bytes += strlen(str) + 1; /* str + '\n' */
-    if (fputs(str, fp) == EOF) {
-      ED_OUTPUT(ED_DEST, "file write error\n");
-      err++;
+    if (fputs(str, fp) == EOF || fputc('\n', fp) == EOF) {
+      err = EDERR;
       break;
     }
-    fputc('\n', fp);
     lptr = lptr->l_next;
   }
 
+  if (ferror(fp)) {
+    err = EDERR;
+  }
+  if (fclose(fp) != 0) {
+    err = EDERR;
+  }
+  if (err != 0) {
+    ED_OUTPUT(ED_DEST, "file write error\n");
+    return err;
+  }
   if (!P_RESTRICT) {
     ED_OUTPUTV(ED_DEST, "%u lines %u bytes\n", lines, bytes);
   }
-  fclose(fp);
 
 #ifdef OLD_ED
   if (ED_BUFFER->write_fn) {

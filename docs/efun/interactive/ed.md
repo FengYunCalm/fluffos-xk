@@ -32,6 +32,11 @@ title: interactive / ed
 
         int write_fn(string fname, int flag)
 
+    The second callback requires both writing and closing the file to
+    succeed. On failure, no success callback is sent. Save commands keep
+    the changed flag and buffer; a failed `x` does not exit. The destination
+    may already contain partial output.
+
     When the editor is exited, the driver will callback the <exit_fn> func‐
     tion.   This  function  allows  the  mudlib to clean up.  This callback
     function has the form:

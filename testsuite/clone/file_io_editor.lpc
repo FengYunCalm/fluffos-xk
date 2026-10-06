@@ -1,0 +1,12 @@
+private int writes;
+
+int on_write(string filename, int success) {
+  if (success) {
+    writes++;
+  }
+  return filename == "/u01_file_io_failure.txt";
+}
+
+int successful_writes() {
+  return writes;
+}

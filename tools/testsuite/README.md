@@ -29,6 +29,14 @@ python3 -B tools/testsuite/run-targeted.py --driver build-dev-debug/bin/driver \
 `--tool EXECUTABLE -- ARG...` 只证明该工具的退出与诊断合同，不证明其内部断言或性能结论。
 CTest 模式只记录调度合同；需要精确断言覆盖时使用 `--binary`。
 
+## 文件 I/O 故障注入
+
+Linux 的 `file_io_tests` 在测试可执行文件链接时包装 stdio/zlib 调用，只作用于夹具文件；
+生产 driver 不含注入开关。测试还用私有符号链接访问 `/dev/full`，不填满磁盘。
+夹具要求隔离 mudlib，CTest 通过本 runner 执行，不直接把每个 GTest 注册到源码目录。
+配置需要 Python 3.9 或更新版本；若默认解释器缺少上述 pidfd 能力，用
+`-DPython3_EXECUTABLE=/absolute/path/to/python3` 显式选择具备能力的解释器。
+
 ## LPC 用例与异步完成
 
 `testsuite/command/tests.c` 按稳定路径顺序执行。原始日志中的开始记录保留执行顺序，可用同一源码重放。

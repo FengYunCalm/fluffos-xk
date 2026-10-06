@@ -1,0 +1,21 @@
+void do_tests() {
+  string path = "/u01_file_io_roundtrip";
+
+  ASSERT_EQ(file_size(path), -1);
+  foreach (int flags in ({ 0, 1, 2, 3 })) {
+    ASSERT_EQ(write_file(path, "first\n", flags), 1);
+    ASSERT_EQ(write_file(path, "second\n", flags), 1);
+    ASSERT_EQ(read_file(path), flags & 1 ? "second\n" : "first\nsecond\n");
+    ASSERT_EQ(write_file(path, "", flags & 2), 1);
+    ASSERT_EQ(read_file(path), flags & 1 ? "second\n" : "first\nsecond\n");
+    ASSERT_EQ(rm(path), 1);
+  }
+
+  ASSERT_EQ(write_file(path, "", 1), 1);
+  ASSERT_EQ(file_size(path), 0);
+  ASSERT_EQ(write_file(path, "replacement\n", 1), 1);
+  ASSERT_EQ(read_file(path), "replacement\n");
+  ASSERT_EQ(rm(path), 1);
+  ASSERT(stringp(catch(write_file("/u01_missing_directory/child", "payload", 1))));
+  ASSERT_EQ(file_size("/u01_missing_directory/child"), -1);
+}
