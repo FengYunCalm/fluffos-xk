@@ -420,6 +420,10 @@ pr1247.diff 共 66 文件 = 47 C++ + 19 测试。47 个 C++ 文件的覆盖明�
 
 ### C-S2 实施记录：本地 A/B 与内存验收（2026-08-19）
 
+> U00c 校准更正：以下原始数字保留历史记录。旧 `degradation` 比较不同文件，不能证明生命周期无退化；
+> 旧 p95/p99 来自轮次，不是操作级尾延迟。该两类签收结论不能沿用。
+> 当前测量合同见 [编译基准说明](../tools/perf/README.md)，后续性能证据须重新测量。
+
 - 工具：`src/tests/bench_compile.cc`（真实 compile_file() 路径，warmup + N 轮，输出 throughput/median/p95/p99/per-file 延迟/degradation/peak RSS/arena 统计，`--json` 落盘）+ `src/tests/bench_scratchpad.cc`（scratch_* API 热点：tokens/string accumulation/macro args/joins，mallinfo2 堆读数 + arena 统计）；corpus 由 `tools/perf/gen_compile_corpus.py`（种子 20260819）生成 100 个代表性文件（字符串/数组/映射/宏/函数/switch/循环/对象/混合/class，无 #include）。
 - 协议：before = 1ec243e5^（45a2c4f6，旧 scratchpad）worktree Release 构建；after = 当前树 build-sync Release；各 5 次独立进程 × 5 轮，原始 JSON 留存 tools/perf/results/{before,after}/compile2-{1..5}.json（随提交入库）。
 - 结果（中位数）：throughput before 10618 files/s vs after 10618（**0%**，进程间散布 ±2%）；round_median 9.455ms vs 9.408ms（**-0.5% 无回退**）；degradation（时间序 head10/tail10）before max 0.916 vs after max 0.979（均 ≤1.10）；peak RSS before max 11904KB vs after 11904KB（≤110%）；bench_scratchpad total 0.0324s vs 0.0068s（**降 79%**）。
