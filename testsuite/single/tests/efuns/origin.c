@@ -1,9 +1,12 @@
+private int completion_token;
+
 void lfun() {
     ASSERT(origin() == "local");
 }
 
 void co() {
     ASSERT(origin() == "internal");
+  "/command/tests"->complete_async(completion_token);
 }
 
 void ef() {
@@ -11,6 +14,7 @@ void ef() {
 }
 
 void do_tests() {
+  completion_token = "/command/tests"->begin_async();
     ASSERT(origin() == "call_other");
     lfun();
     call_out("co", 1);

@@ -1,0 +1,8 @@
+void do_tests() {
+  int token;
+
+  ASSERT(1);
+  token = "/command/tests"->begin_async();
+  "/command/tests"->complete_async(token);
+  "/command/tests"->complete_async(token);
+}

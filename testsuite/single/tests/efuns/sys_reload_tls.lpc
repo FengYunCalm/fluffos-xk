@@ -1,6 +1,7 @@
 // No TLS on the wasm target: the sys_reload_tls efun does not exist
 // there (the page terminates TLS), so this file must not reference it.
 #ifndef __WASM__
+private int completion_token;
 void do_tests_real() {
   // non tls port
   ASSERT_NE(0, catch(sys_reload_tls(0)));
@@ -30,8 +31,10 @@ void after_boot() {
   }
 
   write("sys_reload_tls: succeed.\n");
+  "/command/tests"->complete_async(completion_token);
 }
 void do_tests() {
+  completion_token = "/command/tests"->begin_async();
   write("waiting for boot...\n");
 
   call_out("after_boot", 0);

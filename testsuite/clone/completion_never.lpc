@@ -1,0 +1,5 @@
+void do_tests() {
+  ASSERT(1);
+  "/command/tests"->begin_async();
+  write("probe: waiting with registered token\n");
+}

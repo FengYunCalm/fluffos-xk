@@ -1,3 +1,5 @@
+private int heartbeat_token;
+private int stale_token;
 int x = 0;
 object stale_target;
 
@@ -29,6 +31,7 @@ void heart_beat() {
         ASSERT_EQ(1, query_heart_beat(this_object()));
         set_heart_beat(0);
         ASSERT_EQ(0, query_heart_beat(this_object()));
+      "/command/tests"->complete_async(heartbeat_token);
         break;
       default:
         ASSERT(0);
@@ -36,6 +39,8 @@ void heart_beat() {
 }
 
 void do_tests() {
+  heartbeat_token = "/command/tests"->begin_async();
+  stale_token = "/command/tests"->begin_async();
     x = 0;
     set_heart_beat(0);
     ASSERT(!query_heart_beat(this_object()));
@@ -61,4 +66,5 @@ void finish_stale_heartbeat(int before) {
     stale_target->stop_heartbeat();
     ASSERT_EQ(0, query_heart_beat(stale_target));
     destruct(stale_target);
+  "/command/tests"->complete_async(stale_token);
 }

@@ -1,0 +1,13 @@
+private int token;
+
+private void finish() {
+  write("probe: late callback reached\n");
+  ASSERT(0);
+  "/command/tests"->complete_async(token);
+}
+
+void do_tests() {
+  ASSERT(1);
+  token = "/command/tests"->begin_async();
+  call_out((: finish :), 0);
+}

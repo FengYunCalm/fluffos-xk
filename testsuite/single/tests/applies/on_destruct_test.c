@@ -14,7 +14,8 @@ void do_tests()
     write_file("/data/test_on_destruct_bad", "This is a test file.\n", 1) ;
     ASSERT(ob = load_object("/single/on_destruct_bad")) ;
     ASSERT_NE(-1, file_size("/data/test_on_destruct_bad")) ;
-    catch(destruct(ob)) ;
+  "/command/tests"->expect_runtime_error((: destruct, ob :),
+      "/single/on_destruct_bad.c", "*Division by zero\n");
     ASSERT_EQ(0, objectp(ob)) ;
     ASSERT_EQ(-1, file_size("/data/test_on_destruct_bad")) ;
 }

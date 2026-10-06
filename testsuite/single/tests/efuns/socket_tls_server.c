@@ -22,6 +22,7 @@ nosave int server_handshake_done = 0;
 nosave int client_sent = 0;
 nosave int test_completed = 0;
 nosave int owner_main_queued_before = 0;
+private nosave int completion_token;
 
 void cleanup() {
   if (accepted_fd != -1) {
@@ -52,7 +53,9 @@ void finish_test() {
   ASSERT_EQ("server hello", client_received);
   ASSERT(vm_owner_runtime_status()["main_queued"] >= owner_main_queued_before + 3);
   test_completed = 1;
+  remove_call_out("timeout_fail");
   cleanup();
+  "/command/tests"->complete_async(completion_token);
 }
 
 void client_close(int fd) {
@@ -136,13 +139,14 @@ void begin_test() {
 void do_tests() {
   int ret;
 
+  completion_token = "/command/tests"->begin_async();
   server_fd = socket_create(STREAM_TLS, "server_accept_ready");
   ASSERT2(server_fd >= 0, "failed to create server socket");
 
   socket_set_option(server_fd, SO_TLS_CERT, "etc/cert.pem");
   socket_set_option(server_fd, SO_TLS_KEY, "etc/key.pem");
 
-  ret = socket_bind(server_fd, 0);
+  ret = socket_bind(server_fd, 0, "127.0.0.1 0");
   ASSERT_EQ(EESUCCESS, ret);
 
   ret = socket_listen(server_fd, "server_accept_ready");

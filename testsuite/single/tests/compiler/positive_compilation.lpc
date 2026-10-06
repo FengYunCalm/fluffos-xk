@@ -1,0 +1,11 @@
+// These fixtures exercise accepted grammar; no runtime value contract is claimed.
+void do_tests() {
+  foreach (string name in ({ "mixed_declarations", "succeed", "switch" })) {
+    object subject = load_object("/single/tests/compiler/" + name);
+
+    ASSERT(objectp(subject));
+    if (function_exists("do_tests", subject)) {
+      ASSERT_EQ(0, catch(subject->do_tests()));
+    }
+  }
+}

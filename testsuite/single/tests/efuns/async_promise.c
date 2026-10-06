@@ -1,6 +1,7 @@
 #ifdef __PACKAGE_ASYNC__
 nosave int completed;
 nosave int failed;
+private nosave int completion_token;
 
 async mixed run_promise_forms() {
     string path = "/log/async_promise_phase3.txt";
@@ -37,12 +38,14 @@ void do_tests() {
     write("PACKAGE_ASYNC is not enabled, skipping async promise tests...\n");
     return;
 #else
+  completion_token = "/command/tests"->begin_async();
     promise_catch(run_promise_forms(), function(mixed reason) {
         failed = 1;
     });
     call_out(function() {
         ASSERT_EQ(1, completed);
         ASSERT_EQ(0, failed);
+    "/command/tests"->complete_async(completion_token);
     }, 2);
 #endif
 }

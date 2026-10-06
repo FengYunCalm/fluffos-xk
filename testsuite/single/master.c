@@ -85,8 +85,13 @@ public void set_sys_reload_tls_allowed(int allowed)
     sys_reload_tls_allowed = allowed;
 }
 
-public string clear_last_error() {
+public varargs string clear_last_error(string file) {
+  object tests = find_object("/command/tests");
+
   last_error = "";
+  if (file && tests) {
+    tests->record_assertion(previous_object());
+  }
 }
 
 // find stack right before __assert
@@ -388,13 +393,7 @@ string privs_file(string f) {
 staticf void error_handler(mapping map, int flag) {
   object ob;
   string str;
-
-  /* Squelch the expected eval_cost errors thrown by the call_out tests */
-  if (map["program"] == "/single/tests/efuns/call_out.c" &&
-      map["error"] == "*Too long evaluation. Execution aborted.\n")
-  {
-    return;
-  }
+  int assertion_failed = strsrch(lower_case(map["error"]), "check failed") != -1;
 
   ob = this_interactive() || this_player();
 
@@ -409,6 +408,18 @@ staticf void error_handler(mapping map, int flag) {
                      "No program") :)), "\n"));
   last_error = str;
   write_file("/log/log", str);
+  if (!flag || assertion_failed) {
+    object tests = find_object("/command/tests");
+
+    if (tests && tests->is_running()) {
+      if (!flag && !assertion_failed &&
+          tests->consume_expected_error(map["program"], map["error"])) {
+        return;
+      }
+      has_error = 1;
+      tests->record_failure(assertion_failed ? "assertion failure" : "uncaught runtime error");
+    }
+  }
   if (!flag && ob) tell_object(ob, str);
 }
 

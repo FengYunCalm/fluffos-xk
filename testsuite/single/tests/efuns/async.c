@@ -2,6 +2,7 @@
 nosave int calledGetDir, calledWrite, calledRead;
 nosave int calledStale;
 nosave int ownerMainQueuedBefore;
+private nosave int completion_token;
 #endif
 
 void do_tests() {
@@ -9,6 +10,7 @@ void do_tests() {
     write("PACKAGE_ASYNC is not enabled, skipping async tests...\n");
     return;
 #else
+  completion_token = "/command/tests"->begin_async();
     ownerMainQueuedBefore = vm_owner_runtime_status()["main_queued"];
 
     // async_getdir
@@ -71,6 +73,7 @@ void do_tests() {
         vm_set_owner_id(this_object(), "owner/test/async-stale-new");
         call_out(function() {
             ASSERT_EQ(0, calledStale);
+      "/command/tests"->complete_async(completion_token);
         }, 1);
     }, 2);
 #endif

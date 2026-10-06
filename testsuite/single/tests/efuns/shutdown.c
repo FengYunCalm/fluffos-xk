@@ -5,7 +5,6 @@ void do_the_nasty_deed() {
 }
 
 void do_tests() {
-    write("shutdown in 15 seconds.\n");
-    // This one is hard to test :-)
-    call_out( (: do_the_nasty_deed :), 15);
+  // The test controller calls shutdown only after its completion barrier.
+  ASSERT(function_exists("do_the_nasty_deed", this_object()));
 }

@@ -1,4 +1,5 @@
 int called;
+private int completion_token;
 
 void first_call() {
     called = 1;
@@ -6,6 +7,7 @@ void first_call() {
 
 void third_call() {
     ASSERT(!called);
+  "/command/tests"->complete_async(completion_token);
 }
 
 void second_call() {
@@ -18,6 +20,7 @@ void second_call() {
 void do_tests() {
     int h;
 
+  completion_token = "/command/tests"->begin_async();
     called = 0;
     h = call_out( "first_call", 0);
     ASSERT(remove_call_out(h) != -1);

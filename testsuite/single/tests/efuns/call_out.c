@@ -5,6 +5,7 @@ object tp;
 #define TPIC
 #endif
 
+private int completion_token;
 int busy = 0;
 mapping called;
 
@@ -33,6 +34,7 @@ void stale_should_not_run() {
 void finish_stale() {
   busy = 0;
   ASSERT_EQ(0, called["stale_tests"]);
+  "/command/tests"->complete_async(completion_token);
 }
 
 void finish() {
@@ -52,6 +54,7 @@ void do_tests() {
     return;
   }
   busy = 1;
+  completion_token = "/command/tests"->begin_async();
 
   tp = this_player();
   called = ([ ]);

@@ -1,0 +1,4 @@
+void do_tests() {
+  ASSERT(1);
+  "/command/tests"->complete_async(123);
+}

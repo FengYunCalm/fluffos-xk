@@ -1,0 +1,52 @@
+# case	role	requires	reason
+/single/tests/compiler/0default_args_1	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/compiler/foreach_unwind	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/compiler/mixed_declarations	fixture	-	Compilation and execution checked by compiler/positive_compilation.
+/single/tests/compiler/succeed	fixture	-	Compilation and execution checked by compiler/positive_compilation.
+/single/tests/compiler/switch	fixture	-	Compilation and execution checked by compiler/positive_compilation.
+/single/tests/efuns/add_light	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/async	runtime	async	Requires PACKAGE_ASYNC.
+/single/tests/efuns/async_db_exec_bound_args	runtime	async,db,sqlite	Requires asynchronous SQLite callbacks.
+/single/tests/efuns/async_promise	runtime	async	Requires PACKAGE_ASYNC.
+/single/tests/efuns/b3_bp	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/badshad	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/badshad2	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/db	runtime	db,sqlite	Requires PACKAGE_DB and USE_SQLITE3.
+/single/tests/efuns/dumpallobj	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
+/single/tests/efuns/ed	runtime	modern_ed	Requires the non-OLD_ED editor implementation.
+/single/tests/efuns/exec	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/external_promise	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/find_player	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/function_profile	runtime	profile	Requires PROFILE_FUNCTIONS.
+/single/tests/efuns/generate_source	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/get_char	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/goodshad	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/has_errors	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/in_edit	runtime	modern_ed	Requires the non-OLD_ED editor implementation.
+/single/tests/efuns/input_to	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/light	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/message	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/mkdir	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/notify_fail	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
+/single/tests/efuns/parser_owner_probe	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/printf	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
+/single/tests/efuns/query_ed_mode	runtime	modern_ed	Requires the non-OLD_ED editor implementation.
+/single/tests/efuns/query_idle	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/replaceable	coverage_gap	-	Misspelled __PACKAGE_CONTRIB___ guard disables the body; U11 must repair coverage.
+/single/tests/efuns/rp_a	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/rp_leaf	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/rp_mid	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/send_nullbyte	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/set_bit	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/set_debug_level	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
+/single/tests/efuns/set_hide	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
+/single/tests/efuns/snoop	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/socket_tls_server	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/sys_reload_tls	runtime	tls_reload	Requires the sys_reload_tls efun.
+/single/tests/efuns/talker	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/telnet_ga	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
+/single/tests/efuns/telnet_msp_oob	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
+/single/tests/efuns/telnet_nop	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
+/single/tests/efuns/trace_overflow_recovery	runtime	trace	Requires the trace_start efun.
+/single/tests/efuns/unloaded	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/std/database	runtime	db,sqlite	Requires PACKAGE_DB and USE_SQLITE3.

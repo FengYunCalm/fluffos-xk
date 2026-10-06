@@ -1,0 +1,57 @@
+private int saved_value;
+private string saved_text;
+private int completion_token;
+
+private void finish_compat() {
+  ASSERT_EQ(saved_value, 37);
+  ASSERT_EQ(saved_text, "兼容");
+  "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+  string stem = "/log/modernization_compat_source";
+  string save_path = "/log/modernization_compat_state";
+  string failure;
+  object subject;
+
+  ASSERT_EQ(1 << 64, 1);
+  ASSERT_EQ(sprintf("%d", MAX_INT), "9223372036854775807");
+  failure = catch(error("modernization compatibility exception"));
+  ASSERT(stringp(failure));
+  ASSERT(strsrch(failure, "modernization compatibility exception") != -1);
+  ASSERT_EQ(find_object(stem, 0), 0);
+  ASSERT_EQ(file_size(stem + ".c"), -1);
+  ASSERT_EQ(file_size(stem + ".lpc"), -1);
+  ASSERT_EQ(write_file(stem + ".c", "int value() { return 7; }\n", 1), 1);
+  ASSERT_EQ(write_file(stem + ".lpc", "int value() { return 8; }\n", 1), 1);
+
+  subject = load_object(stem + ".c");
+  ASSERT_EQ(subject->value(), 7);
+  ASSERT_EQ(find_object(stem, 0), subject);
+  destruct(subject);
+  subject = load_object(stem);
+  ASSERT_EQ(subject->value(), 8);
+  ASSERT_EQ(find_object(stem + ".lpc", 0), subject);
+  destruct(subject);
+  ASSERT_EQ(rm(stem + ".c"), 1);
+  ASSERT_EQ(rm(stem + ".lpc"), 1);
+
+  saved_value = 37;
+  saved_text = "兼容";
+  completion_token = 0;
+  ASSERT_EQ(file_size(save_path + ".o"), -1);
+  ASSERT(save_object(save_path, 0) > 0);
+  saved_value = 0;
+  saved_text = "changed";
+  completion_token = 12;
+  ASSERT_EQ(restore_object(save_path, 1), 1);
+  ASSERT_EQ(saved_value, 37);
+  ASSERT_EQ(saved_text, "兼容");
+  ASSERT_EQ(completion_token, 12);
+  ASSERT_EQ(restore_object(save_path, 0), 1);
+  ASSERT_EQ(completion_token, 0);
+  ASSERT_EQ(rm(save_path + ".o"), 1);
+
+  completion_token = "/command/tests"->begin_async();
+  call_out((: finish_compat :), 0);
+}

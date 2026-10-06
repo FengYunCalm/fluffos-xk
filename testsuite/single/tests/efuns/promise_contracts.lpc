@@ -7,6 +7,7 @@
 // ever regresses, this probe hangs instead of reporting a wrong value --
 // hence the explicit "settled in time" assertions in the call_out check.
 
+private int completion_token;
 int adopt_done;
 mixed adopt_value;
 
@@ -40,6 +41,7 @@ int destruct_done;
 mixed destruct_reason;
 
 void do_tests() {
+  completion_token = "/command/tests"->begin_async();
   adopt_done = 0;
   adopt_value = 0;
   reason_done = 0;
@@ -76,5 +78,6 @@ void do_tests() {
     ASSERT_EQ("*promise rejected", reason_value);
     ASSERT_EQ(1, destruct_done);
     ASSERT(strsrch(destruct_reason, "cannot suspend inside a destructed object") != -1);
+    "/command/tests"->complete_async(completion_token);
   }, 2);
 }

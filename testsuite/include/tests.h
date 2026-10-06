@@ -3,7 +3,7 @@
 
 #define SAFE(x) do {x} while(0)
 
-#define CLEAR_ERROR (("/single/master"->clear_last_error() || 1))
+#define CLEAR_ERROR (("/single/master"->clear_last_error(__FILE__) || 1))
 
 #define OUTPUT(x) SAFE(write(catch(error(x))); \
   if(!this_player()) { shutdown(-1); })

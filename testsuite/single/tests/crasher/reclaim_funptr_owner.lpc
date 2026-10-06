@@ -12,9 +12,12 @@ void do_tests() {
     destruct(helper);
     reclaim_objects();                 // nulls saved_fp->hdr.owner
 
-    call_out(saved_fp, 1);             // schedule with orphaned funptr
+  int handle = call_out(saved_fp, 1);  // schedule with orphaned funptr
     reclaim_objects();                 // walks the callout; must not deref null
 
+  // The regression is the synchronous reclaim walk, not the later callback.
+  remove_call_out(handle);
+  ASSERT_EQ(-1, find_call_out(handle));
     saved_fp = 0;
     ASSERT(1);
 }

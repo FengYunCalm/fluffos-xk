@@ -7,6 +7,7 @@
 #define MAX_TRIES 8
 
 nosave int tries;
+private int completion_token;
 
 private int noop(int value) {
   return value;
@@ -22,6 +23,7 @@ private void burn(int count) {
 
 private void cleanup_file() {
   rm(TRACE_FILE);
+  "/command/tests"->complete_async(completion_token);
 }
 
 private void check_file() {
@@ -38,6 +40,7 @@ private void check_file() {
 
 void do_tests() {
 #if efun_defined(trace_start)
+  completion_token = "/command/tests"->begin_async();
   rm(TRACE_FILE);
 
   trace_start("/log/no_such_dir/overflow.json", 300);
