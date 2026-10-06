@@ -1,0 +1,6 @@
+// Fixture for /single/tests/efuns/dual_extension.lpc: inherits the
+// ".c" SPELLING of a file that exists only as .lpc. Loaded only after
+// dual_only_lpc is in the registry, where extension-blind identity
+// satisfies the inherit (the fail fixture pins the never-loaded case).
+inherit "/clone/dual_only_lpc.c";
+string parent_which() { return which(); }

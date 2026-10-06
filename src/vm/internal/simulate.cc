@@ -784,6 +784,10 @@ object_t *load_object(const char *lname, int callcreate) {
   if (inherit_file) {
     object_t *inh_obj;
     char inhbuf[MAX_OBJECT_NAME_SIZE];
+    // Keep the original inherit spelling for a source load. inhbuf is the
+    // extension-blind registry key and must not erase an explicit ".c" or
+    // ".lpc" request before load_object() probes the filesystem.
+    const std::string inherit_source(inherit_file);
 
     if (!filename_to_obname(inherit_file, inhbuf, sizeof inhbuf)) {
       error("Inherited object file name is too long or invalid.\n");
@@ -808,7 +812,7 @@ object_t *load_object(const char *lname, int callcreate) {
       fatal("Inherited object is already loaded!");
 #endif
     } else {
-      inh_obj = load_object(inhbuf, 1);
+      inh_obj = load_object(inherit_source.c_str(), 1);
     }
     if (!inh_obj) error("Inherited file '/%s' does not exist!\n", inhbuf);
 
@@ -823,7 +827,10 @@ object_t *load_object(const char *lname, int callcreate) {
       ob = ObjectTable::instance().find(name);
     }
     if (!ob) {
-      ob = load_object(name, 1);
+      // Retry the original source spelling after loading an inherited object;
+      // using the normalized name would silently switch an explicit .c load
+      // to a .lpc twin.
+      ob = load_object(lname, 1);
       /* sigh, loading the inherited file removed us */
       if (!ob) {
         vm_context_adjust_load_object_depth(vm_context(), -1);
@@ -1853,7 +1860,10 @@ object_t *find_object(const char *str) {
     }
     return ob;
   }
-  ob = load_object(tmpbuf, 1);
+  // Keep the caller's source spelling when loading. The normalized name is
+  // only the extension-blind registry key; passing tmpbuf here would erase
+  // an explicit ".c"/".lpc" request before load_object() can enforce it.
+  ob = load_object(str, 1);
   if (!ob || (ob->flags & O_DESTRUCTED)) { /* *sigh* */
     return nullptr;
   }

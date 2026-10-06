@@ -1,0 +1,3 @@
+// An explicit ".c" extension is exact and must not fall back to .lpc.
+// dual_fail_only_lpc exists only as .lpc and is not loaded elsewhere.
+inherit "/clone/dual_fail_only_lpc.c";

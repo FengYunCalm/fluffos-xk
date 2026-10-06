@@ -1,0 +1,68 @@
+// valid_override receives the leading-slash, extension-less object name
+// for the file being compiled. The compiler must remove the actual source
+// extension, not a fixed two-byte suffix.
+
+#define PROBE_SRC "int probe() { return efun::strlen(\"hi\"); }\n"
+
+private object *loaded = ({});
+
+private void check_one(string path, string expect_file, string expect_main) {
+  object ob;
+  mixed err;
+  mixed *rec;
+
+  master()->clear_last_valid_override();
+  err = catch(ob = load_object(path));
+  ASSERT2(!err, "loading " + path + " should not error: " + err);
+  ASSERT2(objectp(ob), "probe " + path + " should compile");
+  if (objectp(ob)) {
+    loaded += ({ ob });
+    ASSERT_EQ(2, ob->probe());
+  }
+
+  rec = master()->query_last_valid_override();
+  ASSERT2(pointerp(rec), "valid_override should have been applied compiling " + path);
+  if (pointerp(rec)) {
+    ASSERT_EQ(expect_file, rec[0]);
+    ASSERT_EQ("strlen", rec[1]);
+    ASSERT_EQ(expect_main, rec[2]);
+  }
+}
+
+void do_tests() {
+  rm("/data/vo_probe_l.lpc");
+  rm("/data/vo_probe_c.c");
+  write_file("/data/vo_probe_l.lpc", PROBE_SRC);
+  write_file("/data/vo_probe_c.c", PROBE_SRC);
+
+  check_one("/data/vo_probe_l.lpc", "/data/vo_probe_l", "/data/vo_probe_l.lpc");
+  check_one("/data/vo_probe_c.c", "/data/vo_probe_c", "/data/vo_probe_c.c");
+
+  mkdir("/data/vo_v1.2");
+  rm("/data/vo_v1.2/probe.lpc");
+  write_file("/data/vo_v1.2/probe.lpc", PROBE_SRC);
+  check_one("/data/vo_v1.2/probe.lpc", "/data/vo_v1.2/probe", "/data/vo_v1.2/probe.lpc");
+
+  rm("/data/vo_multi.dot.lpc");
+  write_file("/data/vo_multi.dot.lpc", PROBE_SRC);
+  check_one("/data/vo_multi.dot.lpc", "/data/vo_multi.dot", "/data/vo_multi.dot.lpc");
+
+  rm("/data/vo_inc.h");
+  rm("/data/vo_incuser.lpc");
+  write_file("/data/vo_inc.h", PROBE_SRC);
+  write_file("/data/vo_incuser.lpc", "#include \"/data/vo_inc.h\"\n");
+  check_one("/data/vo_incuser.lpc", "/data/vo_inc", "/data/vo_incuser.lpc");
+
+  foreach (object ob in loaded) {
+    if (objectp(ob)) destruct(ob);
+  }
+  loaded = ({});
+  rm("/data/vo_probe_l.lpc");
+  rm("/data/vo_probe_c.c");
+  rm("/data/vo_v1.2/probe.lpc");
+  rmdir("/data/vo_v1.2");
+  rm("/data/vo_multi.dot.lpc");
+  rm("/data/vo_inc.h");
+  rm("/data/vo_incuser.lpc");
+  master()->clear_last_valid_override();
+}

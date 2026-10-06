@@ -23,7 +23,11 @@ void recurse(string dir) {
         (: $1[0] :)) - ({ ".", ".." }))
   {
     if (subdir == "fail") {
-      foreach (string fn in get_dir(dir + "fail/*.c")) {
+      foreach (string fn in get_dir(dir + "fail/*.c") + get_dir(dir + "fail/*.lpc")) {
+        if (strlen(fn) > 3 && fn[<2..] == ".c" &&
+            file_size(dir + "fail/" + fn[0..<3] + ".lpc") != -1) {
+          continue;  // .lpc twin wins
+        }
         write("A> " + dir + "fail/" + fn + "\n");
         ASSERT2(catch(load_object(dir+"fail/"+fn)), "fail/" + fn + " loaded");
 #if defined(__DEBUGMALLOC__) && defined(__DEBUGMALLOC_EXTENSIONS__) && defined(__PACKAGE_DEVELOP__)

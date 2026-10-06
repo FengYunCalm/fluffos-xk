@@ -1,6 +1,7 @@
 #include "base/std.h"
 #include "vm/internal/base/machine.h"
 #include "vm/internal/otable.h"
+#include "vm/internal/source_spelling.h"
 
 #include <algorithm>
 #include <sstream>
@@ -115,10 +116,8 @@ std::string basename(std::string s) {
   auto it2 = s.find('#');
   if (it2 != std::string::npos) s.erase(s.begin() + it2, s.end());
 
-  // remove all repetitions of .c at the end of the string
-  it1 = s.end() - 1;
-  for (; it1 - 1 != s.begin() && *it1 == 'c' && *(it1 - 1) == '.'; it1 -= 2)
-    ;
-  s.erase(it1 + 1, s.end());
+  // Object identity is extension-blind for both supported LPC source
+  // spellings. Keep children() consistent with find_object()/load_object().
+  s.resize(source_spelling_strip_len(s.c_str(), s.size()));
   return s;
 }

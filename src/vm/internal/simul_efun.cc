@@ -141,17 +141,15 @@ void init_simul_efun(const char *file) {
     debug_message("No simul_efun\n");
     return;
   }
-  if (!filename_to_obname(file, buf, sizeof(buf) - 2)) {
+  if (!filename_to_obname(file, buf, sizeof(buf))) {
     error("Illegal simul_efun file name '%s'\n", file);
   }
 
-  // #1247 .lpc: buf is already extension-stripped by filename_to_obname;
-  // load_object probes .lpc then .c for extension-less names, so an explicit
-  // .c spelling needs no special handling here (pass-through is default).
-
-  new_ob = load_object(buf, 1);
+  // Preserve the config spelling: explicit ".c"/".lpc" is exact,
+  // while an extension-less name uses the driver's .lpc-then-.c lookup.
+  new_ob = load_object(file, 1);
   if (new_ob == nullptr) {
-    debug_message("The simul_efun file %s was not loaded.\n", buf);
+    debug_message("The simul_efun file %s was not loaded.\n", file);
     exit(-1);
   }
   set_simul_efun(new_ob);

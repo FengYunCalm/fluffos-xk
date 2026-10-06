@@ -1,0 +1,6 @@
+// The save header records the actual program source spelling.
+int value = 7;
+
+void do_tests() {
+  ASSERT_EQ("#" + __FILE__ + "\nvalue 7\n", save_object(0));
+}

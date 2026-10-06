@@ -57,9 +57,20 @@ valid_author(string)
 //
 // returns: 1 if override is allowed, 0 if not.
 
+nosave mixed *last_valid_override = 0;
+
+mixed *query_last_valid_override() {
+  return last_valid_override;
+}
+
+void clear_last_valid_override() {
+  last_valid_override = 0;
+}
+
 int
-valid_override(string file, string name)
+valid_override(string file, string name, string mainfile)
 {
+  last_valid_override = ({ file, name, mainfile });
 	if (file == OVERRIDES_FILE) {
 		return 1;
 	}

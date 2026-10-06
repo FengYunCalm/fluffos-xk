@@ -31,6 +31,12 @@ void do_tests() {
     save_object("/sf", 1);
     ASSERT_EQ(read_file("/sf.o"),  "#" + __FILE__ + "\nx 0\ny " + MAX_INT + "\n");
 
+    // A source suffix on the save path is removed before ".o" is added.
+    ASSERT_EQ(24, save_object("/sf.lpc"));
+    ASSERT_EQ(-1, file_size("/sf.lpc.o"));
+    ASSERT_EQ(24, save_object("/sf.c"));
+    ASSERT_EQ(-1, file_size("/sf.c.o"));
+
     test_rename_failure(0);
     test_rename_failure(2);
 

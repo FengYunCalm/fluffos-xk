@@ -12,6 +12,11 @@ private int priv() {
 }
 
 void do_tests() {
+    object lpc_ob = load_object("/clone/dual_only_lpc");
+    ASSERT2(objectp(lpc_ob), "extension-less load should prefer .lpc");
+    ASSERT_EQ("/clone/dual_only_lpc", function_exists("which", lpc_ob));
+    destruct(lpc_ob);
+
     ASSERT_NE(0, function_exists("stat", this_object(), 1));
     ASSERT_NE(0, function_exists("priv", this_object(), 1));
 

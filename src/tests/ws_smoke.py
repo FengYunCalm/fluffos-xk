@@ -19,6 +19,8 @@ Usage (driver running with testsuite/etc/config.test from testsuite/):
     python3 ws_smoke.py wss-burst
     python3 ws_smoke.py ws-burst-flush
     python3 ws_smoke.py wss-burst-flush
+    python3 ws_smoke.py ws-close-flush
+    python3 ws_smoke.py wss-close-flush
 """
 import base64
 import hashlib
@@ -170,6 +172,40 @@ def drain_frames(sock, buffered, count=2):
     return frames, buffered
 
 
+def run_close_flush(url, host, port, path, subprotocol, use_tls, expect_bytes=6000):
+    """Driver-initiated close must drain output queued before destruct()."""
+    raw = connect(host, port, use_tls)
+    buffered = handshake(raw, host, path, subprotocol)
+    raw.settimeout(20)
+    _, buffered = drain_frames(raw, buffered, count=3)
+
+    expression = (
+        f'eval {{ write(repeat_string("z", {expect_bytes})); '
+        'destruct(this_player()); return 1; }\n'
+    )
+    send_frame(raw, expression)
+
+    frames = []
+    try:
+        while True:
+            opcode, payload, buffered = recv_frame(raw, buffered)
+            frames.append(payload)
+            if opcode == 0x8:
+                break
+    except (socket.timeout, EOFError):
+        pass
+    raw.close()
+
+    payload_text = b"".join(frames).decode("utf-8", "replace")
+    z_count = payload_text.count("z")
+    print(
+        f"CLOSE {url} frames={len(frames)} z_count={z_count} "
+        f"expected={expect_bytes}"
+    )
+    if z_count < expect_bytes:
+        raise SystemExit(f"driver-initiated close truncated output: {z_count} < {expect_bytes}")
+
+
 def run_mccp_refusal(host, port, path, subprotocol, use_tls):
     """A websocket telnet client offering MCCP2 must be refused."""
     raw = connect(host, port, use_tls)
@@ -287,6 +323,10 @@ def main():
         run_burst("ws://127.0.0.1:4001/ascii", host, 4001, "/ascii", "ascii", False, flush=True)
     elif kind == "wss-burst-flush":
         run_burst("wss://127.0.0.1:4002/ascii", host, 4002, "/ascii", "ascii", True, flush=True)
+    elif kind == "ws-close-flush":
+        run_close_flush("ws://127.0.0.1:4001/ascii", host, 4001, "/ascii", "ascii", False)
+    elif kind == "wss-close-flush":
+        run_close_flush("wss://127.0.0.1:4002/ascii", host, 4002, "/ascii", "ascii", True)
     elif kind == "ws-mccp-telnet":
         run_mccp_refusal(host, 4001, "/telnet", "telnet", False)
     elif kind == "wss-mccp-telnet":

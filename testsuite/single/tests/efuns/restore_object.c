@@ -24,6 +24,13 @@ void do_tests() {
     ASSERT(!var4);
 
     setup();
+    restore_object("/sf.lpc");
+    ASSERT(!var1);
+    ASSERT(var2 == 2);
+    ASSERT(!var3);
+    ASSERT(!var4);
+
+    setup();
     restore_object("/sf", 1);
     ASSERT(var1 == 1);
     ASSERT(var2 == 2);

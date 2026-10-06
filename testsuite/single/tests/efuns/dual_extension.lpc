@@ -1,0 +1,56 @@
+// Source resolution contract:
+//   - explicit ".c" or ".lpc" is exact
+//   - extension-less names prefer ".lpc", then ".c"
+//   - object identity is extension-blind after a load
+void do_tests() {
+  object ob;
+
+  // An explicit extension never falls back to the other spelling.
+  ASSERT_EQ(0, load_object("/clone/dual_only_lpc.c"));
+  ASSERT_EQ(0, load_object("/clone/dual_only_c.lpc"));
+
+  // An explicit extension selects that source when both exist.
+  ob = load_object("/clone/dual_pick_c.c");
+  ASSERT_EQ("c", ob->which());
+  ASSERT_EQ("/clone/dual_pick_c", file_name(ob));
+  ob = load_object("/clone/dual_pick_lpc.lpc");
+  ASSERT_EQ("lpc", ob->which());
+
+  // The inherit retry must retain the caller's exact spelling.
+  ob = load_object("/clone/dual_retry_child.c");
+  ASSERT_EQ("c", ob->which());
+  ASSERT_EQ("parent", ob->pwhich());
+
+  // function_exists() uses the extension-less object identity for both
+  // legacy and .lpc source programs.
+  ASSERT_EQ("/clone/dual_pick_c",
+            function_exists("which", find_object("/clone/dual_pick_c")));
+  ASSERT_EQ("/clone/dual_only_lpc",
+            function_exists("which", load_object("/clone/dual_only_lpc")));
+
+  // Extension-less names prefer .lpc and fall back to .c.
+  ob = load_object("/clone/dual_pick_default");
+  ASSERT_EQ("lpc", ob->which());
+  ob = load_object("/clone/dual_only_c");
+  ASSERT_EQ("c", ob->which());
+  ASSERT_EQ("/clone/dual_only_c", file_name(ob));
+
+  // Exact .lpc spelling remains reachable.
+  ob = load_object("/clone/dual_only_lpc.lpc");
+  ASSERT_EQ("lpc", ob->which());
+
+  // Identity and children are extension-blind after loading.
+  ASSERT(ob == find_object("/clone/dual_only_lpc"));
+  ASSERT(ob == find_object("/clone/dual_only_lpc.c"));
+  ASSERT(ob == find_object("/clone/dual_only_lpc.lpc"));
+  ASSERT(load_object("/clone/dual_only_lpc.c") == ob);
+  ASSERT(load_object("/clone/dual_pick_c.lpc") ==
+         find_object("/clone/dual_pick_c"));
+  ASSERT_EQ(children("/clone/dual_pick_c"), children("/clone/dual_pick_c.c"));
+  ASSERT_EQ(children("/clone/dual_pick_c"), children("/clone/dual_pick_c.lpc"));
+  ASSERT(sizeof(children("/clone/dual_pick_c.lpc")) >= 1);
+
+  // A loaded object may satisfy an inherit by extension-blind identity.
+  ob = load_object("/clone/dual_inherit_c_spelling");
+  ASSERT_EQ("lpc", ob->parent_which());
+}

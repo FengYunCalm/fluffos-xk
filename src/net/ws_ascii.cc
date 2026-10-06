@@ -71,6 +71,7 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
 
       pss->user = ip;
       pss->buffer = evbuffer_new();
+      pss->close_after_flush = false;
       if (!pss->buffer) {
         websocket_session_teardown(wsi, &pss->user, &pss->buffer);
         return -1;
@@ -97,25 +98,46 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
     case LWS_CALLBACK_SERVER_WRITEABLE: {
       lwsl_info("LWS_CALLBACK_SERVER_WRITEABLE\n");
 
-      auto total = evbuffer_get_length(pss->buffer);
+      auto maybe_close_after_flush = [&]() -> bool {
+        if (!pss->close_after_flush || evbuffer_get_length(pss->buffer) != 0) {
+          return false;
+        }
+        // The application buffer can be empty while libwebsockets still has
+        // an extension or kernel write in flight. Keep the writable callback
+        // armed until that pipe is clear, then send the normal close frame.
+        if (lws_send_pipe_choked(wsi)) {
+          lws_callback_on_writable(wsi);
+          return false;
+        }
+        pss->close_after_flush = false;
+        lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, nullptr, 0);
+        return true;
+      };
 
       static unsigned char buf[LWS_PRE + 2048];
       auto numbytes = evbuffer_copyout(pss->buffer, &buf[LWS_PRE], sizeof(buf) - LWS_PRE);
       if (numbytes <= 0) {
+        if (maybe_close_after_flush()) {
+          return -1;
+        }
         break;
       }
       // Hold back a trailing incomplete UTF-8 sequence so a codepoint is
       // never split across ws messages. evbuffer_copyout() does not drain, so
       // the held-back bytes stay at the front of pss->buffer and go out with
       // the next write; re-prepending them here (the old code did, with a
-      // negative length) both duplicated and overflowed.
-      auto new_numbytes = static_cast<ev_ssize_t>(u8_truncate(&buf[LWS_PRE], numbytes));
-      if (new_numbytes == 0) {
-        // Only an incomplete codepoint is buffered; the exit below keeps a
-        // writeable callback requested until the rest of it arrives.
-        break;
+      // negative length) both duplicated and overflowed. During a
+      // close-after-flush drain the user is gone, so no future bytes can
+      // complete a partial codepoint; send the bytes that remain.
+      if (pss->user) {
+        auto new_numbytes = static_cast<ev_ssize_t>(u8_truncate(&buf[LWS_PRE], numbytes));
+        if (new_numbytes == 0) {
+          // Only an incomplete codepoint is buffered; the exit below keeps a
+          // writeable callback requested until the rest of it arrives.
+          break;
+        }
+        numbytes = new_numbytes;
       }
-      numbytes = new_numbytes;
 #ifdef DEBUG
       if (!u8_validate(&buf[LWS_PRE], numbytes)) {
         char buf1[sizeof(buf) + 1] = {};
@@ -135,10 +157,12 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
         return -1;
       }
       evbuffer_drain(pss->buffer, numbytes);
-      total = evbuffer_get_length(pss->buffer);
       // May have more text to write.
-      if (total > 0) {
+      if (evbuffer_get_length(pss->buffer) > 0) {
         lws_callback_on_writable(wsi);
+      }
+      if (maybe_close_after_flush()) {
+        return -1;
       }
       break;
     }
@@ -158,8 +182,10 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
         return -1;
       }
       auto ip = pss->user;
-      if (!ip) {  // we are already disconnected
-        return -1;
+      if (!ip) {
+        // Driver-initiated close is draining the application buffer. Ignore
+        // late input instead of aborting the drain.
+        break;
       }
       on_user_websocket_received(ip, (const char *)in, len);
       break;

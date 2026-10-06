@@ -2,6 +2,8 @@
 layout: doc
 title: lpc
 ---
+## source files
+* [source files and object names](source-files.html)
 ## constructs
 * [for](constructs/for.html)
 * [function](constructs/function.html)

@@ -56,7 +56,9 @@ void init_master(const char *master_file) {
     error("Illegal master file name '%s'\n", master_file);
   }
 
-  new_ob = load_object(buf, 1);
+  // Preserve the config spelling: explicit ".c"/".lpc" is exact,
+  // while an extension-less name uses the driver's .lpc-then-.c lookup.
+  new_ob = load_object(master_file, 1);
   if (new_ob == nullptr) {
     debug_message("The master file %s was not loaded.\n", master_file);
     exit(-1);

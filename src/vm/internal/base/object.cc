@@ -1622,18 +1622,11 @@ namespace {
 const int SAVE_EXTENSION_LENGTH = strlen(SAVE_EXTENSION);
 const int SAVE_EXTENSION_GZ_LENGTH = strlen(SAVE_GZ_EXTENSION);
 
-std::string make_save_object_name(const char *object_name) {
-  std::string name(object_name);
+std::string make_save_source_name(const char *program_name) {
+  std::string name(program_name);
   const auto clone_suffix = name.rfind('#');
   if (clone_suffix != std::string::npos) {
     name.resize(clone_suffix);
-  }
-
-  const bool needs_c_extension =
-      name.empty() ||
-      (name.back() != 'c' && (name.size() < 2 || name[name.size() - 2] != '.'));
-  if (needs_c_extension) {
-    name += ".c";
   }
   return name;
 }
@@ -1661,7 +1654,9 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
   }
 
   len = strlen(file);
-  if (len >= 2 && file[len - 2] == '.' && file[len - 1] == 'c') {
+  if (len > 4 && strcmp(file + len - 4, ".lpc") == 0) {
+    len -= 4;
+  } else if (len >= 2 && file[len - 2] == '.' && file[len - 1] == 'c') {
     len -= 2;
   }
 
@@ -1676,7 +1671,7 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     return 0;
   }
 
-  const std::string save_name = make_save_object_name(ob->obname);
+  const std::string save_name = make_save_source_name(ob->prog->filename);
 
   name = new_string(static_cast<unsigned int>(len + extension_length), "save_object");
   memcpy(name, file, len);
@@ -1704,7 +1699,7 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     if (!gzf) {
       error("Could not open /%s for a save.\n", tmp_name.c_str());
     }
-    if (gzprintf(gzf, "#/%s\n", ob->prog->filename) < 0) {
+    if (gzprintf(gzf, "#/%s\n", save_name.c_str()) < 0) {
       error("Could not open /%s for a save.\n", tmp_name.c_str());
     }
   } else {
@@ -1763,7 +1758,7 @@ int save_object_str(object_t *ob, int save_zeros, char *saved, int size) {
     return 0;
   }
 
-  const std::string save_name = make_save_object_name(ob->obname);
+  const std::string save_name = make_save_source_name(ob->prog->filename);
   const size_t header_size = 2 + save_name.size() + 1;
   if (header_size > static_cast<size_t>(size)) {
     return 0;
@@ -1848,8 +1843,10 @@ int restore_object(object_t *ob, const char *file, int noclear) {
 
   std::string filename(file);
 
-  // First get rid of all extensions.
-  if (ends_with(filename, ".c")) {
+  // First get rid of all source/save extensions.
+  if (ends_with(filename, ".lpc")) {
+    filename = filename.substr(0, filename.length() - 4);
+  } else if (ends_with(filename, ".c")) {
     filename = filename.substr(0, filename.length() - 2);
   } else if (ends_with(filename, SAVE_EXTENSION)) {
     filename = filename.substr(0, filename.length() - strlen(SAVE_EXTENSION));

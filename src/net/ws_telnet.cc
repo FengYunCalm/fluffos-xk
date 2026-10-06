@@ -72,6 +72,7 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
 
       pss->user = ip;
       pss->buffer = evbuffer_new();
+      pss->close_after_flush = false;
       if (!pss->buffer) {
         websocket_session_teardown(wsi, &pss->user, &pss->buffer);
         return -1;
@@ -121,6 +122,17 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
           lws_callback_on_writable(wsi);
         }
       }
+      if (pss->close_after_flush && evbuffer_get_length(pss->buffer) == 0) {
+        // Wait for libwebsockets' extension and kernel write pipe to drain
+        // before entering the close states, or the final frame can be lost.
+        if (lws_send_pipe_choked(wsi)) {
+          lws_callback_on_writable(wsi);
+        } else {
+          pss->close_after_flush = false;
+          lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, nullptr, 0);
+          return -1;
+        }
+      }
       break;
     }
     case LWS_CALLBACK_RECEIVE: {
@@ -134,8 +146,10 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
         break;
       }
       auto ip = pss->user;
-      if (!ip) {  // we are already disconnected
-        return -1;
+      if (!ip) {
+        // Driver-initiated close is draining the application buffer. Ignore
+        // late input instead of aborting the drain.
+        break;
       }
       on_user_websocket_telnet_received(ip, (const char *)in, len);
       break;

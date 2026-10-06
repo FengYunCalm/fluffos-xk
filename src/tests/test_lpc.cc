@@ -5790,15 +5790,15 @@ TEST(FilenameToObnameTest, ReclaimsCapacityAfterRemovingCSourceSuffix) {
   ASSERT_STREQ(destination, "1234567");
 }
 
-TEST_F(DriverTest, TestSimulEfunReservesCapacityForCSourceSuffix) {
+TEST_F(DriverTest, TestSimulEfunUsesFullSourceNameBuffer) {
   const auto source = read_source_file_for_test("../src/vm/internal/simul_efun.cc");
   const auto simulate_source = read_source_file_for_test("../src/vm/internal/simulate.cc");
 
-  ASSERT_NE(source.find("filename_to_obname(file, buf, sizeof(buf) - 2)"), std::string::npos);
-  // #1247 .lpc: buf is extension-stripped and passed straight to load_object,
-  // which probes .lpc then .c; the old file_length < 2 guard died with the
-  // strcat(".c") suffix logic.
-  ASSERT_NE(source.find("new_ob = load_object(buf, 1)"), std::string::npos);
+  ASSERT_NE(source.find("filename_to_obname(file, buf, sizeof(buf))"), std::string::npos);
+  // Preserve the config spelling when loading simul_efun: explicit
+  // extensions must remain exact, while extension-less names are resolved
+  // by load_object() in its .lpc-then-.c order.
+  ASSERT_NE(source.find("new_ob = load_object(file, 1)"), std::string::npos);
   ASSERT_EQ(source.find("file_length < 2"), std::string::npos);
   ASSERT_EQ(simulate_source.find("strcpy(inhbuf, inherit_file)"), std::string::npos);
 }
