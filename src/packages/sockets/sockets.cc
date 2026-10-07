@@ -347,46 +347,37 @@ void f_socket_set_option() {
 
 #ifdef F_SOCKET_GET_OPTION
 void f_socket_get_option() {
-  auto lpc_sock  = (sp - 2)->u.number;
-  auto option = (sp - 1)->u.number;
+  const auto lpc_sock = (sp - 1)->u.number;
+  const auto option = sp->u.number;
 
   if (lpc_sock < 0 || lpc_sock >= lpc_socks_num()) {
     error("Bad socket descriptor: %" LPC_INT_FMTSTR_P "\n", lpc_sock);
   }
 
-  switch(option) {
+  auto result_type = T_NUMBER;
+  switch (option) {
     case SO_TLS_VERIFY_PEER:
-      if (lpc_socks_get(lpc_sock)->options[SO_TLS_VERIFY_PEER].type == T_NUMBER) {
-        push_number(lpc_socks_get(lpc_sock)->options[SO_TLS_VERIFY_PEER].u.number);
-      } else {
-        push_number(0);
-      }
       break;
     case SO_TLS_SNI_HOSTNAME:
-      if (lpc_socks_get(lpc_sock)->options[SO_TLS_SNI_HOSTNAME].type == T_STRING) {
-        copy_and_push_string(lpc_socks_get(lpc_sock)->options[SO_TLS_SNI_HOSTNAME].u.string);
-      } else {
-        push_number(0);
-      }
-      break;
     case SO_TLS_CERT:
-      if (lpc_socks_get(lpc_sock)->options[SO_TLS_CERT].type == T_STRING) {
-        copy_and_push_string(lpc_socks_get(lpc_sock)->options[SO_TLS_CERT].u.string);
-      } else {
-        push_number(0);
-      }
-      break;
     case SO_TLS_KEY:
-      if (lpc_socks_get(lpc_sock)->options[SO_TLS_KEY].type == T_STRING) {
-        copy_and_push_string(lpc_socks_get(lpc_sock)->options[SO_TLS_KEY].u.string);
-      } else {
-        push_number(0);
-      }
+      result_type = T_STRING;
       break;
     default:
       error("Unknown socket option: %" LPC_INT_FMTSTR_P "\n", option);
   }
-  pop_2_elems();
+
+  auto* result = &lpc_socks_get(lpc_sock)->options[option];
+  if (result->type == result_type) {
+    assign_svalue_no_free(sp - 1, result);
+  } else {
+    *(sp - 1) = const0;
+  }
+  pop_stack();
+  // Option storage can contain const0u; the getter returns defined numbers.
+  if (sp->type == T_NUMBER) {
+    sp->subtype = 0;
+  }
 }
 #endif
 

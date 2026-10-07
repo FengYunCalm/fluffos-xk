@@ -883,6 +883,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - Debug、ASan、UBSan 原生各 95/95、0 跳过（含前序 80 项）；随后新增的 stats ELOOP 打开故障场景在 Debug 定向 1/1，验证非 ENOENT 不被吞掉，不冒充三种构建全组 96/96。lpcc 在三种构建各 12/12；Debug 经新增 CTest 入口 1/1 执行，证据为 /tmp/fluffos-targeted-e8faz206。ASan 仍为 detect_leaks=0；未声明 LSan 检查。
 - 新增 tools/testsuite/test-lpcc-io.py，复用监督器、隔离输入、源码/二进制身份和原始日志；启动器错误与被测退出码分开。没有填盘、改真实权限树或触碰既有 driver。U01a–d 的默认 Linux 路径已完成；新式 ed/包组合、Windows 与真实下游仍待 U06/U15/U17，不能据此声称 U01 全平台或总方案完成。继续 U02。
 
+### 11.7 U02a：socket getter
+
+- 证据根：/tmp/fluffos-xk-modernization-50abb999-u02a-QJ328scK。正确候选树的两个原生反例均失败：字符串结果变成数字，整数调用误读栈哨兵后报非法 fd；LPC 入口也失败。修复从 sp-1/sp 取参数，在 fd 参数槽持有结果引用后只弹出 option；普通数字仍归一为 defined，未设置选项不泄漏内部 const0u 标记。
+- Debug、ASan、UBSan 各原生 2/2；每种构建的 getter LPC 入口和既有真实 TLS loopback 入口分别 1/1，均无跳过并经过完成记录。覆盖四种选项、不同 fd、字符串关闭后仍有效、int/string/未设置/空串、非法/关闭 fd、未知选项、setter 类型错误、重复调用及前置栈值。ASan detect_leaks=0，未声明 LSan 或 U02b 分片已验证。
+- 核对源码确认：新 socket 的选项初值为 0；TLS 客户端配置身份后清除 SNI 存储；getter 不做存活或 owner 授权检查。同步纠正 getter/setter 归属文档，不改变 TLS 身份验证、setter、关闭槽或授权策略。
+- 首次原生命令误指冻结 baseline，因没有新增测试被拒绝，未计作有效反例。另有一次源指针 const 类型编译失败，已按现有 svalue API 修正。重复 --case 只执行最后的 TLS 入口，因此补跑独立 getter；没有将一次运行记成两个入口。原失败/不完整记录均保留。
+- 构建归属：build-organize-debug 指向当前工作树；build-organize-baseline-debug 指向冻结 baseline-source，不能混用。U02a 默认 Linux 验收完成；U02b 的 EOF/读错/本地关闭策略及真实读取边界观测仍待完成，未先合入 carry。所有权政策不收紧；任何新增拒绝仍走兼容决策出口。独立 U03 等单元继续。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

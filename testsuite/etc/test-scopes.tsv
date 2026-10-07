@@ -43,6 +43,7 @@
 /single/tests/efuns/set_debug_level	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
 /single/tests/efuns/set_hide	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
 /single/tests/efuns/snoop	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
+/single/tests/efuns/socket_get_option	runtime	sockets	Requires PACKAGE_SOCKETS.
 /single/tests/efuns/socket_tls_server	runtime	sockets	Requires PACKAGE_SOCKETS.
 /single/tests/efuns/sys_reload_tls	runtime	tls_reload	Requires the sys_reload_tls efun.
 /single/tests/efuns/talker	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.

@@ -37,7 +37,8 @@ Controls whether the TLS/SSL peer certificate should be verified.
 - **Type**: integer
 - **Values**:
   - `0` - Do not verify peer certificate (insecure, for testing only)
-  - `1` - Verify peer certificate (default, recommended)
+  - `1` - Verify peer certificate (recommended; set explicitly before connecting)
+  - Newly created sockets store `0`; verification is not enabled by default
 - **Use Case**: Client connections to TLS servers
 
 When enabled, the driver will verify that the server's certificate:
@@ -101,7 +102,7 @@ void connect_to_server() {
     // Create a TLS client socket
     sock = socket_create(STREAM_TLS, "read_callback", "close_callback");
 
-    // Enable peer verification (default, but shown explicitly)
+    // Enable peer verification explicitly
     socket_set_option(sock, SO_TLS_VERIFY_PEER, 1);
 
     // Set SNI hostname

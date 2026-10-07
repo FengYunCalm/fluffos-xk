@@ -37,19 +37,33 @@ Returns whether TLS peer certificate verification is enabled.
 
 Returns the Server Name Indication (SNI) hostname set for the socket.
 
-- **Returns**: string
-  - The SNI hostname, or an empty string if not set
+- **Returns**: string or integer `0`
+  - The configured SNI hostname, or `0` if not set
+  - An explicitly set empty string remains an empty string
+  - TLS client setup consumes this option after configuring SNI and peer identity;
+    subsequent calls return `0`, not the active TLS session's hostname
+
+#### SO_TLS_CERT (3) and SO_TLS_KEY (4)
+
+Return the configured certificate or private-key path, respectively, or integer
+`0` if not set. These options return paths, not file contents.
 
 ### RETURN VALUE
 
 The return type depends on the option being queried:
 - SO_TLS_VERIFY_PEER returns an integer (0 or 1)
-- SO_TLS_SNI_HOSTNAME returns a string
+- SO_TLS_SNI_HOSTNAME, SO_TLS_CERT and SO_TLS_KEY return a string or integer `0`
+- Returned numbers are defined values: an unset option is not `undefinedp()`
+- Returned strings remain valid after the option changes or the socket closes
 
 ### ERRORS
 
-- Generates an error if the socket descriptor is invalid
+- Generates an error if the descriptor is negative or outside the allocated table
 - Generates an error if the option is unknown
+- A closed, cleared slot still inside the table returns `0` for each supported option
+
+This getter is not a live-socket or ownership check and does not call `valid_socket`.
+Use `socket_status` to inspect socket state.
 
 ### EXAMPLES
 
@@ -131,11 +145,14 @@ The option constants should be defined in your mudlib include files:
 ```c
 #define SO_TLS_VERIFY_PEER    1
 #define SO_TLS_SNI_HOSTNAME   2
+#define SO_TLS_CERT           3
+#define SO_TLS_KEY            4
 ```
 
 **Default Values:**
-- SO_TLS_VERIFY_PEER defaults to `1` (verification enabled) for security
-- SO_TLS_SNI_HOSTNAME defaults to an empty string (not set)
+- All options initially contain `0`
+- Explicitly set SO_TLS_VERIFY_PEER to `1` before connecting when peer verification is required
+- Unset string options return integer `0`, not an empty string
 
 **Use Cases:**
 - Debugging socket configuration

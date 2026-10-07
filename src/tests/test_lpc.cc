@@ -96,7 +96,26 @@ extern bool vm_call_out_test_support_run_handle(LPC_INT handle);
 extern int vm_call_out_test_support_priority(LPC_INT handle);
 extern bool vm_async_test_support_dispatch_read_callback(object_t* owner, const char* method, const char* payload);
 
+#ifdef PACKAGE_SOCKETS
+extern void f_socket_get_option();
+#endif
+
 namespace {
+#ifdef PACKAGE_SOCKETS
+struct SocketPairGuard {
+  int first = -1;
+  int second = -1;
+  ~SocketPairGuard() {
+    if (first >= 0) {
+      socket_close(first, 0);
+    }
+    if (second >= 0) {
+      socket_close(second, 0);
+    }
+  }
+};
+#endif
+
 // 文件清理守卫：析构时删除测试文件（原 4 份逐字节相同局部 FixtureGuard
 // 收敛为单一定义）
 struct PathCleanupGuard {
@@ -5298,6 +5317,77 @@ TEST_F(DriverTest, TestFileSizePreservesLpc64BitSize) {
 
   ASSERT_EQ(file_size(mudlib_path), kLargeSize);
 }
+
+#ifdef PACKAGE_SOCKETS
+TEST_F(DriverTest, TestSocketGetOptionRetainsStringAndStackSentinel) {
+  ScopedCurrentObjectAsMaster master_scope;
+  SocketPairGuard sockets;
+  sockets.first = socket_create(STREAM, nullptr, nullptr);
+  sockets.second = socket_create(STREAM, nullptr, nullptr);
+  ASSERT_GE(sockets.first, 0);
+  ASSERT_GE(sockets.second, 0);
+  copy_and_push_string("retained.example");
+  assign_svalue(&lpc_socks_get(sockets.second)->options[SO_TLS_SNI_HOSTNAME], sp);
+  pop_stack();
+
+  auto* base = sp;
+  error_context_t context{};
+  save_context(&context);
+  try {
+    push_number(sockets.first);
+    push_number(sockets.second);
+    push_number(SO_TLS_SNI_HOSTNAME);
+    f_socket_get_option();
+    EXPECT_EQ(sp, base + 2);
+    EXPECT_EQ(base[1].type, T_NUMBER);
+    EXPECT_EQ(base[1].u.number, sockets.first);
+    EXPECT_EQ(sp->type, T_STRING);
+    EXPECT_EQ(socket_close(sockets.second, 0), EESUCCESS);
+    sockets.second = -1;
+    if (sp->type == T_STRING) {
+      EXPECT_STREQ(sp->u.string, "retained.example");
+    }
+  } catch (...) {
+    ADD_FAILURE() << "valid getter call raised an error";
+  }
+  restore_context(&context);
+  pop_context(&context);
+  EXPECT_EQ(sp, base);
+}
+
+TEST_F(DriverTest, TestSocketGetOptionNumbersIgnoreStackSentinel) {
+  ScopedCurrentObjectAsMaster master_scope;
+  SocketPairGuard sockets;
+  sockets.first = socket_create(STREAM, nullptr, nullptr);
+  ASSERT_GE(sockets.first, 0);
+  constexpr LPC_INT kSentinel = 0x12345678;
+  auto* base = sp;
+  for (const int value : {0, 1, 0, 1}) {
+    lpc_socks_get(sockets.first)->options[SO_TLS_VERIFY_PEER].u.number = value;
+    error_context_t context{};
+    save_context(&context);
+    try {
+      push_number(kSentinel);
+      push_number(sockets.first);
+      push_number(SO_TLS_VERIFY_PEER);
+      f_socket_get_option();
+      EXPECT_EQ(sp, base + 2);
+      EXPECT_EQ(base[1].type, T_NUMBER);
+      EXPECT_EQ(base[1].u.number, kSentinel);
+      EXPECT_EQ(sp->type, T_NUMBER);
+      if (sp->type == T_NUMBER) {
+        EXPECT_EQ(sp->u.number, value);
+        EXPECT_EQ(sp->subtype, 0);
+      }
+    } catch (...) {
+      ADD_FAILURE() << "valid getter call raised an error";
+    }
+    restore_context(&context);
+    pop_context(&context);
+    EXPECT_EQ(sp, base);
+  }
+}
+#endif
 
 #ifndef _WIN32
 TEST_F(DriverTest, TestSocketAcceptMarksAcceptedDescriptorCloseOnExec) {
