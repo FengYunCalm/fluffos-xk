@@ -50,6 +50,7 @@
 /single/tests/efuns/telnet_ga	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
 /single/tests/efuns/telnet_msp_oob	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
 /single/tests/efuns/telnet_nop	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
+/single/tests/efuns/trace_io	runtime	trace	Requires the trace_start efun.
 /single/tests/efuns/trace_overflow_recovery	runtime	trace	Requires the trace_start efun.
 /single/tests/efuns/uncompress_zipbomb	runtime	compress	Requires PACKAGE_COMPRESS.
 /single/tests/efuns/unloaded	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.

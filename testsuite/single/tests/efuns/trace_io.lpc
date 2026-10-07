@@ -1,0 +1,13 @@
+#if efun_defined(trace_start)
+
+private int traced_work() {
+  return 42;
+}
+
+void do_tests() {
+  trace_start("log/trace-io.json", 30);
+  ASSERT_EQ(traced_work(), 42);
+  trace_end();
+}
+
+#endif

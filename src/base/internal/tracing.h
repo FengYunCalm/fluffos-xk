@@ -6,6 +6,7 @@
 #include <chrono>
 #endif
 
+#include <atomic>
 #include <string>
 #include <optional>
 #include <functional>
@@ -86,44 +87,13 @@ class Tracer {
   static void begin(const std::string_view& name, const EventCategory& category);
   static void end(const std::string_view&, const EventCategory& category);
 
-  static inline void start(const char* file) {
-    // A trace that reached MAX_EVENTS disables tracing but leaves the buffer
-    // pending; collect() owns the empty-filename no-op check.
-    collect();
-#ifdef _WIN32
-    QueryPerformanceCounter(&basetime);
-#else
-    basetime = std::chrono::high_resolution_clock::now();
-#endif
-    filename = file;
-    is_enabled = true;
-  }
-
-  static inline void stop() { is_enabled = false; }
-
-  static inline bool enabled() { return is_enabled; }
-
-  static inline double timestamp() {
-#ifdef _WIN32
-    static LARGE_INTEGER Frequency{};
-    if (Frequency.QuadPart == 0) {
-      QueryPerformanceFrequency(&Frequency);
-    }
-
-    LARGE_INTEGER EndingTime;
-    QueryPerformanceCounter(&EndingTime);
-
-    uint64_t elapsed = EndingTime.QuadPart - basetime.QuadPart;
-    elapsed *= 1000000;
-    return elapsed / Frequency.QuadPart;
-#else
-    return std::chrono::duration<double, std::micro>(std::chrono::high_resolution_clock::now() -
-                                                     basetime)
-        .count();
-#endif
-  }
-
+  // Control and result collection run on the main thread; event producers may be workers.
+  static void start(const char* file);
+  static inline void stop() { is_enabled.store(false, std::memory_order_relaxed); }
+  static inline bool enabled() { return is_enabled.load(std::memory_order_relaxed); }
+  static double timestamp();
   static void collect();
+  static void drain();
 
 #ifdef _WIN32
   static LARGE_INTEGER basetime;
@@ -131,7 +101,7 @@ class Tracer {
   static std::chrono::high_resolution_clock::time_point basetime;
 #endif
   static std::string filename;
-  static bool is_enabled;
+  static std::atomic<bool> is_enabled;
   static TraceWriter& instance();
 
  public:

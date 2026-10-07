@@ -2,6 +2,7 @@
 #include "base/std.h"
 
 #include "backend.h"
+#include "base/internal/tracing.h"
 #include "packages/async/async.h"                // for check_reqs
 
 #include <chrono>
@@ -173,6 +174,7 @@ void drain_wakeup_requests() {
   if (!g_wakeup_pending.exchange(false)) {
     return;
   }
+  Tracer::drain();
   materialize_parked_walltime_events();
   if (g_wakeup_pipe[0] >= 0) {
     char buf[128];

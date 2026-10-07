@@ -41,7 +41,17 @@ if(${GTEST_FOUND})
                    posix_spawn_file_actions_adddup2)
       target_link_options(file_io_tests PRIVATE "-Wl,--wrap=${symbol}")
     endforeach()
+    add_executable(trace_io_probe trace_io_probe.cc)
+    target_link_libraries(trace_io_probe PRIVATE ${FLUFFOS_LINK})
+    target_compile_definitions(trace_io_probe PRIVATE
+      -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
+    target_link_options(trace_io_probe PRIVATE
+      "-Wl,--wrap=_Z13debug_messagePKcz" "-Wl,--wrap=_Znwm")
     find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME trace_io_tests
+      COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/test-trace-io.py"
+        --probe $<TARGET_FILE:trace_io_probe> --driver $<TARGET_FILE:driver>
+    )
     add_test(NAME file_io_tests
       COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/run-targeted.py"
         --binary $<TARGET_FILE:file_io_tests> --gtest-filter=FileIoTest.* --timeout 90

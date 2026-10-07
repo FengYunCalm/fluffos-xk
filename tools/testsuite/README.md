@@ -51,6 +51,20 @@ python3 -B tools/testsuite/test-lpcc-io.py --lpcc build-dev-debug/bin/lpcc
 `test-summary.json` 核对发现数、执行数和零跳过；每个场景保留实际进程记录。
 满足 Linux 测试配置时，CTest 的 `lpcc_io_tests` 调用同一入口。
 
+## trace 线程与写出验证
+
+```bash
+python3 -B tools/testsuite/test-trace-io.py \
+  --probe build-dev-debug/src/tests/trace_io_probe --driver build-dev-debug/bin/driver
+```
+
+Linux 的 `trace_io_probe` 只在测试链接中检查日志调用线程并注入后台分配异常，生产 driver
+没有注入开关。10 个场景覆盖正常写出、stop、并发启停、打开/写入/JSON/分配失败、
+未收集事件、退出前主事件循环报告，以及真实 LPC trace 文件解析。
+后台写出任务返回固定大小的错误信息；主线程在既有 wakeup/drain 或最终析构 join 后报告。
+测试同时检查正常进程退出、原始日志、JSON 和零跳过，不把“进程未崩溃”单独算作通过。
+WSL2 的 TSan 测试加 `--disable-aslr`；构建仍需整体使用 `setarch x86_64 -R` 包装。
+
 ## LPC 用例与异步完成
 
 `testsuite/command/tests.c` 按稳定路径顺序执行。原始日志中的开始记录保留执行顺序，可用同一源码重放。

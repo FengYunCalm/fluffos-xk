@@ -891,6 +891,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 首次原生命令误指冻结 baseline，因没有新增测试被拒绝，未计作有效反例。另有一次源指针 const 类型编译失败，已按现有 svalue API 修正。重复 --case 只执行最后的 TLS 入口，因此补跑独立 getter；没有将一次运行记成两个入口。原失败/不完整记录均保留。
 - 构建归属：build-organize-debug 指向当前工作树；build-organize-baseline-debug 指向冻结 baseline-source，不能混用。U02a 默认 Linux 验收完成；U02b 的 EOF/读错/本地关闭策略及真实读取边界观测仍待完成，未先合入 carry。所有权政策不收紧；任何新增拒绝仍走兼容决策出口。独立 U03 等单元继续。
 
+### 11.8 U03：trace 写出与主线程报告
+
+- 证据根：/tmp/fluffos-xk-modernization-12f1ceef-u03-ExKhTuUs。Debug 首轮 9 项中 7 项失败，命中后台 logger 调用、写满仍报成功、JSON/分配异常终止进程；正常真实 driver 和未收集事件场景通过。TSan 首轮 4 个断言失败、3 个 sanitizer 拒绝，原始日志均保留。
+- dump worker 独占移出的事件，检查打开、写入和显式关闭；异常转为固定 192 字节错误字段，不调用 logger。结果完成后唤醒既有 backend；主线程 drain 已完成任务并报告，退出时 TraceWriter 析构 join 后报告剩余结果。join 不持有事件缓冲锁，worker 不等待主线程日志或回调。
+- 启用标志改为原子访问，时间基准读写用同一锁保护。保留原时钟、trace JSON 字段、事件上限处理及 LPC 启停接口，没有增加第二套日志线程池。
+- 最终 Debug、TSan、ASan 各 10/10，0 跳过，证据分别为 debug-drain、tsan-drain、asan-final。新增事件循环场景要求退出前已由主线程报告，不能靠析构代替；每种构建均包含真实 driver 的 LPC trace 与 JSON 解析。ASan detect_leaks=0，未声明 LSan；本单元未运行 UBSan 或 Windows。
+- 原 Debug 编译漏加 backend 的 tracing 头，补齐后构建通过；一次命令误指 bin/trace_io_probe，在启动前被拒绝，随后使用 src/tests/trace_io_probe。未将这两次操作计作生产反例。测试初始化真实 VM，不删除原有覆盖；工具说明归属 tools/testsuite/README.md。
+- U03 默认 Linux 门禁完成。平台矩阵与长期压力仍由 U15/U17 收口；U02b 策略未决不因此解除。继续独立 U04。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
