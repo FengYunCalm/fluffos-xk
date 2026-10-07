@@ -1,0 +1,132 @@
+private string root = "/log/u05-includes";
+private string *directories;
+private string *requests = ({});
+private int deny_probe;
+private int sequence;
+
+mixed include_path_for_test(string file) {
+  if (strsrch(file, root + "/") == 0) {
+    return directories;
+  }
+  return ({ ":DEFAULT:" });
+}
+
+int check_include_path(string file) {
+  requests += ({ file });
+  return !(deny_probe && strsrch(file, "probe.h") >= 0);
+}
+
+private object compile_source(string text, string directory) {
+  string file = sprintf("%s/source%d.lpc", directory, sequence++);
+
+  ASSERT_EQ(1, write_file(file, text, 1));
+  requests = ({});
+  return load_object(file);
+}
+
+private void verify_includes(object compiled) {
+  string *files = include_list(compiled);
+
+  ASSERT_EQ(17, compiled->included_value());
+  ASSERT(member_array(root + "/inc/probe.h", files) >= 0);
+  ASSERT(member_array(root + "/inc/nested.h", files) >= 0);
+  foreach (string file in files) {
+    ASSERT(file_size(file) >= 0);
+  }
+  destruct(compiled);
+}
+
+private void normal_cases() {
+  object compiled;
+  mixed failure;
+
+  foreach (string directory in ({ root + "/inc", root[1..] + "/inc",
+                                  root + "/inc/" })) {
+    directories = ({ directory, ":DEFAULT:" });
+    compiled = compile_source("#include <probe.h>\n", root);
+    ASSERT_EQ(1, sizeof(filter(requests, (: $1 == $(directory) + "/probe.h" :))));
+    ASSERT(member_array(directory + "/nested.h", requests) >= 0);
+    verify_includes(compiled);
+  }
+
+  directories = ({ ":DEFAULT:" });
+  compiled = compile_source("#include <m_gip_test.h>\n", root);
+  ASSERT_EQ(3, compiled->doit());
+  ASSERT(member_array("/include/m_gip_test.h", include_list(compiled)) >= 0);
+  destruct(compiled);
+
+  compiled = compile_source("#include \"" + root + "/inc/probe.h\"\n", root);
+  ASSERT(member_array(root[1..] + "/inc/probe.h", requests) >= 0);
+  verify_includes(compiled);
+  compiled = compile_source("#include \".//probe.h\"\n", root + "/inc");
+  verify_includes(compiled);
+
+  directories = ({ root + "/inc", ":DEFAULT:" });
+  deny_probe = 1;
+  failure = catch(compile_source("#include <probe.h>\n", root));
+  deny_probe = 0;
+  ASSERT(stringp(failure));
+  ASSERT(member_array(root + "/inc/probe.h", requests) >= 0);
+  compiled = compile_source("#include <probe.h>\n", root);
+  verify_includes(compiled);
+}
+
+private void merge_limit_case() {
+  object compiled;
+  mixed failure;
+  string deep = root;
+  string component = sprintf("%200s", "x");
+  string relative = implode(allocate(15, component), "/") + "/absent.h";
+
+  directories = ({ root + "/inc", ":DEFAULT:" });
+  for (int i = 0; i < 7; i++) {
+    deep += "/" + component;
+    if (file_size(deep) != -2) {
+      ASSERT_EQ(1, mkdir(deep));
+    }
+  }
+  failure = catch(compile_source("#include \"" + relative + "\"\n", deep));
+  ASSERT(stringp(failure));
+  compiled = compile_source("#include <probe.h>\n", root);
+  verify_includes(compiled);
+}
+
+private void limit_cases() {
+  object compiled;
+
+  directories = ({ "/" + sprintf("%7000s", "x"), root + "/inc", ":DEFAULT:" });
+  compiled = compile_source("#include <probe.h>\n", root);
+  verify_includes(compiled);
+  merge_limit_case();
+  merge_limit_case();
+}
+
+private void run_test(function test) {
+  object master = load_object("/single/master");
+  mixed failure;
+
+  if (file_size(root) != -2) {
+    ASSERT_EQ(1, mkdir(root));
+    ASSERT_EQ(1, mkdir(root + "/inc"));
+  }
+  ASSERT_EQ(1, write_file(root + "/inc/probe.h", "#include \"nested.h\"\n", 1));
+  ASSERT_EQ(1, write_file(root + "/inc/nested.h", "int included_value() { return 17; }\n", 1));
+  master->set_include_probe(this_object());
+  failure = catch(evaluate(test));
+  master->set_include_probe(0);
+  if (failure) {
+    error(failure);
+  }
+}
+
+void test_limits() {
+  run_test((: limit_cases :));
+}
+
+void test_merge_limits() {
+  run_test((: merge_limit_case :));
+}
+
+void do_tests() {
+  run_test((: normal_cases :));
+}

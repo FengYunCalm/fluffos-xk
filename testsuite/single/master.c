@@ -425,6 +425,10 @@ staticf void error_handler(mapping map, int flag) {
 
 mixed get_include_path(string file)
 {
+  object probe = query_include_probe();
+  if (probe) {
+    return probe->include_path_for_test(file);
+  }
   switch(file)
   {
     case "/clone/mgip1":

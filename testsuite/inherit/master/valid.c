@@ -122,10 +122,23 @@ valid_write(string, mixed, string)
 
 // valid_read:  called exactly the same as valid_write()
 
+private object include_probe;
+
+void set_include_probe(object probe) {
+  include_probe = probe;
+}
+
+object query_include_probe() {
+  return include_probe;
+}
+
 int
-valid_read(string, mixed, string)
+valid_read(string file, mixed caller, string operation)
 {
     inherit_called++;
+    if (include_probe && operation == "include") {
+      return include_probe->check_include_path(file);
+    }
     return 1;
 }
 

@@ -393,11 +393,11 @@ static void add_define(const char * /*name*/, int /*nargs*/, const char * /*exps
 static void add_predefine(const char * /*name*/, int /*nargs*/, const char * /*exps*/);
 static int expand_define(void);
 static void add_input(const char * /*p*/);
-static void merge(char *name, char *dest);
+static bool merge(const char* name, char* dest, size_t capacity);
 static void add_quoted_predefine(const char * /*def*/, const char * /*val*/);
 static void lexerror(const char * /*s*/);
 static int skip_to(const char * /*token*/, const char * /*atoken*/);
-static int inc_open(char * /*buf*/, char * /*name*/, int /*check_local*/);
+static int inc_open(char* buf, size_t capacity, const char* name, int check_local);
 static void include_error(const char * /*msg*/, int /*global*/);
 static void handle_include(char * /*name*/, int /*global*/);
 static int get_terminator(char * /*terminator*/);
@@ -893,64 +893,51 @@ int lookup_predef(const char *name) {
   return -1;
 }
 
-static void merge(char *name, char *dest) {
-  char *from;
+static bool merge(const char* name, char* dest, size_t capacity) {
+  std::string directory(current_file);
+  auto slash = directory.rfind('/');
+  directory.resize(slash == std::string::npos ? 0 : slash);
 
-  strcpy(dest, current_file);
-  if ((from = strrchr(dest, '/'))) { /* strip filename */
-    *from = 0;
-  } else
-  /* current_file was the file_name */
-  /* include from the root directory */
-  {
-    *dest = 0;
-  }
-
-  from = name;
+  const char* from = name;
   while (*from == '/') {
     from++;
-    *dest = 0; /* absolute path */
+    directory.clear();
   }
-
   while (*from) {
     if (!strncmp(from, "../", 3)) {
-      char *tmp;
-
-      if (*dest == 0) { /* including from above mudlib is NOT allowed */
-        break;
+      if (directory.empty()) {
+        break;  // Preserve the existing rejection of traversal above the mudlib.
       }
-      tmp = strrchr(dest, '/');
-      if (tmp == nullptr) { /* 1 component in dest */
-        *dest = 0;
-      } else {
-        *tmp = 0;
-      }
-      from += 3; /* skip "../" */
+      slash = directory.rfind('/');
+      directory.resize(slash == std::string::npos ? 0 : slash);
+      from += 3;
     } else if (!strncmp(from, "./", 2)) {
       from += 2;
-    } else { /* append first component to dest */
-      char *q;
-
-      if (*dest) {
-        strcat(dest, "/"); /* only if dest is not empty !! */
+    } else {
+      while (*from == '/') {
+        from++;
       }
-      q = strchr(from, '/');
-
-      if (q) {                 /* from has 2 or more components */
-        while (*from == '/') { /* find the start */
-          from++;
-        }
-        strncat(dest, from, q - from);
-        for (from = q + 1; *from == '/'; from++) {
-          ;
-        }
-      } else {
-        /* this was the last component */
-        strcat(dest, from);
+      if (!*from) {
         break;
+      }
+      if (!directory.empty()) {
+        directory += '/';
+      }
+      const char* end = strchr(from, '/');
+      if (!end) {
+        directory += from;
+        break;
+      }
+      directory.append(from, static_cast<size_t>(end - from));
+      for (from = end + 1; *from == '/'; from++) {
       }
     }
   }
+  if (directory.size() >= capacity) {
+    return false;
+  }
+  memcpy(dest, directory.c_str(), directory.size() + 1);
+  return true;
 }
 
 static void lexerror(const char *s) {
@@ -1125,13 +1112,12 @@ void deinit_include_path() {
   }
 }
 
-static int inc_open(char *buf, char *name, int check_local) {
+static int inc_open(char* buf, size_t capacity, const char* name, int check_local) {
   int i, f;
-  char *p;
-  const char *tmp;
+  const char* p;
+  const char* tmp;
 
-  if (check_local) {
-    merge(name, buf);
+  if (check_local && merge(name, buf, capacity)) {
     tmp = check_valid_path(buf, master_ob, "include", 0);
     if (tmp && (f = open(tmp, O_RDONLY)) != -1) {
 #ifdef _WIN32
@@ -1150,7 +1136,10 @@ static int inc_open(char *buf, char *name, int check_local) {
     }
   }
   for (i = 0; i < inc_path_size; i++) {
-    sprintf(buf, "%s/%s", inc_path[i], name);
+    const int length = snprintf(buf, capacity, "%s/%s", inc_path[i], name);
+    if (length < 0 || static_cast<size_t>(length) >= capacity) {
+      continue;
+    }
     tmp = check_valid_path(buf, master_ob, "include", 0);
     if (tmp && (f = open(tmp, O_RDONLY)) != -1) {
 #ifdef _WIN32
@@ -1222,7 +1211,7 @@ static void handle_include(char *name, int global) {
   *p = 0;
   if (++incnum == MAX_INCLUDE_DEPTH) {
     include_error("Maximum include depth exceeded.", global);
-  } else if ((f = inc_open(buf, name, delim == '"')) != -1) {
+  } else if ((f = inc_open(buf, sizeof(buf), name, delim == '"')) != -1) {
     is = reinterpret_cast<incstate_t *>(
         DMALLOC(sizeof(incstate_t), TAG_COMPILER, "handle_include: 1"));
     is->stream = current_stream.release();
@@ -1239,6 +1228,15 @@ static void handle_include(char *name, int global) {
     current_line_saved = 0;
     current_line = 1;
     current_file = make_shared_string(buf);
+    // Nested includes use current_file as permission input. Normalize metadata only.
+    char* output = buf;
+    for (const char* input = buf; *input; input++) {
+      if (*input == '/' && (output == buf || output[-1] == '/')) {
+        continue;
+      }
+      *output++ = *input;
+    }
+    *output = '\0';
     current_file_id = add_program_file(buf, 0);
     current_stream = lpc_source_encoding_stream(std::make_unique<FileLexStream>(f));
     refill_buffer();

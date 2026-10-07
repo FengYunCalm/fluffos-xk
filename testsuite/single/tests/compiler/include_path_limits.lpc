@@ -1,0 +1,5 @@
+inherit "/single/tests/compiler/include_paths";
+
+void do_tests() {
+  test_limits();
+}

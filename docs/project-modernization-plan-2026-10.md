@@ -471,7 +471,7 @@ done
 
 1. 扩充 include_list.lpc 和 get_include_path 场景：绝对/相对路径、有/无尾斜线、:DEFAULT:、拒绝权限、长目录/文件名、嵌套 include。
 2. 先记录 valid_read 接收的路径字符串及调用次数，固定其现有合法行为。
-3. 在成功打开并记录 current_file/include 表的边界规范化展示路径；不要提前剥掉 master 提供的斜线或改写授权输入。
+3. 成功打开后仅规范化 include 元数据的展示路径。current_file 保留原拼写，因为嵌套 include 用它生成权限输入；不要提前剥掉 master 提供的斜线或改写授权输入。
 4. 将已证明可能越界的固定缓冲区拼接改为本模块现有有界字符串方式；拒绝超过现有容量合同的路径，不扩大最大对象/源文件长度。
 5. 多余分隔符的拼接优化若改变授权 hook 输入，独立评估而不是与展示规范化混做。
 
@@ -975,6 +975,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 新回归覆盖嵌套文件工作、回调抛错后继续排空、销毁后丢弃、执行中重编译拒绝、主线程消息内 check_memory、stale 消息清理、命名/functional call_out 参数及取消。native 使用 complete_all_asyncio 验证退出排空；LPC 使用完成屏障。async 的历史对象名检查豁免已移除；未重写原本正确的 async.cc 锁路径。
 - Debug、ASan、TSan 的 recovery-*-owner 各 80/80、0 跳过；每种构建的 async_nested_callbacks、callout_memory_refs、async、async_promise 四个入口均独立 1/1。TSan 的构建和执行均经 setarch；ASan detect_leaks=0，未声称 LSan 通过。Release（DEBUGMALLOC=OFF）两个目标构建通过，6/6 定向原生测试和两个新 LPC 入口通过，覆盖无诊断宏分支。
 - 仅启用 DEBUGMALLOC_EXTENSIONS 时增加内部诊断字段；object_t 与 lpc_object_t 的公共前缀未改，分配初始化及字节统计继续使用 sizeof。DB 的真实隔离库覆盖与旧 db 名称豁免仍交 U06/U11，不伪称通过；平台、长期压力、真实下游仍由 U15/U17 收口。U04 本地必需门禁完成，继续 U05。
+
+### 11.10 U05：include 路径与容量边界
+
+- 反例证据前缀：/tmp/fluffos-xk-u05-32083e39。normal-before 暴露尾斜线形成重复分隔符；limits-before 与 merge-before 分别由 ASan 证实目录格式化、深目录与相对路径拼接越界。原始失败记录保留。
+- inc_open 使用有界格式化；merge 使用字符串组装并在复制前检查原缓冲区容量。不扩大对象名或源文件路径容量，超长候选不截断后尝试打开。成功打开后只规范化 include 元数据；current_file 保留原拼写，避免改变嵌套 valid_read 参数。
+- 新夹具覆盖绝对/相对目录、尾斜线、:DEFAULT:、权限拒绝、嵌套 include、重复分隔符、7000 字节目录、深目录拼接、失败后成功编译和同一夹具目录重用。权限路径和调用次数有实际断言。
+- final-debug、final-asan、final-ubsan 各五个独立 LPC 入口全部通过，共 15/15、0 失败；包含既有 get_include_path 与 include_list。证据目录为上述前缀加 -final-<构建>-<入口名>。仅构建 driver，未修改 grammar，无须重新生成语法。Windows 验证仍归 U15/U17。
 
 ## 附录 A：生产源码差异逐文件索引
 
