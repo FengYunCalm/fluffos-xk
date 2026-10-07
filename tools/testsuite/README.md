@@ -88,6 +88,17 @@ WSL2 的 TSan 测试加 `--disable-aslr`；构建仍需整体使用 `setarch x86
 测试能力来自实际 driver 的编译条件和运行上下文，不根据 Python 侧猜测包配置。
 正向编译样例由 `compiler/positive_compilation.lpc` 显式加载并验证，不冒充运行时值断言。
 
+## Global include 配置
+
+```bash
+/usr/bin/python3 -B tools/testsuite/test-global-include.py \
+  --driver build-organize-debug/bin/driver --evidence-dir /tmp/global-include-evidence
+```
+
+九个用例覆盖缺省、空白、引号、尖括号、未加引号、缺失文件和未闭合定界符。
+每个用例在私有 sandbox 启动真实 driver，加载最小 master/simul 和编译探针；
+同时检查退出状态、结果标记、空配置返回值或具体 include 错误，不以启动成功代替语义验证。
+
 ## 可选包与 Promise 引用检查
 
 `/single/tests/efuns/package_socket_external` 用于四种 sockets/external 开关组合。

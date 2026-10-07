@@ -71,6 +71,11 @@ Specifies the directory containing the web client HTML/JS files.
 | `simulated efun file` | Path to simul_efun object | `simulated efun file : /single/simul_efun` |
 | `global include file` | Auto-included in all objects | `global include file : <globals.h>` |
 
+Omitting `global include file`, or leaving its value blank, disables automatic inclusion.
+`get_config(__GLOBAL_INCLUDE_FILE__)` then returns an empty string. Nonempty names may
+use quotes or angle brackets; an unquoted name receives quotes for compatibility.
+A missing file or an unclosed quote/bracket remains a compilation error.
+
 ### Logging
 
 | Setting | Description | Example |

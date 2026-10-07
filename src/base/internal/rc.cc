@@ -264,7 +264,7 @@ void read_config(const char *filename) {
 
     /* check if the global include file is quoted */
     std::string const v(tmp);
-    if (!starts_with(v, "\"") && !starts_with(v, "<")) {
+    if (!v.empty() && !starts_with(v, "\"") && !starts_with(v, "<")) {
       debug_message("Missing '\"' or '<' around global include file name; adding quotes.\n");
       // not very efficient, but who cares.
       CONFIG_STR(__GLOBAL_INCLUDE_FILE__) =

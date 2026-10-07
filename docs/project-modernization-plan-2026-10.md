@@ -991,6 +991,12 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 默认 Debug 与 ASan 的 native 各 15/15；两种构建各自的 package_socket_external、promise_memory_refs、promise_phase1、promise_contracts、async_promise 五个入口全部通过。external_promise 是辅助对象，不是独立 do_tests 入口；误选它产生的运行失败不计回归结果。原始失败与成功证据均保留，未声明 LSan 或全量测试通过。
 - U06a 的 Linux 包组合门禁完成。U06b–d、新式 ed/gateway 组合、数据库、Windows 和真实下游仍待各自门禁，不据此声明 U06 或总方案完成。
 
+### 11.12 U06b：空 global include 配置
+
+- 证据前缀：/tmp/fluffos-xk-u06b-73b50b41。before-contract 的 9 项实际启动/编译测试中 3 项反例失败：缺省、空值和纯空格被 rc 补成双引号字符串，产生无意义警告，get_config 不返回空串。原版仍能启动，不能将此问题描述为已经复现的启动失败。
+- 仅在非空值上补引号，保留引号、尖括号、未加引号路径及错误诊断行为。新增 test-global-include.py，以最小 master/simul 和探针验证宏确实自动包含、空配置返回值及三种错误输入。首轮缺失 creator_file 的夹具错误单列；误填不存在的 ASan 构建目录未执行构建，均不计生产失败。
+- Debug、ASan、Release 的 driver 定向构建及各 9/9 运行测试通过，0 跳过；after-debug、after-asan、after-release 保留原始进程与身份记录。未更改 lexer、grammar 或配置键编号。Windows 未验证；U06c–d 仍待实施。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
