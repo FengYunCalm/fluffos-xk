@@ -16,11 +16,12 @@ title: filesystem / read_file
 
     Read  a  line  of text from a file into a string.  The second and third
     arguments are optional.  If only the first argument is  specified,  the
-    entire file is returned (as a string).
+    file is read up to the configured read-file limit.
 
     The  start_line  is the line number of the line you wish to read.  This
-    routine will return 0 if you try to read past the end of the  file,  or
-    if you try to read from a nonpositive line.
+    routine returns 0 if the requested line cannot be found. Read errors
+    and close errors, including gzip truncation detected during this read,
+    return 0 rather than data from a failed operation.
 
 ### SEE ALSO
 

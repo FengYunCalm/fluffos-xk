@@ -16,7 +16,8 @@ title: filesystem / write_bytes
 
     This  function  writes  the  bytes  in  'series' into the file named by
     'path' beginning at byte # 'start'.  It returns zero (0) upon  failure,
-    1 otherwise.
+    1 otherwise. Metadata, seek, write, stream, and close errors return 0.
+    Failure does not roll back bytes already written.
 
 ### SEE ALSO
 

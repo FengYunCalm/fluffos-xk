@@ -1462,69 +1462,67 @@ void restore_object_from_line(object_t *ob, char *line, int noclear) {
  * to assertain that the write is legal.
  * If 'save_zeros' is set, 0 valued variables will be saved
  */
-static int save_object_recurse(program_t *prog, svalue_t **svp, int type, int save_zeros, FILE *f,
-                               gzFile gzf) {
-  int i;
-  int textsize = 1;
-  int tmp;
-  int theSize;
-  int oldSize;
-  char *new_str, *p;
+namespace {
+using FileStream = std::unique_ptr<FILE, decltype(&fclose)>;
+using GzipStream = std::unique_ptr<gzFile_s, decltype(&gzclose)>;
 
-  for (i = 0; i < prog->num_inherited; i++) {
-    if (!(tmp = save_object_recurse(prog->inherit[i].prog, svp, prog->inherit[i].type_mod | type,
-                                    save_zeros, f, gzf))) {
+bool write_save_text(FILE* file, gzFile gzip, const char* text) {
+  const auto length = strlen(text);
+  if (gzip) {
+    if (length > static_cast<size_t>(std::numeric_limits<int>::max())) {
+      return false;
+    }
+    return gzwrite(gzip, text, static_cast<unsigned int>(length)) == static_cast<int>(length);
+  }
+  return fwrite(text, 1, length, file) == length;
+}
+}  // namespace
+
+static int save_object_recurse(program_t* prog, svalue_t** svp, int type, int save_zeros, FILE* f,
+                               gzFile gzf) {
+  int textsize = 1;
+  for (int i = 0; i < prog->num_inherited; i++) {
+    const int inherited_size = save_object_recurse(
+        prog->inherit[i].prog, svp, prog->inherit[i].type_mod | type, save_zeros, f, gzf);
+    if (!inherited_size) {
       return 0;
     }
-    textsize += tmp;
+    textsize += inherited_size;
   }
   if (type & DECL_NOSAVE) {
     (*svp) += prog->num_variables_defined;
     return 1;
   }
-  oldSize = -1;
-  new_str = nullptr;
-  for (i = 0; i < prog->num_variables_defined; i++) {
+  int old_size = -1;
+  std::unique_ptr<char, void (*)(char*)> new_str(nullptr, [](char* text) { FREE(text); });
+  for (int i = 0; i < prog->num_variables_defined; i++) {
     if (prog->variable_types[i] & DECL_NOSAVE) {
       (*svp)++;
       continue;
     }
     save_svalue_depth = 0;
-    theSize = svalue_save_size(*svp);
-
-    // Try not to malloc/free too much.
-    if (theSize > oldSize) {
-      if (new_str) {
-        FREE(new_str);
-      }
-      new_str = reinterpret_cast<char *>(DMALLOC(theSize, TAG_PERMANENT, "save_object: 2"));
-      oldSize = theSize;
+    const int size = svalue_save_size(*svp);
+    if (size > old_size) {
+      new_str.reset();
+      new_str.reset(static_cast<char*>(DMALLOC(size, TAG_PERMANENT, "save_object: 2")));
+      old_size = size;
     }
 
     *new_str = '\0';
-    p = new_str;
+    char* p = new_str.get();
     save_svalue((*svp)++, &p);
-    DEBUG_CHECK(p - new_str != theSize - 1, "Length miscalculated in save_object!");
-    /* FIXME: shouldn't use fprintf() */
-    if (save_zeros || new_str[0] != '0' || new_str[1] != 0) { /* Armidale */
-      textsize += theSize;
+    DEBUG_CHECK(p - new_str.get() != size - 1, "Length miscalculated in save_object!");
+    if (save_zeros || new_str.get()[0] != '0' || new_str.get()[1] != 0) {
+      textsize += size;
       textsize += strlen(prog->variable_table[i]);
       textsize += 2;
-      int result;
-      if (gzf) {
-        result = gzprintf(gzf, "%s %s\n", prog->variable_table[i], new_str);
-      } else {
-        result = fprintf(f, "%s %s\n", prog->variable_table[i], new_str);
-      }
-      if (result < 0) {
-        debug_perror("save_object: printf", nullptr);
-        FREE(new_str);
+      // gzprintf cannot format records larger than its internal buffer.
+      if (!write_save_text(f, gzf, prog->variable_table[i]) || !write_save_text(f, gzf, " ") ||
+          !write_save_text(f, gzf, new_str.get()) || !write_save_text(f, gzf, "\n")) {
+        debug_perror("save_object: write", nullptr);
         return 0;
       }
     }
-  }
-  if (new_str) {
-    FREE(new_str);
   }
   return textsize;
 }
@@ -1635,11 +1633,10 @@ std::string make_save_source_name(const char *program_name) {
 int save_object(object_t *ob, const char *file, int save_zeros) {
   char *name;
   size_t len;
-  FILE *f;
+  FileStream f(nullptr, &fclose);
+  GzipStream gzf(nullptr, &gzclose);
   int success;
-  svalue_t *v;
-
-  gzFile gzf;
+  svalue_t* v;
   int save_compressed;
 
   if (save_zeros & 2) {
@@ -1692,33 +1689,47 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
    * Write the save-files to different directories, just in case
    * they are on different file systems.
    */
-  gzf = nullptr;
-  f = nullptr;
+  const std::string header = "#/" + save_name + "\n";
   if (save_compressed) {
-    gzf = gzopen(tmp_name.c_str(), "wb");
+    gzf.reset(gzopen(tmp_name.c_str(), "wb"));
     if (!gzf) {
       error("Could not open /%s for a save.\n", tmp_name.c_str());
     }
-    if (gzprintf(gzf, "#/%s\n", save_name.c_str()) < 0) {
-      error("Could not open /%s for a save.\n", tmp_name.c_str());
-    }
   } else {
-    if (!(f = fopen(tmp_name.c_str(), "wb")) || fprintf(f, "#/%s\n", save_name.c_str()) < 0) {
+    f.reset(fopen(tmp_name.c_str(), "wb"));
+    if (!f) {
       error("Could not open /%s for a save.\n", tmp_name.c_str());
     }
+  }
+  if (!write_save_text(f.get(), gzf.get(), header.c_str())) {
+    gzf.reset();
+    f.reset();
+    std::remove(tmp_name.c_str());
+    error("Could not open /%s for a save.\n", tmp_name.c_str());
   }
   v = obj_vars_data(&ob->variables);
 
-  success = save_object_recurse(ob->prog, &v, 0, save_zeros, f, gzf);
+  try {
+    success = save_object_recurse(ob->prog, &v, 0, save_zeros, f.get(), gzf.get());
+  } catch (...) {
+    gzf.reset();
+    f.reset();
+    std::remove(tmp_name.c_str());
+    throw;
+  }
 
-  if (gzf && gzclose(gzf)) {
+  if (gzf && gzclose(gzf.release()) != Z_OK) {
     debug_perror("save_object", file);
     success = 0;
   }
 
-  if (f && fclose(f) < 0) {
-    debug_perror("save_object", file);
-    success = 0;
+  if (f) {
+    const bool stream_ok = !ferror(f.get());
+    const int close_result = fclose(f.release());
+    if (!stream_ok || close_result != 0) {
+      debug_perror("save_object", file);
+      success = 0;
+    }
   }
 
   if (!success) {
@@ -1874,8 +1885,8 @@ int restore_object(object_t *ob, const char *file, int noclear) {
   }
 
   // We always use zlib functions here and below, as it handles non-gzip file as well.
-  gzFile gzf = gzopen(file, "rb");
-  if (gzf == nullptr) {
+  GzipStream gzf(gzopen(file, "rb"), &gzclose);
+  if (!gzf) {
     // Compat: do not return error, if there are no save files.
     return 0;
   }
@@ -1888,32 +1899,36 @@ int restore_object(object_t *ob, const char *file, int noclear) {
   std::vector<char> buf(chunk);
   int total_bytes_read = 0;
   while (true) {
-    int bytes_read = gzread(gzf, buf.data() + total_bytes_read, chunk);
+    const auto available = static_cast<unsigned int>(buf.size() - total_bytes_read);
+    int bytes_read = gzread(gzf.get(), buf.data() + total_bytes_read, available);
 
     // Error reading gzip file.
     if (bytes_read < 0) {
       int err;
-      std::string errstr(gzerror(gzf, &err));
-      gzclose(gzf);
+      std::string errstr(gzerror(gzf.get(), &err));
+      gzf.reset();
       error("restore_object: Error reading file: %s,  error: %s.\n", file, errstr.c_str());
     }
-    // Read successfully
+    if (bytes_read == 0) {
+      buf[total_bytes_read] = '\0';
+      break;
+    }
     total_bytes_read += bytes_read;
 
-    // Avoid use up all memory.
-    if (bytes_read == chunk) {
+    // Leave space for another read and the terminating NUL.
+    if (static_cast<size_t>(total_bytes_read) == buf.size()) {
       if (buf.size() >= max_memory) {
+        gzf.reset();
         error("restore_object: Maximum memory limit %d reached trying to read file: %s.\n",
               max_memory, file);
       }
       buf.resize(buf.size() + chunk);
-      continue;
     }
-
-    buf[total_bytes_read] = '\0';
-    break;
   }
-  gzclose(gzf);
+  const int close_result = gzclose(gzf.release());
+  if (close_result != Z_OK) {
+    error("restore_object: Error closing file: %s, error: %d.\n", file, close_result);
+  }
 
   // Compat: ignore empty file.
   if (total_bytes_read == 0) {

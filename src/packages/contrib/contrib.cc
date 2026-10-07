@@ -1601,13 +1601,14 @@ void f_pluralize() {
  * file_length() efun, returns the number of lines in a file.
  * Returns -1 if no privs or file doesn't exist.
  */
-static int file_length(const char *file) {
+static int file_length(const char* file) {
   struct stat st;
-  FILE *f;
+  FILE* f;
   int ret = 0;
   size_t num;
-  static char buf[2049];
-  char *p, *newp;
+  char buf[2048];
+  char* p;
+  char* newp;
 
   file = check_valid_path(file, current_object, "file_size", 0);
 
@@ -1626,18 +1627,18 @@ static int file_length(const char *file) {
     return -2;
   }
 
-  do {
-    num = fread(buf, 1, sizeof(buf) - 1, f);
+  while ((num = fread(buf, 1, sizeof(buf), f)) != 0) {
     p = buf;
-    while ((newp = reinterpret_cast<char *>(memchr(p, '\n', num)))) {
-      num -= (newp - (p - 1));
+    while ((newp = static_cast<char*>(memchr(p, '\n', num)))) {
+      num -= newp - p + 1;
       p = newp + 1;
       ret++;
     }
-  } while (!feof(f));
+  }
 
-  fclose(f);
-  return ret;
+  const bool read_ok = !ferror(f);
+  const int close_result = fclose(f);
+  return read_ok && close_result == 0 ? ret : -1;
 } /* end of file_length() */
 
 void f_file_length() {

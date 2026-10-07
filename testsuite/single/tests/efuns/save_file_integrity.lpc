@@ -1,0 +1,16 @@
+private string payload;
+
+void do_tests() {
+  string path = "/save_file_integrity";
+  string expected = repeat_string("q", 12000);
+  ASSERT_EQ(-1, file_size(path + ".o"));
+  ASSERT_EQ(-1, file_size(path + ".o.gz"));
+  foreach (int flags in ({ 0, 1, 2, 3 })) {
+    payload = expected;
+    ASSERT(save_object(path, flags) > 0);
+    payload = "changed";
+    ASSERT_EQ(1, restore_object(path));
+    ASSERT_EQ(expected, payload);
+    ASSERT_EQ(1, rm(path + (flags & 2 ? ".o.gz" : ".o")));
+  }
+}

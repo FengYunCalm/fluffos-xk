@@ -23,7 +23,16 @@ title: objects / save_object
 
 ### RETURN VALUE
 
-    save_object() returns 1 for success, 0 for failure.
+    A file save returns a positive number for success (not necessarily 1),
+    or 0 for write, close, or rename failure. Permission, open, header-write,
+    and serialization errors raise an LPC error.
+
+    Output is written to the existing temporary-file path before rename.
+    Failed writes or serialization skip the final rename and attempt to
+    remove the temporary file after closing it. Compressed saves
+    support records larger than zlib's printf buffer without changing the
+    saved-value format. This does not guarantee protection against aliased
+    temporary paths, concurrent path replacement, or power loss.
 
 ### SEE ALSO
 

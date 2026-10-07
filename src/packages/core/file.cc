@@ -166,7 +166,7 @@ static int copy_file_unchecked(const char *from, const char *to) {
   auto base = fs::current_path();
   fs::copy_file(base / from, base / to, fs::copy_options::overwrite_existing, error_code);
   if (error_code) {
-    debug_message("Error copying file from /%s to /%s, Error: %s", from, to,
+    debug_message("Error copying file from /%s to /%s, Error: %s\n", from, to,
                   error_code.message().c_str());
     return -1;
   }
@@ -473,9 +473,9 @@ char *read_file(const char *file, int start, int lines) {
   }
 
   int const total_bytes_read = gzread(f, (void *)the_buff, 2 * read_file_max_size);
-  gzclose(f);
+  const int close_result = gzclose(f);
 
-  if (total_bytes_read <= 0) {
+  if (total_bytes_read <= 0 || close_result != Z_OK) {
     debug(file, "read_file: read error: %s.\n", file);
     return nullptr;
   }
@@ -585,7 +585,8 @@ char *read_bytes(const char *file, LPC_INT start, LPC_INT len, int *rlen) {
     return nullptr;
   }
   if (large_file_fstat(fptr, &st) == -1) {
-    fatal("Could not stat an open file.\n");
+    fclose(fptr);
+    return nullptr;
   }
   const auto file_size = static_cast<std::intmax_t>(st.st_size);
   if (file_size < 0) {
@@ -633,10 +634,10 @@ char *read_bytes(const char *file, LPC_INT start, LPC_INT len, int *rlen) {
   str = new_string(allocation_length, "read_bytes: str");
 
   const auto bytes_read = fread(str, 1, allocation_length, fptr);
+  const bool stream_ok = !ferror(fptr);
+  const int close_result = fclose(fptr);
 
-  fclose(fptr);
-
-  if (bytes_read == 0) {
+  if (bytes_read == 0 || !stream_ok || close_result != 0) {
     FREE_MSTR(str);
     return nullptr;
   }
@@ -669,7 +670,8 @@ int write_bytes(const char *file, LPC_INT start, const char *str, std::size_t th
     return 0;
   }
   if (large_file_fstat(fptr, &st) == -1) {
-    fatal("Could not stat an open file.\n");
+    fclose(fptr);
+    return 0;
   }
 
   const auto file_size = static_cast<std::intmax_t>(st.st_size);
@@ -712,9 +714,10 @@ int write_bytes(const char *file, LPC_INT start, const char *str, std::size_t th
   }
 
   const auto bytes_written = fwrite(str, 1, theLength, fptr);
+  const bool stream_ok = !ferror(fptr);
   const auto close_result = fclose(fptr);
 
-  if (close_result != 0 || bytes_written != theLength) {
+  if (!stream_ok || close_result != 0 || bytes_written != theLength) {
     return 0;
   }
   return 1;
@@ -924,7 +927,7 @@ static int do_move(const char *from, const char *to, int flag) {
 
     if (copy_file_unchecked(staged_from.c_str(), to) != 1) {
       if (rename_no_replace(staged_from.c_str(), from) != 0) {
-        debug_message("Error restoring staged move source /%s to /%s: %s", staged_from.c_str(),
+        debug_message("Error restoring staged move source /%s to /%s: %s\n", staged_from.c_str(),
                       from, strerror(errno));
       }
       return 1;

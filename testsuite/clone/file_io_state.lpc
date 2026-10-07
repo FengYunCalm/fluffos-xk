@@ -1,0 +1,35 @@
+private int value = 73;
+private mixed nested;
+
+#ifdef __PACKAGE_CONTRIB__
+int count_lines(string path) {
+  return file_length(path);
+}
+#endif
+
+int move_file(string source, string destination) {
+  return rename(source, destination);
+}
+
+int save_state(string path, int flags) {
+  return save_object(path, flags);
+}
+
+int restore_state(string path) {
+  return restore_object(path);
+}
+
+void reset_state() {
+  value = 73;
+  nested = 0;
+}
+
+void deep_state() {
+  for (int i = 0; i < 200; i++) {
+    nested = ({ nested });
+  }
+}
+
+int query_value() {
+  return value;
+}

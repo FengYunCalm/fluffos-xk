@@ -30,6 +30,12 @@ namespace {
 
 constexpr char kTestFile[] = "u01_file_io_failure.txt";
 constexpr char kInputFile[] = "u01_file_io_input.bin";
+constexpr const char* kSavePaths[] = {"u01_file_io_failure.txt.o",
+                                     "u01_file_io_failure.txt.o.tmp",
+                                     "u01_file_io_failure.txt.o.gz",
+                                     "u01_file_io_failure.txt.o.gz.tmp"};
+thread_local std::string fixture_root;
+thread_local std::string staged_move_path;
 
 enum class FaultPoint {
   kNone,
@@ -43,11 +49,16 @@ enum class FaultPoint {
   kDeviceFull,
   kRead,
   kGzipRead,
+  kGzipReadAfterPartial,
   kUnlink,
   kFileAdopt,
   kGzipAdopt,
   kMetadata,
-  kTruncate
+  kTruncate,
+  kRename,
+  kCrossDevice,
+  kCrossDeviceCopyFailure,
+  kCrossDeviceUnlinkFailure
 };
 
 // Linker wrapping is enabled only for this test executable. Other streams and
@@ -63,16 +74,43 @@ struct FaultState {
   int output_fd = -1;
   size_t write_limit = 0;
   int oversized_writes = 0;
+  int skip_writes = 0;
 };
 
 thread_local FaultState fault;
 
 bool fixture_path(const char* path) {
-  return std::strcmp(path, kTestFile) == 0 || std::strcmp(path, kInputFile) == 0;
+  if (!fixture_root.empty() && std::strncmp(path, fixture_root.c_str(), fixture_root.size()) == 0 &&
+      path[fixture_root.size()] == '/') {
+    path += fixture_root.size() + 1;
+  }
+  if (std::strcmp(path, kTestFile) == 0 || std::strcmp(path, kInputFile) == 0) {
+    return true;
+  }
+  for (const auto* name : kSavePaths) {
+    if (std::strcmp(path, name) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool reject_write(FaultPoint point) {
+  if (fault.point != point) {
+    return false;
+  }
+  if (fault.skip_writes > 0) {
+    --fault.skip_writes;
+    return false;
+  }
+  ++fault.hits;
+  errno = ENOSPC;
+  return true;
 }
 
 bool reject_open(const char* path) {
-  if (fault.point == FaultPoint::kOpen && std::strcmp(path, kTestFile) == 0) {
+  if (fault.point == FaultPoint::kOpen && fixture_path(path) &&
+      std::strcmp(path, kInputFile) != 0) {
     ++fault.hits;
     errno = EACCES;
     return true;
@@ -108,6 +146,7 @@ extern "C" {
 int __real_open(const char*, int, ...);
 int __real_close(int);
 int __real_unlink(const char*);
+int __real_rename(const char*, const char*);
 int __real_fstat(int, struct stat*);
 int __real_ftruncate(int, off_t);
 FILE* __real_fdopen(int, const char*);
@@ -160,7 +199,9 @@ int __wrap_close(int fd) {
 }
 
 int __wrap_fstat(int fd, struct stat* info) {
-  if (fd == fault.output_fd && fault.point == FaultPoint::kMetadata) {
+  const bool selected = fd == fault.output_fd ||
+                        (fault.output_fd < 0 && fault.stream && fd == fileno(fault.stream));
+  if (selected && fault.point == FaultPoint::kMetadata) {
     ++fault.hits;
     errno = EIO;
     return -1;
@@ -177,7 +218,54 @@ int __wrap_ftruncate(int fd, off_t length) {
   return __real_ftruncate(fd, length);
 }
 
+int __wrap_rename(const char* source, const char* destination) {
+  if (fixture_path(source) && fixture_path(destination) &&
+      (fault.point == FaultPoint::kCrossDevice ||
+       fault.point == FaultPoint::kCrossDeviceCopyFailure ||
+       fault.point == FaultPoint::kCrossDeviceUnlinkFailure)) {
+    ++fault.hits;
+    if (fault.point == FaultPoint::kCrossDeviceCopyFailure) {
+      std::filesystem::create_directory(kTestFile);
+    }
+    errno = EXDEV;
+    return -1;
+  }
+  if (fixture_path(source) && fixture_path(destination) && fault.point == FaultPoint::kRename) {
+    ++fault.hits;
+    errno = EACCES;
+    return -1;
+  }
+  return __real_rename(source, destination);
+}
+
+int __wrap_fprintf(FILE* stream, const char* format, ...) {
+  if (stream == fault.stream && reject_write(FaultPoint::kWrite)) {
+    return -1;
+  }
+  va_list arguments;
+  va_start(arguments, format);
+  const int result = vfprintf(stream, format, arguments);
+  va_end(arguments);
+  return result;
+}
+
+int __wrap_gzprintf(gzFile stream, const char* format, ...) {
+  if (stream == fault.gzip && reject_write(FaultPoint::kGzipWrite)) {
+    return 0;
+  }
+  va_list arguments;
+  va_start(arguments, format);
+  const int result = gzvprintf(stream, format, arguments);
+  va_end(arguments);
+  return result;
+}
+
 int __wrap_unlink(const char* path) {
+  if (fault.point == FaultPoint::kCrossDeviceUnlinkFailure && path == staged_move_path) {
+    ++fault.hits;
+    errno = EACCES;
+    return -1;
+  }
   if (fixture_path(path) && fault.point == FaultPoint::kUnlink) {
     ++fault.hits;
     errno = EACCES;
@@ -226,6 +314,13 @@ size_t __wrap_fread(void* data, size_t size, size_t count, FILE* stream) {
 }
 
 int __wrap_gzread(gzFile stream, void* data, unsigned int length) {
+  if (stream == fault.gzip && fault.point == FaultPoint::kGzipReadAfterPartial) {
+    if (++fault.hits == 1) {
+      return __real_gzread(stream, data, length > 4 ? 4 : length);
+    }
+    errno = EIO;
+    return -1;
+  }
   if (stream == fault.gzip && fault.point == FaultPoint::kGzipRead) {
     ++fault.hits;
     errno = EIO;
@@ -268,9 +363,7 @@ size_t __wrap_fwrite(const void* data, size_t size, size_t count, FILE* stream) 
     errno = EFBIG;
     return 0;
   }
-  if (stream == fault.stream && fault.point == FaultPoint::kWrite) {
-    ++fault.hits;
-    errno = ENOSPC;
+  if (stream == fault.stream && reject_write(FaultPoint::kWrite)) {
     return count == 0 ? 0 : count - 1;
   }
   return __real_fwrite(data, size, count, stream);
@@ -317,9 +410,7 @@ gzFile __wrap_gzopen(const char* path, const char* mode) {
 }
 
 int __wrap_gzwrite(gzFile stream, const void* data, unsigned int length) {
-  if (stream == fault.gzip && fault.point == FaultPoint::kGzipWrite) {
-    ++fault.hits;
-    errno = ENOSPC;
+  if (stream == fault.gzip && reject_write(FaultPoint::kGzipWrite)) {
     return 0;
   }
   return __real_gzwrite(stream, data, length);
@@ -357,12 +448,17 @@ class FileIoTest : public ::testing::Test {
   void SetUp() override {
     clear_state();
     save_context(&context_);
+    fixture_root = std::filesystem::current_path().string();
     fault = {};
     descriptors_before_ = descriptor_count();
     ASSERT_FALSE(std::filesystem::exists(kTestFile) || std::filesystem::is_symlink(kTestFile));
     owns_path_ = true;
     ASSERT_FALSE(std::filesystem::exists(kInputFile) || std::filesystem::is_symlink(kInputFile));
     owns_input_ = true;
+    for (const auto* name : kSavePaths) {
+      ASSERT_FALSE(std::filesystem::exists(name) || std::filesystem::is_symlink(name));
+    }
+    owns_saves_ = true;
 #ifdef OLD_ED
     ASSERT_EQ(master_ob->interactive, nullptr);
     editor_ip_.ob = master_ob;
@@ -407,6 +503,11 @@ class FileIoTest : public ::testing::Test {
     if (owns_input_) {
       std::filesystem::remove(kInputFile);
     }
+    if (owns_saves_) {
+      for (const auto* name : kSavePaths) {
+        std::filesystem::remove(name);
+      }
+    }
     EXPECT_EQ(descriptor_count(), descriptors_before_);
     restore_context(&context_);
     clear_state();
@@ -420,6 +521,188 @@ class FileIoTest : public ::testing::Test {
     EXPECT_EQ(fault.opens, 1);
     EXPECT_EQ(fault.closes, 1);
   }
+
+  void check_cross_device_move(FaultPoint point) {
+    ScopedCurrentObjectAsMaster current;
+    auto* object = load_file_state();
+    ASSERT_NE(object, nullptr);
+    staged_move_path = "." + std::string(kInputFile) + ".fluffos-move." +
+                       std::to_string(getpid()) + ".0";
+    ASSERT_FALSE(std::filesystem::exists(staged_move_path));
+    ASSERT_EQ(write_file(kInputFile, "move payload\n", 1), 1);
+    fault = {};
+    fault.point = point;
+    copy_and_push_string(kInputFile);
+    copy_and_push_string(kTestFile);
+    auto* result = safe_apply("move_file", object, 2, ORIGIN_DRIVER);
+    if (point == FaultPoint::kCrossDeviceUnlinkFailure) {
+      EXPECT_EQ(result, nullptr);
+      EXPECT_TRUE(std::filesystem::exists(staged_move_path));
+    } else {
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(result->type, T_NUMBER);
+      EXPECT_EQ(result->u.number, point == FaultPoint::kCrossDevice ? 0 : 1);
+      EXPECT_FALSE(std::filesystem::exists(staged_move_path));
+    }
+    vm_apply_return_clear();
+    EXPECT_GE(fault.hits, 1);
+    fault.point = FaultPoint::kNone;
+    const auto* retained = point == FaultPoint::kCrossDeviceCopyFailure ? kInputFile : kTestFile;
+    std::ifstream input(retained, std::ios::binary);
+    const std::string data{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    EXPECT_EQ(data, "move payload\n");
+    if (point == FaultPoint::kCrossDeviceUnlinkFailure) {
+      std::ifstream staged(staged_move_path, std::ios::binary);
+      const std::string source{std::istreambuf_iterator<char>(staged),
+                               std::istreambuf_iterator<char>()};
+      EXPECT_EQ(source, "move payload\n");
+      staged.close();
+      std::filesystem::remove(staged_move_path);
+    }
+  }
+
+  object_t* load_file_state() {
+    auto* object = load_object("clone/file_io_state", 0);
+    if (!object) {
+      return nullptr;
+    }
+    auto* result = safe_apply("reset_state", object, 0, ORIGIN_DRIVER);
+    const bool reset = result != nullptr;
+    vm_apply_return_clear();
+    return reset ? object : nullptr;
+  }
+
+  void check_save_failure(bool compressed, FaultPoint point, bool expect_error = false) {
+    ScopedCurrentObjectAsMaster current;
+    auto* object = load_file_state();
+    ASSERT_NE(object, nullptr);
+    if (point == FaultPoint::kNone) {
+      ASSERT_NE(safe_apply("deep_state", object, 0, ORIGIN_DRIVER), nullptr);
+      vm_apply_return_clear();
+    }
+    const auto* destination = kSavePaths[compressed ? 2 : 0];
+    const auto* temporary = kSavePaths[compressed ? 3 : 1];
+    ASSERT_EQ(write_file(destination, "old snapshot\n", 1), 1);
+    fault = {};
+    fault.point = point;
+    if (!expect_error && (point == FaultPoint::kWrite || point == FaultPoint::kGzipWrite)) {
+      fault.skip_writes = 1;
+    }
+    copy_and_push_string(kTestFile);
+    push_number(compressed ? 2 : 0);
+    auto* result = safe_apply("save_state", object, 2, ORIGIN_DRIVER);
+    if (expect_error) {
+      EXPECT_EQ(result, nullptr);
+    } else {
+      ASSERT_NE(result, nullptr);
+      ASSERT_EQ(result->type, T_NUMBER);
+      EXPECT_EQ(result->u.number, 0);
+    }
+    vm_apply_return_clear();
+    if (point != FaultPoint::kNone) {
+      EXPECT_GE(fault.hits, 1);
+    }
+    EXPECT_EQ(fault.opens, fault.closes);
+    EXPECT_EQ(fault.stream, nullptr);
+    EXPECT_EQ(fault.gzip, nullptr);
+    EXPECT_FALSE(std::filesystem::exists(temporary));
+    fault.point = FaultPoint::kNone;
+    std::ifstream input(destination, std::ios::binary);
+    const std::string data{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    EXPECT_EQ(data, "old snapshot\n");
+  }
+
+  void check_restore_failure(FaultPoint point, bool truncated = false) {
+    ScopedCurrentObjectAsMaster current;
+    auto* object = load_file_state();
+    ASSERT_NE(object, nullptr);
+    ASSERT_EQ(write_file(kSavePaths[2], "#/clone/file_io_state.lpc\nvalue 99\n", 3), 1);
+    if (truncated) {
+      std::filesystem::resize_file(kSavePaths[2], std::filesystem::file_size(kSavePaths[2]) - 1);
+    }
+    fault = {};
+    fault.point = point;
+    copy_and_push_string(kTestFile);
+    auto* result = safe_apply("restore_state", object, 1, ORIGIN_DRIVER);
+    EXPECT_EQ(result, nullptr);
+    vm_apply_return_clear();
+    EXPECT_EQ(fault.opens, fault.closes);
+    EXPECT_EQ(fault.gzip, nullptr);
+    if (point != FaultPoint::kNone) {
+      EXPECT_GE(fault.hits, 1);
+    }
+    fault.point = FaultPoint::kNone;
+    result = safe_apply("query_value", object, 0, ORIGIN_DRIVER);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->type, T_NUMBER);
+    EXPECT_EQ(result->u.number, 73);
+    vm_apply_return_clear();
+  }
+
+  void check_read_file_failure(FaultPoint point, bool truncated = false) {
+    ScopedCurrentObjectAsMaster current;
+    ASSERT_EQ(write_file(kTestFile, "payload", 3), 1);
+    if (truncated) {
+      std::filesystem::resize_file(kTestFile, std::filesystem::file_size(kTestFile) - 1);
+    }
+    fault = {};
+    fault.point = point;
+    char* result = read_file(kTestFile, 0, 0);
+    EXPECT_EQ(result, nullptr);
+    if (result) {
+      FREE_MSTR(result);
+    }
+    if (point != FaultPoint::kNone) {
+      EXPECT_GE(fault.hits, 1);
+    }
+    EXPECT_EQ(fault.opens, fault.closes);
+  }
+
+  void check_read_bytes_failure(FaultPoint point) {
+    ScopedCurrentObjectAsMaster current;
+    ASSERT_EQ(write_file(kTestFile, "payload", 1), 1);
+    fault = {};
+    fault.point = point;
+    int length = -1;
+    char* result = read_bytes(kTestFile, 0, 7, &length);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(length, -1);
+    if (result) {
+      FREE_MSTR(result);
+    }
+    EXPECT_GE(fault.hits, 1);
+    EXPECT_EQ(fault.opens, fault.closes);
+  }
+
+  void check_write_bytes_failure(FaultPoint point) {
+    ScopedCurrentObjectAsMaster current;
+    fault.point = point;
+    EXPECT_EQ(write_bytes(kTestFile, 0, "payload", 7), 0);
+    EXPECT_GE(fault.hits, 1);
+    EXPECT_EQ(fault.opens, fault.closes);
+  }
+
+#ifdef PACKAGE_CONTRIB
+  void check_file_length(FaultPoint point, int expected) {
+    ScopedCurrentObjectAsMaster current;
+    auto* object = load_object("clone/file_io_state", 0);
+    ASSERT_NE(object, nullptr);
+    const std::string text = std::string(2047, 'x') + "\nlast\nunterminated";
+    ASSERT_EQ(write_file(kTestFile, text.c_str(), 1), 1);
+    fault = {};
+    fault.point = point;
+    copy_and_push_string(kTestFile);
+    auto* result = safe_apply("count_lines", object, 1, ORIGIN_DRIVER);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->type, T_NUMBER);
+    EXPECT_EQ(result->u.number, expected);
+    vm_apply_return_clear();
+    if (point != FaultPoint::kNone) {
+      EXPECT_GE(fault.hits, 1);
+    }
+    EXPECT_EQ(fault.opens, fault.closes);
+  }
+#endif
 
   bool editor_active() {
 #ifdef OLD_ED
@@ -618,6 +901,7 @@ class FileIoTest : public ::testing::Test {
   error_context_t context_{};
   bool owns_path_ = false;
   bool owns_input_ = false;
+  bool owns_saves_ = false;
 #ifdef OLD_ED
   interactive_t editor_ip_{};
   bool editor_attached_ = false;
@@ -751,6 +1035,132 @@ TEST_F(FileIoTest, UncompressFileAdoptionFailureClosesDescriptors) {
 
 TEST_F(FileIoTest, UncompressGzipAdoptionFailureClosesDescriptors) {
   check_compression_failure(true, FaultPoint::kGzipAdopt);
+}
+#endif
+
+TEST_F(FileIoTest, CrossDeviceMoveRetainsExistingSuccessContract) {
+  check_cross_device_move(FaultPoint::kCrossDevice);
+}
+
+TEST_F(FileIoTest, CrossDeviceCopyFailureRestoresSource) {
+  check_cross_device_move(FaultPoint::kCrossDeviceCopyFailure);
+}
+
+TEST_F(FileIoTest, CrossDeviceUnlinkFailureRetainsStagedSource) {
+  check_cross_device_move(FaultPoint::kCrossDeviceUnlinkFailure);
+}
+
+TEST_F(FileIoTest, SaveSerializationExceptionCleansTemporary) {
+  check_save_failure(false, FaultPoint::kNone, true);
+}
+
+TEST_F(FileIoTest, SaveGzipSerializationExceptionCleansTemporary) {
+  check_save_failure(true, FaultPoint::kNone, true);
+}
+
+TEST_F(FileIoTest, SaveHeaderFailureClosesStream) {
+  check_save_failure(false, FaultPoint::kWrite, true);
+}
+
+TEST_F(FileIoTest, SaveGzipHeaderFailureClosesStream) {
+  check_save_failure(true, FaultPoint::kGzipWrite, true);
+}
+
+TEST_F(FileIoTest, SaveBodyFailurePreservesSnapshot) {
+  check_save_failure(false, FaultPoint::kWrite);
+}
+
+TEST_F(FileIoTest, SaveGzipBodyFailurePreservesSnapshot) {
+  check_save_failure(true, FaultPoint::kGzipWrite);
+}
+
+TEST_F(FileIoTest, SaveCloseFailurePreservesSnapshot) {
+  check_save_failure(false, FaultPoint::kClose);
+}
+
+TEST_F(FileIoTest, SaveGzipCloseFailurePreservesSnapshot) {
+  check_save_failure(true, FaultPoint::kGzipClose);
+}
+
+TEST_F(FileIoTest, SaveRenameFailurePreservesSnapshot) {
+  check_save_failure(false, FaultPoint::kRename);
+}
+
+TEST_F(FileIoTest, SaveGzipRenameFailurePreservesSnapshot) {
+  check_save_failure(true, FaultPoint::kRename);
+}
+
+TEST_F(FileIoTest, RestoreDeferredReadFailureKeepsObjectState) {
+  check_restore_failure(FaultPoint::kGzipReadAfterPartial);
+}
+
+TEST_F(FileIoTest, RestoreReadFailureKeepsObjectState) {
+  check_restore_failure(FaultPoint::kGzipRead);
+}
+
+TEST_F(FileIoTest, RestoreCloseFailureKeepsObjectState) {
+  check_restore_failure(FaultPoint::kGzipClose);
+}
+
+TEST_F(FileIoTest, RestoreTruncationKeepsObjectState) {
+  check_restore_failure(FaultPoint::kNone, true);
+}
+
+TEST_F(FileIoTest, ReadFileRejectsCloseFailure) {
+  check_read_file_failure(FaultPoint::kGzipClose);
+}
+
+TEST_F(FileIoTest, ReadFileRejectsTruncation) {
+  check_read_file_failure(FaultPoint::kNone, true);
+}
+
+TEST_F(FileIoTest, ReadBytesRejectsStreamError) {
+  check_read_bytes_failure(FaultPoint::kStreamError);
+}
+
+TEST_F(FileIoTest, ReadBytesRejectsMetadataFailure) {
+  check_read_bytes_failure(FaultPoint::kMetadata);
+}
+
+TEST_F(FileIoTest, ReadBytesRejectsReadFailure) {
+  check_read_bytes_failure(FaultPoint::kRead);
+}
+
+TEST_F(FileIoTest, ReadBytesRejectsCloseFailure) {
+  check_read_bytes_failure(FaultPoint::kClose);
+}
+
+TEST_F(FileIoTest, WriteBytesRejectsStreamError) {
+  check_write_bytes_failure(FaultPoint::kStreamError);
+}
+
+TEST_F(FileIoTest, WriteBytesRejectsMetadataFailure) {
+  check_write_bytes_failure(FaultPoint::kMetadata);
+}
+
+TEST_F(FileIoTest, WriteBytesRejectsShortWrite) {
+  check_write_bytes_failure(FaultPoint::kWrite);
+}
+
+TEST_F(FileIoTest, WriteBytesRejectsCloseFailure) {
+  check_write_bytes_failure(FaultPoint::kClose);
+}
+
+#ifdef PACKAGE_CONTRIB
+TEST_F(FileIoTest, FileLengthCountsOnlyNewlinesAcrossChunks) {
+  check_file_length(FaultPoint::kNone, 2);
+}
+
+TEST_F(FileIoTest, FileLengthReadFailureReturnsError) {
+  check_file_length(FaultPoint::kRead, -1);
+}
+
+TEST_F(FileIoTest, FileLengthStreamErrorReturnsError) {
+  check_file_length(FaultPoint::kStreamError, -1);
+}
+
+TEST_F(FileIoTest, FileLengthCloseFailureReturnsError) {
+  check_file_length(FaultPoint::kClose, -1);
 }
 #endif
 

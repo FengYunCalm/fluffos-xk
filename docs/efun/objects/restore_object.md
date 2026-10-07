@@ -22,6 +22,11 @@ title: objects / restore_object
     In the case of an error, the affected variable will be  left  untouched
     and an error given.
 
+    Read errors, detected gzip truncation, and close errors raise an LPC
+    error before applying values. Missing or successfully read empty save
+    files retain their existing 0 return. Parsing remains non-transactional;
+    this does not promise whole-object rollback after a malformed value.
+
 ### SEE ALSO
 
     save_object(3)

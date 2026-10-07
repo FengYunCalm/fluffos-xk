@@ -16,10 +16,13 @@ title: filesystem / read_bytes
 ### DESCRIPTION
 
     This function reads 'length' bytes beginning at byte # 'start'  in  the
-    file  named  'path'.   The  bytes  are returned as a string.  Note that
-    (start + length) must  not  be  past  the  end  of  the  file  or  else
-    read_bytes  will  fail.  If the second and third arguments are omitted,
-    the entire file is returned.
+    file named 'path'. The bytes are returned as a string. A request that
+    extends past EOF is limited to the remaining bytes; an offset at or past
+    EOF returns 0. If the second and third arguments are omitted, the entire
+    file is requested, subject to the configured transfer limit.
+
+    Metadata, read, stream, or close errors return 0, not partial data from
+    a failed operation. Transfer-limit violations retain their LPC error.
 
 ### SEE ALSO
 

@@ -35,8 +35,8 @@ if(${GTEST_FOUND})
     target_link_libraries(file_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
     target_compile_definitions(file_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
-    foreach(symbol open close unlink fstat ftruncate fdopen gzdopen fopen fclose fread fwrite
-                   fputs fputc ferror gzopen gzread gzwrite gzclose)
+    foreach(symbol open close unlink rename fstat ftruncate fdopen gzdopen fopen fclose fread
+                   fwrite fprintf fputs fputc ferror gzopen gzread gzwrite gzprintf gzclose)
       target_link_options(file_io_tests PRIVATE "-Wl,--wrap=${symbol}")
     endforeach()
     find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)

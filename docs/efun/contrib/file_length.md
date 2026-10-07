@@ -16,8 +16,8 @@ title: contrib / file_length
 
     returns
 
-    - line count
-    - -1 in case of error (e.g insufficient privs)
+    - newline count; an unterminated final line does not add one
+    - -1 in case of error (including read, stream, and close errors)
     - -2 if file is directory
 
 ### SEE ALSO
