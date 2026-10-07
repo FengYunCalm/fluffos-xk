@@ -376,10 +376,18 @@ add_custom_command(
   DEPENDS "vm/internal/applies" "build_applies"
 )
 
+set(OPTIONS_INPUTS
+  "${CMAKE_CURRENT_SOURCE_DIR}/base/internal/options_incl.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/base/internal/options_internal.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/local_options"
+  "${CMAKE_CURRENT_BINARY_DIR}/config.h"
+  "${CMAKE_CURRENT_BINARY_DIR}/packages/packages.autogen.h"
+)
+
 add_custom_command(
   OUTPUT "packages.fullspec" "packages_missing_efuns.autogen.h"
   COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_packages_genfiles.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
-  DEPENDS "tools/build_packages_genfiles.sh" "base/internal/options_incl.h"
+  DEPENDS "tools/build_packages_genfiles.sh" ${OPTIONS_INPUTS}
 )
 file(GLOB ALL_SPEC_FILES CONFIGURE_DEPENDS files "packages/*/*.spec")
 foreach (file ${ALL_SPEC_FILES})
@@ -396,7 +404,7 @@ add_custom_command(
 add_custom_command(
   OUTPUT "options.autogen.h"
   COMMAND "make_options_defs" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/base/internal/options_incl.h"
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/base/internal/options_incl.h"
+  DEPENDS "make_options_defs" ${OPTIONS_INPUTS}
 )
 
 add_custom_command(

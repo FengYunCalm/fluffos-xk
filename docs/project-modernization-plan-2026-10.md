@@ -997,6 +997,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 仅在非空值上补引号，保留引号、尖括号、未加引号路径及错误诊断行为。新增 test-global-include.py，以最小 master/simul 和探针验证宏确实自动包含、空配置返回值及三种错误输入。首轮缺失 creator_file 的夹具错误单列；误填不存在的 ASan 构建目录未执行构建，均不计生产失败。
 - Debug、ASan、Release 的 driver 定向构建及各 9/9 运行测试通过，0 跳过；after-debug、after-asan、after-release 保留原始进程与身份记录。未更改 lexer、grammar 或配置键编号。Windows 未验证；U06c–d 仍待实施。
 
+### 11.13 U06d：生成链与增量依赖
+
+- 初始证据：/tmp/fluffos-xk-u06d-acf0980d-f7c0stvg。GNU Bison 3.8.2 在两个私有树生成的三个 fallback 与仓库逐字节一致，不需要修改生成正文。新增唯一入口 tools/build/regenerate_grammar.py，固定版本、参数和相对路径；两种模式都会写临时目录，只有 --write 更新源码。自测 5/5，覆盖重复生成、漂移、缺文件、生成失败保留原输出及版本拒绝。
+- before-valid 的 7 个真实增量反例中 5 项失败：local_options、options_internal.h、config.h、packages.autogen.h 和 make_options_defs 变化后仍复用旧 options 输出；.spec/applies 已正确。共享 OPTIONS_INPUTS 补全 options 与 fullspec 的依赖，同时添加生成器目标的文件级依赖。未更改 efun、语法或配置语义。
+- 首次私有配置缺少 PCRE2 开发头，复用已验证依赖路径后配置成功；首轮 after 的一项失败伴随 WSL 时钟偏移。保留原日志，夹具增加时间间隔并断言输入时间戳严格晚于输出，再分别复跑未修复与修复版本：仍为 5 项真实反例，修复后 7/7。没有继续叠加源码修复来掩盖环境问题。
+- 持久回归 tools/build/test_generated_dependencies.py 使用独立源码快照、输入哈希与既有进程树监督器；首轮证据 /tmp/fluffos-xk-u06d-acf0980d-incremental 为 7/7。随后扩充条件 spec 夹具，要求四种 options 输入同时更新 options 和 efun 表；/tmp/fluffos-xk-u06d-acf0980d-fullspec-before 再现 5 项失败，fullspec-after 为 7/7。只修改快照并恢复，不改工作树或既有构建目录；运行矩阵的原快照已按全部文件哈希复核恢复。
+- 同一快照的 Bison/fallback × Debug/Release 四个独立目录均构建 driver、lpcc。四组分别通过 positive_compilation、private_inherit_alias_chain、include_paths、modernization_compat 共四个 LPC 入口及 global include 9/9；没有跳过。每种构建类型的七个 options/spec/efun/applies 产物逐字节一致，见 generated-comparison.json。源码快照无提交身份，来源与每个文件哈希由 source-snapshot.json 记录；运行证据另含实际二进制、构建缓存和动态库身份。
+- U06d 的 Linux 门禁完成；未声明全量测试或跨平台验证。U06c 当前缺少 Clang，尚不能满足 GCC/Clang 对照，未修改 null 抑制；新式 ed/gateway、数据库与真实下游仍待后续独立门禁。继续其他不受阻塞的单元。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

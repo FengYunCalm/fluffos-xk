@@ -45,6 +45,49 @@ Bundled thirdparty library (no need to install):
 6. utf8_decoder_dfa: fast utf8 validation.
 7. widecharwidth: wcwidth with unicode 11
 
+## Generated sources
+
+CMake generates parser files in the build directory when Bison 3.8 or newer is
+available. Without Bison, it compiles the checked-in fallbacks for both
+`src/compiler/internal/grammar.y` and `src/tools/make_func.y`.
+
+Use `tools/build/regenerate_grammar.py` as the single entry point for updating
+those fallbacks. It requires **GNU Bison 3.8.2** and fixes the arguments and
+relative paths so output does not depend on the checkout location.
+
+From the repository root:
+
+```sh
+python3 -B tools/build/regenerate_grammar.py --check
+python3 -B tools/build/test_regenerate_grammar.py
+# After changing either grammar, regenerate the three checked-in outputs:
+python3 -B tools/build/regenerate_grammar.py --write
+```
+
+Both modes create and remove temporary files. `--check` leaves tracked sources
+unchanged and returns nonzero on drift. `--write` updates only the three fallback
+files after both generators succeed. Do not copy generated files from a build
+folder back into the source tree.
+
+The incremental dependency regression creates a private source snapshot and
+builds only `autogen`. It changes and restores inputs in that snapshot, not the
+working tree. It requires Linux and a Python interpreter with pidfd support, as
+it uses the [targeted runner's process supervision](../tools/testsuite/README.md).
+The evidence directory must not already exist. Dependency paths can be passed
+with repeated `--cmake-arg=-D<name>=<value>` arguments.
+
+```sh
+df -h /
+free -h
+python3 -B tools/build/test_generated_dependencies.py \
+  --evidence-dir "$(mktemp -d)/incremental"
+```
+
+To test the actual fallback compiler, configure a separate build directory with
+`-DCMAKE_DISABLE_FIND_PACKAGE_BISON=TRUE`. Run the same compiler tests against
+that driver and a Bison-enabled build; successful configuration alone is not
+semantic validation.
+
 ## Ubuntu LTS
 
 This is the best linux distro to build & run FluffOS, support for other distro is best effort only.
