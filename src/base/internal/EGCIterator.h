@@ -67,23 +67,10 @@ class BreakIteratorPool {
   }
 };
 
-// Wrapper class to create a icu EGC iterator for given string.
-// can access underlying icu::BreakIterator
-//
-// Pure-ASCII fast path
-// -------------------
-// Driving ICU's rule-based break iterator costs on the order of 50 machine
-// instructions per grapheme cluster, plus a utext_openUTF8()/setText() setup
-// per string. In a mudlib the overwhelming majority of strings are pure
-// ASCII, and for those the answer is trivial: every byte is exactly one
-// grapheme cluster, so EGC index == byte offset and the cluster count is just
-// the byte length.
-//
-// So reset() first scans for a byte with the high bit set. When there is
-// none the string is flagged ASCII, ICU is NOT set up at all, and
-// EGCSmartIterator answers every query arithmetically. ICU is still wired up
-// lazily -- by ensure_icu(), via operator->() -- so code that reaches for the
-// underlying icu::BreakIterator keeps working unchanged on any string.
+// Grapheme iterator with a byte-offset path for CR-free ASCII ranges.
+// New buffers are classified once; subranges retain the previous ASCII/ICU
+// path. ICU text is rebound on reset, even when classification is reused.
+// operator->() also initializes ICU lazily for ASCII ranges.
 class EGCIterator {
  private:
   bool ok_ = false;
@@ -110,12 +97,9 @@ class EGCIterator {
   // CR x LF into ONE grapheme cluster, so "\r\n" is 2 bytes but 1 cluster and
   // the byte-offset==index identity breaks. CR is the only ASCII byte that can
   // join with a following character this way -- pinned exhaustively over all
-  // 128x128 ASCII pairs by EGCAsciiFastPath.CrLfIsTheOnlyAsciiJoin. Excluding
+  // 128x128 ASCII pairs by EgcResetTest.AsciiPairsMatchIcu. Excluding
   // every CR (rather than just CR immediately before LF) keeps this a single
   // flat scan; a lone CR merely falls back to ICU, which is still correct.
-  //
-  // Auto-vectorizes to a few bytes per cycle, against ICU's ~50 instructions
-  // per cluster.
   static bool all_ascii(const char* src, int32_t slen) {
     // Only -1 is the NUL-terminated convention; other negative lengths are
     // invalid and must not make the empty scan look like ASCII.
@@ -162,6 +146,7 @@ class EGCIterator {
 
  public:
   [[nodiscard]] bool ok() const { return ok_; }
+  // A false result may also describe an ASCII subrange retaining the ICU path.
   [[nodiscard]] bool is_ascii() const { return ascii_; }
   // The raw predicate, WITHOUT constructing an iterator. Constructing one
   // acquires an ICU break iterator from the pool, which builds 32 of them on
@@ -174,7 +159,8 @@ class EGCIterator {
   // range changes. Base construction intentionally dispatches to this base
   // implementation, before derived members exist.
   virtual void reset(const char* src, int32_t slen) {
-    const bool prev_ascii = ok_ && ascii_;
+    const bool prev_ok = ok_;
+    const bool prev_ascii = ascii_;
     const char* const prev_src = src_;
     const int32_t prev_len = len_;
 
@@ -186,16 +172,15 @@ class EGCIterator {
 
     if (slen < -1) return;
 
-    // A suffix or prefix of an already classified ASCII range is still
-    // ASCII. Compare as uintptr_t and check lengths first so this is safe on
-    // wasm32 as well as native builds.
-    if (prev_ascii && slen >= 0 && slen <= prev_len) {
+    // A known subrange can retain either path without rescanning its bytes.
+    // Compare integer addresses after checking lengths, not unrelated pointers.
+    if (prev_ok && slen >= 0 && slen <= prev_len) {
       const auto src_u = reinterpret_cast<uintptr_t>(src);
       const auto prev_u = reinterpret_cast<uintptr_t>(prev_src);
       if (src_u >= prev_u &&
           src_u - prev_u <= static_cast<uintptr_t>(prev_len) - static_cast<uintptr_t>(slen)) {
-        ascii_ = true;
-        ok_ = true;
+        ascii_ = prev_ascii;
+        ok_ = ascii_ || setup_icu();
         return;
       }
     }

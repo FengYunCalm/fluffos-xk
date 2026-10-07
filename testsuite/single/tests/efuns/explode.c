@@ -89,6 +89,30 @@ void do_tests() {
       ({"lh15970183750", "abcdefghigk", "werert"}),
       explode("lh15970183750║abcdefghigk║werert", "║"));
 
+  {
+    string *fields = ({ "中", "é", "👩‍💻", "\r\n", "", "tail" });
+    foreach (string delimiter in ({ "|", "分隔" })) {
+      string joined = implode(fields, delimiter);
+      ASSERT_EQ(fields, explode(joined, delimiter));
+      ASSERT_EQ(fields, explode_reversible(joined, delimiter));
+      ASSERT_EQ(joined, implode(explode_reversible(joined, delimiter), delimiter));
+    }
+    ASSERT_EQ(({ "é", "👩‍💻", "\r\n" }), explode("é👩‍💻\r\n", ""));
+    ASSERT_EQ(({ "中", "plain" }), explode("中|plain", "|"));
+    ASSERT_EQ(({ "\r\n", "plain" }), explode("\r\n|plain", "|"));
+  }
+
+  {
+    int n = 2000;
+    string joined = repeat_string("中|", n) + "tail";
+    string *parts = explode(joined, "|");
+    ASSERT_EQ(n + 1, sizeof(parts));
+    ASSERT_EQ("中", parts[0]);
+    ASSERT_EQ("中", parts[n - 1]);
+    ASSERT_EQ("tail", parts[n]);
+    ASSERT_EQ(joined, implode(parts, "|"));
+  }
+
   // Many ASCII tokens exercise the iterator subrange fast path without
   // exceeding the configured array limit.
   {

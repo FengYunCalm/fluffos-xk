@@ -5,7 +5,7 @@ if(${GTEST_FOUND})
   include(GoogleTest)
   enable_testing()
 
-  add_executable(lpc_tests test_lpc.cc)
+  add_executable(lpc_tests test_lpc.cc test_egc.cc)
   target_link_libraries(lpc_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest  GTest::Main)
   target_compile_definitions(lpc_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
 
@@ -65,9 +65,12 @@ endif()
 
 add_executable(owner_runtime_bench owner_runtime_bench.cc)
 add_executable(bench_compile bench_compile.cc)
+add_executable(bench_explode bench_explode.cc)
 add_executable(bench_scratchpad bench_scratchpad.cc)
 target_link_libraries(owner_runtime_bench PRIVATE ${FLUFFOS_LINK})
 target_link_libraries(bench_compile PRIVATE ${FLUFFOS_LINK})
+target_link_libraries(bench_explode PRIVATE ${FLUFFOS_LINK})
+target_compile_definitions(bench_explode PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
 target_link_libraries(bench_scratchpad PRIVATE ${FLUFFOS_LINK})
 # T3.3: structured diagnostic rendering baseline.
 add_executable(bench_diagnostic_render bench_diagnostic_render.cc)

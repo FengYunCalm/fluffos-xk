@@ -790,6 +790,8 @@ ASan 测试显式设置 ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_err
 
 本轮启动的 driver/server/child 无论成功、失败、超时或中断都须收尾并核实际退出；保留失败日志，不自动删整个 evidence/sandbox。资源回收与删除证据是两种权限，不能混为一谈。
 
+正式验收的原始日志、源码身份、依赖和冻结二进制使用持久本地目录；`/tmp` 不能是唯一副本。证据缺失时保留历史执行结论与缺失事实，不能补造原始记录；用可追溯基线重新验证后再签收。U17 须核实历史证据的可读性，并在持久目录保留当前集成版本的验证。
+
 fuzz 必须区分真实目标与 smoke：
 
 | 入口 | 已有构建条件/合同 | 验收边界 |
@@ -1005,6 +1007,25 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 持久回归 tools/build/test_generated_dependencies.py 使用独立源码快照、输入哈希与既有进程树监督器；首轮证据 /tmp/fluffos-xk-u06d-acf0980d-incremental 为 7/7。随后扩充条件 spec 夹具，要求四种 options 输入同时更新 options 和 efun 表；/tmp/fluffos-xk-u06d-acf0980d-fullspec-before 再现 5 项失败，fullspec-after 为 7/7。只修改快照并恢复，不改工作树或既有构建目录；运行矩阵的原快照已按全部文件哈希复核恢复。
 - 同一快照的 Bison/fallback × Debug/Release 四个独立目录均构建 driver、lpcc。四组分别通过 positive_compilation、private_inherit_alias_chain、include_paths、modernization_compat 共四个 LPC 入口及 global include 9/9；没有跳过。每种构建类型的七个 options/spec/efun/applies 产物逐字节一致，见 generated-comparison.json。源码快照无提交身份，来源与每个文件哈希由 source-snapshot.json 记录；运行证据另含实际二进制、构建缓存和动态库身份。
 - U06d 的 Linux 门禁完成；未声明全量测试或跨平台验证。U06c 当前缺少 Clang，尚不能满足 GCC/Clang 对照，未修改 null 抑制；新式 ed/gateway、数据库与真实下游仍待后续独立门禁。继续其他不受阻塞的单元。
+
+### 11.14 U07：Unicode explode 分类扫描
+
+- `EGCIterator::reset()` 对有效、已知长度且地址范围包含的新区间保留原 ASCII/ICU 路径；ICU 路径每次重新绑定文本。跨 buffer、负长度和范围扩展仍重新分类，不做无关指针相减。未改 `explode` 的字段、分隔符或返回合同。
+- 首轮 `/tmp` 依赖与证据在恢复执行时已缺失，不再作为当前可复核的验收材料。新证据位于 `build-modernization-evidence/u07/`。基线由 `22f45747` 的 archive 加同一组测量夹具生成，保存在 `~/.cache/fluffos-xk/modernization/u07-22f45747/`；`source-identity.json` 记录 archive 和覆盖文件哈希，独立 Git 快照仅用于基线身份识别。候选测量二进制另存于 `candidate-binaries/`。
+- 持久反例 `native-before` 为 6 例中的 2 例失败：Unicode/CRLF 的 ASCII 后缀未保留 ICU 路径。`work-before` 进一步用真实 `explode_string()` 的 GCC 循环计数确认二次增长；不是用公式替代运行。格式调整后的 `work-after-final` 在六组输入中均只扫描一次完整输入，所有 token 逐字节一致。
+
+| 输入 | token 数 | 分类扫描字节：前 → 后 | 七组运行耗时中位数：前 → 后（ms） |
+|---|---:|---:|---:|
+| ASCII | 1,000 | 1,999 → 1,999 | 0.021183 → 0.022143 |
+| ASCII | 10,000 | 19,999 → 19,999 | 0.373003 → 0.406310 |
+| ASCII | 50,000 | 99,999 → 99,999 | 1.499692 → 1.531024 |
+| Unicode | 1,000 | 2,001,000 → 3,999 | 0.117094 → 0.082378 |
+| Unicode | 10,000 | 200,010,000 → 39,999 | 3.515969 → 1.048238 |
+| Unicode | 50,000 | 5,000,050,000 → 199,999 | 66.239948 → 4.982207 |
+
+- 耗时取七组交错 A/B，每个进程预热一次后测五次，再比较各组中位数；原始样本和配对比值见 `paired-*/report.json`、`paired-summary.json`。两侧 Release 的工具链和项目选项一致，LTO 关闭、MARCH_NATIVE 开启。计数使用独立 Debug/GCC coverage，不将插桩时间当作 Release 性能。ASCII 的配对耗时中位比为 1.041/1.087/1.017；不宣称 ASCII 提速，也不将增幅解释为已证实的噪声。该成本保留给 U17 的混合负载验收。
+- Debug、ASan、UBSan 分别通过 10/10 原生测试和一个 `explode` LPC 入口，0 跳过。覆盖 Unicode、组合字符、emoji、CRLF、空字段、多字节分隔符、跨 buffer、负长度、子区间边界、SmartIterator 缓存重置和并发读取。ASan 显式开启 leak 检查并失败即退出，最终 sanitizer 记录为 `native-*-final`、`lpc-*-final`。
+- 新测量工具与运行方法见 `tools/perf/README.md`。新增 C++ 文件用固定 clang-format 18.1.8 和规范中的配置校验；未提前改变全仓 formatter 配置。U07 的分类工作量与兼容门禁完成，不代表全引擎或真实 mudlib 已提速；Windows、混合负载和下游验收仍归 U15/U17。
 
 ## 附录 A：生产源码差异逐文件索引
 

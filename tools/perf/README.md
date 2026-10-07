@@ -1,4 +1,4 @@
-# 编译基准与证据校验
+# 性能基准与证据校验
 
 `src/tests/bench_compile.cc` 用真实 `compile_file()` 编译固定语料。它不测量 loader、
 inherit/retry 或 mudlib 启动的端到端耗时。语料生成器为 `gen_compile_corpus.py`；
@@ -72,3 +72,49 @@ RSS 包含 VM 初始化与记录存储，不等于编译器独占内存或 arena
 失败编译后的恢复、非法轮数、输出打开/写入失败、stdout 失败及三类文件别名。
 `--evidence-root` 必须尚不存在，测试保留原始日志和输入，不自动清理。
 `/dev/full` 测试需要相应设备；跳过项不能作为已覆盖的失败路径。
+
+## explode 分类扫描与耗时
+
+`src/tests/bench_explode.cc` 调用真实 `explode_string()`，不复制其实现。分别使用 ASCII
+`x` 和 Unicode `中`，以 `|` 连接 1k、10k、50k 个 token。每次调用都核对数组长度和
+每个 token 的字节。只在私有进程内调整数组上限，不改变 driver 配置合同。
+
+`measure_explode.py` 复用定向 runner 的隔离输入、进程回收和身份记录。基线与候选须从
+各自源码树调用同版本脚本，使用相同工具链、依赖和构建选项。证据目录必须尚不存在；
+正式证据使用持久目录，不将 `/tmp` 作为唯一副本。
+
+```bash
+cmake --build build-explode-release --target bench_explode --parallel 4
+/usr/bin/python3 -B tools/perf/measure_explode.py \
+  --binary build-explode-release/src/tests/bench_explode \
+  --evidence-dir build-explode-evidence/time-001
+```
+
+Release 目录须事先配置。每个进程预热一次，随后记录五次顺序调用的耗时；计时包含
+结果分配，不包含结果核验和释放。`report.json` 保留六组原始样本、输入字节数及核验结果。
+少量样本不证明游戏端到端性能或尾延迟；前后交错运行多组，单列 ASCII 与 Unicode 的变化。
+
+分类工作量使用独立 GCC 构建，不给生产代码增加计数器。配置时补充本机依赖路径：
+
+```bash
+mkdir -p build-explode-profile-tmp
+export TMPDIR="$PWD/build-explode-profile-tmp"
+cmake -S . -B build-explode-coverage \
+  -DCMAKE_BUILD_TYPE=Debug -DENABLE_LTO=OFF -DMARCH_NATIVE=OFF \
+  '-DCMAKE_CXX_FLAGS=--coverage -fprofile-dir=%q{TMPDIR}/gcov' \
+  '-DCMAKE_EXE_LINKER_FLAGS=--coverage -Wl,--undefined=__gcov_reset'
+cmake --build build-explode-coverage --target bench_explode --parallel 4
+/usr/bin/python3 -B tools/perf/measure_explode.py \
+  --binary build-explode-coverage/src/tests/bench_explode \
+  --coverage-build build-explode-coverage \
+  --evidence-dir build-explode-evidence/work-001
+```
+
+运行时的 `TMPDIR` 由 runner 指向每例私有目录；不放宽环境白名单。GCC 在该目录写
+profile，脚本保留原始 `.gcda`、对应 `.gcno` 和 gcov JSON。链接参数强制引入静态
+libgcov 中的重置函数，否则弱引用不能保证函数被链接。该方式已用 GCC/gcov 13.3 验证。
+
+计数模式在预热后重置覆盖计数，仅测一次；汇总各编译单元中 `all_ascii()` 的逐字节
+循环计数，写入 `scanned_bytes`。缺失计数、进程失败或结果不符均拒绝签收；计数模式的
+耗时不用于 Release 性能比较。此方法依赖当前分类循环的源码和 GCC profile 格式；
+修改扫描实现或工具链时须重新核验计数含义。
