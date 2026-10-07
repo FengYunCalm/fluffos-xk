@@ -35,12 +35,17 @@ void symbol_start(const char *filename) {
   }
 
   out = fopen(symbolfile.c_str(), "w");
+  if (!out) {
+    perror(symbolfile.c_str());
+  }
 }
 
 void symbol_end() {
   if (!enable) return;
   if (out == nullptr) return;
-  fclose(out);
+  if (fclose(out) != 0) {
+    perror("symbol: failed to close output");
+  }
   out = nullptr;
 }
 
@@ -48,5 +53,8 @@ void symbol_record(int op, const char *file, int line, const char *detail) {
   if (!enable) return;
   if (out == nullptr) return;
 
-  fprintf(out, "%d %s %d %s\n", op, file, line, detail);
+  if (fprintf(out, "%d %s %d %s\n", op, file, line, detail) < 0) {
+    perror("symbol: failed to write output");
+    symbol_end();
+  }
 }

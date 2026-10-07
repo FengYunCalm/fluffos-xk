@@ -7,6 +7,16 @@ int count_lines(string path) {
 }
 #endif
 
+#ifdef __PACKAGE_EXTERNAL__
+void external_read(int fd, string data) {}
+void external_write(int fd) {}
+void external_close(int fd) {}
+
+int launch_external() {
+  return external_start(3, ({}), "external_read", "external_write", "external_close");
+}
+#endif
+
 int move_file(string source, string destination) {
   return rename(source, destination);
 }

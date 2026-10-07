@@ -9,6 +9,7 @@
 
 #include "base/package_api.h"
 
+#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <limits>
@@ -557,7 +558,9 @@ static void restore_stat_list(const char *file, mudlib_stats_t **list) {
   }
   std::ifstream f(path);
   if (!f.is_open()) {
-    debug_message("*Warning: unable to open stat file %s for reading.\n", path.c_str());
+    if (errno != ENOENT) {
+      debug_message("*Warning: unable to open stat file %s for reading.\n", path.c_str());
+    }
     return;
   }
 
@@ -594,6 +597,9 @@ static void restore_stat_list(const char *file, mudlib_stats_t **list) {
     entry = add_stat_entry(name.c_str(), list);
     stat_store(&entry->moves, moves);
     stat_store(&entry->heart_beats, heart_beats);
+  }
+  if (f.bad()) {
+    debug_message("*Warning: unable to read stat file %s.\n", path.c_str());
   }
 }
 

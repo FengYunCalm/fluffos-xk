@@ -874,6 +874,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 最终 Debug、ASan、UBSan 各 80/80，0 跳过（含 U01a/b 的 49 项）；Debug 另有 7/7 存档/64 位偏移 C++ 回归。save_object、restore_object、read_file、read_bytes、rename、save_file_integrity 在三种构建各 6/6。真实大记录覆盖四种存档 flags；错误测试核对旧快照、变量状态、句柄关闭和临时文件清理。ASan 保持 detect_leaks=0，未宣称 LSan 全堆验证。
 - Windows 目标环境、新式 ed 包组合与真实下游验证仍在原 U06/U15/U17 门禁中。本单元完成默认 Linux 配置；U01d 尚未完成。
 
+### 11.6 U01d：spawn、stats、symbol 与 lpcc
+
+- 证据根：/tmp/fluffos-xk-modernization-96252a16-u01d-TkpsI69Y。原生首轮 13 项中 6 项失败、7 项通过；lpcc 首轮 10 项中 4 项失败。命中 symbol 三类静默输出失败、stats 缺文件误报/读错漏报、文件动作错误码被逻辑或压成 1，以及 lpcc 输入/输出失败仍返回 0。所有失败日志均保留。
+- POSIX 启动仍保留原 EESOCKET 和清理合同，仅在经典回调路径逐次保留 adddup2 的实际错误码；init/spawn 本来已正确，不重复改写。故障注入覆盖三个动作位置、不同的 errno 与返回码、action 销毁和 fd 回收，不真正启动故障子进程。既有 external C++ 四项回归 4/4，含真实子进程生命周期。
+- stats 将 ENOENT 视为没有旧数据，其他打开错误及实际读取错误仍报告；原有写入/关闭诊断和文本格式保留。symbol 报告打开/写入/关闭失败；写错后关闭当前输出，不重复写坏流，不改变记录格式或 void 接口。
+- lpcc 统一检查 C++/stdio 标准输出，批处理同时检查 std::cin 与 stdin 错误，保持 0/1 退出码、空输入成功及既有 PASS/FAIL/JSON 格式。首轮修复后仍有一项失败：同步 stdio 把目录读取错误呈现为 iostream EOF。独立探针确认 bad=0、eof=1、fail=1、ferror(stdin)=1，再修复缺失判据，没有把 EOF 一概当错误。
+- Debug、ASan、UBSan 原生各 95/95、0 跳过（含前序 80 项）；随后新增的 stats ELOOP 打开故障场景在 Debug 定向 1/1，验证非 ENOENT 不被吞掉，不冒充三种构建全组 96/96。lpcc 在三种构建各 12/12；Debug 经新增 CTest 入口 1/1 执行，证据为 /tmp/fluffos-targeted-e8faz206。ASan 仍为 detect_leaks=0；未声明 LSan 检查。
+- 新增 tools/testsuite/test-lpcc-io.py，复用监督器、隔离输入、源码/二进制身份和原始日志；启动器错误与被测退出码分开。没有填盘、改真实权限树或触碰既有 driver。U01a–d 的默认 Linux 路径已完成；新式 ed/包组合、Windows 与真实下游仍待 U06/U15/U17，不能据此声称 U01 全平台或总方案完成。继续 U02。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

@@ -45,6 +45,14 @@ title: mudlib / domain_stats
     When  called  with an argument, the returned mapping will have the form
     of info0.
 
+### PERSISTED STATISTICS
+
+    Missing domain_stats or author_stats files are treated as having no saved
+    statistics, without a startup warning. Other open and read errors are
+    reported in the driver log. Write and write-close errors are also reported.
+    The existing name/moves/heart_beats file format is unchanged. Restore keeps
+    valid entries preceding malformed input; it is not a transactional restore.
+
 ### SEE ALSO
 
     domain_file(4), author_file(4), set_author(3)

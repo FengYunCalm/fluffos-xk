@@ -12,22 +12,29 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <spawn.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <zlib.h>
 
+#include "base/internal/log.h"
 #include "interactive.h"
 #include "mainlib.h"
 #include "packages/core/ed.h"
 #include "packages/core/file.h"
+#include "packages/mudlib_stats/mudlib_stats.h"
+#include "symbol.h"
 #include "vm/internal/apply.h"
 #include "vm/internal/base/scoped_current_object_as_master.h"
 #include "vm/internal/simulate.h"
 #include "vm/vm.h"
 
+extern std::string symbol_dir;
+
 namespace {
 
+constexpr const char* kStatsPaths[] = {"log/domain_stats", "log/author_stats"};
 constexpr char kTestFile[] = "u01_file_io_failure.txt";
 constexpr char kInputFile[] = "u01_file_io_input.bin";
 constexpr const char* kSavePaths[] = {"u01_file_io_failure.txt.o",
@@ -58,7 +65,10 @@ enum class FaultPoint {
   kRename,
   kCrossDevice,
   kCrossDeviceCopyFailure,
-  kCrossDeviceUnlinkFailure
+  kCrossDeviceUnlinkFailure,
+  kSpawnInit,
+  kSpawnActions,
+  kSpawn
 };
 
 // Linker wrapping is enabled only for this test executable. Other streams and
@@ -75,11 +85,17 @@ struct FaultState {
   size_t write_limit = 0;
   int oversized_writes = 0;
   int skip_writes = 0;
+  int skip_actions = 0;
+  int action_creations = 0;
+  int action_releases = 0;
 };
 
 thread_local FaultState fault;
 
 bool fixture_path(const char* path) {
+  if (std::strncmp(path, "./", 2) == 0) {
+    path += 2;
+  }
   if (!fixture_root.empty() && std::strncmp(path, fixture_root.c_str(), fixture_root.size()) == 0 &&
       path[fixture_root.size()] == '/') {
     path += fixture_root.size() + 1;
@@ -88,6 +104,11 @@ bool fixture_path(const char* path) {
     return true;
   }
   for (const auto* name : kSavePaths) {
+    if (std::strcmp(path, name) == 0) {
+      return true;
+    }
+  }
+  for (const auto* name : kStatsPaths) {
     if (std::strcmp(path, name) == 0) {
       return true;
     }
@@ -143,6 +164,53 @@ size_t descriptor_count() {
 }  // namespace
 
 extern "C" {
+int __real_posix_spawn_file_actions_init(posix_spawn_file_actions_t*);
+int __real_posix_spawn_file_actions_destroy(posix_spawn_file_actions_t*);
+int __real_posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t*, int, int);
+int __real_posix_spawn(pid_t*, const char*, const posix_spawn_file_actions_t*,
+                       const posix_spawnattr_t*, char* const[], char* const[]);
+
+int __wrap_posix_spawn_file_actions_init(posix_spawn_file_actions_t* actions) {
+  if (fault.point == FaultPoint::kSpawnInit) {
+    ++fault.hits;
+    errno = EBADF;
+    return ENOMEM;
+  }
+  const int result = __real_posix_spawn_file_actions_init(actions);
+  if (result == 0) {
+    ++fault.action_creations;
+  }
+  return result;
+}
+
+int __wrap_posix_spawn_file_actions_destroy(posix_spawn_file_actions_t* actions) {
+  ++fault.action_releases;
+  return __real_posix_spawn_file_actions_destroy(actions);
+}
+
+int __wrap_posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t* actions, int from, int to) {
+  if (fault.point == FaultPoint::kSpawnActions) {
+    if (fault.skip_actions > 0) {
+      --fault.skip_actions;
+    } else {
+      ++fault.hits;
+      errno = EBADF;
+      return ENOMEM;
+    }
+  }
+  return __real_posix_spawn_file_actions_adddup2(actions, from, to);
+}
+
+int __wrap_posix_spawn(pid_t* pid, const char* path, const posix_spawn_file_actions_t* actions,
+                       const posix_spawnattr_t* attributes, char* const argv[], char* const env[]) {
+  if (fault.point == FaultPoint::kSpawn) {
+    ++fault.hits;
+    errno = EBADF;
+    return ENOMEM;
+  }
+  return __real_posix_spawn(pid, path, actions, attributes, argv, env);
+}
+
 int __real_open(const char*, int, ...);
 int __real_close(int);
 int __real_unlink(const char*);
@@ -508,6 +576,11 @@ class FileIoTest : public ::testing::Test {
         std::filesystem::remove(name);
       }
     }
+    if (owns_stats_) {
+      for (const auto* name : kStatsPaths) {
+        std::filesystem::remove(name);
+      }
+    }
     EXPECT_EQ(descriptor_count(), descriptors_before_);
     restore_context(&context_);
     clear_state();
@@ -521,6 +594,78 @@ class FileIoTest : public ::testing::Test {
     EXPECT_EQ(fault.opens, 1);
     EXPECT_EQ(fault.closes, 1);
   }
+
+  void check_symbol_output(FaultPoint point) {
+    const std::string previous_dir = symbol_dir;
+    symbol_dir = "./";
+    symbol_enable(1);
+    fault.point = point;
+    testing::internal::CaptureStderr();
+    symbol_start(kTestFile);
+    symbol_record(OP_SYMBOL_INC, "sample.lpc", 7, "detail");
+    symbol_end();
+    const auto output = testing::internal::GetCapturedStderr();
+    symbol_enable(0);
+    symbol_dir = previous_dir;
+    EXPECT_EQ(fault.opens, fault.closes);
+    if (point == FaultPoint::kNone) {
+      EXPECT_TRUE(output.empty());
+      std::ifstream input(kTestFile);
+      const std::string data{std::istreambuf_iterator<char>(input),
+                             std::istreambuf_iterator<char>()};
+      EXPECT_EQ(data, "1 sample.lpc 7 detail\n");
+    } else {
+      EXPECT_GE(fault.hits, 1);
+      EXPECT_FALSE(output.empty());
+    }
+  }
+
+#ifdef PACKAGE_MUDLIB_STATS
+  void prepare_stats() {
+    const auto* directory = CONFIG_STR(__LOG_DIR__);
+    ASSERT_NE(directory, nullptr);
+    ASSERT_TRUE(std::strcmp(directory, "log") == 0 || std::strcmp(directory, "/log") == 0);
+    for (const auto* name : kStatsPaths) {
+      ASSERT_FALSE(std::filesystem::exists(name) || std::filesystem::is_symlink(name));
+    }
+    owns_stats_ = true;
+  }
+
+  void check_stat_write_failure(FaultPoint point) {
+    ASSERT_NO_FATAL_FAILURE(prepare_stats());
+    fault.point = point;
+    testing::internal::CaptureStdout();
+    save_stat_files();
+    const auto output = testing::internal::GetCapturedStdout();
+    EXPECT_GE(fault.hits, 1);
+    EXPECT_EQ(fault.opens, fault.closes);
+    EXPECT_NE(output.find("stat file"), std::string::npos);
+  }
+#endif
+
+#ifdef PACKAGE_EXTERNAL
+  void check_spawn_failure(FaultPoint point, int skip_actions = 0) {
+    ScopedCurrentObjectAsMaster current;
+    auto* object = load_file_state();
+    ASSERT_NE(object, nullptr);
+    const auto previous_level = debug_level;
+    debug_level_set("external_start");
+    fault = {};
+    fault.point = point;
+    fault.skip_actions = skip_actions;
+    testing::internal::CaptureStdout();
+    auto* result = safe_apply("launch_external", object, 0, ORIGIN_DRIVER);
+    const auto output = testing::internal::GetCapturedStdout();
+    debug_level = previous_level;
+    EXPECT_EQ(fault.hits, 1);
+    EXPECT_EQ(fault.action_creations, fault.action_releases);
+    EXPECT_NE(output.find(strerror(ENOMEM)), std::string::npos);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->type, T_NUMBER);
+    EXPECT_LT(result->u.number, 0);
+    vm_apply_return_clear();
+  }
+#endif
 
   void check_cross_device_move(FaultPoint point) {
     ScopedCurrentObjectAsMaster current;
@@ -902,6 +1047,7 @@ class FileIoTest : public ::testing::Test {
   bool owns_path_ = false;
   bool owns_input_ = false;
   bool owns_saves_ = false;
+  bool owns_stats_ = false;
 #ifdef OLD_ED
   interactive_t editor_ip_{};
   bool editor_attached_ = false;
@@ -1035,6 +1181,105 @@ TEST_F(FileIoTest, UncompressFileAdoptionFailureClosesDescriptors) {
 
 TEST_F(FileIoTest, UncompressGzipAdoptionFailureClosesDescriptors) {
   check_compression_failure(true, FaultPoint::kGzipAdopt);
+}
+#endif
+
+TEST_F(FileIoTest, SymbolOutputPreservesFormat) {
+  check_symbol_output(FaultPoint::kNone);
+}
+
+TEST_F(FileIoTest, SymbolOpenFailureIsReported) {
+  check_symbol_output(FaultPoint::kOpen);
+}
+
+TEST_F(FileIoTest, SymbolWriteFailureIsReported) {
+  check_symbol_output(FaultPoint::kWrite);
+}
+
+TEST_F(FileIoTest, SymbolCloseFailureIsReported) {
+  check_symbol_output(FaultPoint::kClose);
+}
+
+#ifdef PACKAGE_MUDLIB_STATS
+TEST_F(FileIoTest, MissingStatsFilesRemainQuiet) {
+  ASSERT_NO_FATAL_FAILURE(prepare_stats());
+  testing::internal::CaptureStdout();
+  restore_stat_files();
+  EXPECT_TRUE(testing::internal::GetCapturedStdout().empty());
+}
+
+TEST_F(FileIoTest, StatOpenReadFailureIsReported) {
+  ASSERT_NO_FATAL_FAILURE(prepare_stats());
+  std::filesystem::create_symlink("domain_stats", kStatsPaths[0]);
+  testing::internal::CaptureStdout();
+  restore_stat_files();
+  const auto output = testing::internal::GetCapturedStdout();
+  EXPECT_NE(output.find(kStatsPaths[0]), std::string::npos);
+  EXPECT_EQ(output.find(kStatsPaths[1]), std::string::npos);
+}
+
+TEST_F(FileIoTest, StatReadFailureIsReported) {
+  ASSERT_NO_FATAL_FAILURE(prepare_stats());
+  ASSERT_TRUE(std::filesystem::create_directory(kStatsPaths[0]));
+  std::ofstream empty(kStatsPaths[1]);
+  empty.close();
+  ASSERT_TRUE(empty);
+  testing::internal::CaptureStdout();
+  restore_stat_files();
+  const auto output = testing::internal::GetCapturedStdout();
+  EXPECT_NE(output.find(kStatsPaths[0]), std::string::npos);
+  EXPECT_EQ(output.find(kStatsPaths[1]), std::string::npos);
+}
+
+TEST_F(FileIoTest, StatOpenFailureIsReported) {
+  check_stat_write_failure(FaultPoint::kOpen);
+}
+
+TEST_F(FileIoTest, StatWriteFailureIsReported) {
+  check_stat_write_failure(FaultPoint::kWrite);
+}
+
+TEST_F(FileIoTest, StatCloseFailureIsReported) {
+  check_stat_write_failure(FaultPoint::kClose);
+}
+
+TEST_F(FileIoTest, StatsRoundTripPreservesFormat) {
+  ScopedCurrentObjectAsMaster current;
+  ASSERT_NO_FATAL_FAILURE(prepare_stats());
+  ASSERT_EQ(write_file(kStatsPaths[0], "u01_stats_entry 7 9\n", 1), 1);
+  ASSERT_EQ(write_file(kStatsPaths[1], "u01_stats_author 3 4\n", 1), 1);
+  testing::internal::CaptureStdout();
+  restore_stat_files();
+  save_stat_files();
+  EXPECT_TRUE(testing::internal::GetCapturedStdout().empty());
+  for (int i = 0; i < 2; ++i) {
+    std::ifstream input(kStatsPaths[i]);
+    const std::string data{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    EXPECT_NE(data.find(i == 0 ? "u01_stats_entry 7 9\n" : "u01_stats_author 3 4\n"),
+              std::string::npos);
+  }
+}
+#endif
+
+#ifdef PACKAGE_EXTERNAL
+TEST_F(FileIoTest, SpawnInitFailurePreservesErrorAndResources) {
+  check_spawn_failure(FaultPoint::kSpawnInit);
+}
+
+TEST_F(FileIoTest, SpawnActionsFailurePreservesErrorAndResources) {
+  check_spawn_failure(FaultPoint::kSpawnActions);
+}
+
+TEST_F(FileIoTest, SpawnSecondActionFailurePreservesResources) {
+  check_spawn_failure(FaultPoint::kSpawnActions, 1);
+}
+
+TEST_F(FileIoTest, SpawnThirdActionFailurePreservesResources) {
+  check_spawn_failure(FaultPoint::kSpawnActions, 2);
+}
+
+TEST_F(FileIoTest, SpawnFailurePreservesErrorAndResources) {
+  check_spawn_failure(FaultPoint::kSpawn);
 }
 #endif
 

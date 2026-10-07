@@ -17,6 +17,15 @@ the LPC Modern Runtime owner audit scanner.
 ./lpcc config_file lpc_file
 ```
 
+Batch mode compiles paths from arguments, or from stdin when no paths are given:
+
+批量模式从参数读取路径；未指定路径时，从标准输入逐行读取：
+
+```bash
+./lpcc --batch config_file first.lpc second.lpc
+./lpcc --batch config_file < file-list.txt
+```
+
 For LPC Modern Runtime migrations, run the owner audit scanner:
 
 迁移 LPC Modern Runtime 时，可以运行 owner 审计扫描：
@@ -75,6 +84,17 @@ strict owner policy in a mudlib.
 
 扫描器有意保守。应把发现项视为迁移工作项，并在 mudlib 启用 strict owner policy
 前用 runtime contract 测试确认行为。
+
+## Exit status / 退出码
+
+Exit status is 0 on success and 1 on usage, compilation, audit-input, batch-input,
+or stdout failure. Audit findings alone do not change the exit status. Empty batch
+input remains successful. A batch input error does not discard paths already read;
+they can still compile, but the final status is 1. Partial stdout is not success.
+
+正常完成返回 0。用法错误、编译失败、审计输入读取失败、批处理列表读取失败或标准输出失败
+返回 1。审计发现项本身不改变退出码。空批处理输入仍返回 0。批处理列表读错时，已经读入的
+路径仍会编译，但最终返回 1。部分输出不能当作成功结果。
 
 ## Example output / 示例输出
 

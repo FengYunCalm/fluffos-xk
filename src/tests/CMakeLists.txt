@@ -36,13 +36,19 @@ if(${GTEST_FOUND})
     target_compile_definitions(file_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
     foreach(symbol open close unlink rename fstat ftruncate fdopen gzdopen fopen fclose fread
-                   fwrite fprintf fputs fputc ferror gzopen gzread gzwrite gzprintf gzclose)
+                   fwrite fprintf fputs fputc ferror gzopen gzread gzwrite gzprintf gzclose
+                   posix_spawn posix_spawn_file_actions_init posix_spawn_file_actions_destroy
+                   posix_spawn_file_actions_adddup2)
       target_link_options(file_io_tests PRIVATE "-Wl,--wrap=${symbol}")
     endforeach()
     find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
     add_test(NAME file_io_tests
       COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/run-targeted.py"
         --binary $<TARGET_FILE:file_io_tests> --gtest-filter=FileIoTest.* --timeout 90
+    )
+    add_test(NAME lpcc_io_tests
+      COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/test-lpcc-io.py"
+        --lpcc $<TARGET_FILE:lpcc>
     )
   endif()
 endif()

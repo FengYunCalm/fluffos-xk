@@ -1117,13 +1117,13 @@ int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2, sv
       evutil_make_socket_closeonexec(sv[1]) == -1) {
     return EESOCKET;
   }
-  ret = posix_spawn_file_actions_adddup2(&file_actions, sv[1], 0) ||
-        posix_spawn_file_actions_adddup2(&file_actions, sv[1], 1) ||
-        posix_spawn_file_actions_adddup2(&file_actions, sv[1], 2);
-  if (ret != 0) {
-    debug(external_start, "external_start: posix_spawn_file_actions_adddup2() error: %s\n",
-          strerror(ret));
-    return EESOCKET;
+  for (int target = 0; target < 3; ++target) {
+    ret = posix_spawn_file_actions_adddup2(&file_actions, sv[1], target);
+    if (ret != 0) {
+      debug(external_start, "external_start: posix_spawn_file_actions_adddup2() error: %s\n",
+            strerror(ret));
+      return EESOCKET;
+    }
   }
 
   int fd = find_new_socket();

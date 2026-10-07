@@ -127,13 +127,18 @@ static int lpcc_main(int argc, char** argv) {
     // once above) instead of paying a fresh boot per file. Reads
     // newline-separated paths from stdin when no files are given.
     std::vector<std::string> files(batch_files.begin(), batch_files.end());
+    int failed = 0;
     if (files.empty()) {
       std::string line;
       while (std::getline(std::cin, line)) {
         if (!line.empty()) files.push_back(line);
       }
+      // Synchronized stdio can report a read error as iostream EOF.
+      if (std::cin.bad() || ferror(stdin)) {
+        fprintf(stderr, "lpcc: failed to read the batch file list.\n");
+        ++failed;
+      }
     }
-    int failed = 0;
     for (const auto& f : files) {
       printf("===== %s =====\n", f.c_str());
       fflush(stdout);
@@ -209,7 +214,14 @@ int main(int argc, char** argv) {
   // error() unwind escaping the guarded compile) -- that would be
   // std::terminate/abort instead of a clean CLI failure.
   try {
-    return lpcc_main(argc, argv);
+    const int result = lpcc_main(argc, argv);
+    std::cout.flush();
+    const int flush_result = fflush(stdout);
+    if (!std::cout || flush_result != 0 || ferror(stdout)) {
+      fprintf(stderr, "lpcc: failed to write standard output.\n");
+      return 1;
+    }
+    return result;
   } catch (const std::exception& e) {
     fprintf(stderr, "lpcc: fatal: %s\n", e.what());
     return 1;

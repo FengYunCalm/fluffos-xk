@@ -31,11 +31,24 @@ CTest 模式只记录调度合同；需要精确断言覆盖时使用 `--binary`
 
 ## 文件 I/O 故障注入
 
-Linux 的 `file_io_tests` 在测试可执行文件链接时包装 stdio/zlib 调用，只作用于夹具文件；
+Linux 的 `file_io_tests` 在测试可执行文件链接时包装 stdio/zlib 与 POSIX 启动调用。
+文件故障只作用于夹具路径；进程故障只在专用场景激活，并在子进程启动前返回错误。
 生产 driver 不含注入开关。测试还用私有符号链接访问 `/dev/full`，不填满磁盘。
 夹具要求隔离 mudlib，CTest 通过本 runner 执行，不直接把每个 GTest 注册到源码目录。
 配置需要 Python 3.9 或更新版本；若默认解释器缺少上述 pidfd 能力，用
 `-DPython3_EXECUTABLE=/absolute/path/to/python3` 显式选择具备能力的解释器。
+
+## lpcc I/O 验证
+
+```bash
+python3 -B tools/testsuite/test-lpcc-io.py --lpcc build-dev-debug/bin/lpcc
+```
+
+该工具复用上述监督器与输入身份记录，在隔离 mudlib 中验证三种输出模式、批处理 stdin、
+正常 EOF、读取错误和 `/dev/full` 写入失败。重定向由独立启动器设置，随后直接 exec lpcc；
+不改变被测程序，也不启动真实游戏服务。启动器失败用独立退出码区分，原始输出保存在日志。
+`test-summary.json` 核对发现数、执行数和零跳过；每个场景保留实际进程记录。
+满足 Linux 测试配置时，CTest 的 `lpcc_io_tests` 调用同一入口。
 
 ## LPC 用例与异步完成
 
