@@ -11,6 +11,8 @@
 /single/tests/efuns/b3_bp	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/badshad	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/badshad2	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/compress_file	runtime	compress	Requires PACKAGE_COMPRESS.
+/single/tests/efuns/compress_file_integrity	runtime	compress	Requires PACKAGE_COMPRESS.
 /single/tests/efuns/db	runtime	db,sqlite	Requires PACKAGE_DB and USE_SQLITE3.
 /single/tests/efuns/dumpallobj	coverage_gap	-	Calls have no observable-result assertions; U11 must add real checks.
 /single/tests/efuns/ed	runtime	modern_ed	Requires the non-OLD_ED editor implementation.
@@ -48,5 +50,6 @@
 /single/tests/efuns/telnet_msp_oob	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
 /single/tests/efuns/telnet_nop	coverage_gap	interactive	Packet output is unverified; U11 requires client-side assertions.
 /single/tests/efuns/trace_overflow_recovery	runtime	trace	Requires the trace_start efun.
+/single/tests/efuns/uncompress_zipbomb	runtime	compress	Requires PACKAGE_COMPRESS.
 /single/tests/efuns/unloaded	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/std/database	runtime	db,sqlite	Requires PACKAGE_DB and USE_SQLITE3.

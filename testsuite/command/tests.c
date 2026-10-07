@@ -24,13 +24,16 @@ private string case_key(string name) {
 }
 
 private void init_scopes() {
-  mapping capabilities = ([ "async": 0, "db": 0, "sqlite": 0, "modern_ed": 0,
+  mapping capabilities = ([ "async": 0, "compress": 0, "db": 0, "sqlite": 0, "modern_ed": 0,
                             "profile": 0, "sockets": 0, "trace": 0, "tls_reload": 0,
                             "interactive": !!this_player() && interactive(this_player()) ]);
   string contents = read_file("/etc/test-scopes.tsv");
 
 #ifdef __PACKAGE_ASYNC__
   capabilities["async"] = 1;
+#endif
+#ifdef __PACKAGE_COMPRESS__
+  capabilities["compress"] = 1;
 #endif
 #ifdef __PACKAGE_DB__
   capabilities["db"] = 1;

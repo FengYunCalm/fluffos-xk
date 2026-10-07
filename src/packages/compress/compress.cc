@@ -7,25 +7,173 @@
 
 #include "packages/core/file.h"
 
+#include <memory>
 #include <string>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include <zlib.h>
+
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 constexpr char kGzExtension[] = ".gz";
 constexpr size_t kGzExtensionLength = sizeof(kGzExtension) - 1;
 
 enum { COMPRESS_BUF_SIZE = 8096 };
 
+namespace {
+
+using FileStream = std::unique_ptr<FILE, decltype(&fclose)>;
+using GzipStream = std::unique_ptr<gzFile_s, decltype(&gzclose)>;
+
+int open_binary_file(const char* path, int flags) {
+#ifdef O_BINARY
+  flags |= O_BINARY;
+#endif
+  return open(path, flags, 0666);
+}
+
+int open_output_file(const char* path, int input_fd) {
+  const int output_fd = open_binary_file(path, O_WRONLY | O_CREAT);
+  if (output_fd < 0) {
+    return -1;
+  }
+  const auto fail = [output_fd]() {
+    const int saved_errno = errno;
+    close(output_fd);
+    errno = saved_errno;
+    return -1;
+  };
+
+  // Compare open handles before truncation; path comparisons miss aliases and races.
+#ifdef _WIN32
+  struct _stat64 input_stat{}, output_stat{};
+  if (_fstat64(input_fd, &input_stat) != 0 || _fstat64(output_fd, &output_stat) != 0) {
+    return fail();
+  }
+  const bool input_regular = (input_stat.st_mode & _S_IFMT) == _S_IFREG;
+  const bool output_regular = (output_stat.st_mode & _S_IFMT) == _S_IFREG;
+  if (input_regular && output_regular) {
+    BY_HANDLE_FILE_INFORMATION input_info{}, output_info{};
+    if (!GetFileInformationByHandle(reinterpret_cast<HANDLE>(_get_osfhandle(input_fd)),
+                                    &input_info) ||
+        !GetFileInformationByHandle(reinterpret_cast<HANDLE>(_get_osfhandle(output_fd)),
+                                    &output_info)) {
+      errno = EIO;
+      return fail();
+    }
+    if (input_info.dwVolumeSerialNumber == output_info.dwVolumeSerialNumber &&
+        input_info.nFileIndexHigh == output_info.nFileIndexHigh &&
+        input_info.nFileIndexLow == output_info.nFileIndexLow) {
+      errno = EINVAL;
+      return fail();
+    }
+  }
+  if (output_regular && _chsize_s(output_fd, 0) != 0) {
+    return fail();
+  }
+#else
+  struct stat input_stat{}, output_stat{};
+  if (fstat(input_fd, &input_stat) != 0 || fstat(output_fd, &output_stat) != 0) {
+    return fail();
+  }
+  if (input_stat.st_dev == output_stat.st_dev && input_stat.st_ino == output_stat.st_ino) {
+    errno = EINVAL;
+    return fail();
+  }
+  if (S_ISREG(output_stat.st_mode) && ftruncate(output_fd, 0) != 0) {
+    return fail();
+  }
+#endif
+  return output_fd;
+}
+
+bool compress_file_contents(const char* input, const char* output) {
+  const int input_fd = open_binary_file(input, O_RDONLY);
+  if (input_fd < 0) {
+    return false;
+  }
+  FileStream source(fdopen(input_fd, "rb"), &fclose);
+  if (!source) {
+    close(input_fd);
+    return false;
+  }
+  const int output_fd = open_output_file(output, input_fd);
+  if (output_fd < 0) {
+    return false;
+  }
+  GzipStream destination(gzdopen(output_fd, "wb"), &gzclose);
+  if (!destination) {
+    close(output_fd);
+    return false;
+  }
+
+  char buffer[4096];
+  bool wrote_all = true;
+  size_t count;
+  while ((count = fread(buffer, 1, sizeof(buffer), source.get())) != 0) {
+    if (gzwrite(destination.get(), buffer, static_cast<unsigned int>(count)) !=
+        static_cast<int>(count)) {
+      wrote_all = false;
+      break;
+    }
+  }
+  const bool read_all = !ferror(source.get());
+  const int source_close = fclose(source.release());
+  const int destination_close = gzclose(destination.release());
+  return read_all && wrote_all && source_close == 0 && destination_close == Z_OK &&
+         unlink(input) == 0;
+}
+
+bool uncompress_file_contents(const char* input, const char* output) {
+  const int input_fd = open_binary_file(input, O_RDONLY);
+  if (input_fd < 0) {
+    return false;
+  }
+  GzipStream source(gzdopen(input_fd, "rb"), &gzclose);
+  if (!source) {
+    close(input_fd);
+    return false;
+  }
+  const int output_fd = open_output_file(output, input_fd);
+  if (output_fd < 0) {
+    return false;
+  }
+  FileStream destination(fdopen(output_fd, "wb"), &fclose);
+  if (!destination) {
+    close(output_fd);
+    return false;
+  }
+
+  char buffer[4096];
+  bool wrote_all = true;
+  int count;
+  while ((count = gzread(source.get(), buffer, sizeof(buffer))) > 0) {
+    if (fwrite(buffer, 1, count, destination.get()) != static_cast<size_t>(count)) {
+      wrote_all = false;
+      break;
+    }
+  }
+  const bool output_ok = !ferror(destination.get());
+  const int source_close = gzclose(source.release());
+  const int destination_close = fclose(destination.release());
+  return count == 0 && wrote_all && output_ok && source_close == Z_OK && destination_close == 0 &&
+         unlink(input) == 0;
+}
+
+}  // namespace
+
 #ifdef F_COMPRESS_FILE
 void f_compress_file() {
-  int readb;
   int const num_arg = st_num_arg;
   const char *input_file;
   const char *real_input_file;
   const char *real_output_file;
-  gzFile out_file;
-  FILE *in_file;
-  char buf[4096];
 
   // Not a string?  Error!
   if ((sp - num_arg + 1)->type != T_STRING) {
@@ -71,45 +219,19 @@ void f_compress_file() {
     return;
   }
 
-  in_file = fopen(real_input_file, "rb");
-  if (!in_file) {
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  out_file = gzopen(output_path.c_str(), "wb");
-  if (!out_file) {
-    fclose(in_file);
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  do {
-    readb = fread(buf, 1, 4096, in_file);
-    gzwrite(out_file, buf, readb);
-  } while (readb == 4096);
-  fclose(in_file);
-  gzclose(out_file);
-
-  unlink(real_input_file);
-
+  const std::string source_path(real_input_file);
+  const bool succeeded = compress_file_contents(source_path.c_str(), output_path.c_str());
   pop_n_elems(num_arg);
-  push_number(1);
+  push_number(succeeded);
 }
 #endif
 
 #ifdef F_UNCOMPRESS_FILE
 void f_uncompress_file() {
-  int readb;
   int const num_arg = st_num_arg;
   const char *input_file;
   const char *real_input_file;
   const char *real_output_file;
-  FILE *out_file;
-  gzFile in_file;
-  char buf[4196];
 
   // Not a string?  Error!
   if ((sp - num_arg + 1)->type != T_STRING) {
@@ -157,32 +279,10 @@ void f_uncompress_file() {
     return;
   }
 
-  in_file = gzopen(real_input_file, "rb");
-  if (!in_file) {
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  out_file = fopen(output_path.c_str(), "wb");
-  if (!out_file) {
-    gzclose(in_file);
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  do {
-    readb = gzread(in_file, buf, 4096);
-    fwrite(buf, 1, readb, out_file);
-  } while (readb == 4096);
-  gzclose(in_file);
-  fclose(out_file);
-
-  unlink(real_input_file);
-
+  const std::string source_path(real_input_file);
+  const bool succeeded = uncompress_file_contents(source_path.c_str(), output_path.c_str());
   pop_n_elems(num_arg);
-  push_number(1);
+  push_number(succeeded);
 }
 #endif
 

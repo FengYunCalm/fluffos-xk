@@ -33,8 +33,10 @@ if(${GTEST_FOUND})
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(file_io_tests test_file_io.cc)
     target_link_libraries(file_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
-    target_compile_definitions(file_io_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
-    foreach(symbol fopen fclose fwrite fputs fputc ferror gzopen gzwrite gzclose)
+    target_compile_definitions(file_io_tests PRIVATE
+      -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
+    foreach(symbol open close unlink fstat ftruncate fdopen gzdopen fopen fclose fread fwrite
+                   fputs fputc ferror gzopen gzread gzwrite gzclose)
       target_link_options(file_io_tests PRIVATE "-Wl,--wrap=${symbol}")
     endforeach()
     find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)

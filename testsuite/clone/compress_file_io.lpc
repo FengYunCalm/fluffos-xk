@@ -1,0 +1,7 @@
+int compress_paths(string input, string output) {
+  return compress_file(input, output);
+}
+
+int uncompress_paths(string input, string output) {
+  return uncompress_file(input, output);
+}
