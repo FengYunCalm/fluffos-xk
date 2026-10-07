@@ -34,6 +34,10 @@ typedef struct pending_call_s {
   bool is_walltime;
   bool cleanup_called;
   VMOwnerCallbackCleanupRecord *cleanup_record;
+#ifdef DEBUGMALLOC_EXTENSIONS
+  pending_call_s* debug_previous;
+  pending_call_s* debug_next;
+#endif
 } pending_call_t;
 
 void call_out(pending_call_t *cop);

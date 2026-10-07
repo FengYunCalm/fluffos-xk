@@ -388,7 +388,7 @@ U00 出口：必需测试发现及完成非空且一致；原基线、反例和�
 
 ### U04：async 已覆盖修复的反例补齐
 
-范围：src/packages/async/async.cc、testsuite/single/tests/efuns/async.c 与新 async_nested_callbacks.lpc。
+范围：src/packages/async/async.cc、testsuite/single/tests/efuns/async.c 与新 async_nested_callbacks.lpc；实际反例命中的 owner/call_out 引用标记见下面的 U04a，不扩展为调度器重构。
 
 1. 确认 check_reqs 的 callback 外无 finished 锁，active_callbacks 的生命周期覆盖清理和 debug mark；所有异常路径也必须移除 active 记录。
 2. 补 callback 内再次提交 async、callback 内 check_memory、callback 抛错/销毁/重编译拒绝、shutdown 排空的测试。
@@ -396,6 +396,74 @@ U00 出口：必需测试发现及完成非空且一致；原基线、反例和�
 4. 旧实现若全部通过，不为“吸收提交”修改生产代码。若测试揭示差异，保留证据并限定到具体清理/锁路径。
 
 验收：嵌套回调有确定完成标志和有界等待，active/queued/引用计数回到基线；TSan + Debug memory check。DB 缺环境时只将对应子项标外部待验。
+
+#### U04a：实施中发现的回调引用标记缺口
+
+证据目录：`/tmp/fluffos-xk-modernization-700f24e3-u04-ig3GsaUr`。
+
+- 已证实：`debug-lpc` 在 async 回调内报告 object/program 各少标记 1 个引用。owner 任务持有 target 引用，主线程 callback adapter 的 `OwnerProgramPin` 持有 program 引用；原标记只访问 frozen payload，未登记这两个持有者。
+- 首次修正后：`debug-native` 的两个嵌套/抛错后继续排空场景通过，引用与栈恢复基线；`debug-lpc-after` 已走完四次 async 回调，但在收尾 call_out 内失败。call_out 在执行前脱离 handle map，原标记和分配统计仅遍历 handle map，因此漏掉仍活跃的 call_out 和 function pointer。不能把这一轮记为 U04 通过。
+
+后续执行及验收：
+
+1. owner target 的诊断登记跟随实际 retain/release，覆盖 queued、执行中和延迟释放；program pin 用栈作用域登记。仅在 `DEBUGMALLOC_EXTENSIONS` 下启用，不修改引用持有、owner admission 或释放线程。
+2. 给已脱离 handle map 的 call_out 增加仅供诊断的无分配链表。节点在 detach 时加入，在实际释放前移除；标记同时遍历排队和脱离的节点，包含参数、function、对象、command_giver 和 owner_id。不得把正在执行的 call_out 重新放回可取消的 handle map。
+3. `total_callout_size()` 的内部检查口径纳入脱离但未释放节点；保留用户可见 handle 查询和排队统计语义。不从全堆扫描反推 root，不按测试对象名豁免引用错误。
+4. 重跑原 LPC 反例和两个原生场景，再补销毁、重编译拒绝、call_out 参数转移及取消路径。移除 `checkmemory.cc` 中 async/db 对象名豁免之前，必须用真实对应场景证明标记完整；没有数据库环境不伪称 DB 通过。
+5. Debug、ASan、TSan 定向验证全部通过后才签收 U04；失败日志原样保留。涉及主线程 target/program 保活和 call_out 内部诊断字段，不改变公开 API、存档、权限、回调时序或调度预算。最终只读复核已核对 detach→execute→cleanup 路径及 `total_callout_size()` 的内部用途；释放前撤销登记，参数移至 VM 栈后不重复标记。
+
+#### U04b：扩大回归中止后的只读根因与补救方案（已授权执行，结果见 §11.9）
+
+**补救前状态**：暂停 U04 源码修改，未提交或推送。当时 Debug 定向原生 4/4、LPC 4 个入口通过；扩大 owner 回归启动 36 项、35 项完成，第 36 项 `DriverTest.TestVmOwnerObjectMessageRejectsNonFrozenResult` 因本轮新增的 `Unregistered owner target reference` 检查中止。整个扩大回归失败，不能把前 35 项当作整组通过。日志为上述证据目录的 `debug-owner-regression/002-gtest-run.log`。
+
+**确认的根因**：本轮新增 `owner_target_debug_refs` 只在 `owner_object_target_add_ref()` 登记，错误地假定所有任务引用从这一入口取得。`submit_owner_message()` 实际调用 `vm_object_handle_acquire_status()`，在 object-store 锁内完成 resolve + add_ref，然后把已持有引用交给 task；释放却经过 `owner_object_target_free_ref()`，因此触发本轮的缺失登记检查。这是本轮修复引入的回归，不是原对象消息接口故障。另一个只读确认的遗漏是 `dispatch_owner_main_message()` 的局部 `VMObjectRefGuard`：它也取得独立引用，并跨越 LPC 调用，不能只登记任务本身。
+
+**排除与边界**：不得改成 acquire 后再调用 add_ref，这会多持有一次引用；不得把原子 acquire 拆为 resolve + add_ref；不得删除缺失登记检查或在找不到条目时静默跳过。队列转入 main adapter 只移交已有引用，worker 延迟释放也不产生新引用。此次枚举覆盖 owner.cc 的八处普通 target retain、对象消息 acquire、局部 acquire 和 mailbox→main 的移交。
+
+**选定实现**：撤掉本轮新建的哈希登记表，改用对象内的无分配诊断计数。这样不会为既有 admission/cleanup 新增哈希分配失败路径。只影响启用 `DEBUGMALLOC_EXTENSIONS` 的内部对象布局；字段放在 `object_t` 尾部，不改必须与 `lpc_object_t` 一致的前缀。`get_empty_object()` 已对完整 `sizeof(object_t)` 清零；对象分配、释放、memory_info 和 dumpstat 均使用 sizeof，不写死大小。此配置的内存统计会反映字段和对齐的真实额外字节，统计接口及格式不变；未启用该宏的布局不变。
+
+确认后严格执行：
+
+1. 保留当前差异及全部失败证据。仅在新证据子目录重跑上述单例，核对仍为同一登记缺口；不得先清空日志、重置分支或运行全套以覆盖失败。
+2. 在 `src/vm/internal/base/object.h` 尾部加入宏保护的 `unsigned int owner_runtime_refs`。在 `checkmemory.cc::check_all_blocks()` 的 `TAG_OBJECT` 初始化处，以该值初始化 `extra_ref`，而不是 0；仍由其余 root 标记累加真实 LPC/VM 引用。
+3. 删除本轮 `owner_target_debug_refs` 表及其遍历。`owner_object_target_add_ref()` 在实际 retain 时增加诊断计数；`owner_object_target_free_ref()` 在真实释放前检查计数非零并减一。不得改变真实 ref 的增减次数、主线程限制或释放队列。
+4. `submit_owner_message()` 在原子 acquire 成功且 object 非空后，只增加诊断计数，再移交 task；拒绝/null 不登记。mailbox→main 移交不再加计数；所有成功、拒绝、取消、stale 和延迟释放最终仍经现有释放入口减一次。
+5. 为 `dispatch_owner_main_message()` 的局部 `VMObjectRefGuard` 增加宏保护、无分配的诊断作用域：在 guard 已取得引用后加计数，在 guard 释放前减计数；正常返回和异常展开均执行。该作用域不增减真实 ref。保留已经通过原反例的 program pin 和 call_out 标记修复，不重写调度器、ObjectHandle 或通用 VMObjectRefGuard。
+6. 扩充 C++ 回归：保留原失败单例；增加通过 `vm_owner_enqueue_main_task_with_payload()`、task_type=`owner_message`、task_key 指向测试 lfun 的主线程分发场景。lfun 内调用 check_memory 并在成功后更新可查询计数，确保不是仅提交成功。断言实际调用一次、队列清空、真实 ref 和诊断计数回到基线。覆盖拒绝/null acquire 不增加计数、转入 main adapter 不重复计数，以及 worker 释放后由主线程清零。测试辅助函数只放现有 U04 LPC 文件或 C++ 测试，不增加公开 efun。
+7. 按下列顺序构建和验证。每个命令使用新的证据目录；先单例，再四个 U04 原生场景及 LPC 入口，再扩大 owner 回归。任一失败即保留日志、停止该单元，不能绕过或继续叠加修补。
+
+```sh
+(
+# 独立子 shell；任一失败立即退出，不影响调用者的 shell。
+# 构建前检查资源；同一时刻只构建一个目录。
+df -h / || exit $?
+free -h || exit $?
+cmake --build build-organize-debug --target driver lpc_tests --parallel 4 || exit $?
+# 每次运行由 mktemp 创建新目录，不覆盖前次证据。
+evidence=$(mktemp -d /tmp/fluffos-xk-u04-owner-recovery-XXXXXXXX) || exit $?
+/usr/bin/python3 -B tools/testsuite/run-targeted.py \
+  --binary build-organize-debug/src/tests/lpc_tests \
+  --gtest-filter='DriverTest.TestVmOwnerObjectMessageRejectsNonFrozenResult' \
+  --timeout 90 --evidence-dir "$evidence/single" || exit $?
+/usr/bin/python3 -B tools/testsuite/run-targeted.py \
+  --binary build-organize-debug/src/tests/lpc_tests \
+  --gtest-filter='DriverTest.TestAsync*:DriverTest.TestVmOwner*:*CallOut*:*Callout*' \
+  --timeout 240 --evidence-dir "$evidence/owner" || exit $?
+for name in async_nested_callbacks callout_memory_refs async async_promise; do
+  /usr/bin/python3 -B tools/testsuite/run-targeted.py \
+    --driver build-organize-debug/bin/driver \
+    --case "/single/tests/efuns/$name" --timeout 90 \
+    --evidence-dir "$evidence/$name" || exit $?
+done
+)
+```
+
+8. 必须逐个核对四份 summary 均存在且 status=passed，原生发现/执行/通过集合完全相同、无跳过。新增主线程消息测试名称需含 `TestVmOwner`，确保进入过滤器。
+9. Debug 全部通过后，核对已存在的 `/tmp/fluffos-xk-modernization-47ec0a9f-u01a-2zu1_9hk/legacy-asan` 与 `/tmp/fluffos-xk-modernization-12f1ceef-u03-ExKhTuUs/tsan`，先只读核对各自 CMakeCache 的源码目录及 compile_commands.json 的实际插桩参数，不依据第三方子项目的 ENABLE_SANITIZER 开关。此次只读核对确认两者均指向当前源码，owner.cc 分别带 -fsanitize=address 与 -fsanitize=thread。分别构建 driver/lpc_tests，ASan 并行 2、TSan 并行 4。TSan 的构建、发现和 runner 命令全部用 `setarch x86_64 -R` 包装；ASan 保留 detect_leaks=0，不能声称 LSan 通过。不得复用既有运行中 driver 的构建目录。
+10. 两种 sanitizer 重跑同一非空过滤器和四个独立 LPC 入口；核对引用、队列、栈和主线程 mutation probe。DB 仍缺真实隔离库，现存 db 名称豁免未移除，单列 U04/U11 外部待验，不把它算作已验证。
+11. 全部必需证据通过后复核完整 diff、代码规范、字段初始化、前缀布局、所有 retain/acquire/transfer/release 配对及无宏构建分支；更新本方案实施记录。未通过前不提交、不推送，不把 U04 标完成。确认前不执行本补救方案。
+
+最终只读复核：已确认原子 acquire 的锁与线程合同、main adapter 的移交而非 retain、局部 guard 的独立持有、完整对象清零和 sizeof 消费者。U04b 的一段 Shell 通过 bash -n，仅检查语法，没有执行其中的构建和测试命令；git diff --check 通过。新诊断计数不依赖分配、不修改真实引用、不放宽边界；复核时尚未实现或运行该补救方案；随后用户授权全部并要求连续执行，实施结果见 §11.9。
 
 ### U05：include 路径、长度和权限拼写
 
@@ -899,6 +967,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 最终 Debug、TSan、ASan 各 10/10，0 跳过，证据分别为 debug-drain、tsan-drain、asan-final。新增事件循环场景要求退出前已由主线程报告，不能靠析构代替；每种构建均包含真实 driver 的 LPC trace 与 JSON 解析。ASan detect_leaks=0，未声明 LSan；本单元未运行 UBSan 或 Windows。
 - 原 Debug 编译漏加 backend 的 tracing 头，补齐后构建通过；一次命令误指 bin/trace_io_probe，在启动前被拒绝，随后使用 src/tests/trace_io_probe。未将这两次操作计作生产反例。测试初始化真实 VM，不删除原有覆盖；工具说明归属 tools/testsuite/README.md。
 - U03 默认 Linux 门禁完成。平台矩阵与长期压力仍由 U15/U17 收口；U02b 策略未决不因此解除。继续独立 U04。
+
+### 11.9 U04：嵌套 async 与运行时引用标记
+
+- 证据根：/tmp/fluffos-xk-modernization-700f24e3-u04-ig3GsaUr。原 LPC 反例发现 owner target/program 与执行中 call_out 漏标；中间版哈希登记遗漏原子 acquire，扩大回归第 36 项中止。暂停后完成 U04b 只读补救方案，获授权后用 recovery-fail-first 单例再次复现；没有删除原证据或把部分通过算作整组通过。
+- 最终方案使用对象尾部的宏保护诊断计数，无哈希分配；覆盖普通 retain、原子 acquire、局部 acquired guard 和主线程延迟释放。program pin 用栈登记，脱离 handle map 的 call_out 用无分配链表；参数转到 VM 栈后不重复标记。保留真实引用次数、ObjectHandle 原子 admission、worker 边界、回调顺序和取消语义。
+- 新回归覆盖嵌套文件工作、回调抛错后继续排空、销毁后丢弃、执行中重编译拒绝、主线程消息内 check_memory、stale 消息清理、命名/functional call_out 参数及取消。native 使用 complete_all_asyncio 验证退出排空；LPC 使用完成屏障。async 的历史对象名检查豁免已移除；未重写原本正确的 async.cc 锁路径。
+- Debug、ASan、TSan 的 recovery-*-owner 各 80/80、0 跳过；每种构建的 async_nested_callbacks、callout_memory_refs、async、async_promise 四个入口均独立 1/1。TSan 的构建和执行均经 setarch；ASan detect_leaks=0，未声称 LSan 通过。Release（DEBUGMALLOC=OFF）两个目标构建通过，6/6 定向原生测试和两个新 LPC 入口通过，覆盖无诊断宏分支。
+- 仅启用 DEBUGMALLOC_EXTENSIONS 时增加内部诊断字段；object_t 与 lpc_object_t 的公共前缀未改，分配初始化及字节统计继续使用 sizeof。DB 的真实隔离库覆盖与旧 db 名称豁免仍交 U06/U11，不伪称通过；平台、长期压力、真实下游仍由 U15/U17 收口。U04 本地必需门禁完成，继续 U05。
 
 ## 附录 A：生产源码差异逐文件索引
 

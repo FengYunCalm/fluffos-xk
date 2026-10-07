@@ -513,7 +513,7 @@ void check_all_blocks(int flag) {
       switch (entry->tag) {
         case TAG_OBJECT:
           ob = NODET_TO_PTR(entry, object_t *);
-          ob->extra_ref = 0;
+          ob->extra_ref = ob->owner_runtime_refs;
           break;
         case TAG_PROGRAM:
           prog = NODET_TO_PTR(entry, program_t *);
@@ -930,9 +930,8 @@ void check_all_blocks(int flag) {
             break;
           case TAG_FUNP:
             fp = NODET_TO_PTR(entry, funptr_t *);
-            if (fp->hdr.owner && (strcmp(fp->hdr.owner->obname, "single/tests/efuns/async") == 0 ||
-                                  strcmp(fp->hdr.owner->obname, "single/tests/efuns/db") == 0)) {
-              // Async package mark doesn't work yet.
+            if (fp->hdr.owner && strcmp(fp->hdr.owner->obname, "single/tests/efuns/db") == 0) {
+              // Database callback coverage remains external-required in U04/U11.
               break;
             }
             if (fp->hdr.ref != fp->hdr.extra_ref) {

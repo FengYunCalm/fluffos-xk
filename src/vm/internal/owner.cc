@@ -74,9 +74,16 @@ class OwnerProgramPin {
     if (program_) {
       reference_prog(program_, reason);
     }
+#ifdef DEBUGMALLOC_EXTENSIONS
+    previous_ = active_;
+    active_ = this;
+#endif
   }
 
   ~OwnerProgramPin() {
+#ifdef DEBUGMALLOC_EXTENSIONS
+    active_ = previous_;
+#endif
     if (program_) {
       auto *program = program_;
       program_ = nullptr;
@@ -87,8 +94,23 @@ class OwnerProgramPin {
   OwnerProgramPin(const OwnerProgramPin &) = delete;
   OwnerProgramPin &operator=(const OwnerProgramPin &) = delete;
 
+#ifdef DEBUGMALLOC_EXTENSIONS
+  static void mark_debug_refs() {
+    for (auto* pin = active_; pin; pin = pin->previous_) {
+      if (pin->program_) {
+        pin->program_->extra_ref++;
+      }
+    }
+  }
+#endif
+
  private:
   program_t *program_{nullptr};
+#ifdef DEBUGMALLOC_EXTENSIONS
+  // Stack-scoped pins are used only by the main callback adapter.
+  inline static OwnerProgramPin* active_ = nullptr;
+  OwnerProgramPin* previous_ = nullptr;
+#endif
 };
 
 class OwnerControlledLpcScope {
@@ -311,10 +333,36 @@ bool &owner_thread_stopping = owner_thread_stopping_flag();
 bool &owner_main_draining = owner_main_draining_flag();
 std::vector<std::thread> &owner_threads = owner_threads_instance();
 
+#ifdef DEBUGMALLOC_EXTENSIONS
+// The acquired reference outlives this diagnostic-only scope on the main thread.
+class OwnerTargetDiagnosticScope {
+ public:
+  explicit OwnerTargetDiagnosticScope(object_t* object) : object_(object) {
+    if (object_) {
+      object_->owner_runtime_refs++;
+    }
+  }
+  ~OwnerTargetDiagnosticScope() {
+    if (object_) {
+      DEBUG_CHECK(!object_->owner_runtime_refs, "Unregistered owner target reference\n");
+      object_->owner_runtime_refs--;
+    }
+  }
+  OwnerTargetDiagnosticScope(const OwnerTargetDiagnosticScope&) = delete;
+  OwnerTargetDiagnosticScope& operator=(const OwnerTargetDiagnosticScope&) = delete;
+
+ private:
+  object_t* object_;
+};
+#endif
+
 void owner_object_target_add_ref(object_t *object, const char *reason) {
   if (!object) {
     return;
   }
+#ifdef DEBUGMALLOC_EXTENSIONS
+  object->owner_runtime_refs++;
+#endif
   vm_object_store_note_object_ref_mutation();
   add_ref(object, reason);
 }
@@ -323,6 +371,10 @@ void owner_object_target_free_ref(object_t **object, const char *reason) {
   if (!object || !*object) {
     return;
   }
+#ifdef DEBUGMALLOC_EXTENSIONS
+  DEBUG_CHECK(!(*object)->owner_runtime_refs, "Unregistered owner target reference\n");
+  (*object)->owner_runtime_refs--;
+#endif
   vm_object_store_note_object_ref_mutation();
   free_object(object, reason);
 }
@@ -2819,6 +2871,9 @@ void dispatch_owner_main_message(const OwnerMainTask &task) {
   // Acquire an owning reference: the object-store lock is released after
   // resolve, so the raw pointer must not be used without a reference.
   VMObjectRefGuard target_guard(vm_object_handle_acquire(task.target_handle));
+#ifdef DEBUGMALLOC_EXTENSIONS
+  OwnerTargetDiagnosticScope target_diagnostic_scope(target_guard.get());
+#endif
   auto *target = target_guard.get();
   if (!target || (target->flags & O_DESTRUCTED) ||
       !vm_owner_epoch_matches(target, task.owner_id.c_str(), task.owner_epoch)) {
@@ -5464,6 +5519,11 @@ mapping_t *submit_owner_message(const char *source_owner_id, const char *target_
       return map;
     }
     task.target = admission.object;
+#ifdef DEBUGMALLOC_EXTENSIONS
+    if (task.target) {
+      task.target->owner_runtime_refs++;
+    }
+#endif
   }
   auto target_task_id = task.task_id;
   auto target_status = target_handle ? vm_object_handle_resolve_status(*target_handle).status
@@ -6485,6 +6545,7 @@ mapping_t *vm_owner_runtime_status() {
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void vm_owner_mark_runtime_refs() {
+  OwnerProgramPin::mark_debug_refs();
   std::unordered_set<const VMFrozenValue *> seen;
   {
     std::lock_guard<std::mutex> lock(owner_runtime_mutex);

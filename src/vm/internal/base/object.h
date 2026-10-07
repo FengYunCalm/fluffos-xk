@@ -165,6 +165,9 @@ struct object_t {
   const char *vm_owner_id; /* owner-thread metadata */
   uint64_t vm_owner_epoch;
   ObjectVariableBlock variables; /* handle; payload allocated separately */
+#ifdef DEBUGMALLOC_EXTENSIONS
+  unsigned int owner_runtime_refs; /* Owner-held references outside the LPC graph. */
+#endif
 };
 
 typedef int (*get_objectsfn_t)(object_t *, void *);

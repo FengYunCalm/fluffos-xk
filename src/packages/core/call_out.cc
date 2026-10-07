@@ -43,6 +43,29 @@ static void free_called_call(pending_call_t * /*cop*/);
 void remove_all_call_out(object_t * /*obj*/);
 
 namespace {
+#ifdef DEBUGMALLOC_EXTENSIONS
+pending_call_t* detached_callout_roots = nullptr;
+
+void register_detached_callout(pending_call_t* cop) {
+  cop->debug_next = detached_callout_roots;
+  if (detached_callout_roots) {
+    detached_callout_roots->debug_previous = cop;
+  }
+  detached_callout_roots = cop;
+}
+
+void unregister_detached_callout(pending_call_t* cop) {
+  if (cop->debug_previous) {
+    cop->debug_previous->debug_next = cop->debug_next;
+  } else if (detached_callout_roots == cop) {
+    detached_callout_roots = cop->debug_next;
+  }
+  if (cop->debug_next) {
+    cop->debug_next->debug_previous = cop->debug_previous;
+  }
+}
+#endif
+
 // NOTE: For call_out(0) prevention.
 // This is the last gametick when a new call_out(0) is scheduled.
 int new_call_out_zero_last_gametick = 0;
@@ -97,6 +120,9 @@ void detach_due_callout_handle(pending_call_t *cop) {
   }
   int const found = g_callout_handle_map.erase(cop->handle);
   DEBUG_CHECK(!found, "BUG: Rogue callout, not found in map.\n");
+#ifdef DEBUGMALLOC_EXTENSIONS
+  register_detached_callout(cop);
+#endif
 }
 
 void release_callout_tick_event(pending_call_t *cop) {
@@ -141,6 +167,9 @@ void cleanup_callout(pending_call_t *cop, bool called, bool main_required) {
  * Free a call out structure.
  */
 static void free_called_call(pending_call_t *cop) {
+#ifdef DEBUGMALLOC_EXTENSIONS
+  unregister_detached_callout(cop);
+#endif
   if (cop->cleanup_record) {
     delete cop->cleanup_record;
     cop->cleanup_record = nullptr;
@@ -602,26 +631,43 @@ int print_call_out_usage(outbuffer_t *ob, int verbose) {
 }
 
 // only used in checkmemory
-int total_callout_size() { return g_callout_handle_map.size() * sizeof(pending_call_t); }
+int total_callout_size() {
+  auto count = g_callout_handle_map.size();
+#ifdef DEBUGMALLOC_EXTENSIONS
+  for (auto* cop = detached_callout_roots; cop; cop = cop->debug_next) {
+    count++;
+  }
+#endif
+  return count * sizeof(pending_call_t);
+}
 
 #ifdef DEBUGMALLOC_EXTENSIONS
+namespace {
+void mark_callout_refs(pending_call_t* cop) {
+  if (cop->vs) {
+    cop->vs->extra_ref++;
+  }
+  if (cop->ob) {
+    cop->ob->extra_ref++;
+    EXTRA_REF(BLOCK(cop->function.s))++;
+  } else {
+    cop->function.f->hdr.extra_ref++;
+  }
+  if (CONFIG_INT(__RC_THIS_PLAYER_IN_CALL_OUT__) && cop->command_giver) {
+    cop->command_giver->extra_ref++;
+  }
+  if (cop->owner_id) {
+    EXTRA_REF(BLOCK(cop->owner_id))++;
+  }
+}
+}  // namespace
+
 void mark_call_outs() {
-  for (auto &iter : g_callout_handle_map) {
-    auto *cop = iter.second;
-    if (cop->vs) {
-      cop->vs->extra_ref++;
-    }
-    if (cop->ob) {
-      cop->ob->extra_ref++;
-      EXTRA_REF(BLOCK(cop->function.s))++;
-    } else {
-      cop->function.f->hdr.extra_ref++;
-    }
-    if (CONFIG_INT(__RC_THIS_PLAYER_IN_CALL_OUT__)) {
-      if (cop->command_giver) {
-        cop->command_giver->extra_ref++;
-      }
-    }
+  for (const auto& entry : g_callout_handle_map) {
+    mark_callout_refs(entry.second);
+  }
+  for (auto* cop = detached_callout_roots; cop; cop = cop->debug_next) {
+    mark_callout_refs(cop);
   }
 }
 #endif

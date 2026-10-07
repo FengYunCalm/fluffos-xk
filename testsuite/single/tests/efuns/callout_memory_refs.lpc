@@ -1,0 +1,40 @@
+private int completion_token;
+private int completed;
+
+private void check_refs() {
+#if defined(__DEBUGMALLOC__) && defined(__DEBUGMALLOC_EXTENSIONS__)
+  ASSERT_EQ("Performing memory tests ...\n", check_memory(0));
+#endif
+}
+
+private void complete_callback() {
+  check_refs();
+  completed++;
+  if (completed == 2) {
+    "/command/tests"->complete_async(completion_token);
+  }
+}
+
+void named_callback(mapping value) {
+  ASSERT_EQ("named payload", value["value"]);
+  complete_callback();
+}
+
+void cancelled_callback() {
+  error("Cancelled call_out was executed\n");
+}
+
+void do_tests() {
+  int cancelled;
+
+  completion_token = "/command/tests"->begin_async();
+  vm_set_owner_id(this_object(), "owner/test/callout-memory-refs");
+  call_out("named_callback", 0, ([ "value": "named payload" ]));
+  call_out(function(string *value) {
+    ASSERT_EQ(({ "functional payload" }), value);
+    complete_callback();
+  }, 0, ({ "functional payload" }));
+  cancelled = call_out("cancelled_callback", 60);
+  ASSERT(remove_call_out(cancelled) >= 0);
+  check_refs();
+}

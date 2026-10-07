@@ -7,6 +7,7 @@
 /single/tests/efuns/add_light	coverage_gap	-	Empty or commented-out test; U11 must add coverage or retire the placeholder.
 /single/tests/efuns/async	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_db_exec_bound_args	runtime	async,db,sqlite	Requires asynchronous SQLite callbacks.
+/single/tests/efuns/async_nested_callbacks	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_promise	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/b3_bp	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/badshad	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.

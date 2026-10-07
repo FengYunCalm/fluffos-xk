@@ -1281,6 +1281,130 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsReplaceProgram) {
   destruct_object_for_test(replacement);
 }
 
+#ifdef PACKAGE_ASYNC
+namespace {
+void verify_async_callback_drain(const char* method, LPC_INT expected_callbacks) {
+  auto* object = load_object_for_test("single/tests/efuns/async_nested_callbacks");
+  ASSERT_NE(object, nullptr);
+  struct DrainGuard {
+    object_t* object;
+    ~DrainGuard() {
+      complete_all_asyncio();
+      destruct_object_for_test(object);
+    }
+  } guard{object};
+  const auto refs_before = object->ref;
+  auto* stack_before = sp;
+  ASSERT_NE(safe_apply(method, object, 0, ORIGIN_DRIVER), nullptr);
+  vm_apply_return_clear();
+
+  // This is the shutdown drain, not a single callback pass: callbacks enqueue
+  // more real file work, including after an earlier callback throws.
+  complete_all_asyncio();
+  EXPECT_EQ(sp, stack_before);
+  EXPECT_EQ(object->ref, refs_before);
+#ifdef DEBUGMALLOC_EXTENSIONS
+  EXPECT_EQ(object->owner_runtime_refs, 0u);
+#endif
+  EXPECT_EQ(vm_owner_main_queue_total_depth(), 0u);
+  auto* result = safe_apply("query_result", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_ARRAY);
+  ASSERT_EQ(result->u.arr->size, 3);
+  EXPECT_EQ(result->u.arr->item[0].u.number, expected_callbacks);
+  EXPECT_EQ(result->u.arr->item[1].u.number, 1);
+#if defined(DEBUGMALLOC) && defined(DEBUGMALLOC_EXTENSIONS)
+  EXPECT_EQ(result->u.arr->item[2].u.number, expected_callbacks);
+#endif
+  vm_apply_return_clear();
+  result = safe_apply("verify_cleanup", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_NUMBER);
+  EXPECT_EQ(result->u.number, 1);
+  vm_apply_return_clear();
+}
+}  // namespace
+
+TEST_F(DriverTest, TestVmOwnerMainMessageMarksAcquiredReference) {
+  auto* object = load_object_for_test("single/tests/efuns/async_nested_callbacks");
+  ASSERT_NE(object, nullptr);
+  struct CleanupGuard {
+    object_t* object;
+    ~CleanupGuard() {
+      vm_owner_drain_main_tasks(64);
+      destruct_object_for_test(object);
+    }
+  } guard{object};
+  const auto refs_before = object->ref;
+  const auto submit = [&] {
+    return vm_owner_enqueue_main_task_with_payload(
+        object, "owner_message", "verify_cleanup", nullptr, nullptr,
+        [] { ADD_FAILURE() << "Message must execute the target lfun"; });
+  };
+  ASSERT_GT(submit(), 0u);
+  EXPECT_EQ(object->ref, refs_before + 1);
+#ifdef DEBUGMALLOC_EXTENSIONS
+  EXPECT_EQ(object->owner_runtime_refs, 1u);
+#endif
+  vm_owner_drain_main_tasks(64);
+  EXPECT_EQ(object->ref, refs_before);
+#ifdef DEBUGMALLOC_EXTENSIONS
+  EXPECT_EQ(object->owner_runtime_refs, 0u);
+#endif
+  auto* result = safe_apply("query_cleanup_calls", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_NUMBER);
+  EXPECT_EQ(result->u.number, 1);
+  vm_apply_return_clear();
+
+  ASSERT_GT(submit(), 0u);
+  vm_owner_set_id(object, "owner/test/stale-main-message");
+  vm_owner_drain_main_tasks(64);
+  EXPECT_EQ(object->ref, refs_before);
+#ifdef DEBUGMALLOC_EXTENSIONS
+  EXPECT_EQ(object->owner_runtime_refs, 0u);
+#endif
+  EXPECT_EQ(vm_owner_main_queue_total_depth(), 0);
+  result = safe_apply("query_cleanup_calls", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->u.number, 1);
+  vm_apply_return_clear();
+}
+
+TEST_F(DriverTest, TestAsyncNestedCallbacksDrainAllRequests) {
+  verify_async_callback_drain("start_nested", 4);
+}
+
+TEST_F(DriverTest, TestAsyncThrowingCallbackStillDrainsNestedRequest) {
+  verify_async_callback_drain("start_throwing", 2);
+}
+
+TEST_F(DriverTest, TestAsyncCallbackRejectsRecompileWhileExecuting) {
+  struct RecompileConfigGuard {
+    int saved;
+    ~RecompileConfigGuard() { CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved; }
+  } config_guard{CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__)};
+  CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = 1;
+  verify_async_callback_drain("start_recompile", 1);
+}
+
+TEST_F(DriverTest, TestAsyncCallbackDropsDestructedOwnerAfterRealIo) {
+  PathCleanupGuard marker{"log/async-callback-marker"};
+  verify_async_callback_drain("start_marker", 1);
+  ASSERT_TRUE(std::filesystem::exists(marker.path));
+  ASSERT_EQ(std::remove(marker.path), 0);
+
+  auto* victim = clone_object_for_test("single/tests/efuns/async_nested_callbacks");
+  ASSERT_NE(victim, nullptr);
+  EXPECT_NE(safe_apply("start_marker", victim, 0, ORIGIN_DRIVER), nullptr);
+  vm_apply_return_clear();
+  destruct_object_for_test(victim);
+  complete_all_asyncio();
+  EXPECT_FALSE(std::filesystem::exists(marker.path));
+  EXPECT_EQ(vm_owner_main_queue_total_depth(), 0u);
+}
+#endif
+
 TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
   clear_tick_events();
   auto* object = load_object_for_test("single/tests/efuns/async_promise");

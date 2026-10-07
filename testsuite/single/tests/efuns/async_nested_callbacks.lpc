@@ -1,0 +1,121 @@
+#ifdef __PACKAGE_ASYNC__
+private int callbacks;
+private int finished;
+private int completion_token;
+private int memory_checks;
+private int cleanup_calls;
+private string path = "/log/async-nested-callbacks.txt";
+
+private void check_refs() {
+#if defined(__DEBUGMALLOC__) && defined(__DEBUGMALLOC_EXTENSIONS__)
+  ASSERT_EQ("Performing memory tests ...\n", check_memory(0));
+  memory_checks++;
+#endif
+}
+
+private void complete_case() {
+  check_refs();
+  ASSERT_EQ(4, callbacks);
+  ASSERT_EQ(1, finished);
+  "/command/tests"->complete_async(completion_token);
+}
+
+private void finish_chain() {
+  ASSERT_EQ(1, rm(path));
+  finished = 1;
+  if (completion_token) {
+    call_out((: complete_case :), 0);
+  }
+}
+
+// Native tests call this without a testsuite completion token, then drain all I/O.
+void start_nested() {
+  callbacks = finished = memory_checks = 0;
+  async_write(path, "nested payload\n", 1, function(mixed result) {
+    ASSERT_EQ(0, result);
+    check_refs();
+    callbacks++;
+    async_read(path, function(mixed contents) {
+      ASSERT_EQ("nested payload\n", contents);
+      check_refs();
+      callbacks++;
+      async_getdir("/log/", function(mixed entries) {
+        ASSERT(member_array("async-nested-callbacks.txt", entries) >= 0);
+        check_refs();
+        callbacks++;
+        async_read("/log/async-nested-missing/file", function(mixed failure) {
+          ASSERT_EQ(-1, failure);
+          check_refs();
+          callbacks++;
+          finish_chain();
+        });
+      });
+    });
+  });
+}
+
+// Only the native fixture calls this: the intentional uncaught callback error
+// must not be registered as an expected error for unrelated asynchronous work.
+void start_throwing() {
+  callbacks = finished = memory_checks = 0;
+  ASSERT_EQ(1, write_file(path, "nested payload\n", 1));
+  async_read(path, function(mixed contents) {
+    ASSERT_EQ("nested payload\n", contents);
+    check_refs();
+    callbacks++;
+    async_read(path, function(mixed nested) {
+      ASSERT_EQ("nested payload\n", nested);
+      check_refs();
+      callbacks++;
+      finish_chain();
+    });
+    error("U04 intentional callback failure\n");
+  });
+}
+
+void start_recompile() {
+  callbacks = finished = memory_checks = 0;
+  ASSERT_EQ(1, write_file(path, "nested payload\n", 1));
+  async_read(path, function(mixed contents) {
+    mixed failure;
+
+    ASSERT_EQ("nested payload\n", contents);
+    failure = catch(recompile_object(this_object()));
+    ASSERT(stringp(failure));
+    ASSERT(strsrch(failure, "target program is executing") >= 0);
+    check_refs();
+    callbacks++;
+    finish_chain();
+  });
+}
+
+void start_marker() {
+  callbacks = finished = memory_checks = 0;
+  async_read("/single/master.c", function(mixed contents) {
+    ASSERT(stringp(contents));
+    check_refs();
+    ASSERT_EQ(1, write_file("/log/async-callback-marker", "called", 1));
+    callbacks++;
+    finished = 1;
+  });
+}
+
+int *query_result() {
+  return ({ callbacks, finished, memory_checks });
+}
+
+int verify_cleanup() {
+  check_refs();
+  cleanup_calls++;
+  return 1;
+}
+
+int query_cleanup_calls() {
+  return cleanup_calls;
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+  start_nested();
+}
+#endif
