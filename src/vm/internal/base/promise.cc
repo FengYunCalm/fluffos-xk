@@ -1979,46 +1979,14 @@ void push_refed_promise(promise_t* p) {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-namespace {
-/* Promise ownership is a graph, not a tree: an awaited coroutine points back
- * to its result promise, while reactions point forward to chained promises.
- * The debug allocator must walk that graph without recursing forever. The
- * epoch is per mark root, so repeated roots still count each independent raw
- * reference while each graph node is traversed once per root. */
-thread_local bool g_marking_promise_graph = false;
-thread_local uint64_t g_promise_mark_epoch = 0;
-
-void mark_promise_graph(promise_t* p);
-}
-
 void mark_promise(promise_t* p) {
-  if (!p) {
-    return;
-  }
-  bool const root = !g_marking_promise_graph;
-  if (root) {
-    g_marking_promise_graph = true;
-    if (++g_promise_mark_epoch == 0) {
-      g_promise_mark_epoch = 1;
-    }
-  }
-  mark_promise_graph(p);
-  if (root) {
-    g_marking_promise_graph = false;
+  if (p) {
+    p->extra_ref++;
   }
 }
 
-namespace {
-void mark_promise_graph(promise_t* p) {
-  if (!p) {
-    return;
-  }
-  p->extra_ref++;
-  if (p->debug_mark_epoch == g_promise_mark_epoch) {
-    return;
-  }
-  p->debug_mark_epoch = g_promise_mark_epoch;
-
+// The allocator scans each promise once, independently of its incoming references.
+void mark_promise_contents(promise_t* p) {
   mark_svalue(&p->result);
   if (p->reject_origin != nullptr) {
     MSTR_EXTRA_REF(p->reject_origin)++;
@@ -2034,7 +2002,7 @@ void mark_promise_graph(promise_t* p) {
       r.on_rejected->hdr.extra_ref++;
     }
     if (r.next) {
-      mark_promise_graph(r.next);
+      mark_promise(r.next);
     }
     if (r.command_giver) {
       r.command_giver->extra_ref++;
@@ -2044,17 +2012,12 @@ void mark_promise_graph(promise_t* p) {
     }
   }
 }
-}
 
 void mark_coroutine(lpc_coroutine_t* coro) {
   if (!coro) {
     return;
   }
-  if (g_marking_promise_graph) {
-    mark_promise_graph(coro->result_promise);
-  } else {
-    mark_promise(coro->result_promise);
-  }
+  mark_promise(coro->result_promise);
   coro->ob->extra_ref++;
   if (coro->prev_ob) {
     coro->prev_ob->extra_ref++;
@@ -2081,13 +2044,6 @@ void mark_coroutine(lpc_coroutine_t* coro) {
 }
 
 void mark_promise_queue() {
-  bool const root = !g_marking_promise_graph;
-  if (root) {
-    g_marking_promise_graph = true;
-    if (++g_promise_mark_epoch == 0) {
-      g_promise_mark_epoch = 1;
-    }
-  }
   auto mark_one = [](auto& qr) {
     if (qr.on_fulfilled) {
       qr.on_fulfilled->hdr.extra_ref++;
@@ -2096,7 +2052,7 @@ void mark_promise_queue() {
       qr.on_rejected->hdr.extra_ref++;
     }
     if (qr.next) {
-      mark_promise_graph(qr.next);
+      mark_promise(qr.next);
     }
     if (qr.command_giver) {
       qr.command_giver->extra_ref++;
@@ -2104,16 +2060,16 @@ void mark_promise_queue() {
     if (qr.coro) {
       mark_coroutine(qr.coro);
     }
-    mark_promise_graph(qr.source);
+    mark_promise(qr.source);
   };
   for (auto* p : g_pending_yields) {
-    mark_promise_graph(p);
+    mark_promise(p);
   }
   if (g_delivering != nullptr) {
     mark_one(*g_delivering);
   }
   for (auto* p : g_active_body_promises) {
-    mark_promise_graph(p);
+    mark_promise(p);
   }
   if (g_resuming_coro != nullptr) {
     mark_coroutine(g_resuming_coro);
@@ -2123,9 +2079,6 @@ void mark_promise_queue() {
   }
   for (auto& qr : g_promise_microtasks) {
     mark_one(qr);
-  }
-  if (root) {
-    g_marking_promise_graph = false;
   }
 }
 #endif

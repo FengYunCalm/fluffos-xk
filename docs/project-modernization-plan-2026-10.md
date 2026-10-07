@@ -983,6 +983,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 新夹具覆盖绝对/相对目录、尾斜线、:DEFAULT:、权限拒绝、嵌套 include、重复分隔符、7000 字节目录、深目录拼接、失败后成功编译和同一夹具目录重用。权限路径和调用次数有实际断言。
 - final-debug、final-asan、final-ubsan 各五个独立 LPC 入口全部通过，共 15/15、0 失败；包含既有 get_include_path 与 include_list。证据目录为上述前缀加 -final-<构建>-<入口名>。仅构建 driver，未修改 grammar，无须重新生成语法。Windows 验证仍归 U15/U17。
 
+### 11.11 U06a：sockets/external 包边界与 Promise 引用检查
+
+- 证据前缀：/tmp/fluffos-xk-u06-11e12695。关闭 sockets、保留 external 的初始构建暴露错误常量与内部 socket 实现依赖；external 的经典回调并非只依赖错误常量。仅在该组合把 socket_efuns.cc 加入 package_external，公共 socket efun 仍由 PACKAGE_SOCKETS 控制；清理、遍历与引用标记按真实内部依赖编译，没有重新扩大 package_api。
+- off-on-debug-case 与 promise-refs-before-valid 复现 Promise 引用检查缺口：external 根只计 Promise 本身，回调与后继漏标；按每个根递归又会重复扫描共享节点。现与其他复合值一致，每条引用计数，分配块扫描阶段每个 Promise 内容只扫描一次；移除逐根 epoch，不豁免新测试。首个 Promise 夹具误用 ASSERT_EQ 比较 Promise，以及缺包诊断夹具的包名前缀错误，单列为夹具错误，不计生产反例。
+- 四种显式 sockets/external 组合分别在独立 Debug/Release 目录构建 driver。最终 final-<on/off>-<on/off>-<debug/release> 共 8/8 个入口通过，0 失败；逐一核对缓存中的包开关和构建类型。入口验证可用性、缺包编译诊断，以及 external 经典回调和 Promise 两种形式的实际输出与完成屏障。
+- 默认 Debug 与 ASan 的 native 各 15/15；两种构建各自的 package_socket_external、promise_memory_refs、promise_phase1、promise_contracts、async_promise 五个入口全部通过。external_promise 是辅助对象，不是独立 do_tests 入口；误选它产生的运行失败不计回归结果。原始失败与成功证据均保留，未声明 LSan 或全量测试通过。
+- U06a 的 Linux 包组合门禁完成。U06b–d、新式 ed/gateway 组合、数据库、Windows 和真实下游仍待各自门禁，不据此声明 U06 或总方案完成。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

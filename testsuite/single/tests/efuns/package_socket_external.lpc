@@ -1,0 +1,84 @@
+#ifdef __PACKAGE_EXTERNAL__
+private int completion_token;
+private int pending;
+private int legacy_fd;
+private string legacy_output;
+
+private void complete_form() {
+  pending--;
+  if (!pending) {
+    "/command/tests"->complete_async(completion_token);
+  }
+}
+
+private void receive_output(int fd, string output) {
+  ASSERT_EQ(legacy_fd, fd);
+  legacy_output += output;
+}
+
+private void writable(int fd) {
+  ASSERT_EQ(legacy_fd, fd);
+}
+
+private void closed(int fd) {
+  ASSERT_EQ(legacy_fd, fd);
+  ASSERT_EQ("external-package-boundary\n", replace_string(legacy_output, "\r", ""));
+  complete_form();
+}
+
+private void promise_finished(mixed *result) {
+  ASSERT_EQ(3, sizeof(result));
+  ASSERT_EQ("external-package-boundary\n", replace_string(result[0], "\r", ""));
+  ASSERT_EQ("", result[1]);
+  ASSERT_EQ(0, result[2]);
+  complete_form();
+}
+#endif
+
+#if !defined(__PACKAGE_SOCKETS__) || !defined(__PACKAGE_EXTERNAL__)
+private void check_missing_efun(string name, string arguments, string package) {
+  string path = "/log/u06-missing-" + name + ".lpc";
+  string diagnostic;
+  mixed failure;
+
+  ASSERT_EQ(1, write_file(path, "void run() { " + name + "(" + arguments + "); }\n", 1));
+  failure = catch(load_object(path));
+  ASSERT(stringp(failure));
+  diagnostic = read_file("/log/compile");
+  ASSERT(strsrch(diagnostic, "Undefined function " + name) >= 0);
+  ASSERT(strsrch(diagnostic, "an efun of " + package) >= 0);
+}
+#endif
+
+void do_tests() {
+  int sockets_available = 0;
+  int external_available = 0;
+#if efun_defined(socket_create)
+  sockets_available = 1;
+#endif
+#if efun_defined(external_start)
+  external_available = 1;
+#endif
+#ifdef __PACKAGE_SOCKETS__
+  ASSERT_EQ(1, sockets_available);
+#else
+  ASSERT_EQ(0, sockets_available);
+  check_missing_efun("socket_create", "0, 0, 0", "PACKAGE_SOCKETS");
+#endif
+#ifdef __PACKAGE_EXTERNAL__
+  int command = __ARCH__ == "Microsoft Windows" ? 4 : 3;
+  string *args = command == 4
+      ? ({ "/c", "echo", "external-package-boundary" })
+      : ({ "external-package-boundary" });
+  ASSERT_EQ(1, external_available);
+  completion_token = "/command/tests"->begin_async();
+  pending = 2;
+  legacy_output = "";
+  legacy_fd = external_start(command, args, (: receive_output :), (: writable :), (: closed :));
+  ASSERT(legacy_fd >= 0);
+  promise_then(external_start(command, args), (: promise_finished :));
+#else
+  ASSERT_EQ(0, external_available);
+  check_missing_efun("external_start", "1, ({})", "PACKAGE_EXTERNAL");
+#endif
+}

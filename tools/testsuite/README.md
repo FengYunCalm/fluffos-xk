@@ -88,6 +88,17 @@ WSL2 的 TSan 测试加 `--disable-aslr`；构建仍需整体使用 `setarch x86
 测试能力来自实际 driver 的编译条件和运行上下文，不根据 Python 侧猜测包配置。
 正向编译样例由 `compiler/positive_compilation.lpc` 显式加载并验证，不冒充运行时值断言。
 
+## 可选包与 Promise 引用检查
+
+`/single/tests/efuns/package_socket_external` 用于四种 sockets/external 开关组合。
+每个组合使用显式开关和独立 Debug/Release 构建目录；入口验证缺包 efun 的编译诊断，
+以及 external 启用时经典回调和 Promise 两种形式的输出与完成。关闭 sockets 不应关闭
+external 所需的内部实现，也不应重新暴露公共 socket efun。
+
+`/single/tests/efuns/promise_memory_refs` 验证共享 Promise、待执行反应和执行中回调的引用。
+启用 DEBUGMALLOC_EXTENSIONS 时调用真实 `check_memory`，不使用对象名豁免。
+`external_promise` 是辅助对象，不能直接作为定向 `do_tests` 入口。
+
 ## 证据与失败
 
 - 原始 stdout/stderr 字节保存在每进程日志中。解码文本仅供判定；默认每进程上限为 64 MiB，

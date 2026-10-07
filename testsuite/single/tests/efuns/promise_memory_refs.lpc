@@ -1,0 +1,22 @@
+private int completion_token;
+
+private void check_refs() {
+#ifdef __DEBUGMALLOC_EXTENSIONS__
+  ASSERT_EQ("Performing memory tests ...\n", check_memory(0));
+#endif
+}
+
+void do_tests() {
+  mixed source = promise_create();
+  mixed alias = source;
+  completion_token = "/command/tests"->begin_async();
+  promise_then(source, function(mixed value) {
+    ASSERT_EQ(42, value);
+    check_refs();
+    "/command/tests"->complete_async(completion_token);
+  });
+  ASSERT_EQ(0, promise_status(alias));
+  check_refs();
+  promise_resolve(source, 42);
+  check_refs();
+}

@@ -50,7 +50,6 @@ struct promise_t {
   uint32_t ref;
 #ifdef DEBUGMALLOC_EXTENSIONS
   int extra_ref;
-  uint64_t debug_mark_epoch;
 #endif
   uint8_t state; /* PROMISE_* */
   /* a rejection was (or will be) observed: a reaction was attached, or
@@ -244,8 +243,9 @@ void mark_coroutine(lpc_coroutine_t* coro);
 extern struct error_context_t* g_coroutine_econ;
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-/* mark one promise and its reachable graph (checkmemory md-sweep TAG_PROMISE) */
+/* Count one incoming reference; the allocator marks contents separately. */
 void mark_promise(promise_t* p);
+void mark_promise_contents(promise_t* p);
 /* mark the microtask delivery queue's direct references (mark phase hook) */
 void mark_promise_queue();
 #endif

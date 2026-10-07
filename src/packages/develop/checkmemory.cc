@@ -22,7 +22,7 @@
 #ifdef PACKAGE_UIDS
 #include "packages/uids/uids.h"
 #endif
-#ifdef PACKAGE_SOCKETS
+#if defined(PACKAGE_SOCKETS) || defined(PACKAGE_EXTERNAL)
 #include "packages/sockets/socket_efuns.h"
 #endif
 #ifdef PACKAGE_DB
@@ -711,7 +711,7 @@ void check_all_blocks(int flag) {
 #ifdef PACKAGE_MUDLIB_STATS
     mark_mudlib_stats();
 #endif
-#ifdef PACKAGE_SOCKETS
+#if defined(PACKAGE_SOCKETS) || defined(PACKAGE_EXTERNAL)
     mark_sockets();
 #endif
 #ifdef PACKAGE_PARSER
@@ -779,6 +779,9 @@ void check_all_blocks(int flag) {
             }
             break;
           }
+          case TAG_PROMISE:
+            mark_promise_contents(NODET_TO_PTR(entry, promise_t*));
+            break;
           case TAG_FUNP:
             fp = NODET_TO_PTR(entry, funptr_t *);
             mark_funp(fp);

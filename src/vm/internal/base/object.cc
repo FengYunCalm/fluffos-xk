@@ -41,8 +41,8 @@ namespace fs = ghc::filesystem;
 #include "packages/core/heartbeat.h"  // for set_heart_beat.
 #include "packages/core/file.h"       // for check_valid_path
 
-#ifdef PACKAGE_SOCKETS
-#include "packages/sockets/socket_efuns.h"  // for check_valid_path
+#if defined(PACKAGE_SOCKETS) || defined(PACKAGE_EXTERNAL)
+#include "packages/sockets/socket_efuns.h"
 #endif
 
 #define too_deep_save_error() \

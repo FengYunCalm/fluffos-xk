@@ -7,6 +7,7 @@
 
 #include "base/package_api.h"
 
+#include "include/socket_err.h"
 #include "packages/sockets/socket_efuns.h"
 #include "net/tls.h"
 #include "vm/context.h"
@@ -2338,6 +2339,8 @@ array_t *socket_status(int which) {
   return ret;
 }
 
+#endif /* PACKAGE_SOCKETS */
+
 int lpc_socks_num() { return lpc_socks.size(); }
 
 lpc_socket_t *lpc_socks_get(int i) {
@@ -2397,7 +2400,5 @@ void lpc_socks_closeall() {
     socket_close(static_cast<int>(i), SC_FORCE | SC_FINAL_CLOSE);
   }
 }
-
-#endif /* PACKAGE_SOCKETS */
 
 #endif /* SOCKET_EFUNS */
