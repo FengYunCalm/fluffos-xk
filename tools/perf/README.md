@@ -118,3 +118,49 @@ libgcov 中的重置函数，否则弱引用不能保证函数被链接。该方
 循环计数，写入 `scanned_bytes`。缺失计数、进程失败或结果不符均拒绝签收；计数模式的
 耗时不用于 Release 性能比较。此方法依赖当前分类循环的源码和 GCC profile 格式；
 修改扫描实现或工具链时须重新核验计数含义。
+
+## object store 扫描量与锁时间
+
+`object_store_bench` 的默认 32 对象模式和 `object_store_bench_v1` 字段保留。
+新增规模模式只在 Linux 上使用链接包装，观察实际读锁和普通 C++ `operator new`；
+生产 driver 不链接这些观察器。`measurement.py` 供两个运行时测量脚本共享监督器和
+GCC 行计数读取，不复制运行时算法。
+
+```bash
+cmake --build build-organize-release --target object_store_bench --parallel 4
+/usr/bin/python3 -B tools/perf/test_object_store_bench.py \
+  --binary build-organize-release/src/tests/object_store_bench \
+  --evidence-dir build-object-store-evidence/contracts
+/usr/bin/python3 -B tools/perf/measure_object_store.py \
+  --binary build-organize-release/src/tests/object_store_bench \
+  --objects 1000 --operation status --rounds 3 \
+  --evidence-dir build-object-store-evidence/time-001
+```
+
+`--objects` 可选 1000、10000、50000；`--operation` 可选 `current`、`missing`、`stale`、
+`path`、`status`。省略选择器时遍历全部组合；不传选择器可能运行数小时，不能把整个批次
+放进短时外层超时后再从头重跑。每个 probe 的监督上限由 `--timeout` 指定，默认 900 秒。
+先估计最大规模的准备与清理时间，再固定预算；监督上限不改变 driver 的评估限额。
+
+每例初始化真实 VM，创建指定数量的对象，再销毁其中 10% 并保留 tombstone。
+实际 record 数还包括 VM 启动对象，必须读取输出，不能把请求数量当成全表大小。
+夹具在私有进程中启用 audit 模式、提高数组上限至所需数量，并为每次独立创建/销毁
+重置原评估预算。准备、报告和清理不计入操作耗时。有效/陈旧 handle 与 path 重复使用
+同一个探针对象，不代表游戏混合负载。
+
+Release 先预热一次，再记录顺序样本。`elapsed_ns` 包含完整 API 调用；
+`read_lock_ns` 只计获取读锁后到解锁前的持有时间，不包含等待获取锁的时间。
+每次调用必须完整释放唯一读锁。`cpp_allocations` 不是 malloc/VM 分配总量，
+不能据此宣称进程总分配减少。GNU `/usr/bin/time` 的独立 JSON 记录整个进程的峰值
+RSS（KiB）和墙钟时间，包含准备、报告及退出；RSS 不能当成临时索引独占内存。
+
+工作量使用独立 GCC 构建，配置方式同上面的 explode 覆盖构建，但链接选项须同时包含
+`-Wl,--undefined=__gcov_reset,--undefined=__gcov_dump`。给脚本传入
+`--coverage-build <目录>` 后，脚本强制只执行一次冷调用，在调用前重置计数、调用后立即
+落盘；后续状态核验和销毁不混入扫描计数。输出分别记录按 ID 的全表比较、最终全表核验
+和临时索引插入，不能把三者混成一个数字。
+
+性能签收前固定工具链、输入、CPU affinity、地址随机化条件和预热规则，先做 A/A
+噪声校准，再冻结阈值。执行至少 7 组交错 A/B。尾延迟每类操作至少需要 10000 个样本；
+少量慢诊断样本仅报告已观测分位，不能宣称稳定 p95/p99。原始报告、进程记录和二进制
+哈希是验收依据；外层任务中断时只恢复已完整验证的记录，不能接纳半写报告。

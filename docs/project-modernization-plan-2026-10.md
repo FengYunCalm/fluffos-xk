@@ -1078,10 +1078,10 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - Debug、ASan、UBSan 分别通过 10/10 原生测试和一个 `explode` LPC 入口，0 跳过。覆盖 Unicode、组合字符、emoji、CRLF、空字段、多字节分隔符、跨 buffer、负长度、子区间边界、SmartIterator 缓存重置和并发读取。ASan 显式开启 leak 检查并失败即退出，最终 sanitizer 记录为 `native-*-final`、`lpc-*-final`。
 - 新测量工具与运行方法见 `tools/perf/README.md`。新增 C++ 文件用固定 clang-format 18.1.8 和规范中的配置校验；未提前改变全仓 formatter 配置。U07 的分类工作量与兼容门禁完成，不代表全引擎或真实 mudlib 已提速；Windows、混合负载和下游验收仍归 U15/U17。
 
-### 11.15 U08：汇总验收未完成，退出期 UAF 前置修复已通过
+### 11.15 U08 调查经过：汇总瓶颈与退出期 UAF
 
-- 工作基线为 `cab8fc8c`，材料位于 `build-modernization-evidence/u08/`。已写入同一读锁内的 ID→record 临时索引；保留重复 ID 时原遍历的首条选择，不改变公开字段。尚未提交，不标记完成。
-- 真实 GCC 计数：1019 条记录的一次汇总执行 519690 次全局 ID 比较；缺失 handle 路径做三次汇总。有效 handle 和普通 path 查找没有全局扫描。1k/10k 旧基线材料已保存；5 万对象首轮在准备阶段达到整批共用的 300 秒评估期限，未进入有效测量。夹具已改为每次创建/销毁独立重置原预算，未提高 driver 配置限额；5 万组及最终 A/B 仍待完成。
+- 工作基线为 `cab8fc8c`，材料位于 `build-modernization-evidence/u08/`。已写入同一读锁内的 ID→record 临时索引；保留重复 ID 时原遍历的首条选择，不改变公开字段。调查阶段的阻塞如下，最终验收见 §11.17。
+- 真实 GCC 计数：1019 条记录的一次汇总执行 519690 次全局 ID 比较；缺失 handle 路径做三次汇总。有效 handle 和普通 path 查找没有全局扫描。1k/10k 旧基线材料已保存；5 万对象首轮在准备阶段达到整批共用的 300 秒评估期限，未进入有效测量。夹具已改为每次创建/销毁独立重置原预算，未提高 driver 的评估时间限额；当时 5 万组及最终 A/B 尚未完成。
 - 前置修复前，Debug、ASan、TSan 分别通过 12 项白盒和 18 项公开原生回归。`owner_executor_contract` 在三种构建各通过一次；`owner_payload` 的 Debug 通过，ASan 在正常退出时失败，当时尚未执行其 TSan 入口。不得将最初重复传入 `--case` 的命令算成两个入口：参数只保留最后一个，记录实际仅为 1 项。
 - ASan 原始证据：`lpc-owner-payload-asan/001-driver-lpc.log`。`shutdownMudOS()` 调用 `exit()` 后，`__call_tls_dtors` 先销毁 `pending_compound_frees` 的 vector；随后 `OwnerRuntimeCoordinator`/`OwnerTraceStore` 析构释放 `VMFrozenValue` 中的嵌套 mapping，重入 `free_compound()`，向已释放的 vector 存储写入。测试主体的 `Checks succeeded` 不能覆盖退出失败。独立重建的 `cab8fc8c` 生产源码同样复现该错误，证据为 `baseline-owner-payload-asan/001-driver-lpc.log`；两处栈均在 TLS vector 析构后向其旧存储写入，确认此 UAF 不是本轮 summary 索引引入的。
 - 发现此失败后曾暂停生产源码修改。最终只读复核已核对 `svalue.cc`、四类分派、Promise 取消回调、frozen value/trace 所有权、shutdown 次序及线程上下文绑定；按 U08 正确性前置步骤先复现，再实施独立修复。已有夹具错误、旧构建链接缺少 wrapper、准备超时和错误的 CLI 预期均保留，不充当通过证据。
@@ -1093,7 +1093,26 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 新建 `compound_free_probe` 和 `test-compound-free.py`。Debug、ASan、TSan 各通过 11/11 专项场景、12/12 白盒、18/18 公开回归；三个独立 LPC 入口 `owner_payload`、`owner_executor_contract`、`nested_array_free_recursion` 在三种构建中全部通过。Release 专项场景也通过 11/11。所有结果零跳过；ASan 开启 leak 检查，TSan 保留原检查。证据位于 `compound-final-*`、`compound-native-*`、`compound-public-*`、`compound-<入口>-*`。
 - 夹具问题单列：初版线程测试把进程级 array/class 计数误当作线程局部计数；当前晚析构用单线程隔离，独立并发夹具用四个线程各自持有的纯 pending Promise，并验证回调线程与完整排空。冷队列初版把 debug 分配器首次释放创建的持久 journal 误算为队列保留；当前只预热不经过工作队列的标量数组释放。给 `run-targeted.py` 误传 `--disable-aslr` 的参数错误也不算测试证据，已用进程 personality 重跑。失败日志均保留。
 - Release 同一夹具、同一工具链和选项的七组交错配对见 `compound-paired-release/report.json`。每个样本包含 2000 次真实释放，构造不计时；64 层窄链和 64 项宽图的耗时中位比（新/旧）分别为 **1.091、1.083**。窄链冷队列分配由 1 次变 0 次；宽图冷分配均 7 次，峰值溢出存储均 1536 字节，但释放后队列保留由 1024 字节变 0。以上是正确性修复的成本，不宣称提速；约 8%–9% 的专项耗时增幅与 U07 的 ASCII 成本一起进入 U17 混合负载验收。
-- 此单元仅解除已复现的退出期 UAF，不宣称任意 OOM 下都能恢复部分释放的对象图。U08 的 50k 规模、汇总计数、锁时间及最终配对性能尚未闭环；恢复汇总验收时两侧必须同样包含本修复。
+- 此单元仅解除已复现的退出期 UAF，不宣称任意 OOM 下都能恢复部分释放的对象图。U08 最终对照的两侧均包含本修复，结果见 §11.17；释放修复的独立成本仍交 U17，不混入本次索引优化的收益。
+
+### 11.17 U08：限定汇总路径的本地验收完成
+
+- 生产差异仅在 `owner_local_bridge_summary_locked()`：同一读锁内建立临时 ID→record 索引，保留原全局遍历遇到的首条重复 ID。没有长期缓存、第二份权威目录或跨锁 record 指针。有效 handle、普通 path、missing/stale 的调用路径和公开字段均未改动；missing 的三次汇总、stale 的两次汇总仍保留，不擅自减少诊断。
+- 12 项白盒逐一比较全部 21 个汇总字段，覆盖空表、跨 owner 的 live/tombstone、缺失局部/全局记录、反向索引、epoch、重复 ID、路径损坏、迁移后销毁、并发读与 epoch 写，以及三处分配失败。初始分配和已插入节点后的失败都能释放读锁、不发布部分状态。最终 Debug/ASan/TSan/Release 各通过 12/12；证据为 `summary-partial-allocation-*`。此前三种调试/插桩构建的 18 项公开回归及三个独立 LPC 入口全部通过，详见 §11.16。
+- 性能基线生产源码取 `2d3f3859`，包含退出修复，不含汇总索引；双方覆盖相同的测量夹具。`baseline-fixed-identity.json`、`baseline-fixed-tool-identity.json` 和逐进程记录保存来源与哈希。四种构建的测试观察器不链接到生产 driver。
+- `fixed-comparison-fixed-layout/` 保存 30 个完整计数批次和 210 个完整 Release 测量批次：3 个规模 × 5 条路径 × 2 侧；耗时另执行 7 组交错配对。计数为独立 GCC 覆盖构建，不用于比较耗时。双方固定 CPU 15、禁用本任务进程的地址随机化、相同工具链/包/配置，每例 10% tombstone。先完成 7 组 A/A，冻结回归阈值：stale 为 7.97%，其余为 5%；没有看 A/B 结果后放宽。
+
+| 请求对象数 / 实际记录数 | 原 ID 比较次数（一次汇总） | 新索引插入次数 | 新全表 ID 比较次数 | 状态耗时，基线 / 候选（ms） | 配对耗时中位比（新/旧） |
+|---|---:|---:|---:|---:|---:|
+| 1000 / 1019 | 519690 | 1019 | 0 | 3.21 / 2.04 | 0.6326 |
+| 10000 / 10019 | 50195190 | 10019 | 0 | 236.00 / 32.12 | 0.1317 |
+| 50000 / 50019 | 1250975190 | 50019 | 0 | 7427.22 / 279.79 | 0.0372 |
+
+- 耗时列是各侧七组中位值的中位数；比值先在每组配对内计算，再取中位数，两者不必相除相等。读锁持有时间随 API 耗时下降。最大规模的 missing/stale 配对比为 0.0070/0.0071。有效 handle/path 在三个规模均零全表扫描、零 C++ 分配；path 最大正向耗时变化为 1.67%，在冻结阈值内。没有触发任何已冻结的回归阈值。
+- 代价不隐藏：50k 状态调用的 C++ 分配由 1189073 次增至 1239093 次，即增加 50020 次（临时节点加 bucket）；进程峰值 RSS 中位数由 146168 KiB 增至 148484 KiB，约增加 2.26 MiB。RSS 包含整个进程，不能全部归因于索引。原最终全表核验仍执行 50019 次；这里只证明消除了按 ID 查找的二次遍历，不宣称整个状态 API 已严格线性或游戏整体快同样倍数。
+- 每个有效 handle/path 批次测 10000 个操作；每个慢诊断批次测 3 个操作，因此慢路径每侧每规模只有 21 个样本，其尾延迟不作稳定性声明。普通吞吐、混合负载和长期稳定性仍属 U17。
+- 失败与中断分列：首轮配置比较误把 CMake 的 FILEPATH/STRING 存储类型当成编译器值差异，没有启动测量；按实际键值核对后消除误报。启用地址随机化的 A/A 中 missing 噪声超出预设 10% 上限，未启动该轮 A/B；固定布局后重新校准。长批次达到 5 小时外层监督上限，未遗留进程；恢复前核验原始报告、成功退出和二进制哈希，仅复用 79 个完整测量批次，未接纳中断中的报告。对应原始日志均保留。
+- 工具合同：基线/候选 Release 的默认报表、输出失败和参数校验各通过 7/7；共享 `measurement.py` 后，explode 的 Release 和 GCC 计数模式各通过 6/6，未改变 U07 分类计数。用法归属 `tools/perf/README.md`。此单元未改变线上实例、接口、配置或 mudlib 源码。
 
 ## 附录 A：生产源码差异逐文件索引
 

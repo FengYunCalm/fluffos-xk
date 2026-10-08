@@ -733,6 +733,18 @@ bool owner_local_store_complete_for_shard(const VMObjectShard &shard, const Owne
 
 OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
   OwnerLocalBridgeSummary summary;
+  std::unordered_map<uint64_t, const ObjectRecord*> global_records_by_id;
+  if (!object_records.empty()) {
+    global_records_by_id.reserve(object_records.size());
+  }
+  for (const auto& entry : object_records) {
+    // Preserve the legacy scan's first match when corrupt records share an ID.
+    global_records_by_id.emplace(entry.second.object_id, &entry.second);
+  }
+  const auto find_global_record = [&global_records_by_id](uint64_t object_id) {
+    const auto entry = global_records_by_id.find(object_id);
+    return entry == global_records_by_id.end() ? nullptr : entry->second;
+  };
   for (const auto &entry : owner_shards) {
     const auto &shard = entry.second;
     auto shard_record_ready = shard_record_index_ready(shard);
@@ -749,7 +761,7 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
     summary.owner_local_to_global_bridge_consistent =
         summary.owner_local_to_global_bridge_consistent && shard_ready;
     for (const auto &record_entry : shard.local_records) {
-      auto *global_record = find_global_record_by_object_id_locked(record_entry.first);
+      const auto* global_record = find_global_record(record_entry.first);
       if (!global_record || !object_record_equal(*global_record, record_entry.second) || global_record->destructed) {
         summary.global_record_bridge_consistent = false;
         summary.owner_local_to_global_bridge_consistent = false;
@@ -758,7 +770,7 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
       }
     }
     for (const auto &record_entry : shard.destructed_records) {
-      auto *global_record = find_global_record_by_object_id_locked(record_entry.first);
+      const auto* global_record = find_global_record(record_entry.first);
       if (!global_record || !object_record_equal(*global_record, record_entry.second) || !global_record->destructed) {
         summary.global_record_bridge_consistent = false;
         summary.owner_local_to_global_bridge_consistent = false;

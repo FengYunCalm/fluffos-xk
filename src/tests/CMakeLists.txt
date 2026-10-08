@@ -31,6 +31,13 @@ if(${GTEST_FOUND})
 
   # GNU/LLVM ELF link wrapping injects failures only into this test executable.
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(object_store_tests test_object_store_summary.cc)
+    target_link_libraries(object_store_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
+    target_link_options(object_store_tests PRIVATE "-Wl,--wrap=_Znwm")
+    gtest_discover_tests(object_store_tests
+      DISCOVERY_TIMEOUT 60
+      TEST_PREFIX "object_store_tests."
+    )
     add_executable(file_io_tests test_file_io.cc)
     target_link_libraries(file_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
     target_compile_definitions(file_io_tests PRIVATE
@@ -119,6 +126,10 @@ target_compile_definitions(lpc_vm_bench PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_
 add_executable(object_store_bench object_store_bench.cc)
 target_link_libraries(object_store_bench PRIVATE ${FLUFFOS_LINK})
 target_compile_definitions(object_store_bench PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options(object_store_bench PRIVATE
+    "-Wl,--wrap=pthread_rwlock_rdlock" "-Wl,--wrap=pthread_rwlock_unlock" "-Wl,--wrap=_Znwm")
+endif()
 
 add_executable(gateway_full_wire_bench gateway_full_wire_bench.cc)
 target_link_libraries(gateway_full_wire_bench PRIVATE ${FLUFFOS_LINK})

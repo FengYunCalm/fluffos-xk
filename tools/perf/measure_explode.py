@@ -4,31 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 from pathlib import Path
-import shutil
 import sys
 
-ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location(
-    "explode_runner", ROOT / "tools/testsuite/run-targeted.py"
-)
-runner = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = runner
-spec.loader.exec_module(runner)
-
-
-def checked_run(session, command, cwd, environment, label, binary=None):
-    result = runner.run_process(
-        session, command, cwd=cwd, environment=environment, timeout=180,
-        label=label, binary=binary,
-    )
-    runner.reject_sanitizer_output(result.output)
-    if (result.returncode != 0 or result.timed_out or result.failure_reason
-            or "libgcov profiling error:" in result.output):
-        raise runner.RunnerError(f"process failed: {result.log_path}")
-    return result.output
+from measurement import ROOT, checked_run, coverage_lines, runner
 
 
 def scanned_bytes(session, prefix: Path, build: Path, environment) -> int:
@@ -37,33 +17,9 @@ def scanned_bytes(session, prefix: Path, build: Path, environment) -> int:
              if line.strip() == "acc |= c;"]
     if len(lines) != 1:
         raise runner.RunnerError("cannot identify the classification loop counter")
-    gcov = runner.require_executable(shutil.which("gcov") or "gcov")
-    notes_by_name = {
-        str(path.resolve()).replace("/", "#").removesuffix(".gcno") + ".gcda": path
-        for path in build.rglob("*.gcno")
-    }
-    total = 0
-    found = False
-    for data in sorted(prefix.rglob("*.gcda")):
-        notes_source = notes_by_name.get(data.name)
-        if notes_source is None:
-            raise runner.RunnerError("coverage notes are outside the selected build")
-        if b"EGCIterator.h" not in notes_source.read_bytes():
-            continue
-        notes = data.with_suffix(".gcno")
-        shutil.copy2(notes_source, notes)
-        output = checked_run(session, [str(gcov), "-j", "-t", str(notes)], prefix,
-                             environment, "gcov")
-        report = json.loads(output)
-        for file in report["files"]:
-            source = Path(report["current_working_directory"]) / file["file"]
-            if source.resolve() != header:
-                continue
-            for line in file["lines"]:
-                if line["line_number"] == lines[0]:
-                    found = True
-                    total += line["count"]
-    if not found or total <= 0:
+    counts = coverage_lines(session, prefix, build, environment, header)
+    total = counts.get(lines[0], 0)
+    if total <= 0:
         raise runner.RunnerError("classification loop coverage is missing")
     return total
 

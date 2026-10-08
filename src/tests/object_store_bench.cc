@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <charconv>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -23,6 +24,59 @@
 #include <utility>
 #include <vector>
 #include <unistd.h>
+
+#ifdef __linux__
+#include <pthread.h>
+
+namespace {
+struct ProbeCounters {
+  bool enabled{false};
+  pthread_rwlock_t* held_lock{nullptr};
+  std::chrono::steady_clock::time_point lock_start;
+  long long read_locks{0};
+  long long unlocks{0};
+  long long lock_ns{0};
+  long long allocations{0};
+};
+thread_local ProbeCounters probe;
+}  // namespace
+
+extern "C" int __real_pthread_rwlock_rdlock(pthread_rwlock_t* lock);
+extern "C" int __real_pthread_rwlock_unlock(pthread_rwlock_t* lock);
+extern "C" void* __real__Znwm(size_t size);
+extern "C" void __gcov_reset() __attribute__((weak));
+extern "C" void __gcov_dump() __attribute__((weak));
+
+extern "C" int __wrap_pthread_rwlock_rdlock(pthread_rwlock_t* lock) {
+  const int result = __real_pthread_rwlock_rdlock(lock);
+  if (probe.enabled && result == 0) {
+    probe.read_locks++;
+    if (!probe.held_lock) {
+      probe.held_lock = lock;
+      probe.lock_start = std::chrono::steady_clock::now();
+    }
+  }
+  return result;
+}
+
+extern "C" int __wrap_pthread_rwlock_unlock(pthread_rwlock_t* lock) {
+  if (probe.enabled && probe.held_lock == lock) {
+    probe.lock_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         std::chrono::steady_clock::now() - probe.lock_start)
+                         .count();
+    probe.held_lock = nullptr;
+    probe.unlocks++;
+  }
+  return __real_pthread_rwlock_unlock(lock);
+}
+
+extern "C" void* __wrap__Znwm(size_t size) {
+  if (probe.enabled) {
+    probe.allocations++;
+  }
+  return __real__Znwm(size);
+}
+#endif
 
 namespace {
 using Clock = std::chrono::steady_clock;
@@ -144,7 +198,7 @@ std::string report_json(const Report &report) {
   return json.str();
 }
 
-void write_json_report(const std::string &path, const std::string &json) {
+void write_json_report(const std::string& path, const std::string& json) {
   if (path.empty()) {
     return;
   }
@@ -157,6 +211,10 @@ void write_json_report(const std::string &path, const std::string &json) {
     throw std::runtime_error("failed to open benchmark json output: " + path);
   }
   output << json;
+  output.close();
+  if (!output) {
+    throw std::runtime_error("failed to write benchmark json output: " + path);
+  }
 }
 
 void run_object_handle_resolve_bench(Report &report) {
@@ -278,6 +336,131 @@ void run_clone_destruct_lifecycle_bench(Report &report) {
   }
 }
 
+int parse_probe_count(const char* text, const char* option) {
+  int value = 0;
+  const char* end = text + std::strlen(text);
+  const auto parsed = std::from_chars(text, end, value);
+  if (parsed.ec != std::errc{} || parsed.ptr != end || value <= 0) {
+    throw std::runtime_error(std::string("invalid ") + option);
+  }
+  return value;
+}
+
+void run_scaled_store_probe(Report& report, int count, const std::string& operation, int rounds,
+                            bool reset_coverage) {
+#ifdef __linux__
+  require(count == 1000 || count == 10000 || count == 50000,
+          "--objects must be 1000, 10000 or 50000");
+  require(operation == "current" || operation == "missing" || operation == "stale" ||
+              operation == "path" || operation == "status",
+          "invalid --operation");
+  require(!reset_coverage || (rounds == 1 && __gcov_reset && __gcov_dump),
+          "coverage requires one round and linked GCC reset/dump functions");
+  CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_AUDIT;
+  CONFIG_INT(__MAX_ARRAY_SIZE__) = std::max(CONFIG_INT(__MAX_ARRAY_SIZE__), count);
+  std::vector<object_t*> objects;
+  std::vector<VMObjectHandle> handles;
+  objects.reserve(count);
+  handles.reserve(count);
+  // Fixture lifecycle calls are separate evaluations, not one bulk LPC command.
+  for (int i = 0; i < count; ++i) {
+    set_eval(max_eval_cost);
+    auto* object = clone_object_for_bench("single/void");
+    require(object != nullptr, "failed to clone probe object");
+    objects.push_back(object);
+    vm_owner_set_id(object, ("owner/probe/" + std::to_string(i % 4)).c_str());
+    handles.push_back(vm_object_handle(object));
+  }
+  for (int i = 0; i < count; i += 10) {
+    set_eval(max_eval_cost);
+    destruct_object_for_bench(objects[i]);
+  }
+  auto handle = handles[1];
+  if (operation == "missing") {
+    handle.object_id = UINT64_MAX;
+    handle.object_path = "missing/store_probe";
+  } else if (operation == "stale") {
+    handle.owner_epoch++;
+    handle.snapshot_version = handle.owner_epoch;
+  }
+
+  // Timings use one verified warmup; coverage measures exactly one cold call.
+  for (int round = reset_coverage ? 0 : -1; round < rounds; ++round) {
+    VMObjectHandleResolveResult result;
+    object_t* resolved = nullptr;
+    mapping_t* status = nullptr;
+    probe = {};
+    if (reset_coverage) {
+      __gcov_reset();
+    }
+    const auto start = Clock::now();
+    probe.enabled = true;
+    if (operation == "status") {
+      status = vm_object_store_status();
+    } else if (operation == "path") {
+      resolved =
+          vm_object_store_owner_path_resolve(handle.owner_id.c_str(), handle.object_path.c_str());
+    } else {
+      result = vm_object_handle_resolve_status(handle);
+    }
+    probe.enabled = false;
+    const auto duration = elapsed_ns(start);
+    if (reset_coverage) {
+      __gcov_dump();
+    }
+    require(probe.read_locks == 1 && probe.unlocks == 1 && !probe.held_lock,
+            "probe requires exactly one completed read-lock scope");
+    if (operation == "status") {
+      require(status != nullptr, "missing store status");
+      free_mapping(status);
+    } else if (operation == "path") {
+      require(resolved == objects[1], "path resolved the wrong object");
+    } else {
+      auto expected = VMObjectHandleResolveStatus::kCurrent;
+      if (operation == "missing") {
+        expected = VMObjectHandleResolveStatus::kObjectNotFound;
+      } else if (operation == "stale") {
+        expected = VMObjectHandleResolveStatus::kOwnerEpochMismatch;
+      }
+      require(result.status == expected, "unexpected handle status");
+      if (operation == "current") {
+        require(result.object == objects[1] && result.owner_local_fast_path_used,
+                "current handle bypassed its owner-local fast path");
+        require(probe.allocations == 0, "current handle added a C++ allocation");
+      }
+    }
+    if (round < 0) {
+      continue;
+    }
+    const auto suffix = "_" + std::to_string(round);
+    report.add("elapsed_ns" + suffix, duration);
+    report.add("read_lock_ns" + suffix, probe.lock_ns);
+    report.add("read_lock_count" + suffix, probe.read_locks);
+    report.add("cpp_allocations" + suffix, probe.allocations);
+  }
+  auto* status = vm_object_store_status();
+  for (const char* key : {"global_record_total", "global_live_record_total",
+                          "global_destructed_record_total", "owner_shards"}) {
+    const auto* value = find_string_in_mapping(status, key);
+    require(value && value->type == T_NUMBER, "missing store count");
+    report.add(key, value->u.number);
+  }
+  require(find_string_in_mapping(status, "owner_local_global_bridge_consistent")->u.number == 1,
+          "probe fixture has inconsistent records");
+  free_mapping(status);
+  report.add("object_count", count);
+  report.add("probe_rounds", rounds);
+  report.add_string("probe_operation", operation);
+  for (auto* object : objects) {
+    set_eval(max_eval_cost);
+    destruct_object_for_bench(object);
+  }
+  remove_destructed_objects();
+#else
+  throw std::runtime_error("scaled store probe requires Linux ELF link wrapping");
+#endif
+}
+
 void print_text_report(const Report &report, const std::string &json_path) {
   std::cout << "object_store_bench: schema=" << kObjectStoreBenchSchemaV1 << "\n";
   for (const auto &metric : report.metrics) {
@@ -289,22 +472,40 @@ void print_text_report(const Report &report, const std::string &json_path) {
 }
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::string json_path;
-  for (int i = 1; i < argc; i++) {
-    std::string arg = argv[i];
-    if (arg == "--json" && i + 1 < argc) {
-      json_path = argv[++i];
-    } else if (arg == "--help") {
-      std::cout << "usage: object_store_bench [--json path]\n";
-      return 0;
-    } else {
-      std::cerr << "unknown argument: " << arg << "\n";
-      return 2;
-    }
-  }
-
+  int object_count = 0;
+  int probe_rounds = 3;
+  std::string operation = "status";
+  bool reset_coverage = false;
+  bool probe_options_used = false;
   try {
+    for (int i = 1; i < argc; i++) {
+      std::string arg = argv[i];
+      if (arg == "--objects" || arg == "--rounds" || arg == "--operation" ||
+          arg == "--reset-coverage") {
+        probe_options_used = true;
+      }
+      if (arg == "--json" && i + 1 < argc) {
+        json_path = argv[++i];
+      } else if (arg == "--objects" && i + 1 < argc) {
+        object_count = parse_probe_count(argv[++i], "--objects");
+      } else if (arg == "--rounds" && i + 1 < argc) {
+        probe_rounds = parse_probe_count(argv[++i], "--rounds");
+      } else if (arg == "--operation" && i + 1 < argc) {
+        operation = argv[++i];
+      } else if (arg == "--reset-coverage") {
+        reset_coverage = true;
+      } else if (arg == "--help") {
+        std::cout << "usage: object_store_bench [--json path] [--objects 1000|10000|50000 "
+                     "--operation current|missing|stale|path|status --rounds N --reset-coverage]\n";
+        return 0;
+      } else {
+        std::cerr << "unknown argument: " << arg << "\n";
+        return 2;
+      }
+    }
+
     if (!json_path.empty()) {
       json_path = std::filesystem::absolute(json_path).string();
     }
@@ -322,15 +523,24 @@ int main(int argc, char **argv) {
     report.add_string("object_handle_model", kVMObjectHandleCapabilityModelV1);
     report.add_string("owner_fast_path", "owner_shard_resolve_without_global_fallback");
 
-    run_object_handle_resolve_bench(report);
-    run_clone_destruct_lifecycle_bench(report);
+    if (object_count != 0) {
+      run_scaled_store_probe(report, object_count, operation, probe_rounds, reset_coverage);
+    } else {
+      require(!probe_options_used, "probe options require --objects");
+      run_object_handle_resolve_bench(report);
+      run_clone_destruct_lifecycle_bench(report);
+    }
 
     auto json = report_json(report);
     write_json_report(json_path, json);
     print_text_report(report, json_path);
     std::cout << json;
+    std::cout.flush();
+    if (!std::cout) {
+      throw std::runtime_error("failed to write benchmark stdout");
+    }
     return 0;
-  } catch (const std::exception &error) {
+  } catch (const std::exception& error) {
     std::cerr << "object_store_bench failed: " << error.what() << "\n";
     return 1;
   }
