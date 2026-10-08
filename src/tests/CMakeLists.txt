@@ -47,6 +47,10 @@ if(${GTEST_FOUND})
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
     target_link_options(trace_io_probe PRIVATE
       "-Wl,--wrap=_Z13debug_messagePKcz" "-Wl,--wrap=_Znwm")
+    add_executable(compound_free_probe compound_free_probe.cc)
+    target_link_libraries(compound_free_probe PRIVATE ${FLUFFOS_LINK})
+    target_link_options(compound_free_probe PRIVATE
+      "-Wl,--wrap=_Znwm" "-Wl,--wrap=_ZdlPv" "-Wl,--wrap=_ZdlPvm")
     find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
     add_test(NAME trace_io_tests
       COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/test-trace-io.py"

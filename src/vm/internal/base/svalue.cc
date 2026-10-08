@@ -3,6 +3,7 @@
 #include "vm/internal/base/machine.h"
 #include "vm/internal/base/promise.h"
 
+#include <array>
 #include <nlohmann/json.hpp>
 #include <vector>
 using json = nlohmann::json;
@@ -75,46 +76,87 @@ void copy_some_svalues(svalue_t *dest, svalue_t *v, int num) {
 }
 
 namespace {
-struct pending_compound_free_t {
-  void *ptr;
+struct PendingCompoundFree {
+  void* ptr;
   uint32_t type;
 };
 
-// Per-VM-thread: owner workers free their own values concurrently, and the
-// queue is only ever drained by the thread that filled it.
-FLUFFOS_VM_THREAD_LOCAL bool freeing_compound = false;
-FLUFFOS_VM_THREAD_LOCAL std::vector<pending_compound_free_t> pending_compound_frees;
-}
+class CompoundFreeQueue;
 
-void free_compound(void *ptr, uint32_t type) {
-  if (freeing_compound) {
-    pending_compound_frees.push_back({ptr, type});
+// A trivial TLS pointer outlives TLS destructors. The outer release owns all
+// storage, including when a static or thread-local holder releases its values.
+FLUFFOS_VM_THREAD_LOCAL CompoundFreeQueue* active_compound_frees = nullptr;
+
+class CompoundFreeQueue {
+ public:
+  CompoundFreeQueue() {
+    active_compound_frees = this;
+  }
+
+  ~CompoundFreeQueue() {
+    active_compound_frees = nullptr;
+  }
+
+  CompoundFreeQueue(const CompoundFreeQueue&) = delete;
+  CompoundFreeQueue& operator=(const CompoundFreeQueue&) = delete;
+
+  void push(void* ptr, uint32_t type) {
+    if (inline_size_ < inline_items_.size()) {
+      inline_items_[inline_size_++] = {ptr, type};
+    } else {
+      overflow_.push_back({ptr, type});
+    }
+  }
+
+  bool empty() const {
+    return inline_size_ == 0;
+  }
+
+  PendingCompoundFree pop() {
+    // Overflow implies a full inline region; always pop overflow first (LIFO).
+    if (!overflow_.empty()) {
+      auto next = overflow_.back();
+      overflow_.pop_back();
+      return next;
+    }
+    return inline_items_[--inline_size_];
+  }
+
+ private:
+  // Only occupied slots are read; their count is the sole initialization state.
+  std::array<PendingCompoundFree, 16> inline_items_;
+  size_t inline_size_{0};
+  std::vector<PendingCompoundFree> overflow_;
+};
+}  // namespace
+
+void free_compound(void* ptr, uint32_t type) {
+  if (active_compound_frees != nullptr) {
+    active_compound_frees->push(ptr, type);
     return;
   }
-  freeing_compound = true;
-  auto deallocate = [](void *value, uint32_t value_type) {
+  CompoundFreeQueue queue;
+  auto deallocate = [](void* value, uint32_t value_type) {
     switch (value_type) {
       case T_PROMISE:
-        dealloc_promise(reinterpret_cast<promise_t *>(value));
+        dealloc_promise(static_cast<promise_t*>(value));
         break;
       case T_CLASS:
-        dealloc_class(reinterpret_cast<array_t *>(value));
+        dealloc_class(static_cast<array_t*>(value));
         break;
       case T_ARRAY:
-        dealloc_array(reinterpret_cast<array_t *>(value));
+        dealloc_array(static_cast<array_t*>(value));
         break;
       case T_MAPPING:
-        dealloc_mapping(reinterpret_cast<mapping_t *>(value));
+        dealloc_mapping(static_cast<mapping_t*>(value));
         break;
     }
   };
   deallocate(ptr, type);
-  while (!pending_compound_frees.empty()) {
-    auto next = pending_compound_frees.back();
-    pending_compound_frees.pop_back();
+  while (!queue.empty()) {
+    auto next = queue.pop();
     deallocate(next.ptr, next.type);
   }
-  freeing_compound = false;
 }
 
 /*

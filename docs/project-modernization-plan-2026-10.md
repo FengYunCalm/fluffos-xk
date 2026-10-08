@@ -512,6 +512,57 @@ done
 
 验收：结果/公开字段一致，所有生命周期反例通过，TSan 无新增竞争；有 N 扩大时工作量由二次向线性变化的计数和 Release 基准。有效 handle 快路径不能因本次优化反而增加扫描/分配。
 
+#### U08 正确性前置：退出期复合值释放队列
+
+触发证据见 §11.15。先完成下面的独立正确性单元，再验收 U08；不把正常退出改成强制退出。
+
+**范围与不变量：** 生产修改限 `src/vm/internal/base/svalue.cc` 的内部工作队列。保持 `free_compound()`、引用计数、四种复合值的分派、LIFO 顺序和线程隔离。不得清空 owner trace 来隐藏错误，不改 shutdown 回调，不泄漏永久队列，不恢复递归释放，不关闭 sanitizer。正常线程、线程退出及静态析构均须可释放嵌套值。
+
+1. **旧基线归因。** 核对 `baseline-source-identity.json`，确认冻结树的 `svalue.cc` 与 `cab8fc8c` 相同。使用下面的独立 ASan 构建复现 `owner_payload`；这一步会写构建和隔离证据，不属于只读调查。只有同时出现 `heap-use-after-free`、`free_compound`、`__call_tls_dtors` 和 owner trace 析构链，才认定旧基线也有同一问题。其他失败或不复现均先调查，不修改生产释放路径。
+2. **先加反例。** 新建 `src/tests/compound_free_probe.cc` 和 `tools/testsuite/test-compound-free.py`，在 `src/tests/CMakeLists.txt` 注册 `compound_free_probe`。复用现有监督器，每个场景独立进程，记录实际退出码、stderr、输入身份和进程清理结果。先在旧生产源码上运行：暖队列后的静态析构、显式 `std::exit()`、线程局部持有者的晚析构须暴露原错误。不要把测试自身的配置、参数或上下文错误算成生产反例。
+3. **替换容器寿命。** 用平凡析构的 `FLUFFOS_VM_THREAD_LOCAL` 活动队列指针替代当前 bool 和 TLS vector。最外层 `free_compound()` 创建栈上工作队列并绑定指针；重入只入队，最外层循环排空。RAII 在正常返回和 C++ 异常展开时解除绑定。队列用 16 项栈内槽位及 `std::vector` 溢出区：栈内满后才入溢出区，弹出先取溢出区；保持“溢出区非空时栈内必满”的不变量，从而保持原 LIFO 顺序。不新建通用容器库。此结构避免普通窄链每次释放都新增堆分配，且不依赖非平凡 TLS 容器活过退出阶段。
+4. **确定性验证。** probe 至少覆盖：array/mapping/class/Promise 混合及共享引用；16/17 项边界；1024 项宽图；深链；暖/冷静态析构；显式退出；线程晚析构及独立线程并发；取消 handler 抛出 C++ 异常后的活动指针复位。线程场景让持有者拥有自己的 `VMContext`，构造和析构均用 `VMContextThreadScope` 绑定，不能借已经销毁的上下文。保留 `nested_array_free_recursion.lpc` 的 200000 层 array、50000 层 mapping 门限。分配观察器不得自行分配；验证窄链无新增堆分配、溢出存储回收和 LIFO 顺序，不只看进程存活。
+5. **矩阵与性能。** Debug、ASan、TSan 分别运行 probe；逐次运行 `owner_payload`、`owner_executor_contract`、`nested_array_free_recursion`，每次只传一个 `--case`。重跑 U08 的 12 项白盒和 18 项公开回归。ASan 保持 leak 检查和失败即退出；TSan 的构建/discovery/执行均经 `setarch x86_64 -R`。用相同 probe 对旧/新窄链、宽图至少做七组配对测量，记录原始样本、分配及临时存储成本；不能把仅修复 UAF 说成释放性能也已改善。仍可能抛出的分配错误不得吞掉；本单元不宣称任意 OOM 下的部分对象图都可恢复。
+6. **收口并恢复 U08。** 更新本节证据和测试运行说明。验证通过后独立提交释放修复，不夹带尚未验收的 object store 优化。以修复后的生产提交重建 U08 对照基线，两侧使用同一测量夹具，避免把释放实现差异算作 summary 收益。已有失败和旧计数保留，不覆盖。随后补齐 U08 的 1k/10k/50k 计数及 Release 配对测量。
+
+旧基线复现命令（仓库根执行；先检查磁盘/内存及目标目录没有在用的程序；ASan 固定并行 2）：
+
+```bash
+set -euo pipefail
+ROOT="$PWD"
+E="$ROOT/build-modernization-evidence/u08"
+BASE="$E/baseline-source"
+B="$E/baseline-asan"
+for path in "$B" "$E/configure-baseline-asan.log" "$E/build-baseline-asan.log" \
+  "$E/baseline-owner-payload-asan" "$E/baseline-owner-payload-asan-summary.log"; do
+  test ! -e "$path" || { printf 'Already exists: %s\n' "$path" >&2; exit 1; }
+done
+for path in src/vm/internal/base/svalue.cc src/vm/internal/object_store.cc; do
+  GIT_OPTIONAL_LOCKS=0 git show "cab8fc8c:$path" | cmp - "$BASE/$path"
+done
+test -r "$ROOT/build-modernization-evidence/u07/dependencies/root/usr/include/pcre2.h"
+test -r /usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.11.2
+df -h /; free -h
+/usr/bin/python3 - <<'PY'
+from pathlib import Path
+fields = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
+if int(fields['MemAvailable'].split()[0]) < 2 * 1024 * 1024:
+    raise SystemExit('Less than 2 GiB available; do not build')
+PY
+cmake --preset asan -S "$BASE" -B "$B" \
+  -DPCRE_INCLUDE_DIR="$ROOT/build-modernization-evidence/u07/dependencies/root/usr/include" \
+  -DPCRE_LIBRARY=/usr/lib/x86_64-linux-gnu/libpcre2-8.so.0.11.2 \
+  > "$E/configure-baseline-asan.log" 2>&1
+cmake --build "$B" --target driver --parallel 2 > "$E/build-baseline-asan.log" 2>&1
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1 \
+  /usr/bin/python3 -B "$BASE/tools/testsuite/run-targeted.py" \
+  --driver "$B/bin/driver" --case /single/tests/efuns/owner_payload \
+  --evidence-dir "$E/baseline-owner-payload-asan" --timeout 180 \
+  > "$E/baseline-owner-payload-asan-summary.log" 2>&1
+```
+
+末条预期非零，必须再核对原始 `001-driver-lpc.log` 的指定错误链。后续重跑使用新证据目录及新日志名。源码/配置/输入身份、错误链或作用域不符时停止相关修改；只回退本补项的差异，不重置工作区、不删除失败材料。
+
 ### U09：有证据的 WS/matrix 去重
 
 **U09a WS 等价提取：** 新增 src/net/ws_common.{h,cc} 或在现有最合适的内部模块承接共同逻辑，二选一后只保留一份实现；CMake 注册随同修改。先提取纯参数/地址处理，再处理共同关闭步骤，不一次搬完整 callback。
@@ -1026,6 +1077,23 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 耗时取七组交错 A/B，每个进程预热一次后测五次，再比较各组中位数；原始样本和配对比值见 `paired-*/report.json`、`paired-summary.json`。两侧 Release 的工具链和项目选项一致，LTO 关闭、MARCH_NATIVE 开启。计数使用独立 Debug/GCC coverage，不将插桩时间当作 Release 性能。ASCII 的配对耗时中位比为 1.041/1.087/1.017；不宣称 ASCII 提速，也不将增幅解释为已证实的噪声。该成本保留给 U17 的混合负载验收。
 - Debug、ASan、UBSan 分别通过 10/10 原生测试和一个 `explode` LPC 入口，0 跳过。覆盖 Unicode、组合字符、emoji、CRLF、空字段、多字节分隔符、跨 buffer、负长度、子区间边界、SmartIterator 缓存重置和并发读取。ASan 显式开启 leak 检查并失败即退出，最终 sanitizer 记录为 `native-*-final`、`lpc-*-final`。
 - 新测量工具与运行方法见 `tools/perf/README.md`。新增 C++ 文件用固定 clang-format 18.1.8 和规范中的配置校验；未提前改变全仓 formatter 配置。U07 的分类工作量与兼容门禁完成，不代表全引擎或真实 mudlib 已提速；Windows、混合负载和下游验收仍归 U15/U17。
+
+### 11.15 U08：汇总验收未完成，退出期 UAF 前置修复已通过
+
+- 工作基线为 `cab8fc8c`，材料位于 `build-modernization-evidence/u08/`。已写入同一读锁内的 ID→record 临时索引；保留重复 ID 时原遍历的首条选择，不改变公开字段。尚未提交，不标记完成。
+- 真实 GCC 计数：1019 条记录的一次汇总执行 519690 次全局 ID 比较；缺失 handle 路径做三次汇总。有效 handle 和普通 path 查找没有全局扫描。1k/10k 旧基线材料已保存；5 万对象首轮在准备阶段达到整批共用的 300 秒评估期限，未进入有效测量。夹具已改为每次创建/销毁独立重置原预算，未提高 driver 配置限额；5 万组及最终 A/B 仍待完成。
+- 前置修复前，Debug、ASan、TSan 分别通过 12 项白盒和 18 项公开原生回归。`owner_executor_contract` 在三种构建各通过一次；`owner_payload` 的 Debug 通过，ASan 在正常退出时失败，当时尚未执行其 TSan 入口。不得将最初重复传入 `--case` 的命令算成两个入口：参数只保留最后一个，记录实际仅为 1 项。
+- ASan 原始证据：`lpc-owner-payload-asan/001-driver-lpc.log`。`shutdownMudOS()` 调用 `exit()` 后，`__call_tls_dtors` 先销毁 `pending_compound_frees` 的 vector；随后 `OwnerRuntimeCoordinator`/`OwnerTraceStore` 析构释放 `VMFrozenValue` 中的嵌套 mapping，重入 `free_compound()`，向已释放的 vector 存储写入。测试主体的 `Checks succeeded` 不能覆盖退出失败。独立重建的 `cab8fc8c` 生产源码同样复现该错误，证据为 `baseline-owner-payload-asan/001-driver-lpc.log`；两处栈均在 TLS vector 析构后向其旧存储写入，确认此 UAF 不是本轮 summary 索引引入的。
+- 发现此失败后曾暂停生产源码修改。最终只读复核已核对 `svalue.cc`、四类分派、Promise 取消回调、frozen value/trace 所有权、shutdown 次序及线程上下文绑定；按 U08 正确性前置步骤先复现，再实施独立修复。已有夹具错误、旧构建链接缺少 wrapper、准备超时和错误的 CLI 预期均保留，不充当通过证据。
+
+### 11.16 U08 正确性前置：复合值退出期释放修复
+
+- `svalue.cc` 用最外层释放调用持有工作队列；TLS 仅保存平凡析构的活动指针。16 项栈内槽位与 vector 溢出区保持原 LIFO 顺序，异常展开时解除绑定。未改引用计数、公开接口、trace 保留策略或 shutdown 回调，不用泄漏永久队列避开析构。
+- 旧 `cab8fc8c` 的真实 driver 和三个退出反例均复现同一 UAF。证据分别为 `baseline-owner-payload-asan/`、`compound-before-asan-thread-corrected/`。后者 3/3 均包含 `heap-use-after-free`、`free_compound` 和 `__call_tls_dtors`，不是把任意非零退出算成复现。
+- 新建 `compound_free_probe` 和 `test-compound-free.py`。Debug、ASan、TSan 各通过 11/11 专项场景、12/12 白盒、18/18 公开回归；三个独立 LPC 入口 `owner_payload`、`owner_executor_contract`、`nested_array_free_recursion` 在三种构建中全部通过。Release 专项场景也通过 11/11。所有结果零跳过；ASan 开启 leak 检查，TSan 保留原检查。证据位于 `compound-final-*`、`compound-native-*`、`compound-public-*`、`compound-<入口>-*`。
+- 夹具问题单列：初版线程测试把进程级 array/class 计数误当作线程局部计数；当前晚析构用单线程隔离，独立并发夹具用四个线程各自持有的纯 pending Promise，并验证回调线程与完整排空。冷队列初版把 debug 分配器首次释放创建的持久 journal 误算为队列保留；当前只预热不经过工作队列的标量数组释放。给 `run-targeted.py` 误传 `--disable-aslr` 的参数错误也不算测试证据，已用进程 personality 重跑。失败日志均保留。
+- Release 同一夹具、同一工具链和选项的七组交错配对见 `compound-paired-release/report.json`。每个样本包含 2000 次真实释放，构造不计时；64 层窄链和 64 项宽图的耗时中位比（新/旧）分别为 **1.091、1.083**。窄链冷队列分配由 1 次变 0 次；宽图冷分配均 7 次，峰值溢出存储均 1536 字节，但释放后队列保留由 1024 字节变 0。以上是正确性修复的成本，不宣称提速；约 8%–9% 的专项耗时增幅与 U07 的 ASCII 成本一起进入 U17 混合负载验收。
+- 此单元仅解除已复现的退出期 UAF，不宣称任意 OOM 下都能恢复部分释放的对象图。U08 的 50k 规模、汇总计数、锁时间及最终配对性能尚未闭环；恢复汇总验收时两侧必须同样包含本修复。
 
 ## 附录 A：生产源码差异逐文件索引
 

@@ -65,6 +65,29 @@ Linux 的 `trace_io_probe` 只在测试链接中检查日志调用线程并注�
 测试同时检查正常进程退出、原始日志、JSON 和零跳过，不把“进程未崩溃”单独算作通过。
 WSL2 的 TSan 测试加 `--disable-aslr`；构建仍需整体使用 `setarch x86_64 -R` 包装。
 
+## 复合值释放与退出验证
+
+```bash
+python3 -B tools/testsuite/test-compound-free.py \
+  --binary build-dev-debug/src/tests/compound_free_probe \
+  --evidence-dir build-dev-debug/compound-free-evidence
+```
+
+Linux 的 `compound_free_probe` 覆盖混合值、共享引用、16/17 项队列边界、宽图、深链、
+静态/线程局部晚析构、显式退出、异常后复位，以及四个线程重叠排空独立队列，共 11 个场景。
+进程必须正常退出并输出唯一完成标记；sanitizer、超时、遗漏执行或跳过均不算通过。
+链接包装只统计测试中的 C++ 分配和回收，生产 driver 不含观察器。
+冷队列场景只预热 debug 分配器的独立元数据，不提前使用复合值队列。
+
+本脚本的 `--case` 可重复选择专项场景；这与 `run-targeted.py` 的单个 LPC `--case` 不同。
+WSL2 上给本脚本加 `--disable-aslr`；运行 `run-targeted.py` 时则把整个 Python 命令放在
+`setarch x86_64 -R` 后，不能给后者传入 `--disable-aslr`。
+每次使用新的证据目录。真实 driver 仍须独立运行 `owner_payload`、`owner_executor_contract`
+和 `nested_array_free_recursion`，不能用 probe 替代退出链和深层 LPC 图验证。
+
+`compound_free_probe bench-narrow` / `bench-wide` 输出释放耗时、冷启动分配及保留存储。
+每轮测量 2000 次释放，构造不计入耗时；用于 Release 配对测量，不是自动性能通过门禁。
+
 ## LPC 用例与异步完成
 
 `testsuite/command/tests.c` 按稳定路径顺序执行。原始日志中的开始记录保留执行顺序，可用同一源码重放。
