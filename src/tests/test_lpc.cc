@@ -2,7 +2,10 @@
 #include <gtest/gtest-spi.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
+#include <event2/bufferevent_ssl.h>
 #include <event2/event.h>
+#include <unicode/ucnv.h>
+#include <algorithm>
 #include <atomic>
 #include "packages/async/async.h"  // for check_reqs (backend wakeup drain)
 #include "compiler/internal/diagnostic.h"  // T3.2 structured compile diagnostics
@@ -15,6 +18,7 @@
 #include <fstream>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <stdexcept>
@@ -7722,6 +7726,159 @@ TEST_F(DriverTest, TestUserLogonSchedulingUsesCancellableEvent) {
   ASSERT_FALSE(schedule_user_logon(nullptr, ip));
   user_del(ip);
   FREE(ip);
+}
+
+TEST_F(DriverTest, TestWebsocketPrelogonTeardownKeepsSessionIdentity) {
+  ASSERT_NE(master_ob, nullptr);
+  ASSERT_EQ(master_ob->interactive, nullptr);
+  const auto master_refs = master_ob->ref;
+  const auto user_count = users_num(true);
+  const auto event_count = event_base_get_num_events(g_event_base, EVENT_BASE_COUNT_ADDED);
+
+  for (bool another_session : {false, true}) {
+    SCOPED_TRACE(another_session);
+    interactive_t* attached = nullptr;
+    if (another_session) {
+      attached = user_add();
+      attached->ob = master_ob;
+      attached->connection_type = PORT_TYPE_WEBSOCKET;
+      attached->iflags = HANDSHAKE_COMPLETE;
+      attached->addr.ss_family = AF_INET;
+      attached->addrlen = sizeof(sockaddr_in);
+      master_ob->interactive = attached;
+      add_ref(master_ob, "websocket teardown test attached user");
+    }
+
+    auto* pending = user_add();
+    pending->ob = master_ob;
+    pending->connection_type = PORT_TYPE_WEBSOCKET;
+    pending->iflags = HANDSHAKE_COMPLETE;
+    pending->ev_command = evtimer_new(g_event_base, [](evutil_socket_t, short, void*) {}, nullptr);
+    ASSERT_NE(pending->ev_command, nullptr);
+    ASSERT_TRUE(schedule_user_logon(g_event_base, pending));
+    auto* buffer = evbuffer_new();
+    ASSERT_NE(buffer, nullptr);
+    auto* session_user = pending;
+
+    websocket_session_teardown(nullptr, &session_user, &buffer);
+    EXPECT_EQ(session_user, nullptr);
+    EXPECT_EQ(buffer, nullptr);
+    EXPECT_EQ(users_num(true), user_count + (another_session ? 1 : 0));
+    EXPECT_EQ(master_ob->interactive, attached);
+    EXPECT_EQ(master_ob->ref, master_refs + (another_session ? 1 : 0));
+    EXPECT_EQ(event_base_get_num_events(g_event_base, EVENT_BASE_COUNT_ADDED), event_count);
+    websocket_session_teardown(nullptr, &session_user, &buffer);
+
+    // Keep the fail-first run isolated when the old teardown leaves the pending user registered.
+    if (std::find(users().begin(), users().end(), pending) != users().end()) {
+      cancel_user_logon(pending);
+      event_free(pending->ev_command);
+      user_del(pending);
+      FREE(pending);
+    }
+    if (master_ob->interactive) {
+      remove_interactive(master_ob, 1);
+    }
+    EXPECT_EQ(users_num(true), user_count);
+    EXPECT_EQ(master_ob->ref, master_refs);
+  }
+}
+
+#ifndef _WIN32
+TEST_F(DriverTest, TestTransportPrelogonCleanupReleasesDescriptors) {
+  ASSERT_EQ(master_ob->interactive, nullptr);
+  const auto master_refs = master_ob->ref;
+  const auto user_count = users_num(true);
+  std::unique_ptr<event_base, decltype(&event_base_free)> base(event_base_new(), event_base_free);
+  ASSERT_NE(base, nullptr);
+
+  for (bool tls : {false, true}) {
+    SCOPED_TRACE(tls);
+    int descriptors[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors), 0);
+    ASSERT_EQ(evutil_make_socket_nonblocking(descriptors[0]), 0);
+    auto* ip = user_add();
+    ip->ob = master_ob;
+    ip->connection_type = PORT_TYPE_TELNET;
+    ip->fd = descriptors[0];
+    if (tls) {
+      auto* context = SSL_CTX_new(TLS_server_method());
+      ASSERT_NE(context, nullptr);
+      ip->ssl = SSL_new(context);
+      SSL_CTX_free(context);
+      ASSERT_NE(ip->ssl, nullptr);
+      ip->ev_buffer = bufferevent_openssl_socket_new(
+          base.get(), ip->fd, ip->ssl, BUFFEREVENT_SSL_ACCEPTING, BEV_OPT_CLOSE_ON_FREE);
+    } else {
+      ip->ev_buffer = bufferevent_socket_new(base.get(), ip->fd, BEV_OPT_CLOSE_ON_FREE);
+    }
+    ASSERT_NE(ip->ev_buffer, nullptr);
+    ip->ev_command = evtimer_new(base.get(), [](evutil_socket_t, short, void*) {}, nullptr);
+    ASSERT_NE(ip->ev_command, nullptr);
+    ip->telnet = net_telnet_init(ip);
+    ASSERT_NE(ip->telnet, nullptr);
+    UErrorCode status = U_ZERO_ERROR;
+    ip->trans = ucnv_open("UTF-8", &status);
+    ASSERT_TRUE(U_SUCCESS(status));
+    ASSERT_NE(ip->trans, nullptr);
+    ASSERT_TRUE(schedule_user_logon(base.get(), ip));
+
+    remove_user_connection(ip);
+    // bufferevent_free() cancels callbacks, then schedules the transport finalizer.
+    EXPECT_NE(event_base_loop(base.get(), EVLOOP_NONBLOCK), -1);
+    EXPECT_EQ(users_num(true), user_count);
+    EXPECT_EQ(master_ob->interactive, nullptr);
+    EXPECT_EQ(master_ob->ref, master_refs);
+    EXPECT_EQ(event_base_get_num_events(base.get(), EVENT_BASE_COUNT_ADDED), 0);
+    errno = 0;
+    EXPECT_EQ(fcntl(descriptors[0], F_GETFD), -1);
+    EXPECT_EQ(errno, EBADF);
+    evutil_closesocket(descriptors[1]);
+  }
+}
+#endif
+
+TEST_F(DriverTest, TestMudPortPrelogonInvalidLengthCleansUser) {
+  ASSERT_EQ(master_ob->interactive, nullptr);
+  const auto master_refs = master_ob->ref;
+  const auto user_count = users_num(true);
+  std::unique_ptr<event_base, decltype(&event_base_free)> base(event_base_new(), event_base_free);
+  ASSERT_NE(base, nullptr);
+  const uint32_t length = htonl(MAX_TEXT);
+
+  for (bool buffered_header : {false, true}) {
+    SCOPED_TRACE(buffered_header);
+    auto* ip = user_add();
+    ip->ob = master_ob;
+    ip->fd = -1;
+    ip->connection_type = PORT_TYPE_MUD;
+    ip->ev_buffer = bufferevent_socket_new(base.get(), -1, 0);
+    ASSERT_NE(ip->ev_buffer, nullptr);
+    ip->ev_command = evtimer_new(base.get(), [](evutil_socket_t, short, void*) {}, nullptr);
+    ASSERT_NE(ip->ev_command, nullptr);
+    ASSERT_TRUE(schedule_user_logon(base.get(), ip));
+    if (buffered_header) {
+      memcpy(ip->text, &length, sizeof(length));
+      ip->text_end = sizeof(length);
+    } else {
+      auto* input = bufferevent_get_input(ip->ev_buffer);
+      ASSERT_EQ(evbuffer_unfreeze(input, 0), 0);
+      ASSERT_EQ(evbuffer_add(input, &length, sizeof(length)), 0);
+      ASSERT_EQ(evbuffer_freeze(input, 0), 0);
+    }
+
+    get_user_data(ip);
+    const bool registered = std::find(users().begin(), users().end(), ip) != users().end();
+    EXPECT_FALSE(registered);
+    EXPECT_EQ(users_num(true), user_count);
+    if (registered) {
+      remove_user_connection(ip);
+    }
+    EXPECT_NE(event_base_loop(base.get(), EVLOOP_NONBLOCK), -1);
+    EXPECT_EQ(event_base_get_num_events(base.get(), EVENT_BASE_COUNT_ADDED), 0);
+    EXPECT_EQ(master_ob->interactive, nullptr);
+    EXPECT_EQ(master_ob->ref, master_refs);
+  }
 }
 
 TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {

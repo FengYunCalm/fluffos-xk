@@ -444,7 +444,7 @@ void websocket_session_teardown(struct lws *wsi, struct interactive_t **user,
     if (ip->lws == wsi) {
       ip->lws = nullptr;
     }
-    remove_interactive(ip->ob, 0);
+    remove_user_connection(ip);
   }
 
   if (*buffer) {

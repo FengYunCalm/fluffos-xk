@@ -1,0 +1,61 @@
+void read_command(string command);
+
+void write_prompt() {}
+
+void logon() {
+  tell_object(this_object(), "READY " + query_ip_number(this_object()) + "\n");
+  input_to("read_command");
+}
+
+void resume_after_exec() {
+  tell_object(this_object(), "EXEC\n");
+  input_to("read_command");
+}
+
+void stop_driver() {
+  "/single/u09_websocket_master"->finish_tests();
+}
+
+void net_dead() {
+  "/single/u09_websocket_master"->record_net_dead();
+  destruct(this_object());
+}
+
+void read_command(string command) {
+  switch (command) {
+    case "stats":
+      tell_object(this_object(), sprintf("STATS %d %d\n", sizeof(users()),
+                  "/single/u09_websocket_master"->query_net_dead()));
+      break;
+    case "exec": {
+      object next = new("/clone/websocket_session_user");
+      tell_object(this_object(), "BEFORE\n");
+      if (!exec(next, this_object())) {
+        error("websocket session exec failed");
+      }
+      next->resume_after_exec();
+      destruct(this_object());
+      return;
+    }
+    case "disconnect":
+      tell_object(this_object(), "CLOSED\n");
+      destruct(this_object());
+      return;
+    case "burst":
+    case "close":
+      tell_object(this_object(), "B" + implode(allocate(8193, "ab中🙂"), "") + "Z\n");
+      if (command == "close") {
+        destruct(this_object());
+        return;
+      }
+      break;
+    case "shutdown":
+      tell_object(this_object(), "BYE\n");
+      call_out_walltime("stop_driver", 0.05);
+      return;
+    default:
+      tell_object(this_object(), "ECHO " + command + "\n");
+      break;
+  }
+  input_to("read_command");
+}

@@ -88,6 +88,35 @@ WSL2 上给本脚本加 `--disable-aslr`；运行 `run-targeted.py` 时则把整
 `compound_free_probe bench-narrow` / `bench-wide` 输出释放耗时、冷启动分配及保留存储。
 每轮测量 2000 次释放，构造不计入耗时；用于 Release 配对测量，不是自动性能通过门禁。
 
+## WebSocket 与连接生命周期
+
+```bash
+python3 -B tools/testsuite/test-websocket.py \
+  --driver build-dev-debug/bin/driver \
+  --evidence-dir build-dev-debug/websocket-evidence
+```
+
+脚本在私有 sandbox 启动本次 driver；只连接 `127.0.0.1` 的动态端口，不接触已有实例。
+父进程复用单线程监督器；日志读取线程仅在受监督的工作进程中运行。TLS 客户端验证仓库的
+`localhost` 测试证书，不关闭证书校验。`--case` 可重复选择帮助中列出的用例。
+
+14 个用例覆盖 WS/WSS ascii、WS/WSS telnet、普通 telnet/TLS，以及可信/不可信代理头。
+检查 Unicode 输出、消息分片、burst、exec、`net_dead` 内 destruct、关闭后用户表回收、
+WS 关闭前排空和 MCCP 边界；普通 telnet 保持原有压缩能力。WS-telnet 保留原始换行，
+不同于普通 telnet 的 CRLF；WS 关闭期按完整字节流核对，不要求每个二进制帧单独构成 UTF-8。
+普通连接只验证小尾包断开，不把 WS 的延迟排空合同扩展到普通 `remove_interactive()`。
+
+每个用例必须按预定检查集合完成，driver 正常退出且无 sanitizer 诊断。
+`test-summary.json` 核对发现数、执行数、零跳过；原始进程证据使用上述 runner 格式。
+每个 peer 的收发证据在 sandbox 的 `log/wire-*.bin`，上限 8 MiB；记录依次为方向字节
+（0 发送、1 接收）、网络字节序的 32 位长度、原始字节。TLS 记录的是解密后的应用字节。
+
+原生反例位于 `src/tests/test_lpc.cc`：`TestWebsocketPrelogonTeardownKeepsSessionIdentity`
+核对未绑定/另一绑定及重复清理；`TestTransportPrelogonCleanupReleasesDescriptors`
+在私有 libevent base 排空 finalizer 后核对 fd 和事件；
+`TestMudPortPrelogonInvalidLengthCleansUser` 覆盖两条非法长度入口。
+这些确定性反例不能由可能已完成登录的真实快速关闭试验替代。
+
 ## LPC 用例与异步完成
 
 `testsuite/command/tests.c` 按稳定路径顺序执行。原始日志中的开始记录保留执行顺序，可用同一源码重放。

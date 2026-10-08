@@ -379,7 +379,7 @@ void on_user_events(bufferevent * /*bev*/, short events, void *arg) {
 
   if (events & (BEV_EVENT_ERROR | BEV_EVENT_EOF)) {
     user->iflags |= NET_DEAD;
-    remove_interactive(user->ob, 0);
+    remove_user_connection(user);
   } else {
     debug(event, "on_user_events: ignored unknown events: %d\n", events);
   }
@@ -446,7 +446,7 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
     }
 
     if (!schedule_user_logon(base, user)) {
-      remove_interactive(user->ob, 0);
+      remove_user_connection(user);
       return;
     }
   }
@@ -1201,7 +1201,7 @@ void get_user_data(interactive_t *ip) {
         if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t),
                                             &payload_length) ||
             static_cast<size_t>(ip->text_end) > sizeof(uint32_t) + payload_length) {
-          remove_interactive(ip->ob, 0);
+          remove_user_connection(ip);
           return;
         }
         text_space = static_cast<int>(sizeof(uint32_t) + payload_length -
@@ -1223,7 +1223,7 @@ void get_user_data(interactive_t *ip) {
     debug(connections, "get_user_data: fd %d, read error: %s.\n", ip->fd,
           evutil_socket_error_to_string(evutil_socket_geterror(ip->fd)));
     ip->iflags |= NET_DEAD;
-    remove_interactive(ip->ob, 0);
+    remove_user_connection(ip);
     return;
   }
 
@@ -1272,7 +1272,7 @@ void get_user_data(interactive_t *ip) {
           size_t payload_length = 0;
           if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t),
                                               &payload_length)) {
-            remove_interactive(ip->ob, 0);
+            remove_user_connection(ip);
             return;
           }
         } else {
@@ -1849,6 +1849,61 @@ int process_user_command_snapshot(interactive_t *ip, const char *command_snapsho
   return process_user_command_text(ip, user_command.data());
 }
 
+namespace {
+
+void release_user_resources(interactive_t* ip) {
+  // Cleanup events, must happen after ssl.
+  if (ip->ev_buffer != nullptr) {
+    // see http://www.wangafu.net/~nickm/libevent-book/Ref6a_advanced_bufferevents.html
+    if (ip->ssl) {
+      SSL_set_shutdown(ip->ssl, SSL_RECEIVED_SHUTDOWN);
+      SSL_shutdown(ip->ssl);
+      ip->ssl = nullptr;
+    }
+    bufferevent_free(ip->ev_buffer);
+    ip->ev_buffer = nullptr;
+  }
+  if (ip->ev_command != nullptr) {
+    evtimer_del(ip->ev_command);
+    event_free(ip->ev_command);
+    ip->ev_command = nullptr;
+  }
+
+  // Free telnet handle
+  if (ip->telnet != nullptr) {
+    telnet_free(ip->telnet);
+    ip->telnet = nullptr;
+  }
+
+  // Free LWS handle
+  if (ip->lws != nullptr) {
+    close_user_websocket(ip->lws);
+    ip->lws = nullptr;
+  }
+
+  // Free translator
+  if (ip->trans != nullptr) {
+    ucnv_close(ip->trans);
+    ip->trans = nullptr;
+  }
+}
+
+}  // namespace
+
+void remove_user_connection(interactive_t* ip) {
+  if (ip->ob->interactive == ip) {
+    remove_interactive(ip->ob, 0);
+    return;
+  }
+
+  // Before logon, ip->ob is borrowed; no object owns this session or an extra reference yet.
+  cancel_user_logon(ip);
+  ip->iflags |= CLOSING;
+  release_user_resources(ip);
+  user_del(ip);
+  FREE(ip);
+}
+
 /*
  * Remove an interactive user immediately.
  */
@@ -1919,40 +1974,7 @@ void remove_interactive(object_t *ob, int dested) {
     ip->snooped_by = nullptr;
   }
 #endif
-  // Cleanup events, must happen after ssl.
-  if (ip->ev_buffer != nullptr) {
-    // see http://www.wangafu.net/~nickm/libevent-book/Ref6a_advanced_bufferevents.html
-    if (ip->ssl) {
-      SSL_set_shutdown(ip->ssl, SSL_RECEIVED_SHUTDOWN);
-      SSL_shutdown(ip->ssl);
-      ip->ssl = nullptr;
-    }
-    bufferevent_free(ip->ev_buffer);
-    ip->ev_buffer = nullptr;
-  }
-  if (ip->ev_command != nullptr) {
-    evtimer_del(ip->ev_command);
-    event_free(ip->ev_command);
-    ip->ev_command = nullptr;
-  }
-
-  // Free telnet handle
-  if (ip->telnet != nullptr) {
-    telnet_free(ip->telnet);
-    ip->telnet = nullptr;
-  }
-
-  // Free LWS handle
-  if (ip->lws != nullptr) {
-    close_user_websocket(ip->lws);
-    ip->lws = nullptr;
-  }
-
-  // Free translator
-  if (ip->trans != nullptr) {
-    ucnv_close(ip->trans);
-    ip->trans = nullptr;
-  }
+  release_user_resources(ip);
 
   clear_notify(ip->ob);
 

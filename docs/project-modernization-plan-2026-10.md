@@ -565,11 +565,37 @@ ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1 \
 
 ### U09：有证据的 WS/matrix 去重
 
-**U09a WS 等价提取：** 新增 src/net/ws_common.{h,cc} 或在现有最合适的内部模块承接共同逻辑，二选一后只保留一份实现；CMake 注册随同修改。先提取纯参数/地址处理，再处理共同关闭步骤，不一次搬完整 callback。
+**U09a WS 等价提取：** 共同逻辑归入现有 `src/net/websocket.{h,cc}`，不另建 `ws_common`。地址解析和 session teardown 已在该模块共用；本单元只合并仍重复的建立会话和 flush 后关闭步骤，不搬整个 callback。
+
+**U09a 前置修复：待登录会话的身份与清理。** 基线 `a7b4d0b6` 的原生反例已复现 5 个失败断言，证据在 `build-modernization-evidence/u09/prelogon-before-debug/002-gtest-run.log`。`new_user()` 暂借 `master_ob`，直到登录事件执行才把会话挂到对象；旧 teardown 按 `ip->ob` 调用 `remove_interactive()`，因此可能留下用户和登录事件，也可能误关同一对象的另一条会话。普通连接的 EOF/error 与登录事件注册失败路径有同样的调用关系。
+
+按以下顺序执行，修复验证通过后才继续等价提取：
+
+1. 保留新增反例。分别验证对象未绑定会话和对象绑定另一条会话；核对用户表、待执行事件、对象绑定、引用计数和重复 teardown。
+2. 在 `src/comm.cc` 把原有纯 C/C++ 资源释放段提取为内部 helper。保留 SSL/bufferevent、command event、telnet、LWS、编码转换器的释放顺序；不把 `net_dead`、`clear_notify` 或对象引用释放搬入该 helper。
+3. 新增按具体 `interactive_t` 清理的内部入口。只有 `ip->ob->interactive == ip` 才走原有 `remove_interactive()`；未绑定的会话取消登录事件、释放本身资源并离开用户表，不调用 LPC 钩子，不借绑 master，不减少尚未持有的对象引用。
+4. WebSocket teardown、普通连接 EOF/error、普通连接登录事件注册失败，以及 `get_user_data()` 的读取失败和两处非法 MUD 长度分支改用该入口。保持 `remove_interactive(object_t*, int)` 原契约；不在本补项调整 listener 分配策略或 gateway 的独立会话登记合同。
+5. 先跑上述反例和登录取消、`net_dead`/destruct/exec 回归，再验证真实 loopback 的关闭与重连。Debug、ASan、UBSan 全部满足后，继续 WS 等价提取。原始失败材料保留；测试夹具曾误用端口枚举导致的编译失败不算生产缺陷证据。
+
+**资源夹具连续失败后的只读复核与补救：** `native-prelogon-final-debug` 的 abort 已用符号栈定位到 libevent 的非阻塞 fd 前置条件；`native-prelogon-verified-debug` 的 6 个失败断言来自在 finalizer 执行前检查描述符。`src/thirdparty/libevent/bufferevent.c` 的 `bufferevent_free()` 先清除回调、取消工作，再由 `event_callback_finalize_many_()` 安排 `bufferevent_finalize_cb_()`；后者才执行 transport destruct。两批记录均保留为夹具失败，不归入已复现的生产缺陷。不得用提前关闭 fd、同步销毁 bufferevent 或删除断言换取通过。
+
+补救只修改 `TestTransportPrelogonCleanupReleasesDescriptors`：
+
+1. 用 RAII 管理夹具自己的 `event_base`；socketpair 的被测 fd 保持非阻塞。plain/TLS bufferevent、command event 和登录 event 均登记到该 base，不推进 driver 的全局事件循环。
+2. `remove_user_connection()` 返回后，执行一次 `event_base_loop(base, EVLOOP_NONBLOCK)`，要求循环无错误；随后仍须证明用户/对象引用与绑定不变、夹具事件为零且 fd 为 `EBADF`。只关闭夹具持有的 socketpair 对端，不代替生产路径关闭被测端。
+3. 定向构建 `driver lpc_tests`，用 `DriverTest.*UserLogon*:DriverTest.*Websocket*:DriverTest.TestTransportPrelogonCleanupReleasesDescriptors:DriverTest.*NetDead*:DriverTest.TestLibeventOnce*` 过滤器重新跑 Debug，再串行跑 ASan/UBSan 的同一过滤器和 `tools/testsuite/test-websocket.py`；每次使用新的持久证据目录。失败则保留记录并重新定位，不放宽判定。
+
+该补救已只读复核：只调整夹具的 base 和观察时机，不改 driver、第三方代码、生产协议及回调合同。真实回环夹具的 `set_prompt`、关闭期逐帧 UTF-8、WS-telnet CRLF 假设错误也已分别定位并保留；验收使用真实 `write_prompt` 钩子、关闭期完整字节流和 WS 原始换行语义。
+
+**调用面收口：** 最终只读复核还发现 `get_user_data()` 三处仍按对象清理。先补 `TestMudPortPrelogonInvalidLengthCleansUser`：分别从已缓存头部和刚读入头部进入实际读取函数，用超出输入容量的长度验证用户表移除；失败后才调用夹具清理，不能掩盖断言。反例复现后仅迁移这三处调用，再以同一过滤器加该测试验证三种构建。telnet 协商回调中的同步销毁与后续访问属于另一生命周期问题，不机械替换调用；在 U09a 后续先复现，并单独处理后再验收等价提取。
+
+本补项只读复核已核对 `new_user` 的三个调用入口、`on_user_logon` 的引用取得时机、普通连接事件回调、原 `remove_interactive` 释放顺序和 gateway 的独立初始化路径；不改变信任边界、协议帧和成功登录行为。
+
+**待登录身份修复的本地结果：** `native-prelogon-complete-{debug,asan,ubsan}` 均为 7/7、零跳过；新增 MUD 长度反例先在旧调用上触发 4 个失败断言（`mud-prelogon-before-debug`），再通过三种构建。真实回环的 ASan/UBSan 各 14/14；Debug 的 8 个既有通过用例和修正 WS-telnet 换行夹具后的 6 个通过用例合计覆盖同一 14 项集合。证据均在 `build-modernization-evidence/u09/`，其中 `loopback-prelogon-debug` 的 6 个旧夹具失败由 `loopback-prelogon-debug-ws-telnet` 替代，不能把原批次写成全通过。最后三处 MUD/读取错误调用只重跑受影响的原生检查，不重复无关成功路径。详见 `tools/testsuite/README.md` 的运行及证据合同。此结果不代表 U09 的 telnet 回调生存期、等价提取或 matrix 已完成。
 
 必须保留：WS ascii/telnet 差异；telnet option table 和 WS 禁 MCCP；LWS_PRE/队列所有权；TLS 的 lws_write 返回值可能大于 payload，按请求 payload 长度出队；driver 主动关闭要等尾部消息 flush；session detach/destruct 回调重入。
 
-**U09b 代理策略：** 无 X-Real-IP、合法 v4/v6、无效值、直连伪造 header、现有受信代理分别测试。未明确受信代理合同前，只修解析器资源/长度问题，不自动采用新增拒绝策略。
+**U09b 代理策略：** 无 X-Real-IP、合法 v4/v6、无效值、直连伪造 header、现有受信代理分别测试。现有合同已由源码和 `docs/runbooks/gateway-security.md` 确认：先检查真实 peer；空 CIDR 列表不信任任何头；只有命中本 listener CIDR 才接受单一数字地址，非法可信头拒绝。不改变该合同，不引入新的拒绝策略。
 
 **U09c matrix：** 将重复的数组形状和数值读取移到一个内部 helper，共同变换只提取已完全相同的算式；保留错误参数号、矩阵维度、结果顺序和原浮点计算顺序。NaN/Inf、int/float 混合及坏类型均比较前后行为。
 
