@@ -4,7 +4,7 @@ Thank you for considering contributing to this FluffOS fork.
 
 ## Scope of this fork
 
-This repository focuses on build reliability, compiler warning cleanup, and Windows/MSYS2 installation stability. If your change falls outside that scope, please consider contributing directly to the upstream project first.
+FluffOS_XK is an independent FluffOS engine fork for team use. The project scope and the boundary between the driver and downstream game data are described in [docs/project-scope.md](docs/project-scope.md).
 
 ## How to contribute
 
@@ -15,13 +15,14 @@ This repository focuses on build reliability, compiler warning cleanup, and Wind
 
 ## Build & test
 
+Use the repository's [CMake presets](CMakePresets.json) to configure and build. For example:
+
 ```bash
-rm -rf build && mkdir build && cd build
-cmake ..
-cmake --build . --target install
+cmake --preset dev-debug
+cmake --build --preset dev-debug --target driver lpcc lpc_tests --parallel 4
 ```
 
-For tests, run available targets in your environment (for example, `ctest` or `make test` if configured), and review `docs/` for related guidance.
+Run C++ tests with `ctest --test-dir build-dev-debug --output-on-failure`. Run LPC tests from `testsuite/`; see the [isolated test runner guide](tools/testsuite/README.md) before choosing a test entry point. Do not remove or overwrite an existing build directory as part of the build instructions.
 
 ## Commit messages
 
@@ -38,7 +39,7 @@ Examples: `fix: stabilize Windows install`, `docs: rewrite README`.
 
 ## Code style
 
-Follow the existing style in each file. Avoid unnecessary formatting changes.
+Follow the repository's [coding standard](docs/coding-standard.md). Preserve behavior and keep formatting-only changes focused.
 
 ## Code of Conduct
 

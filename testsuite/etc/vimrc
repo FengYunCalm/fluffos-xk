@@ -10,6 +10,7 @@ Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
 Plug 'scrooloose/nerdcommenter'
 Plug 'mhinz/vim-signify'
+" clang-format applies to C/C++ only; LPC .c/.h files need LPC-aware formatting.
 Plug 'rhysd/vim-clang-format'
 Plug 'lasorda/lpc.vim'
 Plug 'lasorda/vim-snippets'
