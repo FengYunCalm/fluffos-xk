@@ -1,6 +1,15 @@
 void read_command(string command);
 
+private int close_on_gmcp;
+
 void write_prompt() {}
+
+void gmcp_enable() {
+  if (close_on_gmcp) {
+    tell_object(this_object(), "CALLBACK\n");
+    destruct(this_object());
+  }
+}
 
 void logon() {
   tell_object(this_object(), "READY " + query_ip_number(this_object()) + "\n");
@@ -23,6 +32,10 @@ void net_dead() {
 
 void read_command(string command) {
   switch (command) {
+    case "callback-destruct":
+      close_on_gmcp = 1;
+      tell_object(this_object(), "ARMED\n");
+      break;
     case "stats":
       tell_object(this_object(), sprintf("STATS %d %d\n", sizeof(users()),
                   "/single/u09_websocket_master"->query_net_dead()));

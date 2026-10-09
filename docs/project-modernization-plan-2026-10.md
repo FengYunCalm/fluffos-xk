@@ -601,6 +601,8 @@ ASAN_OPTIONS=detect_leaks=1:halt_on_error=1:abort_on_error=1 \
 
 验收：真实 loopback ws/wss + ascii/telnet + close/burst/MCCP 组合；类型反例和矩阵数值回归；ASan/UBSan。借上游 helper，不借其更弱或不同的生命周期策略。
 
+**U09 当前验收结果：** 已完成具体会话清理、telnet 回调生存期保护、WS 建立/flush-close 等价提取和 matrix 共享变换 helper。`build-modernization-evidence/u09/native-after-refactor-{debug,asan,ubsan,tsan}` 的定向原生集合各为 6/6、零跳过；`websocket-after-refactor-{debug,asan,ubsan,tsan}` 的真实回环集合各为 18/18、零失败/零跳过，覆盖 WS/WSS ASCII/telnet、plain/TLS、回调内 GMCP 销毁、受信代理矩阵和 MCCP 拒绝。`matrix` 与 `matrix_type_check` 在 Debug/ASan/UBSan/TSan 共 8/8 入口通过。TSan 执行均使用 `setarch x86_64 -R`。本地 Linux 验收完成；Windows、其他平台和长期压力测试仍属于外部/后续门禁，不把本结果扩大为全平台完成。
+
 <a id="u10-style"></a>
 
 ### U10：统一规范、格式检查与测试结构

@@ -8,6 +8,33 @@
 #include <string>
 #include <vector>
 
+struct evbuffer;
+struct lws;
+struct lws_context;
+struct interactive_t;
+
+// Shared per-connection state for the ASCII and telnet websocket protocols.
+// The protocol callbacks intentionally keep their receive paths separate, but
+// session creation and close-after-flush handling are identical.
+struct WebSocketSession {
+  struct lws *wsi;
+  struct interactive_t *user;
+  struct evbuffer *buffer;
+  bool close_after_flush;
+};
+
+using websocket_transport_setup_fn = void (*)(struct interactive_t *);
+
+// Create and schedule the interactive user for an established websocket.
+// `transport_setup`, when supplied, initializes protocol-specific state before
+// the user logon callback is scheduled.
+bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
+                                 websocket_transport_setup_fn transport_setup);
+
+// Close a driver-initiated websocket after the application buffer and lws pipe
+// have drained. Returns true when the normal close frame was requested.
+bool websocket_maybe_close_after_flush(struct lws *wsi, WebSocketSession *session);
+
 // Parse the startup-only trusted proxy CIDR list.  The list is compiled into
 // each websocket port before the listener is created.
 bool websocket_parse_trusted_proxy_cidrs(

@@ -34,6 +34,8 @@ CASES = {
        for transport in ("ws", "wss") for protocol in ("ascii", "telnet")},
     **{f"contract-{transport}": ("contract", transport, "telnet")
        for transport in ("plain", "tls")},
+    **{f"callback-destruct-{transport}": ("callback-destruct", transport, "telnet")
+       for transport in ("ws", "wss", "plain", "tls")},
     **{f"{policy}-{transport}-{protocol}": (policy, transport, protocol)
        for policy in ("untrusted", "trusted") for transport in ("ws", "wss")
        for protocol in ("ascii", "telnet")},
@@ -255,8 +257,8 @@ class Peer:
         try:
             while not self.closed:
                 self.receive()
-        except EOFError:
-            pass
+        except (EOFError, ConnectionResetError):
+            self.closed = True
         require(not self.text, f"unexpected text before close: {bytes(self.text[:100])!r}")
         if normal and self.websocket:
             require(self.close_code == 1000, f"wrong close status: {self.close_code}")
@@ -426,6 +428,23 @@ def probe_contract(probe: DriverProbe, transport: str, protocol: str) -> list[st
     return checks
 
 
+def probe_callback_destruct(probe: DriverProbe, transport: str, protocol: str) -> list[str]:
+    peer = probe.peer(transport, protocol)
+    peer.expect(b"READY 127.0.0.1\n")
+    peer.send_command("callback-destruct")
+    peer.expect(b"ARMED\n")
+    peer.send(bytes([255, 253, 201]))
+    peer.expect(b"CALLBACK\n")
+    peer.expect_close(normal=True)
+    peer.close()
+    control = probe.peer("ws", "ascii")
+    control.expect(b"READY 127.0.0.1\n")
+    _count, dead = probe.settled_stats(control)
+    require(dead == 0, "destruct unexpectedly invoked net_dead")
+    probe.finish(control)
+    return ["gmcp-destruct", "user-count"]
+
+
 def probe_proxy(probe: DriverProbe, policy: str, transport: str, protocol: str) -> list[str]:
     samples = [
         ("absent", [], "127.0.0.1"),
@@ -460,8 +479,12 @@ def run_probe(driver: str, case: str) -> None:
     probe = DriverProbe(driver)
     try:
         probe.start()
-        checks = (probe_contract(probe, transport, protocol) if policy == "contract"
-                  else probe_proxy(probe, policy, transport, protocol))
+        if policy == "contract":
+            checks = probe_contract(probe, transport, protocol)
+        elif policy == "callback-destruct":
+            checks = probe_callback_destruct(probe, transport, protocol)
+        else:
+            checks = probe_proxy(probe, policy, transport, protocol)
         report = {"case": case, "checks": checks, "driver_returncode": probe.process.returncode}
     finally:
         probe.close()
@@ -517,7 +540,9 @@ class WebsocketTest(unittest.TestCase):
         report = json.loads(reports[0])
         self.assertEqual(report["case"], self.case)
         self.assertEqual(report["driver_returncode"], 0)
-        if policy != "contract":
+        if policy == "callback-destruct":
+            expected = ["gmcp-destruct", "user-count"]
+        elif policy != "contract":
             expected = ["absent", "ipv4", "ipv6", "mapped", "invalid", "list", "duplicate", "long"]
         else:
             expected = ["echo"]

@@ -106,6 +106,10 @@ static inline void on_telnet_send(const char *buffer, unsigned long size, intera
     bufferevent_write(ip->ev_buffer, buffer, size);
 }
 
+static inline bool telnet_connection_alive(const interactive_t *ip) {
+  return ip != nullptr && ip->ob != nullptr && !(ip->iflags & CLOSING);
+}
+
 static inline void on_telnet_iac(unsigned char cmd, interactive_t *ip) {
   switch (cmd) {
     case TELNET_BREAK: {
@@ -171,7 +175,9 @@ static inline void on_telnet_will(unsigned char cmd, interactive_t *ip) {
       debug(telnet, "on_telnet_will: unimplemented command %d.\n", cmd);
       break;
   }
-  flush_message(ip);
+  if (telnet_connection_alive(ip)) {
+    flush_message(ip);
+  }
 }
 
 static inline void on_telnet_wont(unsigned char cmd, interactive_t *ip) {
@@ -226,6 +232,9 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t *ip) {
             "Bad client: bogus IAC DO GMCP from %s.",
             sockaddr_to_string(reinterpret_cast<const sockaddr *>(&ip->addr), ip->addrlen));
         remove_interactive(ip->ob, false);
+        if (!telnet_connection_alive(ip)) {
+          return;
+        }
 #else
         // do nothing
 #endif
@@ -239,6 +248,9 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t *ip) {
             "Bad client: bogus IAC DO MSDP from %s.",
             sockaddr_to_string(reinterpret_cast<const sockaddr *>(&ip->addr), ip->addrlen));
         remove_interactive(ip->ob, false);
+        if (!telnet_connection_alive(ip)) {
+          return;
+        }
 #else
         // do nothing
 #endif
@@ -252,6 +264,9 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t *ip) {
             "Bad client: bogus IAC DO MSSP from %s.",
             sockaddr_to_string(reinterpret_cast<const sockaddr *>(&ip->addr), ip->addrlen));
         remove_interactive(ip->ob, false);
+        if (!telnet_connection_alive(ip)) {
+          return;
+        }
 #else
         // do nothing
 #endif
@@ -265,6 +280,9 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t *ip) {
             "Bad client: bogus IAC DO ZMP from %s.",
             sockaddr_to_string(reinterpret_cast<const sockaddr *>(&ip->addr), ip->addrlen));
         remove_interactive(ip->ob, false);
+        if (!telnet_connection_alive(ip)) {
+          return;
+        }
 #else
         // do nothing
 #endif
@@ -287,7 +305,9 @@ static inline void on_telnet_do(unsigned char cmd, interactive_t *ip) {
       telnet_negotiate(ip->telnet, TELNET_WONT, cmd);
       break;
   }
-  flush_message(ip);
+  if (telnet_connection_alive(ip)) {
+    flush_message(ip);
+  }
 }
 
 static inline void on_telnet_dont(unsigned char cmd, interactive_t *ip) {
@@ -440,12 +460,14 @@ void on_telnet_subnegotiation(unsigned char cmd, const char *buf, unsigned long 
       break;
     }
   }
-  flush_message(ip);
+  if (telnet_connection_alive(ip)) {
+    flush_message(ip);
+  }
 }
 
 static inline void on_telnet_environ(const struct telnet_environ_t *values, unsigned long size,
                                      interactive_t *ip) {
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < size && telnet_connection_alive(ip); i++) {
     if (values[i].var == nullptr || values[i].value == nullptr) {
       continue;
     }
@@ -469,6 +491,9 @@ static inline void on_telnet_ttype(const char *name, interactive_t *ip) {
 // Main event handler.
 void telnet_event_handler(telnet_t *telnet, telnet_event_t *ev, void *user_data) {
   auto ip = reinterpret_cast<interactive_t *>(user_data);
+  if (!telnet_connection_alive(ip)) {
+    return;
+  }
 
   switch (ev->type) {
     case TELNET_EV_DATA: {

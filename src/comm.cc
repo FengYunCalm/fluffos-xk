@@ -65,6 +65,7 @@ static int consume_user_command_snapshot(interactive_t * /*ip*/, const char * /*
 static int process_user_command_text(interactive_t * /*ip*/, char * /*user_command*/);
 static int call_function_interactive(interactive_t * /*i*/, char * /*str*/);
 static void print_prompt(interactive_t * /*ip*/);
+static bool receive_user_telnet_data(interactive_t * /*ip*/, const char * /*data*/, size_t /*len*/);
 
 #ifdef NO_SNOOP
 #define handle_snoop(str, len, who)
@@ -1244,7 +1245,9 @@ void get_user_data(interactive_t *ip) {
       int const start = ip->text_end;
 
       // this will read data into ip->text
-      telnet_recv(ip->telnet, reinterpret_cast<const char *>(&buf[0]), num_bytes);
+      if (!receive_user_telnet_data(ip, reinterpret_cast<const char *>(&buf[0]), num_bytes)) {
+        return;
+      }
 
       // If we read something
       if (ip->text_end > start) {
@@ -1404,7 +1407,9 @@ void on_user_websocket_telnet_received(interactive_t *ip, const char *data, size
   int const start = ip->text_end;
 
   // this will read data into ip->text
-  telnet_recv(ip->telnet, data, len);
+  if (!receive_user_telnet_data(ip, data, len)) {
+    return;
+  }
   // If we read something
   if (ip->text_end > start) {
     /* handle snooping - snooper does not see type-ahead due to
@@ -1888,10 +1893,47 @@ void release_user_resources(interactive_t* ip) {
   }
 }
 
+void finish_deferred_user_cleanup(interactive_t *ip) {
+  if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0) {
+    return;
+  }
+  ip->cleanup_pending = false;
+  release_user_resources(ip);
+  FREE(ip);
+}
+
+class TelnetReceiveGuard {
+ public:
+  explicit TelnetReceiveGuard(interactive_t *ip) : ip_(ip) {
+    ++ip_->telnet_receive_depth;
+  }
+
+  ~TelnetReceiveGuard() {
+    --ip_->telnet_receive_depth;
+    finish_deferred_user_cleanup(ip_);
+  }
+
+  bool connection_alive() const {
+    return ip_->ob != nullptr && !(ip_->iflags & CLOSING);
+  }
+
+ private:
+  interactive_t *ip_;
+};
+
 }  // namespace
 
+static bool receive_user_telnet_data(interactive_t *ip, const char *data, size_t len) {
+  TelnetReceiveGuard guard(ip);
+  telnet_recv(ip->telnet, data, len);
+  return guard.connection_alive();
+}
+
 void remove_user_connection(interactive_t* ip) {
-  if (ip->ob->interactive == ip) {
+  if (!ip) {
+    return;
+  }
+  if (ip->ob && ip->ob->interactive == ip) {
     remove_interactive(ip->ob, 0);
     return;
   }
@@ -1899,8 +1941,13 @@ void remove_user_connection(interactive_t* ip) {
   // Before logon, ip->ob is borrowed; no object owns this session or an extra reference yet.
   cancel_user_logon(ip);
   ip->iflags |= CLOSING;
-  release_user_resources(ip);
   user_del(ip);
+  ip->ob = nullptr;
+  if (ip->telnet_receive_depth != 0) {
+    ip->cleanup_pending = true;
+    return;
+  }
+  release_user_resources(ip);
   FREE(ip);
 }
 
@@ -1974,7 +2021,10 @@ void remove_interactive(object_t *ob, int dested) {
     ip->snooped_by = nullptr;
   }
 #endif
-  release_user_resources(ip);
+  const bool defer_cleanup = ip->telnet_receive_depth != 0;
+  if (!defer_cleanup) {
+    release_user_resources(ip);
+  }
 
   clear_notify(ip->ob);
 
@@ -2008,8 +2058,13 @@ void remove_interactive(object_t *ob, int dested) {
 #endif
 
   user_del(ip);
-  FREE(ip);
   ob->interactive = nullptr;
+  ip->ob = nullptr;
+  if (defer_cleanup) {
+    ip->cleanup_pending = true;
+  } else {
+    FREE(ip);
+  }
   if (net_dead_guard) {
     free_object(&net_dead_guard, "remove_interactive net_dead");
   }

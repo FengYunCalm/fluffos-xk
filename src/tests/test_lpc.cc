@@ -7701,18 +7701,19 @@ TEST_F(DriverTest, TestAddVmessageUsesThreadLocalBoundedBuffer) {
 
 TEST_F(DriverTest, TestUserLogonSchedulingUsesCancellableEvent) {
   const std::string source_root = std::string(TESTSUITE_DIR) + "/../src/";
-  for (const auto *path : {"comm.cc", "net/ws_ascii.cc", "net/ws_telnet.cc"}) {
-    const auto source = read_source_file_for_test((source_root + path).c_str());
-    ASSERT_NE(source.find("schedule_user_logon("), std::string::npos) << path;
-  }
   const auto comm_source = read_source_file_for_test((source_root + "comm.cc").c_str());
+  ASSERT_NE(comm_source.find("schedule_user_logon("), std::string::npos);
   ASSERT_NE(comm_source.find("cancel_user_logon"), std::string::npos);
+
+  const auto websocket_source = read_source_file_for_test((source_root + "net/websocket.cc").c_str());
+  ASSERT_NE(websocket_source.find("bool websocket_establish_session("), std::string::npos);
+  ASSERT_NE(websocket_source.find("schedule_user_logon("), std::string::npos);
+  ASSERT_NE(websocket_source.find("void websocket_session_teardown"), std::string::npos);
   for (const auto *path : {"net/ws_ascii.cc", "net/ws_telnet.cc"}) {
     const auto source = read_source_file_for_test((source_root + path).c_str());
+    ASSERT_NE(source.find("websocket_establish_session("), std::string::npos) << path;
     ASSERT_NE(source.find("websocket_session_teardown"), std::string::npos) << path;
   }
-  const auto websocket_source = read_source_file_for_test((source_root + "net/websocket.cc").c_str());
-  ASSERT_NE(websocket_source.find("void websocket_session_teardown"), std::string::npos);
   const auto gateway_source = read_source_file_for_test(
       (source_root + "packages/gateway/gateway_session.cc").c_str());
   ASSERT_NE(gateway_source.find("cancel_user_logon"), std::string::npos);

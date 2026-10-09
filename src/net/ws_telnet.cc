@@ -14,12 +14,6 @@
 #include "net/websocket.h"
 #include "net/telnet.h"
 
-// from comm.cc
-interactive_t *new_user(port_def_t *port, evutil_socket_t fd, sockaddr *addr, socklen_t addrlen);
-extern void on_user_logon(interactive_t *);
-extern void remove_interactive(object_t *ob, int dested);
-int cmd_in_buf(interactive_t *ip);
-
 void on_user_websocket_telnet_received(interactive_t *ip, const char *data, size_t len);
 
 namespace {
@@ -30,14 +24,19 @@ struct per_vhost_data {
   struct lws_vhost *vhost;
   const struct lws_protocols *protocol;
 
-  ws_telnet_session *pss_list; /* linked-list of live pss*/
+  WebSocketSession *pss_list; /* linked-list of live pss*/
 };
+
+void setup_telnet(interactive_t *ip) {
+  ip->telnet = net_telnet_init(ip);
+  send_initial_telnet_negotiations(ip);
+}
 
 }  // namespace
 
 int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in,
                       size_t len) {
-  auto *pss = (ws_telnet_session *)user;
+  auto *pss = reinterpret_cast<WebSocketSession *>(user);
   auto *vhd =
       (struct per_vhost_data *)lws_protocol_vh_priv_get(lws_get_vhost(wsi), lws_get_protocol(wsi));
 
@@ -54,44 +53,11 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
     case LWS_CALLBACK_PROTOCOL_DESTROY:
       lwsl_info("LWS_CALLBACK_PROTOCOL_DESTROY\n");
       break;
-    case LWS_CALLBACK_ESTABLISHED: {
-      /* generate a block of output before travis times us out */
-      lwsl_info("LWS_CALLBACK_ESTABLISHED\n");
-
-      auto port = (port_def_t *)lws_context_user(lws_get_context(wsi));
-      auto fd = lws_get_socket_fd(lws_get_network_wsi(wsi));
-
-      sockaddr_storage addr = {};
-      socklen_t addrlen = sizeof(addr);
-      if (!websocket_get_client_address(wsi, port, &addr, &addrlen)) {
-        lwsl_warn("LWS_CALLBACK_ESTABLISHED: invalid peer address or trusted X-Real-IP\n");
-        return -1;
-      }
-
-      auto ip = new_user(port, fd, reinterpret_cast<sockaddr *>(&addr), addrlen);
-
-      pss->user = ip;
-      pss->buffer = evbuffer_new();
-      pss->close_after_flush = false;
-      if (!pss->buffer) {
-        websocket_session_teardown(wsi, &pss->user, &pss->buffer);
-        return -1;
-      }
-
-      ip->iflags |= HANDSHAKE_COMPLETE;
-      ip->lws = wsi;
-
-      //handshake complete so lets setup telnet layer
-      ip->telnet = net_telnet_init(ip);
-      send_initial_telnet_negotiations(ip);
-
-      auto base = evconnlistener_get_base(port->ev_conn);
-      if (!schedule_user_logon(base, ip)) {
-        websocket_session_teardown(wsi, &pss->user, &pss->buffer);
+    case LWS_CALLBACK_ESTABLISHED:
+      if (!websocket_establish_session(wsi, pss, setup_telnet)) {
         return -1;
       }
       break;
-    }
     case LWS_CALLBACK_CLOSED: {
       lwsl_info("LWS_CALLBACK_CLOSED: wsi %p\n", wsi);
 
@@ -122,16 +88,8 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
           lws_callback_on_writable(wsi);
         }
       }
-      if (pss->close_after_flush && evbuffer_get_length(pss->buffer) == 0) {
-        // Wait for libwebsockets' extension and kernel write pipe to drain
-        // before entering the close states, or the final frame can be lost.
-        if (lws_send_pipe_choked(wsi)) {
-          lws_callback_on_writable(wsi);
-        } else {
-          pss->close_after_flush = false;
-          lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, nullptr, 0);
-          return -1;
-        }
+      if (websocket_maybe_close_after_flush(wsi, pss)) {
+        return -1;
       }
       break;
     }
@@ -164,7 +122,7 @@ int ws_telnet_callback(struct lws *wsi, enum lws_callback_reasons reason, void *
 
 void ws_telnet_send(struct lws *wsi, const char *data, size_t len) {
   DEBUG_CHECK(lws_get_protocol(wsi)->id != PROTOCOL_WS_TELNET, "wrong protocol!");
-  auto pss = reinterpret_cast<ws_telnet_session *>(lws_wsi_user(wsi));
+  auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
   DEBUG_CHECK(pss == nullptr, "no session data!");
 
   evbuffer_add(pss->buffer, data, len);

@@ -79,6 +79,11 @@ struct interactive_t {
   // libtelnet handle
   struct telnet_t *telnet;
 
+  // A telnet callback may execute LPC that destroys this connection. Keep the
+  // transport state alive until the outer telnet_recv() returns.
+  unsigned int telnet_receive_depth;
+  bool cleanup_pending;
+
   // libevent event handle.
   struct bufferevent *ev_buffer;
   struct event *ev_command;

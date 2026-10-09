@@ -28,10 +28,10 @@ enum PROTOCOL_ID {
 
 static struct lws_protocols protocols[] = {
     {"http", lws_callback_http_dummy, 0, 0, WS_HTTP},
-    {"ascii", ws_ascii_callback, sizeof(struct ws_ascii_session), 4096, WS_ASCII},
-    {"telnet", ws_telnet_callback, sizeof(struct ws_telnet_session), 4096, WS_TELNET},
+    {"ascii", ws_ascii_callback, sizeof(WebSocketSession), 4096, WS_ASCII},
+    {"telnet", ws_telnet_callback, sizeof(WebSocketSession), 4096, WS_TELNET},
     //for backward compatiblity with fluffos 2.x
-    {"binary", ws_telnet_callback, sizeof(struct ws_telnet_session), 4096, WS_TELNET},
+    {"binary", ws_telnet_callback, sizeof(WebSocketSession), 4096, WS_TELNET},
     {NULL, NULL, 0, 0} /* terminator */
 };
 
@@ -145,6 +145,61 @@ struct lws *init_user_websocket(struct lws_context *context, evutil_socket_t fd)
     return nullptr;
   }
   return lws_adopt_socket_vhost(vhost, fd);
+}
+
+bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
+                                 websocket_transport_setup_fn transport_setup) {
+  lwsl_info("LWS_CALLBACK_ESTABLISHED\n");
+
+  auto *port = reinterpret_cast<port_def_t *>(lws_context_user(lws_get_context(wsi)));
+  auto fd = lws_get_socket_fd(lws_get_network_wsi(wsi));
+
+  sockaddr_storage address = {};
+  socklen_t address_length = sizeof(address);
+  if (!websocket_get_client_address(wsi, port, &address, &address_length)) {
+    lwsl_warn("LWS_CALLBACK_ESTABLISHED: invalid peer address or trusted X-Real-IP\n");
+    return false;
+  }
+
+  auto *ip = new_user(port, fd, reinterpret_cast<sockaddr *>(&address), address_length);
+  session->wsi = wsi;
+  session->user = ip;
+  session->buffer = evbuffer_new();
+  session->close_after_flush = false;
+  if (!session->buffer) {
+    websocket_session_teardown(wsi, &session->user, &session->buffer);
+    return false;
+  }
+
+  ip->iflags |= HANDSHAKE_COMPLETE;
+  ip->lws = wsi;
+
+  if (transport_setup) {
+    transport_setup(ip);
+  }
+
+  auto *base = evconnlistener_get_base(port->ev_conn);
+  if (!schedule_user_logon(base, ip)) {
+    websocket_session_teardown(wsi, &session->user, &session->buffer);
+    return false;
+  }
+  return true;
+}
+
+bool websocket_maybe_close_after_flush(struct lws *wsi, WebSocketSession *session) {
+  if (!session->close_after_flush || evbuffer_get_length(session->buffer) != 0) {
+    return false;
+  }
+  // The application buffer can be empty while libwebsockets still has an
+  // extension or kernel write in flight. Keep the writable callback armed
+  // until that pipe is clear, then send the normal close frame.
+  if (lws_send_pipe_choked(wsi)) {
+    lws_callback_on_writable(wsi);
+    return false;
+  }
+  session->close_after_flush = false;
+  lws_close_reason(wsi, LWS_CLOSE_STATUS_NORMAL, nullptr, 0);
+  return true;
 }
 
 void websocket_send_text(struct lws *wsi, const char *data, size_t len) {
@@ -401,7 +456,7 @@ void close_user_websocket(struct lws *wsi) {
   bool close_from_writable = false;
   switch (lws_get_protocol(wsi)->id) {
     case WS_TELNET: {
-      auto pss = reinterpret_cast<ws_telnet_session *>(lws_wsi_user(wsi));
+      auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
       if (pss) {
         pss->close_after_flush = true;
         close_from_writable = true;
@@ -410,7 +465,7 @@ void close_user_websocket(struct lws *wsi) {
       break;
     }
     case WS_ASCII: {
-      auto pss = reinterpret_cast<ws_ascii_session *>(lws_wsi_user(wsi));
+      auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
       if (pss) {
         pss->close_after_flush = true;
         close_from_writable = true;
