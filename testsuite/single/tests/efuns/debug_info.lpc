@@ -1,0 +1,13 @@
+void do_tests() {
+  string info0 = debug_info(0, this_object());
+  ASSERT_EQ(0, strsrch(info0, "O_HEART_BEAT      : "));
+  ASSERT(strsrch(info0, "name        : '") >= 0);
+
+  string info1 = debug_info(1, this_object());
+  ASSERT(strsrch(info1, "program ref's ") >= 0);
+  ASSERT(strsrch(info1, "program size ") >= 0);
+
+  string info2 = debug_info(2, this_object());
+  ASSERT(stringp(info2));
+  ASSERT(catch(debug_info(99, this_object())));
+}
