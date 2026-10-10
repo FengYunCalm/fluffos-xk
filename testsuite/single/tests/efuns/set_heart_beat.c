@@ -66,5 +66,6 @@ void finish_stale_heartbeat(int before) {
     stale_target->stop_heartbeat();
     ASSERT_EQ(0, query_heart_beat(stale_target));
     destruct(stale_target);
+    stale_target = 0;
   "/command/tests"->complete_async(stale_token);
 }

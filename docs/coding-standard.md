@@ -26,7 +26,7 @@
 | [clang-tidy][up-tidy] | 函数命名允许 aNy_CasE；禁用强制尾置返回、C 数组替换、部分可读性建议 | 不照搬宽松命名或全部通配检查；按 §4 固定新名称，逐项校准检查 |
 | [LPC 风格指南][up-lpc-style] | 2 空格、100 列、K&R、snake_case、LPC 数组标记与 C++ 指针排版不同 | 接受语言差异；不沿用“周围代码优先”或类名二选一 |
 | [LPC formatter][up-lpc-format] | 保序、字面量保护、幂等；保留人工换行；未知/残缺输入拒绝写入 | 接受保护机制；不得把 tokenizer 自洽等同于 driver 语义等价 |
-| [CI][up-ci] | 运行 LPC syntax 测试和 testsuite/format.sh --check | 借鉴自动检查；本地工具尚未接入，不能声称已有同等门禁 |
+| [CI][up-ci] | 运行 LPC syntax 测试和 testsuite/format.sh --check | 本地 U10f 已接入固定 pilot；完整 native/LPC 存量门禁仍由 U10g 按模块收口，不能把 pilot 写成全库通过 |
 | [AGENTS 的 package/栈/内存/头文件说明][up-agents] | 强调统一 package 入口、.spec 类型分发、栈平衡、引用标记和异常清理 | 适配到本地真实调用路径，不照搬上游对象、arena 和并发实现 |
 | [ws_common][up-ws]、[matrix][up-matrix] | 提取实际重复逻辑，保留协议差异；数组元素检查与顶层类型检查分开 | 作为职责拆分方法，不作为整文件替换模板 |
 | [tracing][up-trace]、[字符串测试][up-tests] | 有 RAII、匿名 namespace、snake_case 方法和描述性测试名；同时仍有单行无花括号、混合 const 写法 | 吸收明确所有权和测试意图；历史排版不构成新代码的例外 |
@@ -120,7 +120,7 @@ AllowShortLambdasOnASingleLine: Empty
 
 这是一组配置约束，不是允许格式器自动插入/删除花括号或改写表达式。新增代码的花括号由编写者保证，检查器报告缺口；不能用自动 AST 改写混入纯排版提交。
 
-C++ 排版工具目标版本为 **LLVM clang-format 18.1.8**（[该版本选项文档](https://releases.llvm.org/18.1.8/tools/clang/docs/ClangFormatStyleOptions.html)）。这是本地选择，不是上游已经固定的版本。本次环境未发现 clang-format/clang-tidy，尚未验证该配置和二进制；U10b 必须从可信来源取得固定版本、核配置解析和样例输出后才启用。不能回退到 PATH 上的任意版本。升级 formatter 必须单独审阅输出差异。
+C++ 排版工具目标版本为 **LLVM clang-format 18.1.8**（[该版本选项文档](https://releases.llvm.org/18.1.8/tools/clang/docs/ClangFormatStyleOptions.html)）。这是本地选择，不是上游已经固定的版本；`src/.clang-format` 中的 `Formatter` 声明是唯一版本来源。`tools/style/check-format.py` 只读检查明确路径、tracked diff 或全量手写 C/C++，核对声明版本后调用实际二进制；缺工具、版本不符、配置无效或格式差异均失败，不回退到任意 PATH 版本。`tools/style/test-check-format.py` 覆盖范围、路径、Git diff、重命名、删除、索引和不变性反例。升级 formatter 必须单独审阅输出差异。
 
 ## 4. 命名、类型和表达式
 
@@ -304,7 +304,7 @@ Shell 的 set -e/-u/pipefail 不是可以无测试批量加入的装饰。Python
 4. 格式检查是否真的执行了正确语言、正确工具版本和非空目标集合？
 5. 是否保留原行为，并有匹配风险的验证，而不是仅“format/lint 通过”？
 
-工具只报告问题，默认不写源码、不自动安装、修复、提交或推送。全库统一通过模块级整理完成，不靠一次无差别格式化，也不靠永久忽略存量来宣称已经统一。具体推广步骤和完成记录只写在主计划 U10。
+工具（当前只读入口为 `tools/style/check-format.py`）只报告问题，默认不写源码、不自动安装、修复、提交或推送。全库统一通过模块级整理完成，不靠一次无差别格式化，也不靠永久忽略存量来宣称已经统一。具体推广步骤和完成记录只写在主计划 U10。
 
 [up-format]: https://github.com/fluffos/fluffos/blob/328aaf10635ef8ce636b2b6cebd549bb165e462d/src/.clang-format
 [up-editor]: https://github.com/fluffos/fluffos/blob/328aaf10635ef8ce636b2b6cebd549bb165e462d/.editorconfig

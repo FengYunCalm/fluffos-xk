@@ -1,8 +1,26 @@
 ---
-# We'll use defaults from the LLVM style, but with 4 columns indentation.
+# Formatter: clang-format 18.1.8
 BasedOnStyle: Google
 IndentWidth: 2
+UseTab: Never
+ColumnLimit: 100
 SortIncludes: Never
+IncludeBlocks: Preserve
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+QualifierAlignment: Leave
+BreakStringLiterals: false
+ReflowComments: false
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+AccessModifierOffset: -1
+IndentCaseLabels: true
+SpaceBeforeParens: ControlStatements
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortLambdasOnASingleLine: Empty
 ---
 Language: Cpp
 ColumnLimit: 100

@@ -1,0 +1,101 @@
+(* ============================================================================
+   Layer 1: LEXICAL GRAMMAR (hand-authored; source of truth:
+   src/compiler/internal/lex.cc and its reswords[] table). generate_ebnf.py
+   includes this file verbatim when composing grammar.ebnf -- edit HERE, not
+   the generated grammar.ebnf.
+   ============================================================================ *)
+
+letter = ? [A-Za-z] ? ;
+digit = ? [0-9] ? ;
+hexDigit = ? [0-9A-Fa-f] ? ;
+binDigit = "0" | "1" ;
+
+identifier = ( letter | "_" ), { letter | digit | "_" } ;
+
+(* Underscores are legal digit separators in integer and real forms. *)
+decimalNumber = digit, { digit | "_" } ;
+hexNumber = "0", ( "x" | "X" ), hexDigit, { hexDigit | "_" } ;
+binaryNumber = "0", ( "b" | "B" ), binDigit, { binDigit | "_" } ;
+integerLiteral = hexNumber | binaryNumber | decimalNumber ;
+realLiteral = decimalNumber, ".", { digit | "_" }, [ exponent ]
+            | decimalNumber, exponent ;
+exponent = ( "e" | "E" ), [ "+" | "-" ], digit, { digit | "_" } ;
+
+escapeSequence = "\\", ( "n" | "t" | "r" | "b" | "a" | "e" | '"' | "'" | "\\" )
+               | "\\", "x", { hexDigit }
+               | "\\", ? octal digits ?
+               | "\\", ? any other character ? ;
+
+stringLiteral = '"', { ? any character except '"' ? | escapeSequence }, '"' ;
+characterLiteral = "'", ( ? any single byte ? | escapeSequence ), "'" ;
+
+(* Text blocks are consumed by get_text_block()/get_array_block(). The
+   terminator follows @ or @@ and must appear at the beginning of a later
+   line. A single @ produces one string; @@ produces an array literal. *)
+textBlock = "@", identifier, ? newline ?, ? raw lines ?, identifier ;
+textArrayBlock = "@@", identifier, ? newline ?, ? raw lines ?, identifier ;
+
+(* In ordinary source a '//' comment ends at the physical newline. The
+   directive scanner handles backslash-newline splicing before it recognizes
+   comments and block-comment boundaries. *)
+lineComment = "//", { ? any character except newline ? } ;
+blockComment = "/*", { ? any character sequence not containing "*/" ? }, "*/" ;
+
+keywordControl = "acatch" | "array" | "await" | "break" | "case" | "catch"
+               | "continue" | "default" | "do" | "efun" | "else" | "for"
+               | "foreach" | "if" | "in" | "inherit" | "new"
+               | "parse_command" | "ref" | "return" | "sscanf" | "switch"
+               | "time_expression" | "while" | "__TREE__" ;
+keywordType = "buffer" | "float" | "function" | "int" | "mapping" | "mixed"
+            | "object" | "promise" | "string" | "void" ;
+keywordModifier = "async" | "nomask" | "nosave" | "private" | "protected"
+                | "public" | "static" | "varargs" ;
+classKeyword = "class" | "struct" ;
+
+functionalOpen = "(:" ;
+functionalClose = ":)" ;
+functionalParameter = "$", decimalNumber ;
+
+(* ============================================================================
+   Layer 2: PREPROCESSOR GRAMMAR (hand-authored; source of truth:
+   lex.cc's directive capture and conditional-expression scanner).
+   Preprocessing is interleaved with lexing in ONE scan -- directives take
+   effect at exactly their position in the token stream.
+
+   C translation phases 2-4 in one scan: a backslash immediately followed by
+   a newline is deleted first (splice); comments then become one space; then
+   the '#' line is parsed. A block comment may close on a later physical line.
+   A '//' comment runs to the logical newline, so a trailing '\\' continues it.
+   The directive ends at the next newline that was not spliced and is not
+   inside a block comment.
+   ============================================================================ *)
+
+directiveLine = ? line start ?, [ ? whitespace ? ], "#", directive ;
+directive = defineDirective | undefDirective | includeDirective
+          | conditionalDirective | pragmaDirective | lineDirective
+          | echoDirective | errorDirective | warnDirective ;
+
+defineDirective = "define", identifier, [ macroParameters ], { ? replacement token ? } ;
+macroParameters = "(", [ identifier, { ",", identifier } ], ")" ;
+(* Inside a replacement list: "#param" stringizes and "a ## b" pastes. *)
+
+undefDirective = "undef", identifier ;
+includeDirective = "include", ( '"', ? file path ?, '"'
+                              | "<", ? file path ?, ">"
+                              | ? macro expanding to either form ? ) ;
+
+conditionalDirective = "if", constantExpression
+                     | "ifdef", identifier
+                     | "ifndef", identifier
+                     | "elif", constantExpression
+                     | "else"
+                     | "endif" ;
+constantExpression = ? integer-valued token expression ? ;
+
+pragmaDirective = "pragma", identifier, { ",", identifier } ;
+lineDirective = "line", decimalNumber, [ '"', ? file path ?, '"' ] ;
+echoDirective = "echo", { ? any token ? } ;
+errorDirective = "error", { ? any token ? } ;
+warnDirective = "warn", { ? any token ? } ;
+
+builtinMacro = "__LINE__" | "__FILE__" | "__DIR__" ;

@@ -1,0 +1,2351 @@
+{
+  "version": 1,
+  "generator": "tools/lpc-syntax/generate_ebnf.py",
+  "keywords": [
+    "__TREE__",
+    "acatch",
+    "array",
+    "await",
+    "break",
+    "case",
+    "catch",
+    "class",
+    "continue",
+    "default",
+    "do",
+    "efun",
+    "else",
+    "for",
+    "foreach",
+    "if",
+    "in",
+    "inherit",
+    "new",
+    "parse_command",
+    "ref",
+    "return",
+    "sscanf",
+    "struct",
+    "switch",
+    "time_expression",
+    "while"
+  ],
+  "typeKeywords": [
+    "buffer",
+    "float",
+    "function",
+    "int",
+    "mapping",
+    "mixed",
+    "object",
+    "promise",
+    "string",
+    "void"
+  ],
+  "modifierKeywords": [
+    "async",
+    "nomask",
+    "nosave",
+    "private",
+    "protected",
+    "public",
+    "static",
+    "varargs"
+  ],
+  "operators": [
+    "&&=",
+    "...",
+    "<<=",
+    ">>=",
+    "??=",
+    "||=",
+    "!=",
+    "%=",
+    "&&",
+    "&=",
+    "(:",
+    "*=",
+    "++",
+    "+=",
+    "--",
+    "-=",
+    "->",
+    "..",
+    "/=",
+    ":)",
+    "::",
+    "<<",
+    "<=",
+    "==",
+    ">=",
+    ">>",
+    "??",
+    "^=",
+    "|=",
+    "||",
+    "!",
+    ".",
+    "=",
+    ">"
+  ],
+  "punctuation": [
+    "$",
+    "%",
+    "&",
+    "(",
+    ")",
+    "*",
+    "+",
+    ",",
+    "-",
+    "/",
+    ":",
+    ";",
+    "<",
+    "?",
+    "[",
+    "]",
+    "^",
+    "{",
+    "|",
+    "}",
+    "~"
+  ],
+  "directives": [
+    "define",
+    "undef",
+    "include",
+    "if",
+    "ifdef",
+    "ifndef",
+    "elif",
+    "else",
+    "endif",
+    "pragma",
+    "line",
+    "echo",
+    "error",
+    "warn"
+  ],
+  "builtinMacros": [
+    "__LINE__",
+    "__FILE__",
+    "__DIR__"
+  ],
+  "tokens": {
+    "$end": {
+      "category": "internal"
+    },
+    "error": {
+      "category": "internal"
+    },
+    "L_STRING": {
+      "category": "string"
+    },
+    "L_NUMBER": {
+      "category": "number"
+    },
+    "L_REAL": {
+      "category": "number"
+    },
+    "L_BASIC_TYPE": {
+      "category": "type",
+      "spellings": [
+        "buffer",
+        "float",
+        "function",
+        "int",
+        "mapping",
+        "mixed",
+        "object",
+        "string",
+        "void"
+      ]
+    },
+    "L_TYPE_MODIFIER": {
+      "category": "modifier",
+      "spellings": [
+        "async",
+        "nomask",
+        "nosave",
+        "private",
+        "protected",
+        "public",
+        "static",
+        "varargs"
+      ]
+    },
+    "L_DEFINED_NAME": {
+      "category": "identifier"
+    },
+    "L_IDENTIFIER": {
+      "category": "identifier"
+    },
+    "L_EFUN": {
+      "category": "keyword",
+      "spellings": [
+        "efun"
+      ]
+    },
+    "L_INC": {
+      "category": "operator",
+      "spellings": [
+        "++"
+      ]
+    },
+    "L_DEC": {
+      "category": "operator",
+      "spellings": [
+        "--"
+      ]
+    },
+    "L_ASSIGN": {
+      "category": "operator",
+      "spellings": [
+        "=",
+        "+=",
+        "-=",
+        "*=",
+        "/=",
+        "%=",
+        "&=",
+        "|=",
+        "^=",
+        "<<=",
+        ">>=",
+        "&&=",
+        "||=",
+        "??="
+      ]
+    },
+    "L_LAND": {
+      "category": "operator",
+      "spellings": [
+        "&&"
+      ]
+    },
+    "L_LOR": {
+      "category": "operator",
+      "spellings": [
+        "||"
+      ]
+    },
+    "L_QUESTION_QUESTION": {
+      "category": "operator",
+      "spellings": [
+        "??"
+      ]
+    },
+    "L_LSH": {
+      "category": "operator",
+      "spellings": [
+        "<<"
+      ]
+    },
+    "L_RSH": {
+      "category": "operator",
+      "spellings": [
+        ">>"
+      ]
+    },
+    "L_ORDER": {
+      "category": "operator",
+      "spellings": [
+        ">",
+        ">=",
+        "<="
+      ]
+    },
+    "L_NOT": {
+      "category": "operator",
+      "spellings": [
+        "!"
+      ]
+    },
+    "L_IF": {
+      "category": "keyword",
+      "spellings": [
+        "if"
+      ]
+    },
+    "L_ELSE": {
+      "category": "keyword",
+      "spellings": [
+        "else"
+      ]
+    },
+    "L_SWITCH": {
+      "category": "keyword",
+      "spellings": [
+        "switch"
+      ]
+    },
+    "L_CASE": {
+      "category": "keyword",
+      "spellings": [
+        "case"
+      ]
+    },
+    "L_DEFAULT": {
+      "category": "keyword",
+      "spellings": [
+        "default"
+      ]
+    },
+    "L_RANGE": {
+      "category": "operator",
+      "spellings": [
+        ".."
+      ]
+    },
+    "L_DOT_DOT_DOT": {
+      "category": "operator",
+      "spellings": [
+        "..."
+      ]
+    },
+    "L_WHILE": {
+      "category": "keyword",
+      "spellings": [
+        "while"
+      ]
+    },
+    "L_DO": {
+      "category": "keyword",
+      "spellings": [
+        "do"
+      ]
+    },
+    "L_FOR": {
+      "category": "keyword",
+      "spellings": [
+        "for"
+      ]
+    },
+    "L_FOREACH": {
+      "category": "keyword",
+      "spellings": [
+        "foreach"
+      ]
+    },
+    "L_IN": {
+      "category": "keyword",
+      "spellings": [
+        "in"
+      ]
+    },
+    "L_BREAK": {
+      "category": "keyword",
+      "spellings": [
+        "break"
+      ]
+    },
+    "L_CONTINUE": {
+      "category": "keyword",
+      "spellings": [
+        "continue"
+      ]
+    },
+    "L_RETURN": {
+      "category": "keyword",
+      "spellings": [
+        "return"
+      ]
+    },
+    "L_ARROW": {
+      "category": "operator",
+      "spellings": [
+        "->"
+      ]
+    },
+    "L_DOT": {
+      "category": "operator",
+      "spellings": [
+        "."
+      ]
+    },
+    "L_INHERIT": {
+      "category": "keyword",
+      "spellings": [
+        "inherit"
+      ]
+    },
+    "L_COLON_COLON": {
+      "category": "operator",
+      "spellings": [
+        "::"
+      ]
+    },
+    "L_ARRAY_OPEN": {
+      "category": "operator"
+    },
+    "L_MAPPING_OPEN": {
+      "category": "operator"
+    },
+    "L_FUNCTION_OPEN": {
+      "category": "operator",
+      "spellings": [
+        "(:"
+      ]
+    },
+    "L_NEW_FUNCTION_OPEN": {
+      "category": "operator"
+    },
+    "L_SSCANF": {
+      "category": "keyword",
+      "spellings": [
+        "sscanf"
+      ]
+    },
+    "L_CATCH": {
+      "category": "keyword",
+      "spellings": [
+        "catch"
+      ]
+    },
+    "L_ACATCH": {
+      "category": "keyword",
+      "spellings": [
+        "acatch"
+      ]
+    },
+    "L_AWAIT": {
+      "category": "keyword",
+      "spellings": [
+        "await"
+      ]
+    },
+    "L_ARRAY": {
+      "category": "keyword",
+      "spellings": [
+        "array"
+      ]
+    },
+    "L_PROMISE": {
+      "category": "type",
+      "spellings": [
+        "promise"
+      ]
+    },
+    "L_REF": {
+      "category": "keyword",
+      "spellings": [
+        "ref"
+      ]
+    },
+    "L_PARSE_COMMAND": {
+      "category": "keyword",
+      "spellings": [
+        "parse_command"
+      ]
+    },
+    "L_TIME_EXPRESSION": {
+      "category": "keyword",
+      "spellings": [
+        "time_expression"
+      ]
+    },
+    "L_CLASS": {
+      "category": "keyword",
+      "spellings": [
+        "class",
+        "struct"
+      ]
+    },
+    "L_NEW": {
+      "category": "keyword",
+      "spellings": [
+        "new"
+      ]
+    },
+    "L_PARAMETER": {
+      "category": "identifier"
+    },
+    "L_TREE": {
+      "category": "keyword",
+      "spellings": [
+        "__TREE__"
+      ]
+    },
+    "L_PREPROCESSOR_COMMAND": {
+      "category": "directive"
+    },
+    "LOWER_THAN_ELSE": {
+      "category": "internal"
+    },
+    "L_EQ": {
+      "category": "operator",
+      "spellings": [
+        "=="
+      ]
+    },
+    "L_NE": {
+      "category": "operator",
+      "spellings": [
+        "!="
+      ]
+    }
+  },
+  "productions": [
+    {
+      "lhs": "all",
+      "rhs": [
+        "program"
+      ]
+    },
+    {
+      "lhs": "program",
+      "rhs": [
+        "program",
+        "def",
+        "possible_semi_colon"
+      ]
+    },
+    {
+      "lhs": "program",
+      "rhs": []
+    },
+    {
+      "lhs": "possible_semi_colon",
+      "rhs": []
+    },
+    {
+      "lhs": "possible_semi_colon",
+      "rhs": [
+        "';'"
+      ]
+    },
+    {
+      "lhs": "inheritance",
+      "rhs": [
+        "type_modifier_list",
+        "L_INHERIT",
+        "string_con1",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "real",
+      "rhs": [
+        "L_REAL"
+      ]
+    },
+    {
+      "lhs": "number",
+      "rhs": [
+        "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "optional_star",
+      "rhs": []
+    },
+    {
+      "lhs": "optional_star",
+      "rhs": [
+        "'*'"
+      ]
+    },
+    {
+      "lhs": "block_or_semi",
+      "rhs": [
+        "block"
+      ]
+    },
+    {
+      "lhs": "block_or_semi",
+      "rhs": [
+        "';'"
+      ]
+    },
+    {
+      "lhs": "block_or_semi",
+      "rhs": [
+        "error"
+      ]
+    },
+    {
+      "lhs": "identifier",
+      "rhs": [
+        "L_DEFINED_NAME"
+      ]
+    },
+    {
+      "lhs": "identifier",
+      "rhs": [
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "function",
+      "rhs": [
+        "type",
+        "optional_star",
+        "identifier",
+        "'('",
+        "argument",
+        "')'",
+        "block_or_semi"
+      ]
+    },
+    {
+      "lhs": "def",
+      "rhs": [
+        "function"
+      ]
+    },
+    {
+      "lhs": "def",
+      "rhs": [
+        "type",
+        "name_list",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "def",
+      "rhs": [
+        "inheritance"
+      ]
+    },
+    {
+      "lhs": "def",
+      "rhs": [
+        "type_decl"
+      ]
+    },
+    {
+      "lhs": "def",
+      "rhs": [
+        "modifier_change"
+      ]
+    },
+    {
+      "lhs": "modifier_change",
+      "rhs": [
+        "type_modifier_list",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "member_name",
+      "rhs": [
+        "optional_star",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "member_name_list",
+      "rhs": [
+        "member_name"
+      ]
+    },
+    {
+      "lhs": "member_name_list",
+      "rhs": [
+        "member_name",
+        "','",
+        "member_name_list"
+      ]
+    },
+    {
+      "lhs": "member_list",
+      "rhs": []
+    },
+    {
+      "lhs": "member_list",
+      "rhs": [
+        "member_list",
+        "basic_type",
+        "member_name_list",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "type_decl",
+      "rhs": [
+        "type_modifier_list",
+        "L_CLASS",
+        "identifier",
+        "'{'",
+        "member_list",
+        "'}'"
+      ]
+    },
+    {
+      "lhs": "new_local_name",
+      "rhs": [
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "new_local_name",
+      "rhs": [
+        "L_DEFINED_NAME"
+      ]
+    },
+    {
+      "lhs": "atomic_type",
+      "rhs": [
+        "L_BASIC_TYPE"
+      ]
+    },
+    {
+      "lhs": "atomic_type",
+      "rhs": [
+        "L_PROMISE"
+      ]
+    },
+    {
+      "lhs": "atomic_type",
+      "rhs": [
+        "L_PROMISE",
+        "'<'",
+        "basic_type",
+        "optional_star",
+        "L_ORDER"
+      ]
+    },
+    {
+      "lhs": "atomic_type",
+      "rhs": [
+        "L_CLASS",
+        "L_DEFINED_NAME"
+      ]
+    },
+    {
+      "lhs": "atomic_type",
+      "rhs": [
+        "L_CLASS",
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "opt_atomic_type",
+      "rhs": [
+        "atomic_type"
+      ]
+    },
+    {
+      "lhs": "opt_atomic_type",
+      "rhs": []
+    },
+    {
+      "lhs": "basic_type",
+      "rhs": [
+        "atomic_type"
+      ]
+    },
+    {
+      "lhs": "basic_type",
+      "rhs": [
+        "opt_atomic_type",
+        "L_ARRAY"
+      ]
+    },
+    {
+      "lhs": "arg_type",
+      "rhs": [
+        "basic_type"
+      ]
+    },
+    {
+      "lhs": "arg_type",
+      "rhs": [
+        "basic_type",
+        "ref"
+      ]
+    },
+    {
+      "lhs": "optional_default_arg_value",
+      "rhs": []
+    },
+    {
+      "lhs": "optional_default_arg_value",
+      "rhs": [
+        "':'",
+        "L_FUNCTION_OPEN",
+        "comma_expr",
+        "':'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "new_arg",
+      "rhs": [
+        "arg_type",
+        "optional_star"
+      ]
+    },
+    {
+      "lhs": "new_arg",
+      "rhs": [
+        "arg_type",
+        "optional_star",
+        "new_local_name",
+        "optional_default_arg_value"
+      ]
+    },
+    {
+      "lhs": "new_arg",
+      "rhs": [
+        "new_local_name"
+      ]
+    },
+    {
+      "lhs": "argument",
+      "rhs": []
+    },
+    {
+      "lhs": "argument",
+      "rhs": [
+        "argument_list"
+      ]
+    },
+    {
+      "lhs": "argument",
+      "rhs": [
+        "argument_list",
+        "L_DOT_DOT_DOT"
+      ]
+    },
+    {
+      "lhs": "argument_list",
+      "rhs": [
+        "new_arg"
+      ]
+    },
+    {
+      "lhs": "argument_list",
+      "rhs": [
+        "argument_list",
+        "','",
+        "new_arg"
+      ]
+    },
+    {
+      "lhs": "type_modifier_list",
+      "rhs": []
+    },
+    {
+      "lhs": "type_modifier_list",
+      "rhs": [
+        "L_TYPE_MODIFIER",
+        "type_modifier_list"
+      ]
+    },
+    {
+      "lhs": "type",
+      "rhs": [
+        "type_modifier_list",
+        "opt_basic_type"
+      ]
+    },
+    {
+      "lhs": "cast",
+      "rhs": [
+        "'('",
+        "basic_type",
+        "optional_star",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "opt_basic_type",
+      "rhs": [
+        "basic_type"
+      ]
+    },
+    {
+      "lhs": "opt_basic_type",
+      "rhs": []
+    },
+    {
+      "lhs": "name_list",
+      "rhs": [
+        "new_name"
+      ]
+    },
+    {
+      "lhs": "name_list",
+      "rhs": [
+        "new_name",
+        "','",
+        "name_list"
+      ]
+    },
+    {
+      "lhs": "new_name",
+      "rhs": [
+        "optional_star",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "new_name",
+      "rhs": [
+        "optional_star",
+        "identifier",
+        "L_ASSIGN",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "block",
+      "rhs": [
+        "'{'",
+        "block_statements",
+        "'}'"
+      ]
+    },
+    {
+      "lhs": "decl_block",
+      "rhs": [
+        "block"
+      ]
+    },
+    {
+      "lhs": "decl_block",
+      "rhs": [
+        "for"
+      ]
+    },
+    {
+      "lhs": "decl_block",
+      "rhs": [
+        "foreach"
+      ]
+    },
+    {
+      "lhs": "local_declarations",
+      "rhs": []
+    },
+    {
+      "lhs": "local_declarations",
+      "rhs": [
+        "local_declarations",
+        "basic_type",
+        "local_name_list",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "new_local_def",
+      "rhs": [
+        "optional_star",
+        "new_local_name"
+      ]
+    },
+    {
+      "lhs": "new_local_def",
+      "rhs": [
+        "optional_star",
+        "new_local_name",
+        "L_ASSIGN",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "single_new_local_def",
+      "rhs": [
+        "arg_type",
+        "optional_star",
+        "new_local_name"
+      ]
+    },
+    {
+      "lhs": "single_new_local_def_with_init",
+      "rhs": [
+        "single_new_local_def",
+        "L_ASSIGN",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "local_name_list",
+      "rhs": [
+        "new_local_def"
+      ]
+    },
+    {
+      "lhs": "local_name_list",
+      "rhs": [
+        "new_local_def",
+        "','",
+        "local_name_list"
+      ]
+    },
+    {
+      "lhs": "local_declaration_statement",
+      "rhs": [
+        "basic_type",
+        "local_name_list",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "block_statements",
+      "rhs": []
+    },
+    {
+      "lhs": "block_statements",
+      "rhs": [
+        "statement",
+        "block_statements"
+      ]
+    },
+    {
+      "lhs": "block_statements",
+      "rhs": [
+        "local_declaration_statement",
+        "block_statements"
+      ]
+    },
+    {
+      "lhs": "block_statements",
+      "rhs": [
+        "error",
+        "';'",
+        "block_statements"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "comma_expr",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "cond"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "while"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "do"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "switch"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "return"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "decl_block"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "';'"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "L_BREAK",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "statement",
+      "rhs": [
+        "L_CONTINUE",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "while",
+      "rhs": [
+        "L_WHILE",
+        "'('",
+        "comma_expr",
+        "')'",
+        "statement"
+      ]
+    },
+    {
+      "lhs": "do",
+      "rhs": [
+        "L_DO",
+        "statement",
+        "L_WHILE",
+        "'('",
+        "comma_expr",
+        "')'",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "for",
+      "rhs": [
+        "L_FOR",
+        "'('",
+        "first_for_expr",
+        "';'",
+        "for_expr",
+        "';'",
+        "for_expr",
+        "')'",
+        "statement"
+      ]
+    },
+    {
+      "lhs": "foreach_var",
+      "rhs": [
+        "L_DEFINED_NAME"
+      ]
+    },
+    {
+      "lhs": "foreach_var",
+      "rhs": [
+        "single_new_local_def"
+      ]
+    },
+    {
+      "lhs": "foreach_var",
+      "rhs": [
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "foreach_vars",
+      "rhs": [
+        "foreach_var"
+      ]
+    },
+    {
+      "lhs": "foreach_vars",
+      "rhs": [
+        "foreach_var",
+        "','",
+        "foreach_var"
+      ]
+    },
+    {
+      "lhs": "foreach",
+      "rhs": [
+        "L_FOREACH",
+        "'('",
+        "foreach_vars",
+        "L_IN",
+        "expr0",
+        "')'",
+        "statement"
+      ]
+    },
+    {
+      "lhs": "for_expr",
+      "rhs": []
+    },
+    {
+      "lhs": "for_expr",
+      "rhs": [
+        "comma_expr"
+      ]
+    },
+    {
+      "lhs": "first_for_expr",
+      "rhs": [
+        "for_expr"
+      ]
+    },
+    {
+      "lhs": "first_for_expr",
+      "rhs": [
+        "single_new_local_def_with_init"
+      ]
+    },
+    {
+      "lhs": "switch",
+      "rhs": [
+        "L_SWITCH",
+        "'('",
+        "comma_expr",
+        "')'",
+        "'{'",
+        "local_declarations",
+        "case",
+        "switch_block",
+        "'}'"
+      ]
+    },
+    {
+      "lhs": "switch_block",
+      "rhs": [
+        "case",
+        "switch_block"
+      ]
+    },
+    {
+      "lhs": "switch_block",
+      "rhs": [
+        "statement",
+        "switch_block"
+      ]
+    },
+    {
+      "lhs": "switch_block",
+      "rhs": []
+    },
+    {
+      "lhs": "case",
+      "rhs": [
+        "L_CASE",
+        "case_label",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "case",
+      "rhs": [
+        "L_CASE",
+        "case_label",
+        "L_RANGE",
+        "case_label",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "case",
+      "rhs": [
+        "L_CASE",
+        "case_label",
+        "L_RANGE",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "case",
+      "rhs": [
+        "L_CASE",
+        "L_RANGE",
+        "case_label",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "case",
+      "rhs": [
+        "L_DEFAULT",
+        "':'"
+      ]
+    },
+    {
+      "lhs": "case_label",
+      "rhs": [
+        "constant"
+      ]
+    },
+    {
+      "lhs": "case_label",
+      "rhs": [
+        "string_con1"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'|'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'^'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'&'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "L_EQ",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "L_NE",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "L_ORDER",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'<'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "L_LSH",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "L_RSH",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'+'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'-'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'*'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'%'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "constant",
+        "'/'",
+        "constant"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "'('",
+        "constant",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "'-'",
+        "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "L_NOT",
+        "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "constant",
+      "rhs": [
+        "'~'",
+        "L_NUMBER"
+      ]
+    },
+    {
+      "lhs": "comma_expr",
+      "rhs": [
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "comma_expr",
+      "rhs": [
+        "comma_expr",
+        "','",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "ref",
+      "rhs": [
+        "L_REF"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "ref",
+        "lvalue"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "lvalue",
+        "L_ASSIGN",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "error",
+        "L_ASSIGN",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'?'",
+        "expr0",
+        "':'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_QUESTION_QUESTION",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_LOR",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_LAND",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'|'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'^'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'&'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_EQ",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_NE",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_ORDER",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'<'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_LSH",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "L_RSH",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'+'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'-'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'*'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'%'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr0",
+        "'/'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "cast",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "L_INC",
+        "lvalue"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "L_DEC",
+        "lvalue"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "L_AWAIT",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "L_NOT",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "'~'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "'-'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "lvalue",
+        "L_INC"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "lvalue",
+        "L_DEC"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "expr4"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "sscanf"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "parse_command"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "time_expression"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "number"
+      ]
+    },
+    {
+      "lhs": "expr0",
+      "rhs": [
+        "real"
+      ]
+    },
+    {
+      "lhs": "return",
+      "rhs": [
+        "L_RETURN",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "return",
+      "rhs": [
+        "L_RETURN",
+        "comma_expr",
+        "';'"
+      ]
+    },
+    {
+      "lhs": "expr_list",
+      "rhs": []
+    },
+    {
+      "lhs": "expr_list",
+      "rhs": [
+        "expr_list2"
+      ]
+    },
+    {
+      "lhs": "expr_list",
+      "rhs": [
+        "expr_list2",
+        "','"
+      ]
+    },
+    {
+      "lhs": "expr_list_node",
+      "rhs": [
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "expr_list_node",
+      "rhs": [
+        "expr0",
+        "L_DOT_DOT_DOT"
+      ]
+    },
+    {
+      "lhs": "expr_list2",
+      "rhs": [
+        "expr_list_node"
+      ]
+    },
+    {
+      "lhs": "expr_list2",
+      "rhs": [
+        "expr_list2",
+        "','",
+        "expr_list_node"
+      ]
+    },
+    {
+      "lhs": "expr_list3",
+      "rhs": []
+    },
+    {
+      "lhs": "expr_list3",
+      "rhs": [
+        "expr_list4"
+      ]
+    },
+    {
+      "lhs": "expr_list3",
+      "rhs": [
+        "expr_list4",
+        "','"
+      ]
+    },
+    {
+      "lhs": "expr_list4",
+      "rhs": [
+        "assoc_pair"
+      ]
+    },
+    {
+      "lhs": "expr_list4",
+      "rhs": [
+        "expr_list4",
+        "','",
+        "assoc_pair"
+      ]
+    },
+    {
+      "lhs": "assoc_pair",
+      "rhs": [
+        "expr0",
+        "':'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "lvalue",
+      "rhs": [
+        "expr4"
+      ]
+    },
+    {
+      "lhs": "l_new_function_open",
+      "rhs": [
+        "L_NEW_FUNCTION_OPEN"
+      ]
+    },
+    {
+      "lhs": "l_new_function_open",
+      "rhs": [
+        "L_FUNCTION_OPEN",
+        "efun_override"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "function_call"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_DEFINED_NAME"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_PARAMETER"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "'$'",
+        "'('",
+        "comma_expr",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "L_ARROW",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "L_DOT",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "comma_expr",
+        "L_RANGE",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "'<'",
+        "comma_expr",
+        "L_RANGE",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "'<'",
+        "comma_expr",
+        "L_RANGE",
+        "'<'",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "comma_expr",
+        "L_RANGE",
+        "'<'",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "comma_expr",
+        "L_RANGE",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "'<'",
+        "comma_expr",
+        "L_RANGE",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "'<'",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "expr4",
+        "'['",
+        "comma_expr",
+        "']'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "string"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "'('",
+        "comma_expr",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "catch"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "acatch"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "tree"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_BASIC_TYPE",
+        "'('",
+        "argument",
+        "')'",
+        "block"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "l_new_function_open",
+        "':'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "l_new_function_open",
+        "','",
+        "expr_list2",
+        "':'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_FUNCTION_OPEN",
+        "comma_expr",
+        "':'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_MAPPING_OPEN",
+        "expr_list3",
+        "']'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr4",
+      "rhs": [
+        "L_ARRAY_OPEN",
+        "expr_list",
+        "'}'",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "expr_or_block",
+      "rhs": [
+        "block"
+      ]
+    },
+    {
+      "lhs": "expr_or_block",
+      "rhs": [
+        "'('",
+        "comma_expr",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "catch",
+      "rhs": [
+        "L_CATCH",
+        "expr_or_block"
+      ]
+    },
+    {
+      "lhs": "acatch",
+      "rhs": [
+        "L_ACATCH",
+        "expr_or_block"
+      ]
+    },
+    {
+      "lhs": "tree",
+      "rhs": [
+        "L_TREE",
+        "block"
+      ]
+    },
+    {
+      "lhs": "tree",
+      "rhs": [
+        "L_TREE",
+        "'('",
+        "comma_expr",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "sscanf",
+      "rhs": [
+        "L_SSCANF",
+        "'('",
+        "expr0",
+        "','",
+        "expr0",
+        "lvalue_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "parse_command",
+      "rhs": [
+        "L_PARSE_COMMAND",
+        "'('",
+        "expr0",
+        "','",
+        "expr0",
+        "','",
+        "expr0",
+        "lvalue_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "time_expression",
+      "rhs": [
+        "L_TIME_EXPRESSION",
+        "expr_or_block"
+      ]
+    },
+    {
+      "lhs": "lvalue_list",
+      "rhs": []
+    },
+    {
+      "lhs": "lvalue_list",
+      "rhs": [
+        "','",
+        "lvalue",
+        "lvalue_list"
+      ]
+    },
+    {
+      "lhs": "string",
+      "rhs": [
+        "string_con2"
+      ]
+    },
+    {
+      "lhs": "string_con1",
+      "rhs": [
+        "string_con2"
+      ]
+    },
+    {
+      "lhs": "string_con1",
+      "rhs": [
+        "'('",
+        "string_con1",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "string_con1",
+      "rhs": [
+        "string_con1",
+        "'+'",
+        "string_con1"
+      ]
+    },
+    {
+      "lhs": "string_con2",
+      "rhs": [
+        "L_STRING"
+      ]
+    },
+    {
+      "lhs": "string_con2",
+      "rhs": [
+        "string_con2",
+        "L_STRING"
+      ]
+    },
+    {
+      "lhs": "class_init",
+      "rhs": [
+        "identifier",
+        "':'",
+        "expr0"
+      ]
+    },
+    {
+      "lhs": "opt_class_init",
+      "rhs": []
+    },
+    {
+      "lhs": "opt_class_init",
+      "rhs": [
+        "opt_class_init",
+        "','",
+        "class_init"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "efun_override",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "L_NEW",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "L_NEW",
+        "'('",
+        "L_CLASS",
+        "L_DEFINED_NAME",
+        "opt_class_init",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "L_NEW",
+        "'('",
+        "L_CLASS",
+        "L_IDENTIFIER",
+        "opt_class_init",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "L_DEFINED_NAME",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "function_name",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "expr4",
+        "'['",
+        "comma_expr",
+        "']'",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "expr4",
+        "L_ARROW",
+        "identifier",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "function_call",
+      "rhs": [
+        "'('",
+        "'*'",
+        "comma_expr",
+        "')'",
+        "'('",
+        "expr_list",
+        "')'"
+      ]
+    },
+    {
+      "lhs": "efun_override",
+      "rhs": [
+        "L_EFUN",
+        "L_COLON_COLON",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "efun_override",
+      "rhs": [
+        "L_EFUN",
+        "L_COLON_COLON",
+        "L_NEW"
+      ]
+    },
+    {
+      "lhs": "function_name",
+      "rhs": [
+        "L_IDENTIFIER"
+      ]
+    },
+    {
+      "lhs": "function_name",
+      "rhs": [
+        "L_COLON_COLON",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "function_name",
+      "rhs": [
+        "L_BASIC_TYPE",
+        "L_COLON_COLON",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "function_name",
+      "rhs": [
+        "identifier",
+        "L_COLON_COLON",
+        "identifier"
+      ]
+    },
+    {
+      "lhs": "cond",
+      "rhs": [
+        "L_IF",
+        "'('",
+        "comma_expr",
+        "')'",
+        "statement",
+        "optional_else_part"
+      ]
+    },
+    {
+      "lhs": "optional_else_part",
+      "rhs": []
+    },
+    {
+      "lhs": "optional_else_part",
+      "rhs": [
+        "L_ELSE",
+        "statement"
+      ]
+    }
+  ]
+}

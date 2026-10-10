@@ -1142,6 +1142,73 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 失败与中断分列：首轮配置比较误把 CMake 的 FILEPATH/STRING 存储类型当成编译器值差异，没有启动测量；按实际键值核对后消除误报。启用地址随机化的 A/A 中 missing 噪声超出预设 10% 上限，未启动该轮 A/B；固定布局后重新校准。长批次达到 5 小时外层监督上限，未遗留进程；恢复前核验原始报告、成功退出和二进制哈希，仅复用 79 个完整测量批次，未接纳中断中的报告。对应原始日志均保留。
 - 工具合同：基线/候选 Release 的默认报表、输出失败和参数校验各通过 7/7；共享 `measurement.py` 后，explode 的 Release 和 GCC 计数模式各通过 6/6，未改变 U07 分类计数。用法归属 `tools/perf/README.md`。此单元未改变线上实例、接口、配置或 mudlib 源码。
 
+### 11.18 U10c：只读格式检查器与原生试点
+
+- 当前证据基线为 `ffded9ff0fd7f2a6b34510714f74d0305047e548`。新增 `tools/style/check-format.py` 和 `tools/style/test-check-format.py`，只使用 Python 标准库与 clang-format；检查器没有 `--write`/`--fix`，不写源码、索引、报告或缓存。检查范围固定为 `--paths`、`--base`、`--all-native` 三选一；读取 Git 原始 blob 时关闭外部 diff/textconv 和 lazy fetch，并对配置、候选文件做前后身份校验。
+- 私有反例自测通过：`CLANG_FORMAT=build-modernization-evidence/u10/tool-source/bin/clang-format /usr/bin/python3 tools/style/test-check-format.py`；覆盖越界、符号链接、语言排除、空格/换行路径、未跟踪文件、staged/unstaged、rename/delete、空集合、幂等和源码/mtime/索引/配置不变。日志为 `build-modernization-evidence/u10/u10c/self-test-final4.log`。
+- clang-format 实际版本为 18.1.8，二进制 SHA-256 为 `7f15e3247bae5b3c1b30b1ab17f4d0ca2649380f09b96ef2d1b2e3495bd647e9`。`--paths` 试点检查 `src/vm/internal/source_spelling.cc`、`src/vm/internal/source_spelling.h`、`src/packages/core/encoding.cc`，3/3 通过；`--base HEAD` 对同一 3 个当前 native diff 逐文件通过，未跟踪 checker 由合同明确交给 `--paths`。证据分别在 `trial-paths-final4.log` 和 `base-final4.log`。
+- 试点只接受 clang-format 机械排版差异：指针间距、空函数/控制语句布局和多行调用布局被审阅；没有改公开名称、表达式、接口或运行时逻辑。`cmake --build build-organize-debug --target driver --parallel 4` 成功，随后当前源码驱动的 `modernization_compat` LPC 入口 1/1 通过，证据在 `build-modernization-evidence/u10/u10c/lpc-modernization-final/`。
+- `--all-native` 仅作基线探针，未作为出口：退出码 2，持久日志 `all-native-final.log` 记录存量格式差异以及 `src/svalue_json.cc` 的 formatter 不完整 XML。不能把全库未统一或 formatter 对个别存量文件的诊断写成通过；后续按 U10g 的模块整理处理。
+- clang-tidy 实际版本为 18.1.8；七项初始检查均出现在 `-list-checks -checks=*`。用 `build-organize-debug/compile_commands.json` 对 `source_spelling.cc` 的真实试跑退出 1，日志为 `build-modernization-evidence/u10/clang-tidy-source-spelling.log`：1773 条基线诊断外加 GCC 头文件 `stddef.h` 缺失，不能把静态分析写成通过，也未执行 `--fix`。
+- U10c 的本地出口完成；U10b 的 compile_commands/工具链兼容试点、U10d–U10g、全库存量排版和平台/下游门禁仍未完成。本记录不创建提交或推送，也不改变线上实例。
+
+### 11.19 U10d：formatter fail-first 复核与 token-paste 边界
+
+- **状态**：`resolved/token-paste; blocked/baseline-full-ftest`。U10d 的工具本体、CMake 生成目标、受控 corpus runner 和 Node self-test 已落盘；隔离重排后的真实 LPC corpus 复核先发现并随后修复了 token-paste 语义缺口。完整 suite 仍复现独立的基线失败，因此不得把 U10d 标为通过，也不得写入 testsuite 存量。
+- **失败证据**：Debug driver `build-organize-debug/bin/driver` 在隔离的 526 个 `.lpc`/`.c` 输入副本上，formatter runner 报 `total=526,written=376,errors=0`，随后真实 `-ftest` 退出 255。最小 `lpcc` 对 `single/tests/compiler/succeed.c` 重排副本退出 1；原始文件退出 0。持久日志为 `build-modernization-evidence/u10/u10d-isolated-driver.log`，原始/变体探针另保留在 `/tmp/u10d-succeed-variants/`，不把临时目录当作唯一验收证据。
+- **已证实根因**：`succeed.c` 的 `X1##X2` 在 `tokenizer.mjs` 中是三个独立 token（`#` 被分类为 `unknown`）；`format.mjs::renderLine()` 对未知 token 的默认分隔把相邻边界输出为 `X1 # # X2`，driver 随即报告两个非法 `#`。只把 text-block 末尾 `END\n;` 改成 `END;`、只收紧 `string *y`、只收紧空块或只改变注释空格的变体均由同一 `lpcc` 成功，故 text-block/指针/空块不是本次失败根因。
+- **直接可执行的修复步骤（只修根因）**：
+  1. 在 `formatLPC()` 进入主循环前为 token-paste 的相邻边界记录原始 `start/end` 连续性：当 `#` 与相邻 `#`、左侧 token 或右侧 token 在输入中无字节间隔时，标记该具体边界；不得把所有 `#` 全局收紧，也不得改变已有 directive token。
+  2. 在 `renderLine()` 仅对上述标记边界禁止插入空格；保留通用 token-merge 安全检查和 keyword safety net。标记必须在 `maskStringizeArguments()` 之后建立，避免把 opaque/verbatim span 的内部边界暴露给主循环。
+  3. 在 `tools/lpc-syntax/test.mjs` 增加 `X1##X2` 的格式回归，同时增加带空格的 `X1 ## X2` 保留检查；继续断言二次格式化幂等和 token 顺序不变。不得把非法 token-paste 变体改成“预期失败”来规避 driver 反例。
+  4. 重跑原始最小 `lpcc` 变体、Node self-test、CMake `generate_ebnf`、formatter runner 自测，并重新制作持久隔离 corpus；只有完整 `-ftest` 的退出码、成功标记、断言汇总和日志无诊断同时满足时，才继续 U10d 其余验证。
+- **审计边界**：本修复不改 tokenizer 分类、不改 LPC grammar、不改 driver 预处理，不处理 U10e/U10f/U10g；若 token-paste 回归仍失败，保留新证据并回到只读根因调查，不叠加猜测性格式规则。
+
+### 11.20 U10d follow-up：token-paste 修复后验收边界
+
+- **实际修复**：`format.mjs` 在 stringize 参数遮罩后记录 source-adjacent `#` 边界，并在 `renderLine()` 对这些边界跳过普通分隔和 token-merge 保护；空格分隔的 `X1 ## X2` 不会被改成相邻 `##`。`test.mjs` 增加紧邻与带空格两种幂等回归。未改 tokenizer、grammar 或 driver。
+- **最小证据**：Node self-test `186/186` 通过；`X1##X2` 输出保持紧邻、`X1 ## X2` 保持空格；原始 `succeed.c` 的 `lpcc` 返回 0，token-paste 仅变体返回 1，其余 text-block 末尾、指针、空块和注释间距变体均返回 0。证据目录为 `build-modernization-evidence/u10/u10d-tokenpaste-variants/`。
+- **隔离 corpus**：对 526 个允许输入运行 `format-corpus --write`，结果为 `written=376,unchanged=150,errors=0,wouldChange=0`；候选副本保留在 `build-modernization-evidence/u10/u10d-formatted-corpus/`，格式日志为 `u10d-format-after3.log`。`generate_ebnf` 目标成功；Bison 报告既有 `statements` 无规则警告，`parse-ebnf` 未安装导致验证步骤跳过，未把这两项写成无条件通过。
+- **真实 driver 边界**：同一 Debug 二进制在原始 corpus 与重排 corpus 的完整 `-ftest` 均返回 255，末尾均为已有 `]T> fail assertion failure`（raw=`u10d-isolated-driver-raw.log`，formatted=`u10d-isolated-driver-after.log`）；两者均无 formatter 产生的 `X1 # # X2`/非法 token 诊断，差异仅为预期的源行号/诊断列位置和保留空格。故完整 suite 的失败不能归因于本 formatter，但完整 `-ftest` 仍不能作为 U10d 通过证据。
+- **真实入口补证**：使用格式化副本和同一监督 runner，`positive_compilation`、`preprocessor`、`package_socket_external` 各 `selected=1,passed=1,failed=0,skipped=0`；证据分别为 `build-modernization-evidence/u10/u10d-{positive,preprocessor,package}-formatted/`。U10d 状态保持 `unverified/baseline-full-ftest`：在完整 suite 的基线失败被独立定位、修复或由验收合同明确豁免前，不写入 testsuite 存量，不进入 U10e/U10f。
+
+### 11.21 U10d blocker remediation：testsuite 异步 case barrier
+
+- **只读定位结论**：完整 raw 与 formatted corpus 都在 `callout_memory_refs.lpc` 的异步 callback 中失败；独立入口运行该 case 为 `selected=1,passed=1`。完整日志先输出 `C> callout_memory_refs`，随后继续执行后续 lexical cases，直到全部同步 case 结束才执行 callback；callback 的 `check_memory()` 因后续 case 留下的 `single/void#32/#49/#6/#51/#59 is dangling` 触发断言。错误边界是 `testsuite/command/tests.c` 立即递归 dispatch 下一个 case，而不是 formatter 或 `driver` parser。证据为 `u10d-isolated-driver-raw.log`、`u10d-isolated-driver-after.log`、`u10d-callout-formatted/` 和 raw `log/log`。
+- **允许范围**：只改 `testsuite/command/tests.c` 的测试调度；保留 case lexical 顺序、A/B/C 分类、`test-scopes.tsv` 排除输出、`TEST_F`/driver 接口、异步完成记录和失败语义。不改生产 VM、对象生命周期、formatter、grammar 或 testsuite case 断言；不把 `check_memory` 警告改成豁免。
+- **直接执行步骤**：
+  1. 把现有 `recurse()` 的深度优先发现逻辑改成同顺序 job 队列：普通文件入 `C` job，`fail`/`crasher` 文件入原有 `A`/`B` job；保留 `source_files()` 的 `.lpc` 优先和排序规则、`fail` 的 `/log/compile` 轮转。
+  2. 让 `execute()` 只负责建立全量/单 case job；新增单一 `run_next_case()` dispatcher。每个 job 完成当前同步 body 后，若 state 仍有 token，记录唯一 `waiting_case`，不得 dispatch 下一个 job；所有 token 由 `complete_async()` 消费后才恢复 dispatcher。当前配置没有 `set_this_player()` efun，因此 completion 处理必须保存 `previous_object()`，通过现有 bound-efun 机制对已完成 case 调用 `disable_commands()`，清除 `__RC_THIS_PLAYER_IN_CALL_OUT__` 保存的 case command-giver，再登记 continuation callout；没有 case command-giver 时不引入稳定对象或额外引用。使用 `0.01` 秒交还事件循环，避免零延迟 callout 的嵌套深度限制。dispatcher 在一次 continuation 中连续执行无 token 的同步 job，只有遇到 pending token 才暂停，保留原有 per-case `check_memory()` 时序。
+  3. 将现有 C/A/B 执行体原样拆到 dispatcher 调用路径；`record_failure`、未知/重复 completion、普通 C 零断言、未捕获 runtime error、超时和无 applicable case 的失败合同保持原文语义。`finish_if_ready()` 只有在 job 队列耗尽、没有 waiting case 且所有 state done 时才可安排 `finish_run()`。
+  4. 在修改前保留 raw full-f test 失败证据；修改后先运行 `callout_memory_refs`、所有现有 async entry，再运行完整 raw corpus。再用同一 dispatcher 运行格式化副本；要求 raw/formatted 都有唯一 completion、成功标记、零 assertion/skip/sanitizer 诊断，且 formatted 仅改变已允许的空白。
+- **实施试验状态**：第一版 dispatcher（未清空 continuation callout 的 `command_giver`，且每个同步 job 都登记零延迟 callout）已回滚。它把 `callout_memory_refs` 的 callback 顺序问题消除，但先触发零延迟嵌套上限，改为同步 drain 后又在 `set_light.c` 的 `check_memory()` 报 `single/void#54`；另一轮在 `dual_extension.lpc` 后报 `single/tests/efuns/disable_commands2` dangling。`src/packages/core/call_out.cc` 已确认 callout 默认保存当前 `command_giver`，而后一个 case 会自毁对象；因此“continuation 持有已完成 case object”是已确认的保留路径，仍需按步骤 2 修复并重新验证，不能把 raw full 失败记作 formatter 缺陷或豁免。
+- **停止条件**：任何 case 顺序变化、异步 completion 重复/丢失、full raw 仍在同一 callback 失败、`check_memory()` 仍报告由 continuation 保留的 case object、格式化副本比 raw 多出诊断，或 runner 出现 timeout/孤儿进程，立即保留证据并停止；不通过修改测试期望或扩大 formatter 例外规避。
+- **出口**：testsuite 调度 barrier 回归通过，raw 与 formatted full `-ftest` 均通过后，才解除 U10d `baseline-full-ftest` 阻塞；随后重新执行 U10d 全部敏感 fixture 检查，再决定是否允许 U10e/U10f。该修复属于验收基础设施，不计为 formatter 兼容性通过。
+
+### 11.22 U10d：异步 barrier 修复后的 formatter 出口
+
+- **状态**：`accepted/tool-and-driver-gate; bulk-write-deferred-to-U10g`。本项验收基础设施和 formatter 工具均达到 U10d 出口；没有把 376 个待重排文件写回工作树，因此不把 U10g 的存量排版提前计入。
+- **调度修复**：`testsuite/command/tests.c` 现在按原 lexical 顺序建立 job 队列；当前 C/A/B job 未完成时不会启动下一个 job。最后一个异步 token 完成后，保存 `previous_object()`，先用 bound `disable_commands()` 清除完成用例的 callout command-giver，再以 `0.01` 秒 continuation 交还事件循环。`check_test_memory()` 在 state 的所有 token 完成后执行，而不是在异步 body 初次返回时执行。`testsuite/single/tests/efuns/set_heart_beat.c` 在销毁 stale object 后清空全局指针，避免延后到真实完成点的内存检查读取已销毁引用。没有修改生产 VM、formatter、grammar 或 driver。
+- **formatter 工具证据**：Node `v24.21.0` 的 `tools/lpc-syntax/test.mjs` 为 `186/186`，`test-format-corpus.mjs` 为 `11/11`，均零失败；`cmake --build build-organize-debug --target generate_ebnf --parallel 4` 返回 0。日志分别为 `u10d-node-selftest-final.log`、`u10d-corpus-selftest-final.log` 和 `u10d-generate-final.log`。
+- **当前工作树 corpus 边界**：只读 `bash testsuite/format.sh --check` 返回 1，但合同结果为 `total=526,written=0,wouldChange=376,unchanged=150,errors=0`；返回 1 表示尚未执行 U10g 的批量写入，不是 formatter 解析失败。原始日志为 `u10d-format-check-current.log`。隔离当前 corpus 的 `formatLPC` 预检为 `total=531,changed=376,unchanged=150,skipped=5`，所有 526 个可格式化输入均通过幂等检查，副本在 `u10d-formatted-current/`。
+- **真实 driver 证据**：当前源码 raw full run `u10d-full-fixed-raw10/summary.json` 为 `selected=349,passed=349,failed=0,skipped=0,excluded=46`，二进制 SHA-256 为 `f9a921f5a83cab9964bbad6358f4907ad090a3b5a96c679acb0b5c415fdd3615`；同一二进制对当前源码的 376 个格式化变更副本运行 `u10d-full-formatted-raw2/summary.json`，结果同为 `349/349/0/0`、46 个排除。两次 driver 均返回 0、输出唯一完成记录和成功标记，且无 assertion、skip 或 sanitizer 诊断。
+- **范围结论**：U10d 的 token/语法/formatter/真实 driver 门禁已解除；不得因此宣称 testsuite 存量已统一。U10e/U10f 可按依赖图继续，U10g 仍负责按模块审阅并显式写入获准的存量文件。
+
+### 11.23 U10e：测试和职责结构整理
+
+- **状态**：`accepted/debug-asan-ubsan-tsan-release`。原 `src/tests/test_lpc.cc` 按 owner、gateway、compiler/语言和保留的公共入口拆入 `test_lpc_owner.cc`、`test_lpc_gateway.cc`、`test_lpc_compiler.cc`；公共 fixture/helper 收敛到 `test_lpc_support.h`。仍只注册一个 `lpc_tests` 目标，没有复制 `init_main` 或创建第二套 sandbox。`TEST_F` suite/name 保持不变，断言数量和内容未删减。
+- **发现集合核对**：以 `HEAD` 的 `test_lpc.cc` 加 `test_egc.cc` 为基线，当前五个测试源的精确 `TEST`/`TEST_F` 身份均为 `503`；拆分前后 `missing=[]`、`added=[]`。Debug 的 runner 发现/执行集合为 `503/503`，没有失败或跳过。
+- **fail-first 与隔离修正**：拆分后首次全量运行暴露了跨翻译单元初始化顺序依赖：SimulEfun 测试留下临时表和永久标识符，随后 owner 内存断言失败；profile 测试还依赖此前未建立 apply-cache table。修复只限测试隔离：清理测试新增的 orphan 标识符、按生产 `TAG_SIMULS` 保存恢复表，并让 profile 用例编译独立 program 触发自己的 table build；没有改变生产实现或断言期望。
+- **配置证据**：`build-organize-debug`、`build-asan`、`build-ubsan`、`build-tsan` 分别构建 `lpc_tests`、`lpcshell`、`lpcc`。`u10e-lpc-tests-debug4`、`u10e-lpc-tests-asan`、`u10e-lpc-tests-ubsan`、`u10e-lpc-tests-tsan2` 均为 `selected=503,passed=503,failed=0,skipped=0`；TSan 构建和运行均使用 `setarch x86_64 -R`。`u10e-lpc-tests-release` 为 `502/502/0/0`，唯一少于 Debug 的 `ForeachTemporariesRestoredOnUnwind` 是 Release 条件编译排除，不是运行期跳过。
+- **出口**：结构拆分、公共 helper 单一来源、测试身份一致性和 Debug/ASan/UBSan/TSan/Release 目标验证完成。U10f 可以开始；U10g 仍不得把 `testsuite/format.sh --check` 报出的 `376` 个存量变更写回工作树。
+
+### 11.24 U10f：CI 与编辑器说明接入
+
+- **状态**：`accepted/pilot-gate; full-diff-gate-deferred-to-U10g`。`.github/workflows/ci.yml` 新增 `style-and-lpc` job：checkout 使用完整历史，先核对 PR base 或 push before commit 在本地对象库中存在，再运行检查；没有全零或缺失基线时不选空范围通过。没有给 formatter 写仓库权限，也没有自动修复或联网拉取检查范围。
+- **工具门禁**：CI 安装 `clang-format-18` 后强制检查实际版本 `18.1.8`，运行 `tools/style/test-check-format.py`，再检查 U10c 已审阅的三个 native pilot。Node 通过 `.node-version` 固定 `24.21.0`，运行 `tools/lpc-syntax/test.mjs` 与 `test-format-corpus.mjs`；随后只读检查 U10d 已通过且当前不变的三个 LPC pilot，均不写源文件。
+- **本地复现**：`tools/docs/check-workflows.py --self-test` 通过；当前源码用固定 18.1.8 二进制复现 checker self-test、native pilot、Node 两项 self-test 和 LPC pilot，结果分别为 self-test 通过、native `3/3`、LPC `3/3`、Node 全部通过。`git diff --check` 通过。
+- **边界**：当前 testsuite corpus 仍有 `376` 个既有待排版文件，故本 job 暂不调用 `--all-native` 或无参数的 `testsuite/format.sh --check`，也不把 pilot 写成全库门禁。U10g 完成模块级存量整理后，必须把 native 改为明确 base-diff/全量范围检查，把 LPC 改为完整允许 corpus；在此之前 U10 总出口和全库格式通过均未宣称完成。CONTRIBUTING.md 已补充 C/C++、LPC 语言识别、手动命令和敏感文件禁用 format-on-save 说明。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

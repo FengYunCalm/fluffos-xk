@@ -1,2 +1,9 @@
 * text=auto
 *.sh text eol=lf
+
+# Keep byte-oriented evidence and regression inputs out of text normalization.
+docs/evidence/** -text
+src/tests/fuzz/corpus/** -text
+src/thirdparty/utfcpp/tests/test_data/utf8_invalid.txt -text
+testsuite/data/compress/*.zbin -text
+testsuite/std/fonts/** -text

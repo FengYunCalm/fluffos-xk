@@ -5,7 +5,7 @@
 #include <cstring>
 #include <sys/stat.h>
 
-size_t source_spelling_strip_len(const char *s, size_t len) {
+size_t source_spelling_strip_len(const char* s, size_t len) {
   // Idempotent: strip ".lpc"/".c" repeatedly, so "foo.lpc.lpc" -> "foo"
   // and "foo.lpc.c" -> "foo", matching the loader's normalization.
   for (;;) {
@@ -21,11 +21,10 @@ size_t source_spelling_strip_len(const char *s, size_t len) {
   return len;
 }
 
-void resolve_source_spelling(const char *path, const char *requested_ext,
-                             bool allow_fallback, const char **out_ext,
-                             char *out_real_name, size_t out_size) {
+void resolve_source_spelling(const char* path, const char* requested_ext, bool allow_fallback,
+                             const char** out_ext, char* out_real_name, size_t out_size) {
   struct stat c_st;
-  const char *ext = requested_ext != nullptr ? requested_ext : ".lpc";
+  const char* ext = requested_ext != nullptr ? requested_ext : ".lpc";
 
   // Probe fallback: the .lpc source is missing (or is a directory) and the
   // caller permits degrading to the .c twin.
@@ -43,9 +42,9 @@ void resolve_source_spelling(const char *path, const char *requested_ext,
   }
 }
 
-bool source_name_matches(const char *user_path, const char *prog_filename) {
-  const char *u = user_path;
-  const char *p = prog_filename;
+bool source_name_matches(const char* user_path, const char* prog_filename) {
+  const char* u = user_path;
+  const char* p = prog_filename;
   if (*u == '/') {
     u++;
   }

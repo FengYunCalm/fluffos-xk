@@ -12,8 +12,8 @@
  * C++ places -- the three callers plus filename_to_obname's own
  * strip-normalization loop -- with slightly different probe semantics (stat
  * vs access); testsuite/command/tests.c carries an LPC-layer copy that is
- * intentionally kept independent. This module owns the idempotent
- * strip (source_spelling_strip_len), the probe-and-fallback rule
+ * intentionally kept independent. This module owns the idempotent strip
+ * (source_spelling_strip_len), the probe-and-fallback rule
  * (resolve_source_spelling) and the in-memory match (source_name_matches);
  * the callers keep their explicit-extension detection (load_object on the
  * raw pname, recompile on prog->filename).
@@ -36,9 +36,8 @@
  * out_real_name receives path + selected ext truncated to out_size (always
  * NUL-terminated when out_size > 0).
  */
-void resolve_source_spelling(const char *path, const char *requested_ext,
-                             bool allow_fallback, const char **out_ext,
-                             char *out_real_name, size_t out_size);
+void resolve_source_spelling(const char* path, const char* requested_ext, bool allow_fallback,
+                             const char** out_ext, char* out_real_name, size_t out_size);
 
 /*
  * In-memory match used by replace_program: does a user-supplied path (any
@@ -46,7 +45,7 @@ void resolve_source_spelling(const char *path, const char *requested_ext,
  * program's filename (which carries the loader-chosen extension)? Both
  * sides are stripped of a .lpc/.c suffix and compared.
  */
-bool source_name_matches(const char *user_path, const char *prog_filename);
+bool source_name_matches(const char* user_path, const char* prog_filename);
 
 /*
  * Idempotent strip of a trailing .lpc/.c suffix ("foo.lpc.lpc" -> "foo",
@@ -56,6 +55,6 @@ bool source_name_matches(const char *user_path, const char *prog_filename);
  * idempotence: single-pass stripping would leave "foo.lpc" for
  * "foo.lpc.c" and diverge from the loader.
  */
-size_t source_spelling_strip_len(const char *s, size_t len);
+size_t source_spelling_strip_len(const char* s, size_t len);
 
 #endif  // SOURCE_SPELLING_H

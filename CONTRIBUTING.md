@@ -41,6 +41,10 @@ Examples: `fix: stabilize Windows install`, `docs: rewrite README`.
 
 Follow the repository's [coding standard](docs/coding-standard.md). Preserve behavior and keep formatting-only changes focused.
 
+- C/C++ uses the repository `src/.clang-format` with LLVM clang-format 18.1.8. Run the read-only checker with `CLANG_FORMAT=clang-format-18 python3 tools/style/check-format.py --paths <file...>`; do not use `clang-format` on LPC `.c` files under `testsuite/`.
+- LPC `.lpc` files and legacy LPC `.c` files under `testsuite/` use the Node formatter. Use the repository's `.node-version`, run `node tools/lpc-syntax/test.mjs`, and use `bash testsuite/format.sh --check <file...>` for a read-only check. `--write` requires an explicit file list and is not an editor save hook.
+- Disable format-on-save for byte-sensitive, deliberately invalid, or otherwise excluded fixtures. The `.gitattributes` and `testsuite/format.sh` exclusion lists are authoritative.
+
 ## Code of Conduct
 
 This project follows `CODE_OF_CONDUCT.md`. By participating, you agree to uphold it.

@@ -10,8 +10,15 @@ private mapping expected_runtime_error;
 private string executing_case;
 private mapping test_scopes = ([]);
 private mapping excluded_cases = ([]);
+private mixed *pending_jobs = ({});
+private int pending_index;
+private int pending_applicable;
+private string waiting_case;
 
 int execute(string fun);
+private void schedule_next_case();
+private void check_test_memory(string name);
+void run_next_case();
 
 private string case_key(string name) {
   if (strlen(name) > 4 && name[<4..] == ".lpc") {
@@ -169,7 +176,8 @@ private void finish_run() {
 }
 
 private void finish_if_ready() {
-  if (!running || scheduling || finishing || failed) {
+  if (!running || scheduling || finishing || failed ||
+      pending_index < sizeof(pending_jobs) || waiting_case) {
     return;
   }
   foreach (mapping state in values(test_states)) {
@@ -191,6 +199,7 @@ private void complete_case(string key) {
     record_failure("ordinary case has no assertion coverage: " + state["name"]);
     return;
   }
+  check_test_memory(state["name"]);
   state["done"] = 1;
   write(sprintf("D> %s %s asserts=%d\n", state["kind"], state["name"],
                 state["assertions"]));
@@ -212,7 +221,8 @@ int begin_async() {
 }
 
 void complete_async(int token) {
-  string key = case_key(file_name(previous_object()));
+  object caller = previous_object();
+  string key = case_key(file_name(caller));
   mapping state = test_states[key];
 
   if (!state || !state["tokens"][token]) {
@@ -221,6 +231,13 @@ void complete_async(int token) {
   }
   map_delete(state["tokens"], token);
   complete_case(key);
+  if (!sizeof(state["tokens"]) && waiting_case == key) {
+#ifndef __NO_ADD_ACTION__
+    evaluate(bind((: disable_commands :), caller));
+#endif
+    waiting_case = 0;
+    schedule_next_case();
+  }
 }
 
 private void start_case(string name, string kind) {
@@ -260,50 +277,61 @@ private string *source_files(string dir) {
   return files;
 }
 
-void recurse(string dir) {
+private void schedule_next_case() {
+  call_out("run_next_case", 0.01);
+}
+
+private void queue_job(string name, string kind) {
+  pending_jobs += ({ ({ name, kind }) });
+  if (kind != "C" || !excluded_cases[case_key(name)]) {
+    pending_applicable++;
+  }
+}
+
+private void collect_jobs(string dir) {
   foreach (string file in source_files(dir)) {
-    execute(file);
+    queue_job(file, "C");
   }
   foreach (string subdir in sort_array(map(filter(get_dir(dir + "*", -1),
            (: $1[1] == -2 :)), (: $1[0] :)) - ({ ".", ".." }), 1)) {
     if (subdir == "fail" || subdir == "crasher") {
       foreach (string file in source_files(dir + subdir + "/")) {
-        string key = case_key(file);
-
-        start_case(file, subdir == "fail" ? "A" : "B");
-        if (subdir == "fail") {
-          ASSERT2(catch(load_object(file)), file + " loaded");
-        } else {
-          // Crasher coverage is survival, not ordinary assertion coverage.
-          catch(load_object(file)->do_tests());
-        }
-        executing_case = 0;
-        check_test_memory(file);
-        test_states[key]["returned"] = 1;
-        complete_case(key);
+        queue_job(file, subdir == "fail" ? "A" : "B");
       }
       if (subdir == "fail") {
-        cp("/log/compile", "/log/compile_fail");
-        rm("/log/compile");
+        pending_jobs += ({ ({ "", "fail_end" }) });
       }
     } else {
-      recurse(dir + subdir + "/");
+      collect_jobs(dir + subdir + "/");
     }
   }
 }
 
-int execute(string fun) {
-  object tp = this_player();
-  string key;
+private void run_special_case(string fun, string kind) {
+  string key = case_key(fun);
 
-  if (!fun || fun == "") {
-    recurse("/single/tests/");
-    return 1;
+  start_case(fun, kind);
+  if (kind == "A") {
+    ASSERT2(catch(load_object(fun)), fun + " loaded");
+  } else {
+    // Crasher coverage is survival, not ordinary assertion coverage.
+    catch(load_object(fun)->do_tests());
   }
-  key = case_key(fun);
+  executing_case = 0;
+  test_states[key]["returned"] = 1;
+  complete_case(key);
+  if (sizeof(test_states[key]["tokens"])) {
+    waiting_case = key;
+  }
+}
+
+private void run_case(string fun) {
+  object tp = this_player();
+  string key = case_key(fun);
+
   if (excluded_cases[key]) {
     write("X> " + fun + "\t" + implode(excluded_cases[key], "\t") + "\n");
-    return 1;
+    return;
   }
   set_eval_limit(0x7fffffff);
   start_case(fun, "C");
@@ -314,12 +342,47 @@ int execute(string fun) {
   if (tp != this_player()) {
     error("Bad this_player() after calling " + fun + "\n");
   }
-  check_test_memory(fun);
   if ("/single/master"->get_inherit_called() == 0) {
     error("MASTER valid inherit functions are not being called!\n");
   }
   test_states[key]["returned"] = 1;
   complete_case(key);
+  if (sizeof(test_states[key]["tokens"])) {
+    waiting_case = key;
+  }
+}
+
+void run_next_case() {
+  mixed *job;
+
+  while (running && !failed && !finishing && !waiting_case &&
+         pending_index < sizeof(pending_jobs)) {
+    job = pending_jobs[pending_index++];
+    if (job[1] == "fail_end") {
+      cp("/log/compile", "/log/compile_fail");
+      rm("/log/compile");
+    } else if (job[1] == "C") {
+      run_case(job[0]);
+    } else {
+      run_special_case(job[0], job[1]);
+    }
+  }
+  if (!running || failed || finishing || waiting_case) {
+    return;
+  }
+  if (!pending_applicable) {
+    record_failure("No applicable test cases were selected.");
+    return;
+  }
+  finish_if_ready();
+}
+
+int execute(string fun) {
+  if (!fun || fun == "") {
+    collect_jobs("/single/tests/");
+  } else {
+    queue_job(fun, "C");
+  }
   return 1;
 }
 
@@ -335,10 +398,7 @@ int main(string file) {
   write("T> order lexical-v1\n");
   init_scopes();
   execute(file || "");
-  if (!sizeof(test_states)) {
-    record_failure("No applicable test cases were selected.");
-  }
   scheduling = 0;
-  finish_if_ready();
+  call_out("run_next_case", 0.01);
   return 1;
 }

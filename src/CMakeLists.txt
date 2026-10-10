@@ -441,6 +441,68 @@ else()
   endif ()
 endif()
 
+# The LPC syntax tools consume Bison's XML grammar report as well as the
+# driver's lexical tables. Keep this as an explicit target: ordinary driver
+# builds still use the normal parser/fallback path and never write generated
+# syntax assets back into the source tree.
+set(LPC_SYNTAX_DIR "${CMAKE_SOURCE_DIR}/tools/lpc-syntax")
+set(LPC_SYNTAX_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/lpc-syntax")
+set(LPC_SYNTAX_XML "${LPC_SYNTAX_BUILD_DIR}/grammar.xml")
+set(LPC_SYNTAX_DUMMY_CC "${LPC_SYNTAX_BUILD_DIR}/grammar_xml_dummy.cc")
+set(LPC_SYNTAX_DUMMY_H "${LPC_SYNTAX_BUILD_DIR}/grammar_xml_dummy.h")
+set(LPC_SYNTAX_EBNF "${LPC_SYNTAX_DIR}/grammar.ebnf")
+set(LPC_SYNTAX_JSON "${LPC_SYNTAX_DIR}/lpc-grammar.json")
+set(LPC_SYNTAX_TM "${LPC_SYNTAX_DIR}/lpc.tmLanguage.json")
+set(LPC_SYNTAX_GENERATED
+  "${LPC_SYNTAX_XML}"
+  "${LPC_SYNTAX_DUMMY_CC}"
+  "${LPC_SYNTAX_DUMMY_H}"
+  "${LPC_SYNTAX_EBNF}"
+  "${LPC_SYNTAX_JSON}"
+  "${LPC_SYNTAX_TM}"
+)
+
+if (BISON_FOUND)
+  find_package(Python3 3.9 COMPONENTS Interpreter QUIET)
+  if (Python3_Interpreter_FOUND)
+    add_custom_command(
+      OUTPUT ${LPC_SYNTAX_GENERATED}
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${LPC_SYNTAX_BUILD_DIR}"
+      COMMAND "${BISON_EXECUTABLE}"
+        "--xml=${LPC_SYNTAX_XML}"
+        "--defines=${LPC_SYNTAX_DUMMY_H}"
+        "-o" "${LPC_SYNTAX_DUMMY_CC}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/compiler/internal/grammar.y"
+      COMMAND "${Python3_EXECUTABLE}"
+        "${LPC_SYNTAX_DIR}/generate_ebnf.py"
+        "${LPC_SYNTAX_XML}"
+        "${LPC_SYNTAX_EBNF}"
+        "${LPC_SYNTAX_JSON}"
+      DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/compiler/internal/grammar.y"
+        "${CMAKE_CURRENT_SOURCE_DIR}/compiler/internal/lex.cc"
+        "${LPC_SYNTAX_DIR}/generate_ebnf.py"
+        "${LPC_SYNTAX_DIR}/grammar_lexical.ebnf.in"
+        "${LPC_SYNTAX_DIR}/tokenizer.mjs"
+        "${LPC_SYNTAX_DIR}/lint.mjs"
+        "${LPC_SYNTAX_DIR}/format.mjs"
+      VERBATIM
+    )
+    add_custom_target(generate_ebnf DEPENDS ${LPC_SYNTAX_GENERATED})
+  else ()
+    add_custom_target(generate_ebnf
+      COMMAND "${CMAKE_COMMAND}" -E echo
+        "generate_ebnf requires Python3.9 or newer"
+      COMMAND "${CMAKE_COMMAND}" -E false
+    )
+  endif ()
+else ()
+  add_custom_target(generate_ebnf
+    COMMAND "${CMAKE_COMMAND}" -E echo
+      "generate_ebnf requires Bison 3.8 or newer"
+    COMMAND "${CMAKE_COMMAND}" -E false
+  )
+endif ()
 
 set(SRC
   "backend.cc"
