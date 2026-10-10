@@ -1,0 +1,24 @@
+void do_tests() {
+  mixed original = get_os_env("FLUFFOS_XK_TEST_ENV");
+  int had_original = !undefinedp(original);
+
+  ASSERT(stringp(get_os_env("PATH")));
+  ASSERT(catch(get_os_env("FLUFFOS_XK_NOT_ALLOWED")));
+  ASSERT(catch(get_os_env("")));
+
+  ASSERT(set_os_env("FLUFFOS_XK_TEST_ENV", "hello"));
+  ASSERT_EQ("hello", get_os_env("FLUFFOS_XK_TEST_ENV"));
+  ASSERT(set_os_env("FLUFFOS_XK_TEST_ENV"));
+  ASSERT(undefinedp(get_os_env("FLUFFOS_XK_TEST_ENV")));
+
+  ASSERT(catch(set_os_env("PATH", "/tmp")));
+  ASSERT(catch(set_os_env("FLUFFOS_XK_NOT_ALLOWED", "x")));
+
+  if (had_original) {
+    ASSERT(set_os_env("FLUFFOS_XK_TEST_ENV", original));
+    ASSERT_EQ(original, get_os_env("FLUFFOS_XK_TEST_ENV"));
+  } else {
+    ASSERT(set_os_env("FLUFFOS_XK_TEST_ENV"));
+    ASSERT(undefinedp(get_os_env("FLUFFOS_XK_TEST_ENV")));
+  }
+}

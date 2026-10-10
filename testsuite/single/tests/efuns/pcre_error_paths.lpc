@@ -1,0 +1,23 @@
+#ifdef __PACKAGE_PCRE__
+void do_tests() {
+  string bad = "zz_uncacheable_probe_[0-9";
+  string key;
+  int cached_failure = 0;
+
+  ASSERT2(catch(pcre_match_all("anything", bad)), "invalid compile must throw");
+  foreach (key in keys(pcre_cache())) {
+    if (strsrch(key, bad) == 0) {
+      cached_failure = 1;
+    }
+  }
+  ASSERT2(cached_failure == 0, "invalid pattern must not enter the cache");
+
+  ASSERT2(catch(pcre_assoc("foo", ({ "bar", "+" }), ({ 0, 1 }), 0, 0)),
+          "pcre_assoc compile failure must throw");
+  ASSERT2(catch(pcre_match_all(repeat_string("x", 100001), "x")),
+          "pcre_match_all result limit must throw");
+  ASSERT2(catch(pcre_replace_callback("abc", "(a)(b)", "cb",
+                                      "/no/such/object/here")),
+          "invalid callback object must throw");
+}
+#endif

@@ -1,0 +1,7 @@
+#ifdef __PACKAGE_PCRE__
+void do_tests() {
+  pcre_match("warmup", "warm_pattern_[0-9]+");
+  ASSERT(mapp(pcre_cache()));
+  ASSERT(sizeof(pcre_cache()) >= 1);
+}
+#endif

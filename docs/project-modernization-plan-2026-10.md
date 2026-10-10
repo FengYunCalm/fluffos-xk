@@ -1350,6 +1350,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug 的两个入口分别在 `call-stack-v1/`、`call-stack-driver-frame-v2/` 通过；ASan、UBSan、TSan 各自的两个入口均通过，证据分别为 `call-stack-asan-v1/` + `call-stack-driver-frame-asan-v1/`、`call-stack-ubsan-v1/` + `call-stack-driver-frame-ubsan-v1/`、`call-stack-tsan-v1/` + `call-stack-driver-frame-tsan-v1/`，每项均为 `selected=1,passed=1,failed=0,skipped=0`，TSan 使用 `setarch x86_64 -R`。修复后的 Debug 全量 LPC 为 `selected=473,passed=473,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/all-lpc-after-call-stack-v1/`。
 - **出口边界**：本项完成 `call_stack()` 的 driver-context 生命周期安全和回归覆盖，不声称完成其他 stack-inspection 入口、interactive/DB/modern-ed 变体或上游独有测试。
 
+### 11.45 U11b：PCRE 失败路径与临时数组所有权
+
+- **状态**：`accepted/Linux`。新增 `pcre_cache`、`pcre_version`、`pcre_replace_callback_zero`、`pcre_error_paths` 四个入口，另新增 `get_os_env` 与 `socket_release` 的独立覆盖；本项的生产修复仅限 `src/packages/pcre/pcre.cc` 的失败路径所有权，不改变 PCRE flags、缓存容量、匹配结果或回调契约。
+- **失败反例**：`build-modernization-evidence/u11/pcre-error-paths-current-v5/001-driver-lpc.log` 记录当前 API 合同下的无效 pattern、`pcre_assoc` 编译失败、`pcre_match_all` 结果容量错误和无效 callback 均被捕获，但测试收尾的 `check_memory()` 仍报告 `*LEAK`。前一版误把上游不存在的 mapping options 传给当前 `pcre_assoc`/`pcre_match_all`，失败证据 `pcre-error-paths-current-v2/` 和 `-v4/` 保留，不计为生产缺陷证据。
+- **已确认根因**：`f_pcre_replace_callback()` 在 `pcre_get_substrings()` 返回后先取得 `arr`，再调用 `process_efun_callback()`；第三参数非法或 callback 解析失败时，`arr` 尚未转移到 VM 栈，现有 `DEFER` 只释放 `pcre_t`，因此该异常路径丢失数组所有权。`push_refed_array(arr)` 后由 VM 栈接管，不能用无条件 `free_array(arr)` 覆盖已转移的引用。
+- **直接修复步骤**：在 `arr` 创建后登记一个 `SCOPE_FAIL`，仅在 `arr` 尚未压入 VM 栈时释放；在 `push_refed_array(r)` 与 `push_refed_array(arr)` 完成后设置 ownership-transferred 标志。保留现有 callback 解析顺序、异常上下文、结果数组和 `pcre_free_memory(run)` 清理，不以删除 `pcre_error_paths` 或放宽 `check_memory()` 规避反例。
+- **验收**：Debug、ASan、UBSan、TSan 的六个入口各为 6/6，合计 24/24，均为 `selected=1,passed=1,failed=0,skipped=0`；Debug 全量 LPC 为 `selected=479,passed=479,failed=0,skipped=0`，执行前仍明确排除 28 个 fixture/能力缺失入口。`pcre_error_paths` 修复后 Debug、ASan、UBSan、TSan 均无 `Check failed`、`*LEAK` 或 sanitizer 诊断；失败 pattern 不进入缓存。证据持久保存于 `build-modernization-evidence/u11/pcre-*`、`get-os-env-*`、`socket-release-*` 和 `all-lpc-after-pcre-socket-fix-v1/`，不得以旧 `/tmp` 记录替代。四个修复后 driver 身份分别为 Debug `efa736e87726f5c3e2278a2170932341241dfa8238fa8e7c13b8bd65a7f020b1`、ASan `7fad474d050add081d2749c854332da72a5d490e202ad179e2d3005a0d0588b8`、UBSan `81b2a4c678a0ff057018344fc396342f69d1964030a5e23593c4f2fb7f164a73`、TSan `06fb964ce3c3186fbbd817293763347a3fdf0fa5a2aa4869c825a5edd29601c6`；TSan 对整个 runner 使用 `setarch x86_64 -R`。
+- **出口边界**：本项不移植上游 PCRE2-only 的 `pcre_config`、`pcre_info`、`pcre_convert` mapping API；当前 `.spec` 没有这些公开 efun，不能用编译条件把不存在的接口伪装成覆盖。其余 172 个未匹配 efun 源对象继续按 U11 分类，不因本项通过而整体关闭。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

@@ -518,6 +518,12 @@ void f_pcre_replace_callback() {
   }
 
   arr = pcre_get_substrings(run, false);
+  bool substrings_transferred = false;
+  SCOPE_FAIL {
+    if (!substrings_transferred) {
+      free_array(arr);
+    }
+  };
 
   if (arg[2].type == T_FUNCTION || arg[2].type == T_STRING) {
     process_efun_callback(2, &ftc, F_PCRE_REPLACE_CALLBACK);
@@ -529,6 +535,7 @@ void f_pcre_replace_callback() {
 
   push_refed_array(r);
   push_refed_array(arr);
+  substrings_transferred = true;
   error_context_t econ;
 
   save_context(&econ);
