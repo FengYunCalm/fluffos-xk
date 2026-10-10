@@ -1247,6 +1247,12 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **验证**：Debug、ASan、UBSan、TSan 六个入口各为 6/6，合计 24 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；四个 driver 均重新构建了 `file.cc`，TSan 使用 `setarch x86_64 -R`。加入六个入口并包含修复后的 `link` 后，Debug 全量 LPC 为 `selected=392,passed=392,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-io-v2/`，无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成六个文件 efun 测试和一个已确认的 `link` 栈引用清理，不声称完成 EXDEV 专用夹具、其余上游测试或生产 hunk。
 
+### 11.30 U11b：向量与集合基础 efun 测试适配
+
+- **范围与归属**：新增 `angle`、`distance`、`dotprod`、`norm`、`max`、`min`、`element_of`、`next_bit` 八个上游独有入口。向量测试覆盖正常结果、类型/长度错误和曾与错误哨兵值冲突的合法结果；集合/位测试覆盖索引和空输入边界。`1e-9` 按本地 lexer 合同改为等值十进制字面量 `0.000000001`。
+- **通过证据**：八项 Debug、ASan、UBSan、TSan 各为 8/8，合计 32 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；证据目录使用 `math2-*` 及对应 sanitizer 前缀，TSan 使用 `setarch x86_64 -R`。首次 Debug 全量复核在既有 `package_socket_external` 异步清理处出现一次非确定性 `check_memory()` 失败，原始证据保留在 `build-modernization-evidence/u11/full-debug-math2-v2/`；该测试单独重复 8/8，并随后三次全量复核均通过 `selected=400,passed=400,failed=0,skipped=0`，最终证据包括 `full-debug-math2-v3/` 与 `full-debug-math2-repeat-1/` 至 `-3/`。这次失败没有归因到八个新测试，未改动 external 路径。
+- **出口边界**：本项完成八个向量/集合 efun 测试，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
