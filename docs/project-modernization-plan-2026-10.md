@@ -1240,6 +1240,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：四项 Debug、ASan、UBSan、TSan 定向记录均通过，合计 16/16，均为 `selected=1,passed=1,failed=0,skipped=0`；普通字符串距离/编码证据使用 `string-*` 及对应 sanitizer 前缀，缓存证据使用 `string-ascii-cache` 及对应 sanitizer 前缀。加入四个入口后，Debug 全量 LPC 为 `selected=386,passed=386,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-string-v3/`；TSan 使用 `setarch x86_64 -R`，无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成四个字符串测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.29 U11b：文件 efun 覆盖与 `link` 引用清理
+
+- **范围与反例**：新增上游独有的 `file_length`、`copy`、`link`、`write_buffer`、`write_bytes`、`write_file` 六个入口，覆盖行数、目录/不存在文件、深拷贝、写入覆盖/追加、buffer 写入和权限拒绝后的源文件保留。`rename_exdev` 依赖专用 `LD_PRELOAD` ctest，普通 testsuite 运行不能证明跨设备分支，因此未作为默认通过项接入。
+- **根因与修复**：首次 `link` 运行在完成断言后被 `check_memory()` 拒绝，`/ln_src.txt` 与 `/ln_dst.txt` 各残留一个共享字符串引用；`f_link()` 在 master 授权调用后直接覆盖栈槽，未释放两个路径参数。最小修复在替换结果前分别释放两个字符串并用 `put_number(i)` 写入返回值；不改变 `link` 的返回值、master 授权或文件操作合同。失败证据为 `build-modernization-evidence/u11/io-link/`，修复后证据为 `io-link-after/`。
+- **验证**：Debug、ASan、UBSan、TSan 六个入口各为 6/6，合计 24 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；四个 driver 均重新构建了 `file.cc`，TSan 使用 `setarch x86_64 -R`。加入六个入口并包含修复后的 `link` 后，Debug 全量 LPC 为 `selected=392,passed=392,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-io-v2/`，无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成六个文件 efun 测试和一个已确认的 `link` 栈引用清理，不声称完成 EXDEV 专用夹具、其余上游测试或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

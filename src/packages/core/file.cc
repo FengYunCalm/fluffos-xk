@@ -1142,9 +1142,11 @@ void f_link() {
   } else {
     i = 0;
   }
-  (--sp)->type = T_NUMBER;
-  sp->u.number = i;
-  sp->subtype = 0;
+  // Release both path arguments before replacing the result slot.  The old
+  // epilogue left the copied strings held by the master authorization call.
+  free_string_svalue(sp--);
+  free_string_svalue(sp);
+  put_number(i);
 }
 #endif /* F_LINK */
 
