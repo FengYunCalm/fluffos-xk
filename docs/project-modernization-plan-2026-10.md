@@ -1209,6 +1209,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **本地复现**：`tools/docs/check-workflows.py --self-test` 通过；当前源码用固定 18.1.8 二进制复现 checker self-test、native pilot、Node 两项 self-test 和 LPC pilot，结果分别为 self-test 通过、native `3/3`、LPC `3/3`、Node 全部通过。`git diff --check` 通过。
 - **边界**：当前 testsuite corpus 仍有 `376` 个既有待排版文件，故本 job 暂不调用 `--all-native` 或无参数的 `testsuite/format.sh --check`，也不把 pilot 写成全库门禁。U10g 完成模块级存量整理后，必须把 native 改为明确 base-diff/全量范围检查，把 LPC 改为完整允许 corpus；在此之前 U10 总出口和全库格式通过均未宣称完成。CONTRIBUTING.md 已补充 C/C++、LPC 语言识别、手动命令和敏感文件禁用 format-on-save 说明。
 
+### 11.25 U11a：17 个 testsuite 覆盖缺口收口
+
+- **范围与判定**：本项只处理 U00 基线预先分类的 17 个 `coverage_gap`，不把这项结果扩大为 U11 的 904 个上游余项清单已完成。修改前保留了旧占位用例和 scope 分类；所有真实运行均使用当前工作树 testsuite、Debug `build-organize-debug/bin/driver` 和新的持久证据目录。
+- **真实 LPC 覆盖**：`set_bit` 增加负索引错误、目标位、其余位保持清零和 `clear_bit` 后位清除断言；`dumpallobj` 对默认/指定路径的输出存在、非空、包含当前对象并成功清理作断言；`mkdir` 覆盖创建、重复创建、目录类型和删除；`replaceable` 修正 `__PACKAGE_CONTRIB__` 拼写并覆盖当前对象、忽略函数、可替换/不可替换继承对象；`set_debug_level` 通过 `debug_levels()` 验证设置/清除并恢复原状态；`set_hide` 通过 master `valid_hide` 测试钩和 `dumpallobj` 验证隐藏对象确实被过滤后恢复全局状态；`snoop` 覆盖停止 snoop 的返回对象和非交互目标的拒绝路径。七个定向入口分别为 `set_bit`、`dumpallobj`、`mkdir`、`replaceable`、`set_debug_level`、`set_hide`、`snoop`。
+- **交互客户端覆盖**：删除无可观测结果的 `add_light`、`generate_source`、`has_errors` 三个过时占位；删除 `get_char`、`message`、`notify_fail`、`printf` 和三个 `telnet_*` 占位入口，改由 `test-websocket.py --case u11-interactive-efuns` 的真实普通 telnet peer 验证。该用例通过 `receive_message`、`query_notify_fail`、字符回调和原始 Telnet 字节解析分别核对 printf/message/notify_fail/get_char/telnet_nop/telnet_ga/telnet_msp_oob；MSP 先完成 `DO 90`/`WILL 90` 协商，再核对 `SB 90` 的完整 payload。占位删除和测试路径都从 `testsuite/etc/test-scopes.tsv` 清除，不补写恒真断言。
+- **失败优先与修正记录**：首次 `set_bit` 运行暴露了把 `clear_bit` 结果误当空字符串的测试错误；首次 `dumpallobj` 运行暴露 `object_name` 不是本地 efun，随后改用 `base_name()[1..]` 与真实输出匹配。失败日志保留在 `build-modernization-evidence/u11/coverage-set-bit/`、`coverage-set-bit-v2/`、`coverage-dumpallobj/` 和 `coverage-dumpallobj-v2/`，不能把它们计为通过。
+- **通过证据**：Debug 全量 LPC 为 `selected=356,passed=356,failed=0,skipped=0`，执行前明确排除 28 个 fixture/当前能力不可用入口；证据为 `build-modernization-evidence/u11/full-debug/`。七个定向 LPC 入口在 Debug、ASan、UBSan、TSan 均分别为 `7/7`，每项 `selected=1,passed=1,failed=0,skipped=0`；Debug 证据目录为 `build-modernization-evidence/u11/coverage-set-bit-v3/`、`coverage-mkdir/`、`coverage-dumpallobj-v3/`、`coverage-replaceable-v2/`、`coverage-set-debug-level-v2/`、`coverage-set-hide-v2/`、`coverage-snoop-v2/`，ASan/UBSan/TSan 目录分别以 `asan-`、`ubsan-`、`tsan-` 前缀保存。真实普通 telnet 交互用例在 Debug、ASan、UBSan、TSan 均为 `1/1`，证据分别为 `interactive-efuns-v2/`、`asan-interactive-efuns/`、`ubsan-interactive-efuns/`、`tsan-interactive-efuns/`；TSan 命令对整个 Python 进程使用 `setarch x86_64 -R`。Debug 二进制 SHA-256 为 `f9a921f5a83cab9964bbad6358f4907ad090a3b5a96c679acb0b5c415fdd3615`，所有记录均无 timeout、skip、assertion 或 sanitizer 诊断。
+- **出口边界**：17 个基线覆盖缺口已不再作为 `coverage_gap`；本项不声称已完成 U11 第 1–6 条中的 904 个生产差异、350 个历史提交、532 个未匹配 testsuite 源对象或 379 个差异对象的逐 hunk 处置。那些条目仍须按本节 U11 主合同建立非零发现集合、语义归属和持久证据。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

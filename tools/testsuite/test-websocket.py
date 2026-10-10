@@ -30,6 +30,7 @@ spec.loader.exec_module(runner)
 
 BURST = b"B" + "ab中🙂".encode() * 8193 + b"Z\n"
 CASES = {
+    "u11-interactive-efuns": ("u11-interactive", "plain", "telnet"),
     **{f"contract-{transport}-{protocol}": ("contract", transport, protocol)
        for transport in ("ws", "wss") for protocol in ("ascii", "telnet")},
     **{f"contract-{transport}": ("contract", transport, "telnet")
@@ -74,6 +75,8 @@ class Peer:
         self.telnet_state = 0
         self.telnet_command = 0
         self.subnegotiation = bytearray()
+        self.subnegotiations: list[bytes] = []
+        self.telnet_commands: list[int] = []
         self.negotiations: list[tuple[int, int]] = []
         self.inflate = None
         self.mccp_requested = False
@@ -173,6 +176,7 @@ class Peer:
                     self.subnegotiation.clear()
                     self.telnet_state = 3
                 else:
+                    self.telnet_commands.append(value)
                     self.telnet_state = 0
             elif self.telnet_state == 2:
                 self.negotiations.append((self.telnet_command, value))
@@ -190,6 +194,7 @@ class Peer:
                     self.subnegotiation.append(value)
             elif self.telnet_state == 4:
                 if value == 240:
+                    self.subnegotiations.append(bytes(self.subnegotiation))
                     self.telnet_state = 0
                     if self.subnegotiation == b"\x56":
                         require(not self.websocket, "MCCP enabled on a websocket")
@@ -428,6 +433,42 @@ def probe_contract(probe: DriverProbe, transport: str, protocol: str) -> list[st
     return checks
 
 
+def probe_interactive_efuns(probe: DriverProbe) -> list[str]:
+    peer = probe.peer("plain", "telnet")
+    peer.expect(b"READY 127.0.0.1\n")
+    checks = []
+
+    peer.send_command("u11-output")
+    peer.expect(b"U11_PRINTF:ok:7\n")
+    peer.expect(b"U11_MESSAGE\n")
+    peer.expect(b"U11_NOTIFY:U11_NOTIFY\n")
+    checks.extend(["printf", "message", "notify-fail"])
+
+    peer.send_command("u11-get-char")
+    peer.expect(b"U11_GET_CHAR_READY\n")
+    peer.send(b"Q")
+    peer.expect(b"U11_GET_CHAR:Q\n")
+    peer.send_command("after-get-char")
+    peer.expect(b"ECHO after-get-char\n")
+    checks.append("get-char")
+
+    peer.send(bytes([255, 253, 90]))
+    deadline = time.monotonic() + 5
+    while (251, 90) not in peer.negotiations:
+        require(time.monotonic() < deadline, "server did not accept MSP")
+        peer.receive()
+    peer.send_command("u11-telnet")
+    peer.expect(b"U11_TELNET_DONE\n")
+    require(241 in peer.telnet_commands, "telnet_nop was not emitted")
+    require(249 in peer.telnet_commands, "telnet_ga was not emitted")
+    expected_msp = b"\x5a!!SOUND(cow.wav L=2 V=100)"
+    require(expected_msp in peer.subnegotiations, "telnet_msp_oob payload was not emitted")
+    checks.extend(["telnet-nop", "telnet-ga", "telnet-msp-oob"])
+
+    probe.finish(peer)
+    return checks
+
+
 def probe_callback_destruct(probe: DriverProbe, transport: str, protocol: str) -> list[str]:
     peer = probe.peer(transport, protocol)
     peer.expect(b"READY 127.0.0.1\n")
@@ -481,6 +522,8 @@ def run_probe(driver: str, case: str) -> None:
         probe.start()
         if policy == "contract":
             checks = probe_contract(probe, transport, protocol)
+        elif policy == "u11-interactive":
+            checks = probe_interactive_efuns(probe)
         elif policy == "callback-destruct":
             checks = probe_callback_destruct(probe, transport, protocol)
         else:
@@ -540,7 +583,10 @@ class WebsocketTest(unittest.TestCase):
         report = json.loads(reports[0])
         self.assertEqual(report["case"], self.case)
         self.assertEqual(report["driver_returncode"], 0)
-        if policy == "callback-destruct":
+        if policy == "u11-interactive":
+            expected = ["printf", "message", "notify-fail", "get-char",
+                        "telnet-nop", "telnet-ga", "telnet-msp-oob"]
+        elif policy == "callback-destruct":
             expected = ["gmcp-destruct", "user-count"]
         elif policy != "contract":
             expected = ["absent", "ipv4", "ipv6", "mapped", "invalid", "list", "duplicate", "long"]

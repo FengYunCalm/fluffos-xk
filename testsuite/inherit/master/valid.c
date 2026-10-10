@@ -146,8 +146,11 @@ valid_read(string file, mixed caller, string operation)
 // destruct the prospective owner mid-bind -- see
 // tests/efuns/bind_destruct_owner.c). No hook = stock allow-all behavior.
 private object bind_hook;
+private int hide_audit_mode;
 
 public void set_bind_hook(object ob) { bind_hook = ob; }
+
+public void set_hide_audit_mode(int value) { hide_audit_mode = value; }
 
 int valid_bind(object binder, object old_owner, object new_owner) {
     inherit_called++;
@@ -158,8 +161,8 @@ int valid_bind(object binder, object old_owner, object new_owner) {
 
 int valid_hide() {
     inherit_called++;
-    // same here
-    return 1;
+    // The set_hide regression uses dumpallobj as an observable consumer.
+    return !hide_audit_mode;
 }
 
 int valid_recompile_object(object binder, object target) {

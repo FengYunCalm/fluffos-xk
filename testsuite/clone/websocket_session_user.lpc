@@ -21,6 +21,17 @@ void resume_after_exec() {
   input_to("read_command");
 }
 
+void receive_message(string message_class, string value) {
+  if (message_class == "u11") {
+    tell_object(this_object(), value);
+  }
+}
+
+void u11_get_char(string value) {
+  tell_object(this_object(), "U11_GET_CHAR:" + value + "\n");
+  input_to("read_command");
+}
+
 void stop_driver() {
   "/single/u09_websocket_master"->finish_tests();
 }
@@ -39,6 +50,30 @@ void read_command(string command) {
     case "stats":
       tell_object(this_object(), sprintf("STATS %d %d\n", sizeof(users()),
                   "/single/u09_websocket_master"->query_net_dead()));
+      break;
+    case "u11-output": {
+      mixed notify_value;
+      printf("U11_PRINTF:%s:%d\n", "ok", 7);
+      message("u11", "U11_MESSAGE\n", this_object());
+      notify_fail("U11_NOTIFY");
+      notify_value = query_notify_fail();
+      if (!stringp(notify_value)) {
+        error("query_notify_fail did not return the configured string");
+      }
+      tell_object(this_object(), "U11_NOTIFY:" + notify_value + "\n");
+      break;
+    }
+    case "u11-get-char":
+      tell_object(this_object(), "U11_GET_CHAR_READY\n");
+      if (!get_char("u11_get_char")) {
+        error("get_char did not accept the interactive session");
+      }
+      return;
+    case "u11-telnet":
+      telnet_nop();
+      telnet_ga();
+      telnet_msp_oob("!!SOUND(cow.wav L=2 V=100)");
+      tell_object(this_object(), "U11_TELNET_DONE\n");
       break;
     case "exec": {
       object next = new("/clone/websocket_session_user");

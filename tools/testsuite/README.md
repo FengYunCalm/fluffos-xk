@@ -100,7 +100,7 @@ python3 -B tools/testsuite/test-websocket.py \
 父进程复用单线程监督器；日志读取线程仅在受监督的工作进程中运行。TLS 客户端验证仓库的
 `localhost` 测试证书，不关闭证书校验。`--case` 可重复选择帮助中列出的用例。
 
-18 个用例覆盖 WS/WSS ascii、WS/WSS telnet、普通 telnet/TLS，以及可信/不可信代理头和回调内销毁连接。
+19 个用例覆盖 WS/WSS ascii、WS/WSS telnet、普通 telnet/TLS，以及可信/不可信代理头、回调内销毁连接和 U11 交互 efun 输出。
 检查 Unicode 输出、消息分片、burst、exec、`net_dead` 内 destruct、GMCP 回调内 destruct、关闭后用户表回收、
 WS 关闭前排空和 MCCP 边界；普通 telnet 保持原有压缩能力。WS-telnet 保留原始换行，
 不同于普通 telnet 的 CRLF；WS 关闭期按完整字节流核对，不要求每个二进制帧单独构成 UTF-8。

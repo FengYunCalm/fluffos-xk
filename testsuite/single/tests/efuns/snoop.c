@@ -1,3 +1,4 @@
 void do_tests() {
-    // maybe when it is possible for arbitrary objects to snoop.
+  ASSERT(snoop(this_object()) == this_object());
+  ASSERT(catch(snoop(this_object(), this_object())));
 }
