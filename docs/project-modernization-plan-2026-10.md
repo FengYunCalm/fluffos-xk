@@ -1233,6 +1233,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 各运行 11/11，合计 44 个定向 LPC 记录，均为 `selected=1,passed=1,failed=0,skipped=0`。加入这 11 个自动发现入口后，Debug 全量 LPC 为 `selected=382,passed=382,failed=0,skipped=0`；证据为 `build-modernization-evidence/u11/strings-*`、对应 `asan-strings-*`/`ubsan-strings-*`/`tsan-strings-*` 及 `build-modernization-evidence/u11/full-debug-strings-v2/`。TSan 使用 `setarch x86_64 -R`，记录无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项只完成 11 个基础类型/字符串测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.28 U11b：字符串距离、编码与 ASCII 缓存测试适配
+
+- **范围与归属**：新增 `string_difference`、`string_decode`、`string_encode` 和 `string_ascii_cache` 四个固定快照中的上游独有入口。前三项覆盖编辑距离、UTF-8/UTF-16LE 转码、空 buffer 和非法 charset；`string_ascii_cache` 覆盖 ASCII/非 ASCII、CRLF 跨拼接、范围写入、`replace_string`、`map` 和字符 lvalue 修改后的 grapheme 计数。
+- **语义边界**：本项只验证现有 `src/packages/contrib/contrib.cc`、`src/packages/core/encoding.cc` 与字符串实现，不改变编码错误合同、字节/cluster 计数规则或缓存实现；测试正文与固定快照逐字一致。
+- **通过证据**：四项 Debug、ASan、UBSan、TSan 定向记录均通过，合计 16/16，均为 `selected=1,passed=1,failed=0,skipped=0`；普通字符串距离/编码证据使用 `string-*` 及对应 sanitizer 前缀，缓存证据使用 `string-ascii-cache` 及对应 sanitizer 前缀。加入四个入口后，Debug 全量 LPC 为 `selected=386,passed=386,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-string-v3/`；TSan 使用 `setarch x86_64 -R`，无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成四个字符串测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
