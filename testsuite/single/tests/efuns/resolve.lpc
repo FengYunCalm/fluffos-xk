@@ -1,0 +1,31 @@
+private int completion_token;
+private int timeout_id;
+private int callback_count;
+
+void resolve_callback(string host, mixed address, int key) {
+  ASSERT_EQ("localhost", host);
+  ASSERT(stringp(address));
+  ASSERT(strlen(address) > 0);
+  ASSERT(key >= 0);
+  callback_count++;
+  remove_call_out(timeout_id);
+  call_out("finish_resolve", 0);
+}
+
+void finish_resolve() {
+  ASSERT_EQ(1, callback_count);
+  "/command/tests"->complete_async(completion_token);
+}
+
+void resolve_timeout() {
+  ASSERT2(0, "resolve() callback did not complete before timeout");
+  "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+  callback_count = 0;
+  timeout_id = call_out("resolve_timeout", 5);
+  int key = resolve("localhost", "resolve_callback");
+  ASSERT(key >= 0);
+}
