@@ -1,0 +1,6 @@
+void do_tests() {
+  ASSERT(catch(restore_variable("([:0{({,])")));
+  ASSERT_EQ(7, restore_variable("7"));
+  ASSERT_EQ(3, sizeof(restore_variable("({1,2,3,})")));
+  ASSERT_EQ(1, sizeof(restore_variable("([1:1,])")));
+}

@@ -1295,6 +1295,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **状态边界**：`set_eval_limit` 在结束前恢复 runner 的高预算；`event` 只改本对象的私有状态；没有把 `debug_info`、`reference_allowed` 等只有恒真/无可观测结果的上游占位移植为假覆盖。
 - **出口边界**：本项完成 13 个运行状态/通知 efun 测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.37 U11b：restore 解析失败与状态恢复测试
+
+- **范围**：新增 `restore_from_string`、`restore_variable_class`、`restore_variable_parser_desync`、`restore_variable_unterminated_escape` 四个入口，覆盖变量默认/保留模式、class/array 恢复、畸形数字/容器解析、未终止转义字符串和错误后的后续合法 restore。
+- **失败优先**：四项均先以当前 driver 运行原始输入，再验证错误可捕获、不会破坏后续 `restore_variable`；长嵌套输入保留以覆盖 sizing scratch、class size 和 mapping/string parser 的真实边界，不改写为只检查返回类型的弱断言。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 4/4，合计 16/16，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=450,passed=450,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-restore-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成四个 restore 解析测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

@@ -1,0 +1,22 @@
+// Malformed restore input must fail cleanly and leave the next restore usable.
+void do_tests() {
+  string huge_inner = ",";
+  string poison;
+  int i;
+
+  while (strlen(huge_inner) < 100001) {
+    huge_inner += huge_inner;
+  }
+  huge_inner = huge_inner[0..100000];
+  poison = "({";
+  for (i = 0; i < 150; i++) {
+    poison += "({0,}),";
+  }
+  poison += "({" + huge_inner + "}),})";
+  ASSERT(catch(restore_variable(poison)));
+  ASSERT(catch(restore_variable("(/(/9")));
+
+  ASSERT_EQ(7, restore_variable("7"));
+  ASSERT_EQ(3, sizeof(restore_variable("({1,2,3,})")));
+  ASSERT(catch(restore_variable("(/(/9")));
+}
