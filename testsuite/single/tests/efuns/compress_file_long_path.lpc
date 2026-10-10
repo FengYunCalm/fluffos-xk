@@ -1,0 +1,14 @@
+#ifdef __PACKAGE_COMPRESS__
+// compress_file()/uncompress_file() copy the valid-path-checked output
+// filename into a fixed-size stack buffer. check_valid_path() imposes no
+// length limit on the path it returns, so an otherwise valid long path must
+// be rejected without overflowing before any filesystem check runs.
+void do_tests() {
+  string long_name;
+
+  long_name = "/" + repeat_string("a", 1100);
+
+  ASSERT_EQ(0, compress_file(long_name));
+  ASSERT_EQ(0, uncompress_file(long_name + ".gz"));
+}
+#endif

@@ -1253,6 +1253,12 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：八项 Debug、ASan、UBSan、TSan 各为 8/8，合计 32 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；证据目录使用 `math2-*` 及对应 sanitizer 前缀，TSan 使用 `setarch x86_64 -R`。首次 Debug 全量复核在既有 `package_socket_external` 异步清理处出现一次非确定性 `check_memory()` 失败，原始证据保留在 `build-modernization-evidence/u11/full-debug-math2-v2/`；该测试单独重复 8/8，并随后三次全量复核均通过 `selected=400,passed=400,failed=0,skipped=0`，最终证据包括 `full-debug-math2-v3/` 与 `full-debug-math2-repeat-1/` 至 `-3/`。这次失败没有归因到八个新测试，未改动 external 路径。
 - **出口边界**：本项完成八个向量/集合 efun 测试，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.31 U11b：压缩包与压缩文件边界测试
+
+- **范围**：新增 `compress`、`compressedp`、`compress_file_long_path`、`uncompress`、`uncompress_file`、`uncompress_file_corrupt` 六个入口，覆盖字符串/Buffer 往返、未压缩输入拒绝、压缩对象判定、长路径拒绝、文件往返和损坏 gzip 源文件保留。六项均声明 `compress` capability；没有该 package 的配置由 scope runner 排除，不把缺少 package 伪装成运行通过。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 6/6，合计 24 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入六项后 Debug 全量 LPC 为 `selected=406,passed=406,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-compress-v1/`。
+- **出口边界**：本项完成压缩 package 的六个独立测试对象，不声称完成其余上游独有测试、Windows 特有压缩差异或专用 fuzz/长时压力验证。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
