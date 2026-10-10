@@ -1,0 +1,14 @@
+#ifdef __PACKAGE_SOCKETS__
+#define STREAM 1
+
+void read_callback(int fd) {}
+
+void do_tests() {
+  int fd = socket_create(STREAM, "read_callback");
+  socket_bind(fd, 0);
+  string addr = socket_address(fd);
+  ASSERT(stringp(addr));
+  ASSERT_EQ(2, sizeof(explode(addr, " ")));
+  socket_close(fd);
+}
+#endif

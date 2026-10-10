@@ -1,0 +1,8 @@
+#ifdef __PACKAGE_SOCKETS__
+#define EEFDRANGE -5
+
+void do_tests() {
+  ASSERT(stringp(socket_error(EEFDRANGE)));
+  ASSERT(strlen(socket_error(EEFDRANGE)) > 0);
+}
+#endif

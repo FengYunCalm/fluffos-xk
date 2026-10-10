@@ -1,0 +1,13 @@
+#ifdef __PACKAGE_SOCKETS__
+#define STREAM 1
+#define EESUCCESS 1
+
+void read_callback(int fd) {}
+
+void do_tests() {
+  int fd = socket_create(STREAM, "read_callback");
+  ASSERT_EQ(EESUCCESS, socket_close(fd));
+  ASSERT(socket_close(fd) < 0);
+  ASSERT(socket_close(9999) < 0);
+}
+#endif

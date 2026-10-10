@@ -1,0 +1,42 @@
+#ifdef __PACKAGE_SOCKETS__
+#define STREAM 1
+#define STREAM_TLS 5
+#define EESUCCESS 1
+#define SO_TLS_VERIFY_PEER 1
+#define SO_TLS_SNI_HOSTNAME 2
+
+nosave int server_fd = -1;
+nosave int client_fd = -1;
+
+void read_callback(int fd, mixed msg) {}
+void write_callback(int fd) {}
+void accept_callback(int fd) {}
+
+void do_tests() {
+  string local;
+  string *parts;
+  int port;
+  int ret;
+
+  server_fd = socket_create(STREAM, "accept_callback");
+  ASSERT(server_fd >= 0);
+  ASSERT_EQ(EESUCCESS, socket_bind(server_fd, 0));
+  ASSERT_EQ(EESUCCESS, socket_listen(server_fd, "accept_callback"));
+
+  local = socket_address(server_fd, 1);
+  parts = explode(local, " ");
+  ASSERT_EQ(2, sizeof(parts));
+  port = to_int(parts[1]);
+
+  client_fd = socket_create(STREAM_TLS, "read_callback", "write_callback");
+  ASSERT(client_fd >= 0);
+  socket_set_option(client_fd, SO_TLS_VERIFY_PEER, 1);
+  socket_set_option(client_fd, SO_TLS_SNI_HOSTNAME, "");
+
+  ret = socket_connect(client_fd, sprintf("127.0.0.1 %d", port), "read_callback", "write_callback");
+  ASSERT(ret < 0);
+
+  socket_close(client_fd);
+  socket_close(server_fd);
+}
+#endif

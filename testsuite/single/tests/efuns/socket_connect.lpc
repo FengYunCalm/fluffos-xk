@@ -1,0 +1,9 @@
+#ifdef __PACKAGE_SOCKETS__
+
+void read_callback(int fd) {}
+void write_callback(int fd) {}
+
+void do_tests() {
+  ASSERT(socket_connect(9999, "127.0.0.1 1", "read_callback", "write_callback") < 0);
+}
+#endif

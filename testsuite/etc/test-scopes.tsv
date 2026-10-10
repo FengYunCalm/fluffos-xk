@@ -33,7 +33,19 @@
 /single/tests/efuns/rp_leaf	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/rp_mid	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/send_nullbyte	runtime	interactive	Requires an actual interactive player.
+/single/tests/efuns/socket_accept	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_acquire	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_address	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_bind	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_close	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_connect	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_create	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_error	runtime	sockets	Requires PACKAGE_SOCKETS.
 /single/tests/efuns/socket_get_option	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_listen	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_status	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_tls_verify_requires_nonempty_sni	runtime	sockets	Requires PACKAGE_SOCKETS.
+/single/tests/efuns/socket_write	runtime	sockets	Requires PACKAGE_SOCKETS.
 /single/tests/efuns/socket_tls_server	runtime	sockets	Requires PACKAGE_SOCKETS.
 /single/tests/efuns/sys_reload_tls	runtime	tls_reload	Requires the sys_reload_tls efun.
 /single/tests/efuns/talker	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.

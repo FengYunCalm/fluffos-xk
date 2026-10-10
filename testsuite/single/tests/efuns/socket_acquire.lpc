@@ -1,0 +1,8 @@
+#ifdef __PACKAGE_SOCKETS__
+
+void read_callback(int fd) {}
+
+void do_tests() {
+  ASSERT(socket_acquire(9999, "read_callback", "read_callback", "read_callback") < 0);
+}
+#endif

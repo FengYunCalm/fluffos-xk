@@ -1302,6 +1302,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 各 4/4，合计 16/16，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=450,passed=450,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-restore-after/`；无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成四个 restore 解析测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.38 U11b：socket 基础状态与 TLS 空 SNI 测试
+
+- **范围**：新增 `socket_create`、`socket_close`、`socket_error`、`socket_status`、`socket_write`、`socket_address`、`socket_bind`、`socket_listen`、`socket_accept`、`socket_connect`、`socket_acquire` 和 `socket_tls_verify_requires_nonempty_sni` 共 12 个 sockets 入口测试。覆盖 descriptor 生命周期、绑定/监听状态、错误码、未连接写入、地址读取、非法连接/接管，以及 peer verification 配置下空 SNI 的拒绝。
+- **兼容适配**：测试直接固定 `src/include/socket.h`/`socket_err.h` 的公共数值，不依赖 testsuite 隔离环境不可见的 C 头文件；新增入口在 `test-scopes.tsv` 标为 `sockets`。上游另有“未设置 SNI 必须拒绝”的测试未移植：当前本地 `tls_configure_client_identity()` 明确定义无 SNI 时验证 numeric peer address，且 `TestTlsClientIdentityAndMinimumProtocol` 已覆盖该合同；强行改成拒绝会破坏现有本地行为，因此不把该上游假设当作兼容回归。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 12/12，合计 48/48，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=462,passed=462,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-socket-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成 12 个 sockets 测试对象；不声称完成 socket release/交接、真实双端数据回调矩阵或其余上游独有测试、差异测试对象和生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
