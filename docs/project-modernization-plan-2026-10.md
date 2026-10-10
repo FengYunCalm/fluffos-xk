@@ -1287,6 +1287,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 五项各为 5/5，合计 20/20，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。当前工作树 Debug 全量 LPC 为 `selected=433,passed=433,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-identity-after/`；无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成五个对象/身份 efun 测试核对，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.36 U11b：函数求值、运行状态与通知基础 efun
+
+- **范围**：新增 `evaluate`、`fetch_variable`、`set_eval_limit`、`this_object`、`this_player`、`throw`、`debug_message`、`refs`、`event`、`network_stats`、`query_host_name`、`query_ip_port`、`query_notify_destruct` 共 13 个入口。覆盖函数指针/functional 求值、变量读取失败、评估预算查询、对象/玩家身份、结构化异常、日志调用、引用计数、event 回调、网络统计和非交互对象的通知属性。
+- **兼容适配**：上游 `event` 测试引用缺失的 `/clone/event_probe`；新增测试在当前测试对象内提供最小 `event_ping` 回调，仍验证 event 的 origin、参数和数组目标语义，不引入生产 fixture。其余测试只使用现有 master/driver 能力。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 13/13，合计 52/52，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=446,passed=446,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-runtime-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **状态边界**：`set_eval_limit` 在结束前恢复 runner 的高预算；`event` 只改本对象的私有状态；没有把 `debug_info`、`reference_allowed` 等只有恒真/无可观测结果的上游占位移植为假覆盖。
+- **出口边界**：本项完成 13 个运行状态/通知 efun 测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

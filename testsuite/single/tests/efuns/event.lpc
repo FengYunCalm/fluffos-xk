@@ -1,0 +1,15 @@
+private int event_value;
+private object event_origin;
+
+void event_ping(object origin, int value) {
+  event_origin = origin;
+  event_value = value + 1;
+}
+
+void do_tests() {
+  event(this_object(), "ping", 41);
+  ASSERT_EQ(42, event_value);
+  ASSERT_EQ(this_object(), event_origin);
+  event(({ this_object() }), "ping", 99);
+  ASSERT_EQ(100, event_value);
+}

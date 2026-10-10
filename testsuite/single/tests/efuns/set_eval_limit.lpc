@@ -1,0 +1,6 @@
+void do_tests() {
+  set_eval_limit(0x7fffffff);
+  ASSERT(intp(set_eval_limit(-1)));
+  ASSERT(set_eval_limit(0) > 0);
+  set_eval_limit(0x7fffffff);
+}
