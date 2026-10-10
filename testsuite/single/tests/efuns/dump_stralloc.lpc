@@ -1,0 +1,26 @@
+void do_tests() {
+  string path = "/u11_dump_stralloc.txt";
+  rm(path);
+
+  mixed result;
+  mixed failure = catch(result = dump_stralloc(path));
+  mixed file = read_file(path);
+  int cleanup = rm(path);
+  ASSERT2(!failure, "dump_stralloc raised an error");
+  ASSERT2(stringp(result), "dump_stralloc returned a non-string");
+  if (stringp(result)) {
+    ASSERT2(strlen(result) > 0, "dump_stralloc returned an empty report");
+    ASSERT2(strsrch(result, "===STRALLOC DUMP: allocd_strings:") == 0,
+      "dump_stralloc return missing header");
+    ASSERT2(stringp(file), "dump_stralloc did not create a readable file");
+    if (stringp(file)) {
+      string normalized_result = replace_string(result, "\r\n", "\n");
+      string normalized_file = replace_string(file, "\r\n", "\n");
+      ASSERT2(strsrch(file, "===STRALLOC DUMP: allocd_strings:") == 0,
+        "dump_stralloc file missing header");
+      ASSERT2(strcmp(normalized_result, normalized_file) == 0,
+        "dump_stralloc return/file mismatch after line normalization");
+    }
+  }
+  ASSERT2(cleanup == 1, "dump_stralloc output cleanup failed");
+}
