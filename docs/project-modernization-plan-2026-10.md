@@ -1226,6 +1226,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 各运行 15/15，合计 60 个定向 LPC 记录，均为 `selected=1,passed=1,failed=0,skipped=0`。证据目录使用 `build-modernization-evidence/u11/math-*`、`asan-math-*`、`ubsan-math-*` 和 `tsan-math-*`；TSan 对整个 Python runner 使用 `setarch x86_64 -R`，所有记录均无 timeout 或 sanitizer 诊断。加入这 15 个自动发现入口后，Debug 全量 LPC 复核为 `selected=371,passed=371,failed=0,skipped=0`，28 个既有 fixture/能力不可用入口仍在执行前明确排除；证据为 `build-modernization-evidence/u11/full-debug-math-v2/`。
 - **出口边界**：本项完成数学 efun 测试组的适配，不把 15 个测试扩大为 532 个上游独有对象、379 个差异对象或 904 个生产差异已完成；其余对象仍按 U11 的目录、能力和语义分组继续核对。
 
+### 11.27 U11b：基础类型与字符串 efun 上游测试适配
+
+- **范围与归属**：新增固定快照中上游独有的 `bufferp`、`floatp`、`stringp`、`undefinedp`、`typeof`、`userp`、`wizardp`、`ltrim`、`rtrim`、`trim`、`upper_case` 共 11 个现有 efun 测试。测试只覆盖当前已有值类型判断、未定义值/`nullp` 别名、对象身份、字符集裁剪和大小写转换，不引入缺失的 `base_name` 夹具或新的语言能力。
+- **兼容性核对**：11 个文件与快照正文逐字一致；它们均未进入 `test-scopes.tsv`，由既有递归发现路径执行。`trim`/`ltrim`/`rtrim` 保留 U+3000 与多字节括号边界，不能用 ASCII-only 断言替代。
+- **通过证据**：Debug、ASan、UBSan、TSan 各运行 11/11，合计 44 个定向 LPC 记录，均为 `selected=1,passed=1,failed=0,skipped=0`。加入这 11 个自动发现入口后，Debug 全量 LPC 为 `selected=382,passed=382,failed=0,skipped=0`；证据为 `build-modernization-evidence/u11/strings-*`、对应 `asan-strings-*`/`ubsan-strings-*`/`tsan-strings-*` 及 `build-modernization-evidence/u11/full-debug-strings-v2/`。TSan 使用 `setarch x86_64 -R`，记录无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项只完成 11 个基础类型/字符串测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
