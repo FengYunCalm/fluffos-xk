@@ -1,0 +1,5 @@
+void do_tests() {
+  ASSERT_EQ("/clone/catch_tell_probe", base_name("/clone/catch_tell_probe#123"));
+  ASSERT_EQ("/single/tests/efuns/base_name", base_name(this_object()));
+  ASSERT_EQ("/single/tests/efuns/base_name", base_name());
+}

@@ -1255,9 +1255,16 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 
 ### 11.31 U11b：压缩包与压缩文件边界测试
 
-- **范围**：新增 `compress`、`compressedp`、`compress_file_long_path`、`uncompress`、`uncompress_file`、`uncompress_file_corrupt` 六个入口，覆盖字符串/Buffer 往返、未压缩输入拒绝、压缩对象判定、长路径拒绝、文件往返和损坏 gzip 源文件保留。六项均声明 `compress` capability；没有该 package 的配置由 scope runner 排除，不把缺少 package 伪装成运行通过。
-- **通过证据**：Debug、ASan、UBSan、TSan 各 6/6，合计 24 个定向记录，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入六项后 Debug 全量 LPC 为 `selected=406,passed=406,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-compress-v1/`。
-- **出口边界**：本项完成压缩 package 的六个独立测试对象，不声称完成其余上游独有测试、Windows 特有压缩差异或专用 fuzz/长时压力验证。
+- **范围与归属**：核对七个压缩入口：已有 `compress_file.c` 和 `uncompress_file_corrupt.lpc`，本项新增 `compress`、`compressedp`、`compress_file_long_path`、`uncompress`、`uncompress_file`。覆盖字符串/Buffer 往返、未压缩输入拒绝、压缩对象判定、长路径拒绝、文件往返和损坏 gzip 源文件保留。七项均声明 `compress` capability；没有该 package 的配置由 scope runner 排除，不把缺少 package 伪装成运行通过。
+- **通过证据**：新增五项 Debug、ASan、UBSan、TSan 定向记录各为 5/5，合计 20/20，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入七项逻辑入口后 Debug 全量 LPC 复核为 `selected=409,passed=409,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-u11b-final2/`。
+- **出口边界**：本项完成压缩 package 的七个独立测试对象，不声称完成其余上游独有测试、Windows 特有压缩差异或专用 fuzz/长时压力验证。
+
+### 11.32 U11b：基础标量、路径与字符串 efun 上游测试核对
+
+- **范围与归属**：核对固定快照中的 18 个现有 efun 入口：`abs`、`base_name`、`capitalize`、`ctime`、`file_name`、`file_size`、`implode`、`lower_case`、`pluralize`、`strcmp`、`time`、`to_float`、`to_int`、`vowel`、`zonetime`、`string_add_object`、`replace_string`、`strsrch`。其中除 `base_name`、`vowel`、`zonetime` 外的 15 个逻辑入口已经由本地同名 `.c` 测试覆盖；没有用新的 `.lpc` 副本替换已有测试。覆盖数值转换、时间/路径、聚合回调、复数规则、Unicode 搜索、对象字符串拼接和有界替换，不新增运行时接口或 fixture。
+- **失败优先与兼容适配**：上游 `base_name` 测试引用不存在的 `/clone/catch_tell_probe`，首次运行在 fixture 加载阶段失败；新增测试改为验证现有 string/object/隐式对象三种参数路径。直接移植上游 `replace_string.lpc` 时，`first=1,last=2` 的空替换断言与本地文档合同不一致；失败证据保留在 `build-modernization-evidence/u11/replace-string-probe/`，已有 `.c` 测试按 `docs/efun/strings/replace_string.md` 的 1-based inclusive 规则保持正确。没有保留会遮蔽 `.c` 测试的重复 `.lpc` 文件。
+- **通过证据**：新增的 `base_name`、`vowel`、`zonetime` 在 Debug、ASan、UBSan、TSan 各 3/3，合计 12/12；TSan 使用 `setarch x86_64 -R`。当前工作树的 Debug 全量 LPC 为 `selected=409,passed=409,failed=0,skipped=0`，并覆盖其余 15 个已有 `.c` 入口，证据为 `build-modernization-evidence/u11/full-debug-u11b-final2/`；全量结果没有把重复文件计为额外用例。
+- **出口边界**：本项完成 18 个基础 efun 逻辑入口的测试核对，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
 ## 附录 A：生产源码差异逐文件索引
 
