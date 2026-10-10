@@ -8,6 +8,7 @@
 /single/tests/efuns/async_db_exec_bound_args	runtime	async,db,sqlite	Requires asynchronous SQLite callbacks.
 /single/tests/efuns/async_nested_callbacks	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_promise	runtime	async	Requires PACKAGE_ASYNC.
+/single/tests/efuns/acatch_defer_catch_value	runtime	async	Requires PACKAGE_ASYNC; covers async error delivery and defer cleanup.
 /single/tests/efuns/call_out_walltime	runtime	-	Standalone wall-time call_out handle and cancellation contract.
 /single/tests/efuns/call_stack_driver_frame	runtime	async	Requires PACKAGE_ASYNC for promise-reaction delivery.
 /single/tests/efuns/promise_body_owned	runtime	async	Requires PACKAGE_ASYNC.

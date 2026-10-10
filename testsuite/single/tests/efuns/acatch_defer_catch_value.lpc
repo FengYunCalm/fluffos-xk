@@ -1,0 +1,87 @@
+private int completion_token;
+private int pending_callbacks;
+private int finish_scheduled;
+
+void dirty() {
+  catch(1);
+}
+
+void finish_if_done() {
+  if (pending_callbacks != 0 || finish_scheduled) {
+    return;
+  }
+  finish_scheduled = 1;
+  call_out("finish_tests", 0);
+}
+
+void finish_tests() {
+  ASSERT_EQ(0, pending_callbacks);
+  "/command/tests"->complete_async(completion_token);
+}
+
+void async_done() {
+  pending_callbacks--;
+  finish_if_done();
+}
+
+async void sync_error_in_acatch() {
+  mixed error_value = acatch {
+    defer((: dirty :));
+    error("boom-sync");
+  };
+  ASSERT2(stringp(error_value), "acatch/sync got " + sprintf("%O", error_value));
+  ASSERT2(strsrch(error_value, "boom-sync") != -1,
+    "acatch/sync reason was " + sprintf("%O", error_value));
+}
+
+async void rejected_await_in_acatch(mixed promise_value) {
+  mixed error_value = acatch {
+    defer((: dirty :));
+    await promise_value;
+  };
+  ASSERT2(stringp(error_value), "acatch/await got " + sprintf("%O", error_value));
+  ASSERT2(strsrch(error_value, "rejected-reason") != -1,
+    "acatch/await reason was " + sprintf("%O", error_value));
+  async_done();
+}
+
+async void body_error_rejects() {
+  defer((: dirty :));
+  error("boom-body");
+}
+
+void handler(mixed value) {
+  defer((: dirty :));
+  error("handler-boom");
+}
+
+void do_tests() {
+  mixed promise_value = promise_create();
+  mixed source = promise_create();
+  mixed chained;
+
+  completion_token = "/command/tests"->begin_async();
+  pending_callbacks = 3;
+  finish_scheduled = 0;
+
+  sync_error_in_acatch();
+
+  promise_reject(promise_value, "rejected-reason");
+  rejected_await_in_acatch(promise_value);
+
+  promise_catch(body_error_rejects(), function(mixed reason) {
+    ASSERT2(stringp(reason), "async body rejection got " + sprintf("%O", reason));
+    ASSERT2(strsrch(reason, "boom-body") != -1,
+      "async body reason was " + sprintf("%O", reason));
+    async_done();
+  });
+
+  promise_resolve(source, 1);
+  chained = promise_then(source, (: handler :));
+  promise_catch(chained, function(mixed reason) {
+    ASSERT2(stringp(reason), "handler rejection got " + sprintf("%O", reason));
+    ASSERT2(strsrch(reason, "handler-boom") != -1,
+      "handler reason was " + sprintf("%O", reason));
+    async_done();
+  });
+}

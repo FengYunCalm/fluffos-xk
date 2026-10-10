@@ -36,7 +36,8 @@ void get_trace_details(const program_t *prog, long findex, const char **fname, i
   *nl = cfp->num_local;
 }
 
-void dump_trace_line(const char *fname, const char *pname, const char *const obname, char *where) {
+void dump_trace_line(const char *fname, const char *pname, const char *const obname,
+                     const char *where) {
   char line[256];
   char *end = EndOf(line);
   char *p;
@@ -104,13 +105,22 @@ const char *dump_trace(int how) {
       trace_pc = p[1].pc;
       trace_fp = p[1].fp;
     }
+    const char *trace_program_name = trace_prog ? trace_prog->filename : "<driver>";
+    const char *trace_object_name = trace_obj ? trace_obj->obname : "<driver>";
+    const char *trace_location =
+        trace_prog && trace_pc ? get_line_number(trace_pc, trace_prog) : "";
     debug_message("--- frame %td ----\n", p - &control_stack[0]);
     switch (p[0].framekind & FRAME_MASK) {
       case FRAME_FUNCTION: {
         const char *fname;
-        get_trace_details(trace_prog, p[0].fr.table_index, &fname, &num_arg, &num_local);
-        dump_trace_line(fname, trace_prog->filename, trace_obj->obname,
-                        get_line_number(trace_pc, trace_prog));
+        if (trace_prog) {
+          get_trace_details(trace_prog, p[0].fr.table_index, &fname, &num_arg, &num_local);
+        } else {
+          fname = "<function>";
+          num_arg = -1;
+          num_local = -1;
+        }
+        dump_trace_line(fname, trace_program_name, trace_object_name, trace_location);
         if (strcmp(fname, "heart_beat") == 0) {
           ret = p->ob ? p->ob->obname : nullptr;
         }
@@ -128,21 +138,18 @@ const char *dump_trace(int how) {
 
         svalue_to_string(&tmpval, &tmpbuf, 0, 0, 0);
 
-        dump_trace_line(tmpbuf.buffer, trace_prog->filename, trace_obj->obname,
-                        get_line_number(trace_pc, trace_prog));
+        dump_trace_line(tmpbuf.buffer, trace_program_name, trace_object_name, trace_location);
 
         FREE_MSTR(tmpbuf.buffer);
         num_arg = p[0].fr.funp->f.functional.num_arg;
         num_local = p[0].fr.funp->f.functional.num_local;
       } break;
       case FRAME_FAKE:
-        dump_trace_line("<fake>", trace_prog->filename, trace_obj->obname,
-                        get_line_number(trace_pc, trace_prog));
+        dump_trace_line("<fake>", trace_program_name, trace_object_name, trace_location);
         num_arg = -1;
         break;
       case FRAME_CATCH:
-        dump_trace_line("<catch>", trace_prog->filename, trace_obj->obname,
-                        get_line_number(trace_pc, trace_prog));
+        dump_trace_line("<catch>", trace_program_name, trace_object_name, trace_location);
         num_arg = -1;
         break;
       default:
@@ -211,10 +218,20 @@ array_t *get_svalue_trace() {
   }
   v = allocate_empty_array((csp - &control_stack[0]) + 1);
   for (p = &control_stack[0]; p < csp; p++) {
+    const program_t *trace_prog = p[1].prog;
+    object_t *trace_obj = p[1].ob;
+    char *trace_pc = p[1].pc;
+    svalue_t *trace_fp = p[1].fp;
     m = allocate_mapping(6);
     switch (p[0].framekind & FRAME_MASK) {
       case FRAME_FUNCTION:
-        get_trace_details(p[1].prog, p[0].fr.table_index, &fname, &num_arg, &num_local);
+        if (trace_prog) {
+          get_trace_details(trace_prog, p[0].fr.table_index, &fname, &num_arg, &num_local);
+        } else {
+          fname = "<function>";
+          num_arg = -1;
+          num_local = -1;
+        }
         add_mapping_string(m, "function", fname);
         break;
       case FRAME_CATCH:
@@ -247,15 +264,32 @@ array_t *get_svalue_trace() {
         fatal("unknown type of frame\n");
 #endif
     }
-    add_mapping_malloced_string(m, "program", add_slash(p[1].prog->filename));
-    add_mapping_object(m, "object", p[1].ob);
-    get_explicit_line_number_info(p[1].pc, p[1].prog, &file, &line);
-    add_mapping_malloced_string(m, "file", add_slash(file));
-    add_mapping_pair(m, "line", line);
+    if (trace_prog) {
+      add_mapping_malloced_string(m, "program", add_slash(trace_prog->filename));
+    } else {
+      add_mapping_string(m, "program", "<driver>");
+    }
+    if (trace_obj) {
+      add_mapping_object(m, "object", trace_obj);
+    } else {
+      add_mapping_pair(m, "object", 0);
+    }
+    if (trace_prog && trace_pc) {
+      get_explicit_line_number_info(trace_pc, trace_prog, &file, &line);
+      add_mapping_malloced_string(m, "file", add_slash(file));
+      add_mapping_pair(m, "line", line);
+    } else {
+      add_mapping_string(m, "file", "");
+      add_mapping_pair(m, "line", 0);
+    }
+    if (!trace_fp) {
+      num_arg = -1;
+      num_local = -1;
+    }
     if (num_arg != -1) {
       array_t *v2;
 
-      ptr = p[1].fp;
+      ptr = trace_fp;
       v2 = allocate_empty_array(num_arg);
       for (i = 0; i < num_arg; i++) {
         assign_svalue_no_free(&v2->item[i], &ptr[i]);
@@ -266,7 +300,7 @@ array_t *get_svalue_trace() {
     if (num_local > 0 && num_arg != -1) {
       array_t *v2;
 
-      ptr = p[1].fp + num_arg;
+      ptr = trace_fp + num_arg;
       v2 = allocate_empty_array(num_local);
       for (i = 0; i < num_local; i++) {
         assign_svalue_no_free(&v2->item[i], &ptr[i]);
@@ -309,10 +343,19 @@ array_t *get_svalue_trace() {
     } break;
   }
   add_mapping_malloced_string(m, "program", add_slash(current_prog->filename));
-  add_mapping_object(m, "object", current_object);
-  get_line_number_info(&file, &line);
-  add_mapping_malloced_string(m, "file", add_slash(file));
-  add_mapping_pair(m, "line", line);
+  if (current_object) {
+    add_mapping_object(m, "object", current_object);
+  } else {
+    add_mapping_pair(m, "object", 0);
+  }
+  if (pc) {
+    get_line_number_info(&file, &line);
+    add_mapping_malloced_string(m, "file", add_slash(file));
+    add_mapping_pair(m, "line", line);
+  } else {
+    add_mapping_string(m, "file", "");
+    add_mapping_pair(m, "line", 0);
+  }
   if (num_arg > 0) {
     array_t *v2;
 
