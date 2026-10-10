@@ -1218,6 +1218,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug 全量 LPC 为 `selected=356,passed=356,failed=0,skipped=0`，执行前明确排除 28 个 fixture/当前能力不可用入口；证据为 `build-modernization-evidence/u11/full-debug/`。七个定向 LPC 入口在 Debug、ASan、UBSan、TSan 均分别为 `7/7`，每项 `selected=1,passed=1,failed=0,skipped=0`；Debug 证据目录为 `build-modernization-evidence/u11/coverage-set-bit-v3/`、`coverage-mkdir/`、`coverage-dumpallobj-v3/`、`coverage-replaceable-v2/`、`coverage-set-debug-level-v2/`、`coverage-set-hide-v2/`、`coverage-snoop-v2/`，ASan/UBSan/TSan 目录分别以 `asan-`、`ubsan-`、`tsan-` 前缀保存。真实普通 telnet 交互用例在 Debug、ASan、UBSan、TSan 均为 `1/1`，证据分别为 `interactive-efuns-v2/`、`asan-interactive-efuns/`、`ubsan-interactive-efuns/`、`tsan-interactive-efuns/`；TSan 命令对整个 Python 进程使用 `setarch x86_64 -R`。Debug 二进制 SHA-256 为 `f9a921f5a83cab9964bbad6358f4907ad090a3b5a96c679acb0b5c415fdd3615`，所有记录均无 timeout、skip、assertion 或 sanitizer 诊断。
 - **出口边界**：17 个基线覆盖缺口已不再作为 `coverage_gap`；本项不声称已完成 U11 第 1–6 条中的 904 个生产差异、350 个历史提交、532 个未匹配 testsuite 源对象或 379 个差异对象的逐 hunk 处置。那些条目仍须按本节 U11 主合同建立非零发现集合、语义归属和持久证据。
 
+### 11.26 U11b：数学 efun 上游测试适配
+
+- **范围与归属**：从固定快照 `328aaf10635ef8ce636b2b6cebd549bb165e462d` 的 532 个上游独有 LPC 源对象中选取现有数学 efun 组，新增 `acos`、`asin`、`atan`、`ceil`、`cos`、`exp`、`floor`、`log`、`log10`、`log2`、`pow`、`round`、`sin`、`sqrt`、`tan` 共 15 个入口。它们只验证现有 `src/packages/math/math.cc` 的结果和域错误，不开放 FFI、新语法或新的公共接口。
+- **兼容适配**：上游测试的 `1e-9` 科学计数法在本地 lexer 中被诊断为 `unexpected L_IDENTIFIER`；保留同一误差阈值，改写为本地已支持的十进制字面量 `0.000000001`。失败反例保存在 `build-modernization-evidence/u11/compat-math-notation-fail/`，不能把上游原文字面量当作本地语法已支持的证据。
+- **测试发现**：测试入口由现有 `testsuite/command/tests.c` 的递归 `source_files()` 自动发现，不新增手工注册、scope 例外或启动路径。每个入口包含结果、边界或域错误断言；没有跳过项。
+- **通过证据**：Debug、ASan、UBSan、TSan 各运行 15/15，合计 60 个定向 LPC 记录，均为 `selected=1,passed=1,failed=0,skipped=0`。证据目录使用 `build-modernization-evidence/u11/math-*`、`asan-math-*`、`ubsan-math-*` 和 `tsan-math-*`；TSan 对整个 Python runner 使用 `setarch x86_64 -R`，所有记录均无 timeout 或 sanitizer 诊断。加入这 15 个自动发现入口后，Debug 全量 LPC 复核为 `selected=371,passed=371,failed=0,skipped=0`，28 个既有 fixture/能力不可用入口仍在执行前明确排除；证据为 `build-modernization-evidence/u11/full-debug-math-v2/`。
+- **出口边界**：本项完成数学 efun 测试组的适配，不把 15 个测试扩大为 532 个上游独有对象、379 个差异对象或 904 个生产差异已完成；其余对象仍按 U11 的目录、能力和语义分组继续核对。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
