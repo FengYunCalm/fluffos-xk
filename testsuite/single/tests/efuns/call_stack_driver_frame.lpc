@@ -1,0 +1,35 @@
+// call_stack() must survive a DRIVER-CONTEXT frame in a promise handler.
+
+#include "/include/tests.h"
+
+nosave mixed gate;
+nosave int async_token;
+
+mixed handler(mixed v) {
+  mixed files, obs, funcs, origins, lines;
+
+  files = call_stack(0);
+  obs = call_stack(1);
+  funcs = call_stack(2);
+  origins = call_stack(3);
+  lines = call_stack(4);
+
+  ASSERT(arrayp(files));
+  ASSERT(arrayp(obs));
+  ASSERT(arrayp(funcs));
+  ASSERT(arrayp(origins));
+  ASSERT(arrayp(lines));
+  ASSERT_EQ(sizeof(files), sizeof(obs));
+  ASSERT_EQ(sizeof(files), sizeof(funcs));
+
+  gate = 0;
+  "/command/tests"->complete_async(async_token);
+  return v;
+}
+
+void do_tests() {
+  async_token = "/command/tests"->begin_async();
+  gate = promise_create();
+  promise_then(gate, (: handler :));
+  promise_resolve(gate, 7);
+}

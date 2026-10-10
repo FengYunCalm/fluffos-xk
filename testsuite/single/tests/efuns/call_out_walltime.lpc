@@ -1,0 +1,11 @@
+void probe() {}
+
+void do_tests() {
+  int handle = call_out_walltime((: probe :), 60);
+
+  ASSERT(intp(handle));
+  ASSERT(remove_call_out(handle) >= 0);
+
+  handle = call_out_walltime((: probe :), 0.5);
+  ASSERT(remove_call_out(handle) >= 0);
+}

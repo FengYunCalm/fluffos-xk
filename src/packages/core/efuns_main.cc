@@ -336,30 +336,38 @@ void f_call_stack() {
     case 0:
       ret->item[0].type = T_STRING;
       ret->item[0].subtype = STRING_MALLOC;
-      ret->item[0].u.string = add_slash(current_prog->filename);
+      ret->item[0].u.string =
+          add_slash(current_prog ? current_prog->filename : "<driver>");
       for (i = 1; i < n; i++) {
+        const program_t* prog = (csp - i + 1)->prog;
         ret->item[i].type = T_STRING;
         ret->item[i].subtype = STRING_MALLOC;
-        ret->item[i].u.string = add_slash((csp - i + 1)->prog->filename);
+        ret->item[i].u.string = add_slash(prog ? prog->filename : "<driver>");
       }
       break;
     case 1:
-      ret->item[0].type = T_OBJECT;
-      ret->item[0].u.ob = current_object;
-      add_ref(current_object, "f_call_stack: curr");
+      if (current_object) {
+        ret->item[0].type = T_OBJECT;
+        ret->item[0].u.ob = current_object;
+        add_ref(current_object, "f_call_stack: curr");
+      }
       for (i = 1; i < n; i++) {
+        object_t* ob = (csp - i + 1)->ob;
+        if (!ob) {
+          continue;
+        }
         ret->item[i].type = T_OBJECT;
-        ret->item[i].u.ob = (csp - i + 1)->ob;
-        add_ref((csp - i + 1)->ob, "f_call_stack");
+        ret->item[i].u.ob = ob;
+        add_ref(ob, "f_call_stack");
       }
       break;
     case 2:
       for (i = 0; i < n; i++) {
         ret->item[i].type = T_STRING;
-        if (((csp - i)->framekind & FRAME_MASK) == FRAME_FUNCTION) {
-          const program_t *prog = (i ? (csp - i + 1)->prog : current_prog);
+        const program_t* prog = (i ? (csp - i + 1)->prog : current_prog);
+        if (((csp - i)->framekind & FRAME_MASK) == FRAME_FUNCTION && prog != nullptr) {
           int const index = (csp - i)->fr.table_index;
-          function_t *cfp = &prog->function_table[index];
+          function_t* cfp = &prog->function_table[index];
 
           ret->item[i].subtype = STRING_SHARED;
           ret->item[i].u.string = cfp->funcname;
@@ -384,19 +392,13 @@ void f_call_stack() {
       break;
     case 4:
       for (i = 0; i < n; i++) {
+        const program_t* prog = (i ? (csp - i + 1)->prog : current_prog);
+        char* progc = (i ? (csp - i + 1)->pc : pc);
         ret->item[i].type = T_STRING;
-        if (true || ((csp - i)->framekind & FRAME_MASK) == FRAME_FUNP) {
-          const program_t *prog = (i ? (csp - i + 1)->prog : current_prog);
-          int const index = (csp - i)->fr.table_index;
-          char *progc = (i ? (csp - i + 1)->pc : pc);
-          ret->item[i].type = T_STRING;
-          ret->item[i].subtype = STRING_MALLOC;
-          ret->item[i].u.string = string_copy(get_line_number(progc, prog), "call_stack");
-        } else {
-          ret->item[i].subtype = STRING_CONSTANT;
-          ret->item[i].u.string =
-              (((csp - i)->framekind & FRAME_MASK) == FRAME_CATCH) ? "CATCH" : "<function>";
-        }
+        ret->item[i].subtype = STRING_MALLOC;
+        ret->item[i].u.string =
+            prog ? string_copy(get_line_number(progc, prog), "call_stack")
+                 : string_copy("", "call_stack");
       }
       break;
   }

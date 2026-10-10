@@ -1316,6 +1316,40 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 各 7/7，合计 28/28，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=468,passed=468,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-simple-after/`；无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成七个可在无 interactive 隔离 runner 中稳定验证的入口，不声称完成 interactive、DB、modern-ed、DWLIB 或其余上游独有测试、差异测试对象和生产 hunk。
 
+### 11.40 U11b：Promise body-owned 状态边界测试
+
+- **范围与归属**：新增 `promise_body_owned`，覆盖 body-owned Promise 在 pending、fulfilled、rejected 三种状态下拒绝外部 `promise_resolve`/`promise_reject` 直接改写，以及外部持有的普通 Promise、`promise_then` 后继 Promise 仍可由调用者结算。测试只验证现有 async/promise 合同，不改变 Promise 实现或公共接口。
+- **异步边界**：body-owned Promise 的 body 在 gate 释放后才完成；测试通过实际 callback 与延迟完成屏障确认 body 仍被执行，避免把“拒绝外部结算”误测成取消 body。普通 Promise 的 reject/resolve 结果同时检查状态和 `promise_result` 错误路径。
+- **通过证据**：Debug、ASan、UBSan、TSan 各为 `1/1`，合计 `4/4`，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 对整个 runner 使用 `setarch x86_64 -R`。证据为 `build-modernization-evidence/u11/promise-body-owned-v4/`、`promise-body-owned-asan-v1/`、`promise-body-owned-ubsan-v1/` 和 `promise-body-owned-tsan-v1/`；此前失败或被替换的 Debug 证据目录保留，不计为通过。加入本轮入口后的 Debug 全量 LPC 为 `selected=471,passed=471,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/all-lpc-after-promise-body/`；该批次同时包含 `promise_body_owned`、`promise_reject_default` 和 `call_out_walltime`。
+- **出口边界**：本项完成一个 Promise 所有权/状态回归入口，不声称完成其余 async、DB、modern-ed、DWLIB 或上游独有测试，也不把该测试替代运行时源码审计。
+
+### 11.41 U11b：Promise 默认拒绝原因与间接自解析
+
+- **范围与归属**：新增 `promise_reject_default`，覆盖无 reason 的 `promise_reject()` 返回 truthy 的 `"*promise rejected"`，显式 reason 保持原值，以及 then handler 返回自身时链 Promise 以 `"*promise resolved with itself"` 拒绝。测试不改变实现或公共接口。
+- **完成屏障**：两个 `async` probe 通过 `/command/tests` 的单一异步 token 汇报完成；不以 `do_tests()` 返回或同步检查数量替代 callback 完成证据。
+- **通过证据**：Debug、ASan、UBSan、TSan 各为 `1/1`，合计 `4/4`，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 对整个 runner 使用 `setarch x86_64 -R`。证据为 `build-modernization-evidence/u11/promise-reject-default-v2/`、`promise-reject-default-asan-v1/`、`promise-reject-default-ubsan-v1/` 和 `promise-reject-default-tsan-v1/`；`promise-reject-default-v1/` 的旧失败证据保留，原因是误用了当前本地不存在的 latch 宏，不计为通过。
+- **出口边界**：本项只覆盖默认拒绝值和间接自解析，不声称完成其余 Promise 链、组合器、取消、预算、DB 或上游独有测试。
+
+### 11.42 U11b：wall-time call_out 句柄与取消
+
+- **范围与归属**：新增 `call_out_walltime`，验证整数与小数 wall-time 延迟都返回可识别、可移除的 call_out 句柄；回调在触发前被取消，不改变回调顺序或调度语义。
+- **通过证据**：Debug、ASan、UBSan、TSan 各为 `1/1`，合计 `4/4`，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 对整个 runner 使用 `setarch x86_64 -R`。证据为 `build-modernization-evidence/u11/call-out-walltime-v1/`、`call-out-walltime-asan-v1/`、`call-out-walltime-ubsan-v1/` 和 `call-out-walltime-tsan-v1/`。
+- **出口边界**：本项只覆盖 wall-time call_out 的创建/取消合同，不声称完成 wall-time gateway/background 变体、真实交互连接或其余 call_out 行为。
+
+### 11.43 U11b：未处理 Promise 拒绝的来源诊断
+
+- **范围与归属**：新增 `unhandled_rejection_locus`，让一个带唯一 marker 的未处理拒绝真实进入配置的 debug log，再按有限窗口扫描并核对 `Unhandled promise rejection`、`rejected by` 和对象源名。测试不依赖日志头部位置，也不把读不到完整日志静默算通过。
+- **完成屏障与失败边界**：日志检查通过 `/command/tests` 异步 token 完成；debug log 未配置、超出有界扫描窗口、重试耗尽或来源字段缺失都显式失败。每个 sanitizer 运行使用自己的 sandbox 和日志，避免复用旧 marker。
+- **通过证据**：Debug、ASan、UBSan、TSan 各为 `1/1`，合计 `4/4`，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 对整个 runner 使用 `setarch x86_64 -R`。证据为 `build-modernization-evidence/u11/unhandled-rejection-locus-v1/`、`unhandled-rejection-locus-asan-v1/`、`unhandled-rejection-locus-ubsan-v1/` 和 `unhandled-rejection-locus-tsan-v1/`。
+- **出口边界**：本项只覆盖 Promise 未处理拒绝的来源诊断，不声称完成非字符串拒绝渲染的全部类型、外部进程拒绝、DB/interactive 日志路径或其余上游独有测试。
+
+### 11.44 U11b：driver-context 下 call_stack 的空 frame 安全性
+
+- **根因与范围**：新增 `call_stack` 与 `call_stack_driver_frame` 回归入口，复现并修复 Promise reaction 的 driver-context frame 中 `current_prog`、`prog`、`current_object` 或 `ob` 为空时的解引用崩溃。`f_call_stack()` 现在对文件、对象、函数名和行号四类返回值分别保留可表达的空 frame（`<driver>`、空对象槽、`<function>` 或空行号），普通 LPC frame 的既有结果不变。
+- **失败证据**：修复前 `build-modernization-evidence/u11/call-stack-driver-frame-v1/001-driver-lpc.log` 以 Segmentation fault 结束；该原始证据保留，不计为通过。
+- **通过证据**：Debug 的两个入口分别在 `call-stack-v1/`、`call-stack-driver-frame-v2/` 通过；ASan、UBSan、TSan 各自的两个入口均通过，证据分别为 `call-stack-asan-v1/` + `call-stack-driver-frame-asan-v1/`、`call-stack-ubsan-v1/` + `call-stack-driver-frame-ubsan-v1/`、`call-stack-tsan-v1/` + `call-stack-driver-frame-tsan-v1/`，每项均为 `selected=1,passed=1,failed=0,skipped=0`，TSan 使用 `setarch x86_64 -R`。修复后的 Debug 全量 LPC 为 `selected=473,passed=473,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/all-lpc-after-call-stack-v1/`。
+- **出口边界**：本项完成 `call_stack()` 的 driver-context 生命周期安全和回归覆盖，不声称完成其他 stack-inspection 入口、interactive/DB/modern-ed 变体或上游独有测试。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

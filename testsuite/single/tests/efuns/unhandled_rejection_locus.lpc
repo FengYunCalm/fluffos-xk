@@ -1,0 +1,104 @@
+// An unhandled rejection names where it was rejected.
+
+#include "/include/tests.h"
+
+#define DEBUG_LOG_FILE 10
+#define MAX_TRIES 12
+#define CHUNK_LINES 500
+#define MAX_CHUNKS 400
+
+nosave string marker;
+nosave string logfile;
+nosave int tries;
+nosave int finished;
+nosave int async_token;
+
+private void finish(mixed complaint) {
+  if (finished++) {
+    return;
+  }
+  if (complaint) {
+    ASSERT2(0, complaint);
+  }
+  "/command/tests"->complete_async(async_token);
+}
+
+private mixed scan_log() {
+  int line = 1;
+  int scanned = 0;
+  int total = file_size(logfile);
+
+  if (total < 0) {
+    return 0;
+  }
+
+  for (int i = 0; i < MAX_CHUNKS; i++) {
+    string chunk = read_file(logfile, line, CHUNK_LINES);
+    int at;
+
+    if (!chunk || chunk == "") {
+      break;
+    }
+    scanned += strlen(chunk);
+    at = strsrch(chunk, marker);
+    if (at != -1) {
+      int start = at;
+
+      while (start > 0 && chunk[start - 1] != '\n') {
+        start--;
+      }
+      return chunk[start..at + strlen(marker) - 1];
+    }
+    line += CHUNK_LINES;
+  }
+
+  return scanned >= total ? "" : 0;
+}
+
+private void check_log() {
+  mixed line = scan_log();
+
+  if (line == 0) {
+    finish("the debug log exceeded the bounded scan window");
+    return;
+  }
+
+  if (line == "") {
+    if (++tries < MAX_TRIES) {
+      call_out((: check_log :), 1);
+      return;
+    }
+    finish("the dropped rejection was never reported to the debug log");
+    return;
+  }
+
+  ASSERT2(strsrch(line, "Unhandled promise rejection") != -1,
+    "the marker turned up in the log but not on a rejection report: " + line);
+  ASSERT2(strsrch(line, "rejected by ") != -1,
+    "the unhandled-rejection report carries no locus: " + line);
+  ASSERT2(strsrch(line, "unhandled_rejection_locus") != -1,
+    "the locus does not name the object that rejected: " + line);
+  finish(0);
+}
+
+private void drop_a_rejection() {
+  promise p = promise_create();
+
+  promise_reject(p, marker);
+}
+
+void do_tests() {
+  string configured = get_config(DEBUG_LOG_FILE);
+
+  async_token = "/command/tests"->begin_async();
+  marker = "unhandled-locus-probe-" + time() + "-" + random(1000000);
+
+  if (!stringp(configured) || configured == "") {
+    finish("the debug log is not configured");
+    return;
+  }
+  logfile = LOG_DIR + "/" + configured;
+
+  drop_a_rejection();
+  call_out((: check_log :), 1);
+}
