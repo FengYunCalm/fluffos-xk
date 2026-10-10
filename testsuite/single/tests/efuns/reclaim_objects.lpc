@@ -1,0 +1,5 @@
+void do_tests() {
+  int reclaimed = reclaim_objects();
+  ASSERT(intp(reclaimed));
+  ASSERT(reclaimed >= 0);
+}

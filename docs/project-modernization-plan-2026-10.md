@@ -1309,6 +1309,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 各 12/12，合计 48/48，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=462,passed=462,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-socket-after/`；无 timeout、skip 或 sanitizer 诊断。
 - **出口边界**：本项完成 12 个 sockets 测试对象；不声称完成 socket release/交接、真实双端数据回调矩阵或其余上游独有测试、差异测试对象和生产 hunk。
 
+### 11.39 U11b：通知、时区、引用和回收边界测试
+
+- **范围**：新增 `set_notify_destruct`、`query_notify_fail`、`query_charmode`、`is_daylight_savings_time`、`reclaim_objects`、`refs`、`error_handler_mapping_size` 七个入口测试。覆盖对象销毁通知位的恢复、无 interactive 时 notify-fail 行为、字符模式哨兵、UTC DST 边界、对象回收返回值、compound 引用计数和错误处理 mapping 超限后的恢复。
+- **状态恢复**：`set_notify_destruct` 保存并恢复原位；mapping 超限测试无条件恢复 `get_config(269)` 后才继续正常 mapping 断言，避免测试污染后续用例。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 7/7，合计 28/28，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=468,passed=468,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-simple-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成七个可在无 interactive 隔离 runner 中稳定验证的入口，不声称完成 interactive、DB、modern-ed、DWLIB 或其余上游独有测试、差异测试对象和生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

@@ -1,0 +1,9 @@
+void do_tests() {
+  int original_limit = get_config(269);
+
+  set_config(269, 1);
+  ASSERT(catch(copy((["x": 1, "y": 2]))));
+  set_config(269, original_limit);
+
+  ASSERT_EQ(2, sizeof((["a": 1, "b": 2])));
+}

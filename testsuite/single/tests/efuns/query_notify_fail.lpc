@@ -1,0 +1,5 @@
+void do_tests() {
+  ASSERT_EQ(0, query_notify_fail());
+  ASSERT_EQ(0, catch(notify_fail("nope\n")));
+  ASSERT_EQ(0, query_notify_fail());
+}
