@@ -1,0 +1,7 @@
+void do_tests() {
+#ifdef __PACKAGE_UIDS__
+  ASSERT(stringp(geteuid()));
+  ASSERT(stringp(geteuid((: 1 :))) || !geteuid((: 1 :)));
+#endif
+  ASSERT(1);
+}

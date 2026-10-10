@@ -1,0 +1,5 @@
+void do_tests() {
+  // Direct parents only; inherit_list covers the transitive closure.
+  ASSERT_EQ(({ "/clone/inh1.c" }), shallow_inherit_list(load_object("/clone/inh2.c")));
+  ASSERT_EQ(({}), shallow_inherit_list(load_object("/clone/inh0.c")));
+}

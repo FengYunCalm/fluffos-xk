@@ -1280,6 +1280,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **状态清理**：`clear_debug_level` 记录并恢复原有 `d_flag` 状态；inventory clones 在每个用例结束前销毁；`set_config` 只验证越界错误路径，不写合法配置。
 - **出口边界**：本项完成 14 个基础 efun 测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.35 U11b：函数所有者、UID 与继承对象基础 efun
+
+- **范围**：新增 `function_owner`、`getuid`、`geteuid`、`virtualp`、`shallow_inherit_list` 五个入口。覆盖函数指针所有者、UID package 的可用配置、master 创建的 virtual object 和直接继承列表；已有 `clonep`、`previous_object` 与 `origin` 的 `.c` 测试保持单一入口，不复制同名 `.lpc` 文件。
+- **兼容适配**：上游 `shallow_inherit_list` 使用 `.lpc` fixture 名称；本地 `testsuite/clone/inh0.c`、`inh1.c`、`inh2.c` 是实际源文件，因此测试按本地 extension-preserving 合同验证 `.c` 路径。`virtualp` 保留 master 的 `/test/virtual` compile hook，不用新 fixture 替代。
+- **通过证据**：Debug、ASan、UBSan、TSan 五项各为 5/5，合计 20/20，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。当前工作树 Debug 全量 LPC 为 `selected=433,passed=433,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-identity-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **出口边界**：本项完成五个对象/身份 efun 测试核对，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
