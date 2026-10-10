@@ -2531,10 +2531,13 @@ void f_num_classes() {
 
 #ifdef F_ASSEMBLE_CLASS
 void f_assemble_class() {
-  array_t *arr = copy_array(sp->u.arr);
+  array_t* src = sp->u.arr;
+  array_t* cl = allocate_class_by_size(src->size);
+  for (int i = 0; i < src->size; i++) {
+    assign_svalue_no_free(&cl->item[i], &src->item[i]);
+  }
   pop_stack();
-  push_refed_array(arr);
-  sp->type = T_CLASS;
+  push_refed_class(cl);
 }
 
 #endif

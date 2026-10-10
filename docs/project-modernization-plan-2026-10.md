@@ -1266,6 +1266,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：新增的 `base_name`、`vowel`、`zonetime` 在 Debug、ASan、UBSan、TSan 各 3/3，合计 12/12；TSan 使用 `setarch x86_64 -R`。当前工作树的 Debug 全量 LPC 为 `selected=409,passed=409,failed=0,skipped=0`，并覆盖其余 15 个已有 `.c` 入口，证据为 `build-modernization-evidence/u11/full-debug-u11b-final2/`；全量结果没有把重复文件计为额外用例。
 - **出口边界**：本项完成 18 个基础 efun 逻辑入口的测试核对，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.33 U11b：class 组合值统计与成员 efun
+
+- **范围**：新增 `assemble_class`、`classp`、`fetch_class_member`、`store_class_member`、`num_classes` 五个入口，覆盖匿名 class 组合、类型判定、成员读取/写入和程序 class 数量。
+- **失败优先与根因修复**：`assemble_class` 首次运行断言本身通过，但用例收尾的 `check_memory()` 报告 `num_classes` 下溢、class 分配标签不匹配和残留数组。根因是 `f_assemble_class()` 把 `copy_array()` 得到的 `TAG_ARRAY` 块直接改成 `T_CLASS`，释放时却走 `dealloc_class()`。最小修复改用 `allocate_class_by_size()` 建立正确的 class 统计/分配块，逐项 `assign_svalue_no_free()`，并通过 `push_refed_class()` 转移栈所有权；不改变 LPC 返回值或成员语义。失败证据保留在 `build-modernization-evidence/u11/class-assemble_class/`。
+- **通过证据**：Debug、ASan、UBSan、TSan 五项各为 5/5，合计 20/20，均为 `selected=1,passed=1,failed=0,skipped=0`；四个 driver 均重新构建 `src/packages/contrib/contrib.cc`，TSan 使用 `setarch x86_64 -R`。Debug 全量首次复核被既有 `package_socket_external` 的非确定性引用检查失败打断，原始证据保留在 `full-debug-class-after/`；随后三次全量复核均为 `selected=414,passed=414,failed=0,skipped=0`，证据为 `full-debug-class-repeat-1/` 至 `-3/`。该异步清理失败未归因于 class 修复。
+- **出口边界**：本项完成五个 class 相关测试对象及一个已确认的 class 分配统计缺陷，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
