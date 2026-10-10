@@ -1,0 +1,5 @@
+void do_tests() {
+  string result = dump_file_descriptors();
+  ASSERT(stringp(result));
+  ASSERT_EQ("ERROR: dump_file_descriptors is no longer supported.", result);
+}
