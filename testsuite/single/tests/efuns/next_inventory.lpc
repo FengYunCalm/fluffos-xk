@@ -1,0 +1,16 @@
+void create(object destination) {
+  if (destination) {
+    move_object(destination);
+  }
+}
+
+void do_tests() {
+  object box = new(__FILE__);
+  object a = new(__FILE__, box);
+  object b = new(__FILE__, box);
+  ASSERT_EQ(a, next_inventory(first_inventory(box)));
+  ASSERT_EQ(0, next_inventory(a));
+  destruct(a);
+  destruct(b);
+  destruct(box);
+}

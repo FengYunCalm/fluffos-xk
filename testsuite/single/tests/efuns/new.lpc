@@ -1,0 +1,10 @@
+class Pt { int x; }
+
+void do_tests() {
+  object ob = new(__FILE__);
+  ASSERT(objectp(ob));
+  ASSERT(clonep(ob));
+  destruct(ob);
+  // Class construction form is pinned by compiler/syntax tests.
+  ASSERT(classp(new(class Pt)));
+}

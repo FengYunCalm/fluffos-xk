@@ -1,0 +1,5 @@
+void do_tests() {
+  ASSERT(memory_info() > 0);
+  ASSERT(memory_info(this_object()) > 0);
+  ASSERT(memory_info(this_object()) < memory_info());
+}

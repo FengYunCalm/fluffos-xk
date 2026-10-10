@@ -1,0 +1,4 @@
+void do_tests() {
+  // An out-of-range slot must fail without mutating runtime configuration.
+  ASSERT(catch(set_config(99999, 0)));
+}

@@ -1273,6 +1273,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **通过证据**：Debug、ASan、UBSan、TSan 五项各为 5/5，合计 20/20，均为 `selected=1,passed=1,failed=0,skipped=0`；四个 driver 均重新构建 `src/packages/contrib/contrib.cc`，TSan 使用 `setarch x86_64 -R`。Debug 全量首次复核被既有 `package_socket_external` 的非确定性引用检查失败打断，原始证据保留在 `full-debug-class-after/`；随后三次全量复核均为 `selected=414,passed=414,failed=0,skipped=0`，证据为 `full-debug-class-repeat-1/` 至 `-3/`。该异步清理失败未归因于 class 修复。
 - **出口边界**：本项完成五个 class 相关测试对象及一个已确认的 class 分配统计缺陷，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
 
+### 11.34 U11b：位、诊断、时间、配置和 inventory 基础 efun
+
+- **范围**：新增 `test_bit`、`clear_debug_level`、`debug_levels`、`query_num`、`perf_counter_ns`、`real_time`、`uptime`、`program_info`、`memory_info`、`memory_summary`、`set_config`、`new`、`first_inventory`、`next_inventory` 共 14 个入口。覆盖位读取、debug 状态恢复、数字拼写、单调计时、运行时统计、越界配置拒绝、对象/class 构造和 inventory 顺序；`new` 与 inventory 测试使用当前测试文件作为可加载对象，不引入缺失的上游 `catch_tell_probe` fixture。
+- **通过证据**：Debug、ASan、UBSan、TSan 各 14/14，合计 56/56，均为 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。加入本项后 Debug 全量 LPC 为 `selected=428,passed=428,failed=0,skipped=0`，证据为 `build-modernization-evidence/u11/full-debug-utility-after/`；无 timeout、skip 或 sanitizer 诊断。
+- **状态清理**：`clear_debug_level` 记录并恢复原有 `d_flag` 状态；inventory clones 在每个用例结束前销毁；`set_config` 只验证越界错误路径，不写合法配置。
+- **出口边界**：本项完成 14 个基础 efun 测试对象，不声称完成其余上游独有测试、差异测试对象或生产 hunk。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
