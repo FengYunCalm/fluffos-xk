@@ -1,6 +1,6 @@
 # FluffOS_XK 全面整理与优化执行方案
 
-日期：2026-10-06。状态：**用户已批准按本方案和代码规范连续实施；当前从 U00 开始，未完成项不得视为通过**。
+日期：2026-10-06。状态：**本地 Linux 可执行范围已完成；总体状态为 `complete-local/external-required`，详见 §11.73。Windows、真实下游 mudlib、真实交互/数据库和长时生产 soak 未验证，不得标为无条件 `release-ready`。**
 
 调查与最终审计阶段仅修改文档。用户随后批准严格按本方案连续开发；源码、测试、构建和隔离验证按各单元范围执行。独立的[代码规范](coding-standard.md)继续适用。§1.2 的排除项、单列策略审批、工作区归属和外部操作授权不因开发启动而取消；不部署、重启运行实例或操作下游业务数据。
 
@@ -45,7 +45,8 @@
 | 项目 | 本次实际值 |
 |---|---|
 | 本地分支 | main；首轮调查开始和首轮落盘前工作区均无已有修改；规范补充阶段保留首轮新增的本计划 |
-| 本地 HEAD | 5c71593af1c45365e39e243136555b5d23dc5480 |
+| 调查阶段本地 HEAD | 5c71593af1c45365e39e243136555b5d23dc5480 |
+| 最终本地审计证据起点 | 5f5b5ad86e7bb3730cb5d57f62a66bf162ae4615（证据同时记录工作树清单） |
 | 本地与上游历史共同祖先 | 277d0b1cbc4350844d9aff07a604dfa519650d9e |
 | 本地 upstream/master 跟踪引用 | f1c242b1db54383d701838ee8aef512a0d923e81；不是当前公网最新值 |
 | 旧吸收基线 / v2026.1001.0 | 795eb371f1af522280738f454b8fc81afe231f1c |
@@ -90,7 +91,7 @@
 
 - 启动：src/main.cc → src/mainlib.cc → rc/master/simul 初始化 → src/backend.cc 事件循环。
 - 输入：src/comm.cc、src/net/* 和 gateway adapter → VM/apply；网络和 cleanup 仍有 main-required 边界。
-- 编译：LexStream → lex.cc → grammar.y/grammar_rules.cc → trees/icode/generate → program。当前不是上游的 Flex + push parser。
+- 编译：LexStream → lex.cc → grammar.y/grammar_rules_program.cc、grammar_rules_functions.cc、grammar_rules_classes.cc → trees/icode/generate → program。当前不是上游的 Flex + push parser。
 - 执行：VMContext 与 owner admission 保证同 owner 串行；service/worker 不能直接共享普通 LPC 可变引用。
 - 对象：owner-sharded store 是 live lookup 主体；ObjectTable 和 object_records 仍承担兼容/诊断索引，不能仅凭名字包含 bridge 就删除。
 - Promise：settle、microtask、async park/resume、destruct/recompile 清理都受 main/owner 与 frame-owned storage 约束。
@@ -1381,8 +1382,8 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **B：package/能力明确不在本轮公开合同（41）**：`add_a`、`replace`、`replace_dollars`、`replace_html`、`replace_mxp`、`replace_objects`、`roulette_wheel`（DWLIB package；当前四配置预定义表没有 `PACKAGE_DWLIB`/`__DWLIB__`，不能把同名测试的 `ASSERT(1)` 当作覆盖）；`async_db_exec`、`db_close`/`db_commit`/`db_connect`/`db_exec`/`db_rollback`/`db_status`（DB 组合，需独立 package 矩阵）；全部 22 个 `ffi_*` 对象（FFI 资产与平台 ABI，不在 U11 LPC 适配范围）；`jsbridge`（独立 bridge）；`pcre2`（当前公开的是 PCRE package，不是 PCRE2 API）；`find_orphaned_cycles`（本地 `develop.spec` 未声明该上游 DEBUGMALLOC 扩展，现有 cycle 测试仅在 `efun_defined` 时调用）；`query_multiple_short`、`reference_allowed`（DWLIB package）。这些条目保留源对象身份和排除理由，不用 `#ifdef` 包出恒真断言冒充通过。
 - **C：interactive/master/外部状态专项（33）**：`act_mxp`、`author_stats`、`disable_wizard`、`domain_stats`、`ed_cmd`、`ed_start`、`enable_commands`、`export_uid`、`flush_messages`、`has_gmcp`/`has_msdp`/`has_msp`/`has_mxp`/`has_zmp`、`in_input`、`remove_charmode`/`remove_get_char`/`remove_interactive`、`request_term_size`/`request_term_type`、`send_gmcp`/`send_msdp_variable`/`send_zmp`、`set_author`、`set_prompt`、`set_reset`、`set_this_player`、`shout`、`start_request_term_type`、`tell_object`/`tell_room`、`traceprefix`、`write`。它们依赖 live interactive、master 权限、连接协商或进程状态；下一步若适配，必须使用真实 peer/专用 fixture 并验证可观测字节或状态，不在单对象 runner 中补恒真断言。
 - **D：存在接口但需要单独环境/失败合同（2）**：`moncontrol`、`rename_exdev`。`moncontrol` 仅在 `PROFILING && HAS_MONCONTROL` 条件下声明；当前四配置未定义这两个能力，不能由普通 LPC runner 建立非零合同，须另行准备 profiling/toolchain 矩阵。`rename_exdev` 保留专用 native/`LD_PRELOAD` 边界，不能由普通 LPC 运行声称覆盖。
-- **E：异步、解析、Promise、重编译和对象生命周期专项（47）**：`acatch_dwlib_latch`、`async_abandon_defer`、`async_adoption_collected`、`async_delivery_latency`、`async_destruct_abandon`、`async_driver_answers`、`async_foreach`、`async_lifecycle_fuzz`、`async_pkg_await`、`async_replace_program`、`async_simul_efun`、`async_this_player`、`async_verb`、`call_out_promise`、`cycles_parked_coroutine`、`cycles_parked_defer`、`dump_prog_async`、`parse_add_rule`/`parse_add_synonym`/`parse_dump`/`parse_init`/`parse_my_rules`/`parse_refresh`/`parse_remove`/`parse_sentence`、`promise`/`promise_cancel`/`promise_chain_forms`/`promise_class`/`promise_combinators`/`promise_delivery_budget`/`promise_drain_budget`/`promise_drain_yield`/`promise_interop`/`promise_typed`、`reclaim_parked_coroutine`、`recompile_object2`、`remove_shadow`、`replace_program_bug1_last_call_wins`/`replace_program_bug2_private_flags`/`replace_program_noop_generality`/`replace_program_noop_globals`/`replace_program_polymorphism_demo`、`save_object_shadow`、`set_malloc_mask`、`seteuid`、`valid_read_promise`。这些不是普通 efun 单测：必须先核对 fixture、owner/async 完成屏障、parser/recompile 生命周期和全局状态恢复；已有 U04/U11 Promise、call_out、replace_program 回归只作为相邻证据，不把它们自动算作上游对象已处置。
-- **分类验收**：166 个对象全部落入 A–E，计数 `43+41+33+2+47=166`，不留 `unknown`。A–C 是当前明确处置或能力边界；D 作为下一批候选，E 进入异步/解析专项卡。每个后续适配单元必须从本清单删除对应对象或更新其唯一分类，并写入失败反例、真实运行证据和出口边界；不能仅增加测试文件后继续保留同一对象为未分类。
+- **E：异步、解析、Promise、重编译和对象生命周期专项（47，已完成逐项处置）**：固定上游快照中的 47 个对象已逐项执行候选 driver 与基线 driver 的同输入对照，并保留 `build-modernization-evidence/u14/u11-e-current-*.log`、`u11-e-snapshot-*.log` 和汇总 `build-modernization-evidence/u11/u11-e-disposition-final-v1.json`。其中 38 个对象在候选 driver 上返回成功并归入 `runtime-equivalent-snapshot`；9 个对象（`async_delivery_latency`、`async_lifecycle_fuzz`、`async_pkg_await`、`call_out_promise`、`promise`、`promise_cancel`、`promise_chain_forms`、`promise_combinators`、`promise_typed`）明确因当前公开合同未采用对应上游语法/API 而在加载阶段失败，归入 `contract-not-adopted`，不伪造覆盖。`async_foreach`、`parser`、`shadow` 的本地适配回归已经通过 Debug、ASan、UBSan、TSan 定向 runner，均为 `selected=1,passed=1,failed=0,skipped=0`，并满足真实完成屏障与断言合同。
+- **分类验收**：166 个对象全部落入 A–E，计数 `43+41+33+2+47=166`，不留 `unknown`。A–E 已完成本轮 Linux 分类与出口决策；38 个 E 对象有候选运行证据，9 个 E 对象保留不采用合同的失败证据。`contract-not-adopted` 不等于生产实现缺陷，也不等于测试通过；其边界与 package、interactive/master、profiling、真实外部环境限制保持一致。U11 的本地分类单元完成，后续只有在公开合同扩展时才重新打开对应对象。
 
 ### 11.47 U11c：`buffer_transcode` 非 ASCII 与失败合同
 
@@ -1564,6 +1565,32 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **编译行为回归**：Debug `lpc_tests` `509/509`；ASan、UBSan、TSan 的 compiler/recompile/inherit/encoding/diagnostic focused 集合各 `27/27`，无 sanitizer 诊断。TSan 的构建和运行均使用 `setarch x86_64 -R`；一次未包裹构建的已知 mapping 失败保留在证据中，不计入通过。
 - **基准与工具修复**：`bench_compile` 使用真实 `compile_file()` 路径对固定 100 文件语料执行 3 轮，`failures=0`、`warmup_failures=0`、中位总轮次约 `0.0670s`、峰值 RSS `18480 KiB`、arena `resets=400`。先复现了 driver `chdir(testsuite)` 后相对 `--json` 输出失败，再将 corpus/json 路径在启动前固定为调用目录的绝对路径；相对路径回归以 `100 files / failures=0` 通过，语料身份校验仍保留。
 - **出口边界**：clang-format `18.1.8` 对新增 `src/tests/bench_compile.cc` 检查通过；未运行真实下游 mudlib。arena/benchmark 变更不改变公共编译接口或用户可见诊断语义，性能收益未臆报为前端替换收益。
+
+### 11.71 U14：固定快照前端评估与保留当前前端
+
+- **状态**：`accepted/Linux-local; frontend-replacement-not-approved`。U14 的评估出口已完成，唯一选择为保留本地 `LexStream`/pull-parser 前端；不把上游 Flex/push-parser、`CompileState`、staged output 或新 Promise/语言 API 并入正常构建。U13 的本地职责拆分和 arena/诊断整理仍是当前实现路径。
+- **依赖闭包审计**：固定快照 `328aaf10635ef8ce636b2b6cebd549bb165e462d` 的 `src/compiler/internal` 同时替换 lexer、grammar glue、diagnostic、compile arena、scratchpad 和 staged output，并在 `compiler.h` 引入单一 `CompileState g_compile`；本地入口仍为 `std::unique_ptr<LexStream>` 的 `compile_file()`，状态、源文件 spelling、错误生命周期和生成链由本地实现分别维护。完整文件级差异和入口证据保存在 `build-modernization-evidence/u14/frontend-difference-map.txt`。
+- **隔离构建**：快照只在 `build-modernization-evidence/u14/upstream-328aaf10-{source,build}/` 构建，关闭 FFI，使用仅解包到证据目录的 PCRE2 开发文件补足本机依赖；`driver`、`lpcc` 和快照 `lpc_tests` 构建成功。正常源码树未接入兼容开关，也未修改 LexStream、grammar production、token 值、AST 或 bytecode 合同。快照 native 测试为 `22/22`，当前候选 `lpc_tests` 为 `509/509`；两组原生测试集合不同，不把数字误作同语料等价。
+- **同输入对照**：两套 `lpcc` 使用同一份持久语料，165 个文件，语料 SHA-256 为 `6bc84b59a8e68665f667b54c36d4c6db1fc30646321840036d7cc02436ec7072`，运行记录为 `build-modernization-evidence/u14/compiler-corpus-comparison.json`。合法/失败结果逐文件对照发现 `18` 个不一致；差异集中在快照新增的 async/Promise、typed Promise、promise-form `call_out`、新 parser/replace/recompile 资产和相关语法/诊断假设，不能解释为“只换内部实现”。因此没有把快照结果伪称兼容，也没有以 parse 成功率替代语义合同。
+- **资源与生成链边界**：快照构建和固定语料运行均在隔离目录完成；本地生成链的 EBNF/fallback 记录继续引用 U06d/U13 证据，未发现必须为 U14 手改生成物的步骤。没有证据证明快照在本地资源上限、超大 include/macro、失败清理和 source-spelling/recompile 合同上可安全替代当前实现，故不扩大限额、不吸收其前端。
+- **结论**：保留当前前端并完成 U13；仅继续吸收已经独立证明且不改变前端合同的局部内部修复。前端替换需要另行提交依赖完整、逐函数/文件映射和新的等价回归设计，本方案不把它标为已实施。
+
+### 11.72 U16：文档、规则与供应链引用单一来源审计
+
+- **状态**：`accepted/Linux-local`。主计划、代码规范、构建/测试入口和供应链规则已完成当前树审计；历史吸收计划保留为历史证据，但不再作为实施状态来源。
+- **文档检查**：`tools/docs/check-docs.py` 检查 `1140` 个 Markdown 文件通过；修正了两个已不存在的源码/仓库外 Markdown 相对链接，并把已拆分的 `grammar_rules.cc` 历史引用改为当前三个实现文件。VitePress `npm run build` 成功，耗时约 `20.03s`；构建仅保留既有的 LPC 高亮回退和 chunk 大小 warning，没有错误。
+- **规则与供应链**：workflow 检查及其负例自测通过；action/image pin 检查及其负例自测通过，当前为 `12` 个 action、`1` 个镜像 digest。没有新增发布、registry、签名或部署副作用。
+- **出口边界**：U16 只证明本地文档与规则一致，不把外部平台、真实下游 mudlib、真实交互客户端或发布流程写成通过；证据位于 `build-modernization-evidence/u16/`。
+
+### 11.73 U17：最终本地集成审计
+
+- **状态**：`complete-local/external-required`。完整本地证据以提交 `5f5b5ad86e7bb3730cb5d57f62a66bf162ae4615` 加工作树清单为身份；本地源码、生成链、测试、格式和进程清理门禁已完成。该状态不是跨平台或真实生产发布许可。
+- **C++ 矩阵**：Debug、ASan、UBSan、TSan 各自串行通过 `lpc_tests 509/509`、`compile_arena_tests 8/8`、`ofile_tests 2/2`。TSan 的构建和执行全程使用 `setarch x86_64 -R`；四套当前候选二进制身份已写入 `build-modernization-evidence/u17/native-final-v1/`。
+- **LPC 矩阵**：Debug、ASan、UBSan、TSan 的完整隔离集合各 `500/500`，`failed=0`、`skipped=0`，源码身份均为当前候选；portable Release 使用同一监督 runner 对 `modernization_compat`、`socket_text_fragments`、`async_foreach`、`package_socket_external` 各 `1/1` 通过。定向 runner 负例/监督自测为 `24/24`。
+- **生成、排版与策略门禁**：GNU Bison `3.8.2` 生成 fallback `3/3` 一致；clang-format `18.1.8` 全 native `314` 个检查通过；testsuite 格式检查 `665` 个文件 `wouldChange=0`；Python/工具自测和 `git diff --check` 通过。
+- **持续与 owner 负载**：Debug owner-runtime storm 重复 `5` 轮，每轮 `11/11` 通过；benchmark 的 required-zero 指标均为 `0`，队列和延迟清理指标为零。运行结束后未终止机器上既有的外部 driver；本轮任务没有遗留 driver/子进程。
+- **外部边界**：按用户授权未运行真实下游 mudlib；Windows/非 Linux 平台、真实数据库/interactive client、长时生产 soak、profiling `moncontrol`、`LD_PRELOAD` 的 `rename_exdev`、DWLIB/FFI/jsbridge 等能力仍标为 `external-required` 或配置边界。不能据此声称全环境发布完成；后续只有在对应环境可用时才可升级状态。
+- **验收结论**：U17 的 Linux-local 集成出口成立，U00–U17 的本地可执行部分已闭合；U14 的前端替换明确不采纳。方案总体状态为 `complete-local/external-required`，不是无条件 `release-ready`。
 
 ## 附录 A：生产源码差异逐文件索引
 

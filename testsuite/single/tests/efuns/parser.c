@@ -30,7 +30,14 @@ void do_tests() {
   clone_object(__FILE__);
   write(sprintf("%O", all_inventory()) + "\n");
   parse_add_rule("look", "WRD OBJ");
-  write(parse_dump() + "\n");
+  parse_add_synonym("see", "look");
+  string dump = parse_dump();
+  write(dump + "\n");
+  ASSERT(strsrch(dump, "Verb see (look):") != -1);
   ASSERT_EQ(1, parse_sentence("look in bag", 2, all_inventory()));
+  parse_sentence("see in bag", 2, all_inventory());
+  parse_refresh();
+  parse_remove("see");
+  parse_remove("look");
 #endif
 }

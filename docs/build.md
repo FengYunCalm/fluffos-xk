@@ -72,7 +72,8 @@ folder back into the source tree.
 The incremental dependency regression creates a private source snapshot and
 builds only `autogen`. It changes and restores inputs in that snapshot, not the
 working tree. It requires Linux and a Python interpreter with pidfd support, as
-it uses the [targeted runner's process supervision](../tools/testsuite/README.md).
+it uses the targeted runner's process supervision documented in
+`tools/testsuite/README.md`.
 The evidence directory must not already exist. Dependency paths can be passed
 with repeated `--cmake-arg=-D<name>=<value>` arguments.
 

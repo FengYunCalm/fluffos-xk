@@ -1,0 +1,19 @@
+private int completion_token;
+
+private async int rejected_foreach_suspend() {
+  mixed gate = promise_create();
+  foreach (int value in ({ 1, 2, 3 })) {
+    value += await gate;
+  }
+  return 0;
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+  promise_catch(rejected_foreach_suspend(), function(mixed reason) {
+    ASSERT(stringp(reason));
+    ASSERT(strsrch(reason, "cannot suspend") != -1);
+    ASSERT(strsrch(reason, "foreach") != -1);
+    "/command/tests"->complete_async(completion_token);
+  });
+}

@@ -32,6 +32,9 @@ void do_tests() {
   ASSERT(catch(shadow(ob)));
   ASSERT(catch(shadow(new(__FILE__))));
 
+  ASSERT_EQ(1, remove_shadow(ob));
+  ASSERT_EQ(0, query_shadowing(ob));
+
   // clean up.
   destruct(ob);
 #endif

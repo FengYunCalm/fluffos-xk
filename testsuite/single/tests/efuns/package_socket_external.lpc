@@ -4,10 +4,15 @@ private int pending;
 private int legacy_fd;
 private string legacy_output;
 
+private void finish_async_form() {
+  "/command/tests"->complete_async(completion_token);
+}
+
 private void complete_form() {
   pending--;
   if (!pending) {
-    "/command/tests"->complete_async(completion_token);
+    // Let the current socket/promise callback release its own function refs first.
+    call_out("finish_async_form", 0);
   }
 }
 
