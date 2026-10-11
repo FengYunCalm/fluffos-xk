@@ -1,0 +1,19 @@
+void do_tests() {
+#if efun_defined(debugmalloc)
+  string path = "/u11_debugmalloc.txt";
+  string report = debugmalloc(path, 0);
+
+  ASSERT(stringp(report));
+  ASSERT(strsrch(report, "total =") >= 0);
+  ASSERT(file_size(path) >= 0);
+  ASSERT_EQ(1, rm(path));
+
+  string empty_report = debugmalloc(path, 1);
+  ASSERT(stringp(empty_report));
+  ASSERT(strsrch(empty_report, "# chunks =        0") >= 0);
+  ASSERT(file_size(path) >= 0);
+  ASSERT_EQ(1, rm(path));
+#else
+  write("debugmalloc is not available; no test run.\n");
+#endif
+}

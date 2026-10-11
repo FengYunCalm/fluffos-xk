@@ -112,7 +112,7 @@ char *dump_debugmalloc(const char *tfn, int mask) {
   }
   fprintf(fp, "%12s %12s %12s %5s %7s %s\n", "id", "gametick", "ptr", "tag", "sz", "desc");
   for (j = 0; j < MD_TABLE_SIZE; j++) {
-    for (entry = table[j]; entry; entry = entry->next) {
+    for (entry = md_chain_decode(table[j]); entry; entry = md_chain_decode(entry->next)) {
       if (!mask || (entry->tag == mask)) {
         fprintf(fp, "%12d %12" PRId64 " %12p %1d:%03d %7d %s\n", entry->id, entry->gametick,
                 PTR(entry), (entry->tag >> 8) & 0xff, entry->tag & 0xff, entry->size, entry->desc);
@@ -123,7 +123,8 @@ char *dump_debugmalloc(const char *tfn, int mask) {
   }
   fprintf(fp, "total =    %8d\n", total);
   fprintf(fp, "# chunks = %8d\n", chunks);
-  fprintf(fp, "ave. bytes per chunk = %7.2f\n\n", (double)total / chunks);
+  const double average = chunks ? static_cast<double>(total) / chunks : 0.0;
+  fprintf(fp, "ave. bytes per chunk = %7.2f\n\n", average);
   fprintf(fp, "categories:\n\n");
   for (j = 0; j < MAX_CATEGORY; j++) {
     fprintf(fp, "%4d: %10" PRIu64 " %10" PRIu64 "\n", j, blocks[j], totals[j]);
