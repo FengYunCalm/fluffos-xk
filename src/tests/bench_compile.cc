@@ -180,10 +180,20 @@ int run_benchmark(int argc, char** argv) {
       return 2;
     }
   }
+  const fs::path invocation_dir = fs::current_path();
   if (corpus_dir.empty()) {
     corpus_dir = fs::path(TESTSUITE_DIR) / ".." / "tools" / "perf" / "corpus";
   }
+  if (corpus_dir.is_relative()) {
+    corpus_dir = invocation_dir / corpus_dir;
+  }
   corpus_dir = fs::absolute(corpus_dir);
+  if (!json_path.empty() && json_path.is_relative()) {
+    json_path = invocation_dir / json_path;
+  }
+  if (!json_path.empty()) {
+    json_path = fs::absolute(json_path);
+  }
 
   // Full driver environment (shared string table, mem blocks, error
   // context, master/simul_efun load) -- same bootstrap as the benches

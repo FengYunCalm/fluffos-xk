@@ -1556,6 +1556,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **构建验收**：在固定 Alpine 3.22 amd64 根文件系统中，jemalloc `5.3.0` SHA-256 校验通过；`cmake -DMARCH_NATIVE=OFF -DSTATIC=ON -DENABLE_LTO=OFF` 配置成功，`driver` 与 `lpcc` 串行构建成功，产物为静态 ELF。runtime 根文件系统安装 `icu-data-full` 后，driver 启动并输出版本、jemalloc、ICU 和用法；缺少 config 的预期退出码为 `255`。证据位于 `build-modernization-evidence/u15/alpine-3.22-*.log`。
 - **供应链边界**：本单元没有升级第三方源码、改变 TLS 信任/SNI 或执行 registry 写入；action pin、manifest JSON/YAML 语法和 `git diff --check` 仍按本地门禁核验。Windows、非 amd64、长时压力、真实数据库和真实下游 mudlib 不属于本地通过证据，转入 U17/external-required。
 
+### 11.70 U13：编译器状态、arena 与等价行为收口
+
+- **状态**：`accepted/Linux-local; frontend-replacement-external`。本地编译器整理和等价验证完成；不替换 LexStream/lex.cc、grammar production、token 值、AST 或 bytecode，前端替换仍由 U14 单独决策。
+- **状态审计**：`compile_file()` 仍保持不可重入 guard、`vm_recompile_reject_new_compile()`、source-spelling、inherit/recompile 边界和失败后恢复；compile arena 与 diagnostic session arena 分属不同生命周期，`compile_file()` 通过 `DEFER` 在正常返回和 `error()` 异常路径统一 begin/end，未引入第二套长期双写的 CompileState/global 映射。生成链仍由 U06d 管理，未手改 grammar 或生成物。
+- **arena 回归**：Debug、ASan、UBSan、TSan 的 `compile_arena_tests` 各 `8/8`；覆盖独立 session arena、跨编译周期诊断存活、嵌套 binding、非 LIFO 拒绝、超大块释放、保留池、字符串终止和 accounting。对应日志位于 `build-modernization-evidence/u13/`。
+- **编译行为回归**：Debug `lpc_tests` `509/509`；ASan、UBSan、TSan 的 compiler/recompile/inherit/encoding/diagnostic focused 集合各 `27/27`，无 sanitizer 诊断。TSan 的构建和运行均使用 `setarch x86_64 -R`；一次未包裹构建的已知 mapping 失败保留在证据中，不计入通过。
+- **基准与工具修复**：`bench_compile` 使用真实 `compile_file()` 路径对固定 100 文件语料执行 3 轮，`failures=0`、`warmup_failures=0`、中位总轮次约 `0.0670s`、峰值 RSS `18480 KiB`、arena `resets=400`。先复现了 driver `chdir(testsuite)` 后相对 `--json` 输出失败，再将 corpus/json 路径在启动前固定为调用目录的绝对路径；相对路径回归以 `100 files / failures=0` 通过，语料身份校验仍保留。
+- **出口边界**：clang-format `18.1.8` 对新增 `src/tests/bench_compile.cc` 检查通过；未运行真实下游 mudlib。arena/benchmark 变更不改变公共编译接口或用户可见诊断语义，性能收益未臆报为前端替换收益。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
