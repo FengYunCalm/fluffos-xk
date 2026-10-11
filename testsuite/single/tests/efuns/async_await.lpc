@@ -1,0 +1,42 @@
+private int completion_token;
+private int values_done;
+private int rejection_done;
+
+async int await_values() {
+  int number = await 5;
+  string word = await "x";
+  mixed settled = promise_create();
+  promise_resolve(settled, 6);
+  int settled_value = await settled;
+  return number + strlen(word) + settled_value;
+}
+
+async int catch_rejected_await() {
+  mixed rejected = promise_create();
+  promise_reject(rejected, "*async-await-boom");
+  mixed reason = acatch(await rejected);
+  ASSERT_EQ("*async-await-boom", reason);
+  ASSERT_EQ(0, acatch(1 + 1));
+  return 1;
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+  values_done = 0;
+  rejection_done = 0;
+
+  promise_then(await_values(), function(mixed result) {
+    ASSERT_EQ(12, result);
+    values_done = 1;
+  });
+  promise_then(catch_rejected_await(), function(mixed result) {
+    ASSERT_EQ(1, result);
+    rejection_done = 1;
+  });
+
+  call_out(function() {
+    ASSERT_EQ(1, values_done);
+    ASSERT_EQ(1, rejection_done);
+    "/command/tests"->complete_async(completion_token);
+  }, 2);
+}
