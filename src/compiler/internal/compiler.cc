@@ -27,6 +27,7 @@
 
 #include "vm/internal/base/machine.h"  // for error(), FIXME
 #include "vm/internal/recompile.h"   // transaction compile barrier
+#include "vm/internal/source_spelling.h"
 
 #ifdef PACKAGE_MUDLIB_STATS
 #include "packages/mudlib_stats/mudlib_stats.h"
@@ -1073,14 +1074,18 @@ int arrange_call_inherited(char *name, parse_node_t *node) {
         int tmp;
 
         if (super_name) {
-            int l = SHARED_STRLEN(ip->prog->filename); /* Including .c */
+            const size_t filename_length = SHARED_STRLEN(ip->prog->filename);
+            const size_t source_length =
+                source_spelling_strip_len(ip->prog->filename, filename_length);
             names.emplace_back(std::string(ip->prog->filename));
 
-            if (l - 2 < super_length) {
+            if (source_length < static_cast<size_t>(super_length)) {
                 continue;
             }
-            if (strncmp(super_name, ip->prog->filename + l - 2 - super_length, super_length) != 0 ||
-                !((l - 2 == super_length) || ((ip->prog->filename + l - 3 - super_length)[0] == '/'))) {
+            const char* suffix = ip->prog->filename + source_length - super_length;
+            if (strncmp(super_name, suffix, super_length) != 0 ||
+                !((source_length == static_cast<size_t>(super_length)) ||
+                  (suffix[-1] == '/'))) {
                 continue;
             }
         }

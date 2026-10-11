@@ -1,0 +1,5 @@
+async int base_async(int value) { return value + 1; }
+
+async string *base_async_arr() { return ({ "a" }); }
+
+int base_sync() { return 3; }

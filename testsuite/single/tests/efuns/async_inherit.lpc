@@ -1,0 +1,48 @@
+inherit "/clone/async_inherit_base";
+
+async int proto_ok();
+async int proto_ok() { return 8; }
+
+int base_sync() { return 30; }
+async int overridden_async() { return 9; }
+
+private int completion_token;
+private int done;
+
+async void awaits_both() {
+  int first = await base_async(1);
+  int second = await async_inherit_base::base_async(10);
+  string *values = await async_inherit_base::base_async_arr();
+
+  ASSERT_EQ(2, first);
+  ASSERT_EQ(11, second);
+  ASSERT_EQ(({ "a" }), values);
+  done = 1;
+}
+
+void do_tests() {
+  mixed plain = base_async(1);
+  mixed qualified = async_inherit_base::base_async(10);
+  mixed values = async_inherit_base::base_async_arr();
+
+  ASSERT_EQ("promise", typeof(plain));
+  ASSERT_EQ("promise", typeof(qualified));
+  ASSERT_EQ(2, promise_result(plain));
+  ASSERT_EQ(11, promise_result(qualified));
+  ASSERT_EQ(({ "a" }), promise_result(values));
+
+  ASSERT_EQ(8, promise_result(proto_ok()));
+  ASSERT_EQ(30, base_sync());
+  ASSERT_EQ(9, promise_result(overridden_async()));
+  ASSERT_EQ(3, async_inherit_base::base_sync());
+
+  completion_token = "/command/tests"->begin_async();
+  done = 0;
+  call_out(function() {
+    awaits_both();
+  }, 1);
+  call_out(function() {
+    ASSERT_EQ(1, done);
+    "/command/tests"->complete_async(completion_token);
+  }, 2);
+}

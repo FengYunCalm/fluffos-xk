@@ -10,6 +10,7 @@
 /single/tests/efuns/async_nested_callbacks	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_info_names	runtime	async	Inherited parked coroutine must report its defining function name through async_info().
 /single/tests/efuns/async_inherit_park	runtime	async	Inherited and local parked coroutines must both resume after a shared gate resolves.
+/single/tests/efuns/async_inherit	runtime	async	Checks inherited async type metadata, qualified calls, overrides, and await results.
 /single/tests/efuns/async_promise	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_yield	runtime	async	Uses async_yield() and a call_out marker to assert a real later event-loop turn.
 /single/tests/efuns/async_yield_shutdown	runtime	async	Leaves one async_yield() parked at process shutdown; standalone sanitizer run checks settlement and cleanup.
