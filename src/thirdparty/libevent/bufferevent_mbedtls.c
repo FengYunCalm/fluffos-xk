@@ -138,9 +138,8 @@ mbedtls_is_want_write(int err)
 }
 
 static evutil_socket_t
-be_mbedtls_get_fd(void *ssl)
+be_mbedtls_get_fd(struct bufferevent_ssl *bev)
 {
-	struct bufferevent_ssl *bev = ssl;
 	struct mbedtls_context *ctx = bev->ssl;
 	return ctx->net.fd;
 }
