@@ -1,0 +1,34 @@
+private object clone;
+private mixed gate;
+private mixed base_p;
+private mixed child_p;
+private int completion_token;
+
+void finish_test() {
+  ASSERT_EQ(15, promise_result(base_p));
+  ASSERT_EQ(6, promise_result(child_p));
+  gate = 0;
+  base_p = 0;
+  child_p = 0;
+  if (clone) {
+    destruct(clone);
+    clone = 0;
+  }
+  "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+
+  call_out(function() {
+    clone = clone_object("/clone/async_inherit_park_child");
+    ASSERT(objectp(clone));
+    gate = promise_create();
+    clone->set_gate(gate);
+    clone->set_child_gate(gate);
+    base_p = clone->base_park(10);
+    child_p = clone->child_park(1);
+    promise_resolve(gate, 5);
+    call_out((: finish_test :), 1);
+  }, 1);
+}
