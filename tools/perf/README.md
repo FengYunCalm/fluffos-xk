@@ -164,3 +164,24 @@ RSS（KiB）和墙钟时间，包含准备、报告及退出；RSS 不能当成�
 噪声校准，再冻结阈值。执行至少 7 组交错 A/B。尾延迟每类操作至少需要 10000 个样本；
 少量慢诊断样本仅报告已观测分位，不能宣称稳定 p95/p99。原始报告、进程记录和二进制
 哈希是验收依据；外层任务中断时只恢复已完整验证的记录，不能接纳半写报告。
+
+### object store 生命周期准备成本
+
+规模模式还记录创建、owner 转移和 destruct 准备阶段。`lifecycle_prepare_*` 是探针
+准备 workload 的墙钟阶段数据，不计入 `elapsed_ns`；`lifecycle_stage_*` 是 driver
+生命周期埋点的调用次数、累计纳秒和整数平均值。`object_store_register` 与
+`object_store_mark` 的计数必须分别等于创建数和 `objects / 10`，否则测量器拒绝报告。
+这些字段用于区分对象生命周期准备成本与 handle/path/status 查询成本，不能把准备阶段
+数据当成查询 API 的延迟。
+
+最终核验示例：
+
+```bash
+/usr/bin/python3 -B tools/perf/measure_object_store.py \
+  --binary build-organize-release/src/tests/object_store_bench \
+  --evidence-dir build-modernization-evidence/u12/object-store-measure-final-v7 \
+  --rounds 3
+```
+
+该命令遍历 1000、10000、50000 对象及五种操作；正式证据目录必须不存在。规模越大，
+准备和退出清理可能远高于单次查询计时，外层监督预算必须覆盖整个进程。

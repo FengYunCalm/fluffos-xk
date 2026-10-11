@@ -74,25 +74,29 @@ class ObjectStoreSummaryTest : public ::testing::Test {
   void TearDown() override {
     ObjectStoreWriteLock lock(object_store_directory_mutex);
     owner_shards.clear();
+    shadowed_destructed_path_counts.clear();
     object_records.clear();
     object_migration_traces.clear();
   }
 
-  void add_record(size_t index, const char* owner, bool destructed = false) {
+  void add_record(size_t index, const char* owner, bool destructed = false,
+                  const char* object_path = nullptr) {
     ObjectStoreWriteLock lock(object_store_directory_mutex);
-    const ObjectRecord record{index + 1, owner, 7, "fixture/" + std::to_string(index), destructed};
+    const std::string path = object_path ? object_path : "fixture/" + std::to_string(index);
+    const ObjectRecord record{index + 1, owner, 7, path, destructed};
     auto* object = &objects_[index];
     object_records[object] = record;
     auto& shard = shard_for_owner(owner);
     if (destructed) {
       shard.destructed_records[record.object_id] = record;
-      shard.destructed_path_index[record.object_path] = record.object_id;
+      shard_add_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
+                           record);
     } else {
       shard.local_records[record.object_id] = record;
       shard.local_objects[record.object_id] = object;
       shard.local_object_index[object] = record.object_id;
       shard.object_directory.insert(record.object_id);
-      shard.object_path_index[record.object_path] = record.object_id;
+      shard_add_path_index(shard.object_path_index, shard.live_path_duplicate_counts, record);
     }
   }
 
@@ -255,6 +259,55 @@ TEST_F(ObjectStoreSummaryTest, OwnerMigrationThenDestruction) {
     write_owner_local_lifecycle_record_locked(&objects_[0], true);
   }
   expect_summary(consistent_summary(0, 1));
+}
+
+TEST_F(ObjectStoreSummaryTest, PathIndexesKeepMaximumAcrossLiveAndDestructedRecords) {
+  objects_[0].obname = "fixture/shared";
+  objects_[1].obname = "fixture/shared";
+  objects_[0].vm_owner_id = "owner/a";
+  objects_[1].vm_owner_id = "owner/a";
+  add_record(0, "owner/a", false, "fixture/shared");
+  add_record(1, "owner/a", false, "fixture/shared");
+
+  {
+    ObjectStoreWriteLock lock(object_store_directory_mutex);
+    write_owner_local_lifecycle_record_locked(&objects_[0], true);
+    const auto &shard = owner_shards.at("owner/a");
+    ASSERT_EQ(shard.object_path_index.at("fixture/shared"), 2);
+    ASSERT_EQ(shard.destructed_path_index.count("fixture/shared"), 0);
+    ASSERT_EQ(shadowed_destructed_path_counts.at("fixture/shared"), 1);
+
+    write_owner_local_lifecycle_record_locked(&objects_[0], true);
+    ASSERT_EQ(shadowed_destructed_path_counts.at("fixture/shared"), 1);
+
+    write_owner_local_lifecycle_record_locked(&objects_[1], true);
+    ASSERT_EQ(shard.destructed_path_index.at("fixture/shared"), 2);
+    shard_remove_object(owner_shards.at("owner/a"), 2);
+    ASSERT_EQ(shard.destructed_path_index.at("fixture/shared"), 1);
+    shard_remove_object(owner_shards.at("owner/a"), 1);
+    EXPECT_EQ(shard.destructed_path_index.count("fixture/shared"), 0);
+    EXPECT_EQ(shadowed_destructed_path_counts.count("fixture/shared"), 0);
+  }
+}
+
+TEST_F(ObjectStoreSummaryTest, DestructedPathIndexRestoresAcrossOwners) {
+  objects_[0].obname = "fixture/shared";
+  objects_[1].obname = "fixture/shared";
+  objects_[0].vm_owner_id = "owner/a";
+  objects_[1].vm_owner_id = "owner/b";
+  add_record(0, "owner/a", false, "fixture/shared");
+  add_record(1, "owner/b", false, "fixture/shared");
+
+  {
+    ObjectStoreWriteLock lock(object_store_directory_mutex);
+    write_owner_local_lifecycle_record_locked(&objects_[0], true);
+    EXPECT_EQ(owner_shards.at("owner/b").destructed_path_index.count("fixture/shared"), 0);
+
+    write_owner_local_lifecycle_record_locked(&objects_[1], true);
+    EXPECT_EQ(owner_shards.at("owner/b").destructed_path_index.at("fixture/shared"), 2);
+    EXPECT_EQ(shadowed_destructed_path_counts.count("fixture/shared"), 0);
+  }
+  expect_summary(consistent_summary(0, 2));
 }
 
 TEST_F(ObjectStoreSummaryTest, AllocationFailureReleasesLockWithoutPublishingState) {

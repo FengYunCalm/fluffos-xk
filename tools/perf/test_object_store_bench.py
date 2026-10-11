@@ -57,6 +57,28 @@ def main():
             or report["metrics"]["resolve_iterations"] != 32 * 256):
         raise runner.RunnerError("default benchmark report changed")
     results.append({"case": "legacy-success", "verified": True})
+    scaled_output = session.root / "scaled.json"
+    _root, mudlib = runner.render_sandbox(session)
+    checked_run(
+        session,
+        [str(binary), "--objects", "1000", "--operation", "current", "--rounds", "1",
+         "--json", str(scaled_output)],
+        mudlib,
+        runner.command_environment(mudlib),
+        "scaled-lifecycle-success",
+        binary,
+    )
+    scaled_report = json.loads(scaled_output.read_text())
+    scaled_metrics = scaled_report["metrics"]
+    if (scaled_report["schema"] != "object_store_bench_v1"
+            or scaled_metrics["object_count"] != 1000
+            or scaled_metrics["probe_rounds"] != 1
+            or scaled_metrics["lifecycle_prepare_clone_count"] != 1000
+            or scaled_metrics["lifecycle_prepare_destruct_count"] != 100
+            or scaled_metrics["lifecycle_stage_clone_object_store_register_count"] != 1000
+            or scaled_metrics["lifecycle_stage_destruct_object_store_mark_count"] != 100):
+        raise runner.RunnerError("scaled lifecycle report changed")
+    results.append({"case": "scaled-lifecycle-success", "verified": True})
     (session.root / "checks.json").write_text(json.dumps(results, indent=2) + "\n")
     print(f"{len(results)}/{len(results)} checks passed")
     return 0

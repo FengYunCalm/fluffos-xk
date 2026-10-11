@@ -89,13 +89,37 @@ def main():
                 raise runner.RunnerError("invalid process resource measurement")
             report = json.loads(result_path.read_text())
             metrics = report["metrics"]
+            lifecycle_keys = (
+                "lifecycle_prepare_clone_count",
+                "lifecycle_prepare_destruct_count",
+                "lifecycle_prepare_clone_elapsed_ns",
+                "lifecycle_prepare_owner_transfer_count",
+                "lifecycle_prepare_owner_transfer_elapsed_ns",
+                "lifecycle_prepare_destruct_elapsed_ns",
+                "lifecycle_prepare_elapsed_ns",
+                "lifecycle_stage_clone_object_store_register_count",
+                "lifecycle_stage_destruct_object_store_mark_count",
+            )
+            lifecycle = {key: metrics[key] for key in lifecycle_keys}
             if (report["schema"] != "object_store_bench_v1"
                     or report["runtime"]["probe_operation"] != operation
                     or metrics["object_count"] != count or metrics["probe_rounds"] != rounds
                     or metrics["global_record_total"] < count
                     or metrics["global_destructed_record_total"] != count // 10
                     or metrics["global_record_total"] != metrics["global_live_record_total"]
-                    + metrics["global_destructed_record_total"]):
+                    + metrics["global_destructed_record_total"]
+                    or lifecycle["lifecycle_prepare_clone_count"] != count
+                    or lifecycle["lifecycle_prepare_destruct_count"] != count // 10
+                    or lifecycle["lifecycle_prepare_owner_transfer_count"] != count
+                    or lifecycle["lifecycle_prepare_clone_elapsed_ns"] <= 0
+                    or lifecycle["lifecycle_prepare_owner_transfer_elapsed_ns"] <= 0
+                    or lifecycle["lifecycle_prepare_destruct_elapsed_ns"] <= 0
+                    or lifecycle["lifecycle_prepare_elapsed_ns"] != (
+                        lifecycle["lifecycle_prepare_clone_elapsed_ns"]
+                        + lifecycle["lifecycle_prepare_destruct_elapsed_ns"])
+                    or lifecycle["lifecycle_stage_clone_object_store_register_count"] != count
+                    or lifecycle["lifecycle_stage_destruct_object_store_mark_count"] != count // 10
+                    or not all(type(value) is int for value in lifecycle.values())):
                 raise runner.RunnerError("probe report does not match its workload")
             samples = []
             for i in range(rounds):
@@ -108,7 +132,7 @@ def main():
                     raise runner.RunnerError("invalid probe sample")
                 samples.append(sample)
             result = {"objects": count, "operation": operation, "samples": samples,
-                      "global_records": metrics["global_record_total"],
+                      "lifecycle": lifecycle, "global_records": metrics["global_record_total"],
                       "owner_shards": metrics["owner_shards"], "coverage": build is not None,
                       "started_utc": started, "completed_utc": completed, "resources": resources}
             if build:

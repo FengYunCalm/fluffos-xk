@@ -1491,6 +1491,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **验收**：Debug、ASan、TSan 的 focused case 各 `1/1`；三种配置的 `DriverTest.*Gateway*` 各 `175/175`，均 `failed=0,skipped=0`，无 timeout、assertion 或 sanitizer 诊断；TSan 构建和整个 runner 使用 `setarch x86_64 -R`。证据目录为 `gateway-create-event-failure-after-debug/`、`gateway-create-event-failure-asan-v1/`、`gateway-create-event-failure-tsan-v1/`、`gateway-debug-v1/`、`gateway-asan-v1/`、`gateway-tsan-v1/`。
 - **出口边界**：仅关闭 gateway 创建早期命令事件失败的具体会话清理缺陷；U12 其余 owner/gateway 状态拆分、结构去重和端到端容量测量仍按主计划独立验收。
 
+### 11.64 U12：object store 生命周期路径索引刷新成本
+
+- **状态**：`accepted/Linux`。本项只收口 owner-local object store 的 live/destructed path index 生命周期维护和可重复成本核验，不代表 U12 的 owner/gateway 职责拆分整体完成。
+- **根因与实现**：原路径删除一个 path index 条目后按全局 shard 重新扫描同一路径记录；重复路径和 live path 隐藏 tombstone 的组合还会反复重建。现在为 live/destructed index 维护仅在重复路径出现时分配的计数，删除非当前最大 object id 时只更新计数，删除当前索引项时只在同一记录集合内选择最大替代项；跨 owner 的隐藏 tombstone 以路径计数追踪，仅在最后一个 live path 消失时重建。普通唯一路径、最大 object id 选择、owner migration、destructed path 恢复和 bridge summary 合同保持不变。
+- **新增证据**：`object_store_bench` 的规模模式记录创建、owner 转移、destruct 和 object-store register/mark 阶段；`measure_object_store.py` 校验阶段计数、总时长加和、record 数和单次查询锁合同。`test_object_store_bench.py` 新增 1000 对象生命周期合同及输出/失败路径覆盖。
+- **规模核验**：Release 持久证据位于 `build-modernization-evidence/u12/object-store-measure-final-v7/`，遍历 1000、10000、50000 对象及 `current/missing/stale/path/status` 五种操作，各 3 个顺序样本；50000 对象的准备阶段为 clone `50000`、destruct `5000`、owner transfer `50000`、object-store register `50000`、mark `5000`，完整 probe（含准备、三轮查询、报告和退出）墙钟约 `8.54s`，RSS 约 `146216 KiB`。同一最终 binary 的单轮 `50000/current` 证据位于 `object-store-measure-final-v8/`，墙钟约 `8.13s`；此前同配置 fail-first/旧路径的单轮记录为 `216.19s`。计数和路径行为支持从重复全局路径扫描降为受控的索引维护；这些短样本不作为长期尾延迟或游戏端到端结论。
+- **验收**：`ObjectStoreSummaryTest.*` 在 Debug、ASan、UBSan、TSan 各 `14/14`；TSan 使用 `setarch x86_64 -R`。`test_object_store_bench.py` 在四配置各 `8/8`，默认 v1 输出、失败写入、非法参数和 1000 对象生命周期报告均通过；Release 规模测量 15/15 case 通过，报告保留独立资源记录。`git diff --check` 通过。
+- **未验边界**：clang-format 18.1.8 未安装，未执行格式工具；Windows、长时间 soak、真实下游 mudlib workload 和 U17 长稳门禁仍未覆盖。生命周期准备时间包含创建/销毁 fixture，不计入 `elapsed_ns` 查询延迟。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

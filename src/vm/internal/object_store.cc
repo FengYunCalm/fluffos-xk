@@ -66,6 +66,9 @@ struct VMObjectShard {
   std::unordered_map<object_t *, uint64_t> local_object_index;
   std::unordered_map<std::string, uint64_t> object_path_index;
   std::unordered_map<std::string, uint64_t> destructed_path_index;
+  // Only paths with duplicate records need a count; singleton paths use the index directly.
+  std::unordered_map<std::string, uint64_t> live_path_duplicate_counts;
+  std::unordered_map<std::string, uint64_t> destructed_path_duplicate_counts;
   bool owner_local_directory_ready{true};
   bool owner_local_directory_from_shard{true};
   bool owner_local_store_ready{false};
@@ -175,6 +178,7 @@ std::atomic<uint64_t> next_object_id{1};
 std::atomic<uint64_t> next_migration_id{1};
 std::unordered_map<object_t *, ObjectRecord> object_records;
 std::unordered_map<std::string, VMObjectShard> owner_shards;
+std::unordered_map<std::string, uint64_t> shadowed_destructed_path_counts;
 std::deque<ObjectMigrationRecord> object_migration_traces;
 
 using ObjectStoreReadLock = std::shared_lock<std::shared_mutex>;
@@ -1077,69 +1081,140 @@ void shard_erase_path_index(std::unordered_map<std::string, uint64_t> &index, co
   }
 }
 
-void shard_remove_live_path_index(VMObjectShard &shard, uint64_t object_id) {
-  auto it = shard.local_records.find(object_id);
-  if (it != shard.local_records.end()) {
-    shard_erase_path_index(shard.object_path_index, it->second.object_path, object_id);
+void shard_add_path_index(
+    std::unordered_map<std::string, uint64_t> &index,
+    std::unordered_map<std::string, uint64_t> &duplicate_counts, const ObjectRecord &record) {
+  if (record.object_path.empty()) {
+    return;
+  }
+  auto path_it = index.find(record.object_path);
+  if (path_it == index.end()) {
+    index.emplace(record.object_path, record.object_id);
+    return;
+  }
+  if (path_it->second == record.object_id) {
+    return;
+  }
+  auto duplicate_it = duplicate_counts.find(record.object_path);
+  if (duplicate_it == duplicate_counts.end()) {
+    duplicate_counts.emplace(record.object_path, 2);
+  } else {
+    duplicate_it->second++;
+  }
+  if (record.object_id > path_it->second) {
+    path_it->second = record.object_id;
   }
 }
 
-void shard_remove_destructed_path_index(VMObjectShard &shard, uint64_t object_id) {
-  auto it = shard.destructed_records.find(object_id);
-  if (it != shard.destructed_records.end()) {
-    shard_erase_path_index(shard.destructed_path_index, it->second.object_path, object_id);
+template <typename RecordMap>
+void shard_remove_path_index(
+    std::unordered_map<std::string, uint64_t> &index,
+    std::unordered_map<std::string, uint64_t> &duplicate_counts, const RecordMap &records,
+    uint64_t object_id, bool require_destructed) {
+  auto record_it = records.find(object_id);
+  if (record_it == records.end() || record_it->second.object_path.empty()) {
+    return;
   }
+  const auto &object_path = record_it->second.object_path;
+  auto path_it = index.find(object_path);
+  if (path_it == index.end()) {
+    return;
+  }
+  auto duplicate_it = duplicate_counts.find(object_path);
+  if (path_it->second != object_id) {
+    if (duplicate_it != duplicate_counts.end()) {
+      if (duplicate_it->second <= 2) {
+        duplicate_counts.erase(duplicate_it);
+      } else {
+        duplicate_it->second--;
+      }
+    }
+    return;
+  }
+
+  index.erase(path_it);
+  if (duplicate_it == duplicate_counts.end()) {
+    return;
+  }
+  if (duplicate_it->second <= 2) {
+    duplicate_counts.erase(duplicate_it);
+  } else {
+    duplicate_it->second--;
+  }
+  uint64_t selected_object_id = 0;
+  for (const auto &record_entry : records) {
+    if (record_entry.first != object_id && record_entry.second.object_path == object_path &&
+        record_entry.second.destructed == require_destructed &&
+        record_entry.first > selected_object_id) {
+      selected_object_id = record_entry.first;
+    }
+  }
+  if (selected_object_id != 0) {
+    index.emplace(object_path, selected_object_id);
+  }
+}
+
+void shard_remove_live_path_index(VMObjectShard &shard, uint64_t object_id) {
+  shard_remove_path_index(shard.object_path_index, shard.live_path_duplicate_counts,
+                          shard.local_records, object_id, false);
+}
+
+void shard_remove_destructed_path_index(VMObjectShard &shard, uint64_t object_id) {
+  shard_remove_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
+                          shard.destructed_records, object_id, true);
 }
 
 void erase_destructed_path_index_for_live_path_locked(const std::string &object_path) {
   if (object_path.empty()) {
     return;
   }
+  uint64_t indexed_record_count = 0;
   for (auto &entry : owner_shards) {
-    entry.second.destructed_path_index.erase(object_path);
+    auto &shard = entry.second;
+    auto duplicate_it = shard.destructed_path_duplicate_counts.find(object_path);
+    if (duplicate_it != shard.destructed_path_duplicate_counts.end()) {
+      indexed_record_count += duplicate_it->second;
+    } else if (shard.destructed_path_index.count(object_path) != 0) {
+      indexed_record_count++;
+    }
+    shard.destructed_path_index.erase(object_path);
+    shard.destructed_path_duplicate_counts.erase(object_path);
+  }
+  if (indexed_record_count != 0 &&
+      shadowed_destructed_path_counts.count(object_path) == 0) {
+    shadowed_destructed_path_counts.emplace(object_path, indexed_record_count);
   }
 }
 
-void refresh_live_path_index_for_path_locked(const std::string &object_path) {
+void rebuild_destructed_path_index_for_path_locked(const std::string &object_path) {
   if (object_path.empty()) {
     return;
+  }
+  for (auto &entry : owner_shards) {
+    entry.second.destructed_path_index.erase(object_path);
+    entry.second.destructed_path_duplicate_counts.erase(object_path);
   }
   for (auto &entry : owner_shards) {
     auto &shard = entry.second;
-    shard.object_path_index.erase(object_path);
-    uint64_t selected_object_id = 0;
-    for (const auto &record_entry : shard.local_records) {
-      if (record_entry.second.object_path == object_path && !record_entry.second.destructed &&
-          record_entry.first > selected_object_id) {
-        selected_object_id = record_entry.first;
+    for (const auto &record_entry : shard.destructed_records) {
+      if (record_entry.second.object_path == object_path) {
+        shard_add_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
+                             record_entry.second);
       }
     }
-    if (selected_object_id != 0) {
-      shard.object_path_index[object_path] = selected_object_id;
-    }
   }
+  shadowed_destructed_path_counts.erase(object_path);
 }
 
-void refresh_destructed_path_index_for_path_locked(const std::string &object_path) {
-  if (object_path.empty()) {
+void decrement_shadowed_destructed_path_count(const std::string &object_path) {
+  auto shadowed_it = shadowed_destructed_path_counts.find(object_path);
+  if (shadowed_it == shadowed_destructed_path_counts.end()) {
     return;
   }
-  for (auto &entry : owner_shards) {
-    entry.second.destructed_path_index.erase(object_path);
-  }
-  if (owner_local_live_path_index_contains_locked(object_path)) {
-    return;
-  }
-  for (auto &entry : owner_shards) {
-    uint64_t selected_object_id = 0;
-    for (const auto &record_entry : entry.second.destructed_records) {
-      if (record_entry.second.object_path == object_path && record_entry.first > selected_object_id) {
-        selected_object_id = record_entry.first;
-      }
-    }
-    if (selected_object_id != 0) {
-      entry.second.destructed_path_index[object_path] = selected_object_id;
-    }
+  if (shadowed_it->second <= 1) {
+    shadowed_destructed_path_counts.erase(shadowed_it);
+  } else {
+    shadowed_it->second--;
   }
 }
 
@@ -1179,21 +1254,21 @@ void shard_add_live_object(VMObjectShard &shard, const ObjectRecord &record, obj
   shard.local_records[record.object_id] = record;
   shard_set_live_object_ref(shard, record.object_id, object);
   shard.destructed_records.erase(record.object_id);
-  if (!record.object_path.empty()) {
-    refresh_live_path_index_for_path_locked(record.object_path);
-  }
+  shard_add_path_index(shard.object_path_index, shard.live_path_duplicate_counts, record);
 }
 
 void shard_remove_object(VMObjectShard &shard, uint64_t object_id) {
   std::string object_path;
   auto live_record = shard.local_records.find(object_id);
-  if (live_record != shard.local_records.end()) {
+  const bool removed_live_record = live_record != shard.local_records.end();
+  if (removed_live_record) {
     object_path = live_record->second.object_path;
-  } else {
-    auto destructed_record = shard.destructed_records.find(object_id);
-    if (destructed_record != shard.destructed_records.end()) {
-      object_path = destructed_record->second.object_path;
-    }
+  }
+  auto destructed_record = shard.destructed_records.find(object_id);
+  const bool removed_destructed_record = !removed_live_record &&
+                                         destructed_record != shard.destructed_records.end();
+  if (removed_destructed_record) {
+    object_path = destructed_record->second.object_path;
   }
   shard_remove_live_path_index(shard, object_id);
   shard_remove_destructed_path_index(shard, object_id);
@@ -1202,11 +1277,24 @@ void shard_remove_object(VMObjectShard &shard, uint64_t object_id) {
   shard.local_records.erase(object_id);
   shard_remove_live_object_ref(shard, object_id);
   shard.destructed_records.erase(object_id);
-  refresh_live_path_index_for_path_locked(object_path);
-  refresh_destructed_path_index_for_path_locked(object_path);
+  if (removed_destructed_record) {
+    decrement_shadowed_destructed_path_count(object_path);
+  }
+  if (removed_live_record && !object_path.empty()) {
+    if (owner_local_live_path_index_contains_locked(object_path)) {
+      erase_destructed_path_index_for_live_path_locked(object_path);
+    } else if (shadowed_destructed_path_counts.count(object_path) != 0) {
+      rebuild_destructed_path_index_for_path_locked(object_path);
+    }
+  }
 }
 
 void shard_mark_destructed_object(VMObjectShard &shard, const ObjectRecord &record) {
+  auto previous_destructed = shard.destructed_records.find(record.object_id);
+  if (previous_destructed != shard.destructed_records.end() &&
+      shadowed_destructed_path_counts.count(previous_destructed->second.object_path) != 0) {
+    decrement_shadowed_destructed_path_count(previous_destructed->second.object_path);
+  }
   shard_remove_live_path_index(shard, record.object_id);
   shard_remove_destructed_path_index(shard, record.object_id);
   shard.status.objects.erase(record.object_id);
@@ -1214,8 +1302,18 @@ void shard_mark_destructed_object(VMObjectShard &shard, const ObjectRecord &reco
   shard.local_records.erase(record.object_id);
   shard_remove_live_object_ref(shard, record.object_id);
   shard.destructed_records[record.object_id] = record;
-  refresh_live_path_index_for_path_locked(record.object_path);
-  refresh_destructed_path_index_for_path_locked(record.object_path);
+  if (record.object_path.empty()) {
+    return;
+  }
+  if (owner_local_live_path_index_contains_locked(record.object_path)) {
+    erase_destructed_path_index_for_live_path_locked(record.object_path);
+    shadowed_destructed_path_counts[record.object_path]++;
+  } else if (shadowed_destructed_path_counts.count(record.object_path) != 0) {
+    rebuild_destructed_path_index_for_path_locked(record.object_path);
+  } else {
+    shard_add_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
+                         record);
+  }
 }
 
 mapping_t *vm_object_shard_contract_mapping(const VMObjectShard &shard, const OwnerLocalBridgeSummary &summary) {

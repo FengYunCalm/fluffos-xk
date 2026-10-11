@@ -286,6 +286,20 @@ void add_samples(Report &report, const std::string &prefix, const std::vector<lo
   report.add(prefix + "_p99_ns", percentile(samples, 0.99));
 }
 
+void add_lifecycle_stage_metrics(Report &report, const VMObjectLifecyclePerfSnapshot &snapshot) {
+  for (size_t i = 0; i < VM_OBJECT_LIFECYCLE_PERF_STAGE_COUNT; i++) {
+    std::string stage = vm_object_lifecycle_perf_stage_name(i);
+    if (stage.empty()) {
+      continue;
+    }
+    auto count = static_cast<long long>(snapshot.counts[i]);
+    auto total_ns = static_cast<long long>(snapshot.total_ns[i]);
+    report.add("lifecycle_stage_" + stage + "_count", count);
+    report.add("lifecycle_stage_" + stage + "_total_ns", total_ns);
+    report.add("lifecycle_stage_" + stage + "_avg_ns", count > 0 ? total_ns / count : 0);
+  }
+}
+
 void run_clone_destruct_lifecycle_bench(Report &report) {
   constexpr long iterations = 512;
   std::vector<long long> clone_samples;
@@ -323,17 +337,7 @@ void run_clone_destruct_lifecycle_bench(Report &report) {
              static_cast<long long>(vm_destructed_object_cleanup_total() - cleanup_total_before));
   add_samples(report, "clone_latency", clone_samples);
   add_samples(report, "destruct_latency", destruct_samples);
-  for (size_t i = 0; i < VM_OBJECT_LIFECYCLE_PERF_STAGE_COUNT; i++) {
-    std::string stage = vm_object_lifecycle_perf_stage_name(i);
-    if (stage.empty()) {
-      continue;
-    }
-    auto count = static_cast<long long>(snapshot.counts[i]);
-    auto total_ns = static_cast<long long>(snapshot.total_ns[i]);
-    report.add("lifecycle_stage_" + stage + "_count", count);
-    report.add("lifecycle_stage_" + stage + "_total_ns", total_ns);
-    report.add("lifecycle_stage_" + stage + "_avg_ns", count > 0 ? total_ns / count : 0);
-  }
+  add_lifecycle_stage_metrics(report, snapshot);
 }
 
 int parse_probe_count(const char* text, const char* option) {
@@ -362,19 +366,31 @@ void run_scaled_store_probe(Report& report, int count, const std::string& operat
   std::vector<VMObjectHandle> handles;
   objects.reserve(count);
   handles.reserve(count);
+  vm_object_lifecycle_perf_reset();
+  vm_object_lifecycle_perf_set_enabled(true);
+  auto lifecycle_clone_start = Clock::now();
+  long long owner_transfer_elapsed_ns = 0;
   // Fixture lifecycle calls are separate evaluations, not one bulk LPC command.
   for (int i = 0; i < count; ++i) {
     set_eval(max_eval_cost);
     auto* object = clone_object_for_bench("single/void");
     require(object != nullptr, "failed to clone probe object");
     objects.push_back(object);
+    auto owner_transfer_start = Clock::now();
     vm_owner_set_id(object, ("owner/probe/" + std::to_string(i % 4)).c_str());
+    owner_transfer_elapsed_ns += elapsed_ns(owner_transfer_start);
     handles.push_back(vm_object_handle(object));
   }
+  auto lifecycle_clone_elapsed_ns = elapsed_ns(lifecycle_clone_start);
+  auto lifecycle_destruct_start = Clock::now();
   for (int i = 0; i < count; i += 10) {
     set_eval(max_eval_cost);
     destruct_object_for_bench(objects[i]);
   }
+  auto lifecycle_destruct_elapsed_ns = elapsed_ns(lifecycle_destruct_start);
+  auto lifecycle_prepare_elapsed_ns = lifecycle_clone_elapsed_ns + lifecycle_destruct_elapsed_ns;
+  vm_object_lifecycle_perf_set_enabled(false);
+  auto lifecycle_snapshot = vm_object_lifecycle_perf_snapshot();
   auto handle = handles[1];
   if (operation == "missing") {
     handle.object_id = UINT64_MAX;
@@ -451,6 +467,14 @@ void run_scaled_store_probe(Report& report, int count, const std::string& operat
   report.add("object_count", count);
   report.add("probe_rounds", rounds);
   report.add_string("probe_operation", operation);
+  report.add("lifecycle_prepare_clone_count", count);
+  report.add("lifecycle_prepare_destruct_count", count / 10);
+  report.add("lifecycle_prepare_clone_elapsed_ns", lifecycle_clone_elapsed_ns);
+  report.add("lifecycle_prepare_owner_transfer_count", count);
+  report.add("lifecycle_prepare_owner_transfer_elapsed_ns", owner_transfer_elapsed_ns);
+  report.add("lifecycle_prepare_destruct_elapsed_ns", lifecycle_destruct_elapsed_ns);
+  report.add("lifecycle_prepare_elapsed_ns", lifecycle_prepare_elapsed_ns);
+  add_lifecycle_stage_metrics(report, lifecycle_snapshot);
   for (auto* object : objects) {
     set_eval(max_eval_cost);
     destruct_object_for_bench(object);
