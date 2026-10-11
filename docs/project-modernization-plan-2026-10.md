@@ -124,7 +124,7 @@
 | F01 | P0 | compress.cc 的文件压缩/解压循环忽略部分 read/write/close 结果，末尾仍 unlink 源文件并返回 1；gzread 的负值没有在写出前完整分流 | 有错误报告/数据保全缺口；需损坏输入和故障注入复现，不能在真实数据上验证 | U01 |
 | F02 | P0 | core/file.cc、ed.cc、base/object.cc 等仍有写入/flush/rename 错误传播缺口 | 上游 b2ba3f8f 有对应修复；逐 hunk 核对，不能套用其源文件处理或覆盖本地 source-spelling | U01 |
 | F03 | P1 | sockets.spec 声明 getter 两参数；sockets.cc::f_socket_get_option 读取 sp-2/sp-1，push 返回值后再 pop_2_elems | 参数和返回栈位置不符合两参数合同，需前后栈哨兵/不同 fd、option 的回归 | U02a |
-| F04 | P1 | socket text-mode 每次读取单独 sanitize，未保存跨 read 的 UTF-8 尾部 | 合法多字节字符可能在 TCP/TLS 分片处受损；EOF 残片策略是独立兼容决定 | U02b |
+| F04 | P1 | （修复前）socket text-mode 每次读取单独 sanitize，未保存跨 read 的 UTF-8 尾部；当前实现已加入每 socket 的有限 carry 状态 | 修复前合法多字节字符可能在 TCP/TLS 分片处受损；EOF、读错、本地 close 和 fd 重用策略已在 11.7b 登记并验证 | U02b |
 | F05 | P0 | tracing.cc 的 dump thread 调 debug_message；log.cc 的日志状态不是为任意后台线程同步的 | 线程边界缺口；不能仅在 logger 外加一把锁，更不能因 dump 失败再从 worker 调 logger | U03 |
 | F06 | P1 | async.cc 已在回调前释放 finished 队列锁并保留 active_callbacks | 上游新 async deadlock 修复的核心结构已存在；不重复移植，只补嵌套回调+check_memory 反例 | U04 |
 | F07 | P1 | lex.cc include 路径组装仍可能保留多重分隔符，固定缓冲区拼接也需核对长度上限；上游相应逻辑位于 lexer_utils.cc | 不能修改 valid_read 接收的原始拼写来“修复”include_list；长路径边界必须测试 | U05 |
@@ -1038,7 +1038,16 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - Debug、ASan、UBSan 各原生 2/2；每种构建的 getter LPC 入口和既有真实 TLS loopback 入口分别 1/1，均无跳过并经过完成记录。覆盖四种选项、不同 fd、字符串关闭后仍有效、int/string/未设置/空串、非法/关闭 fd、未知选项、setter 类型错误、重复调用及前置栈值。ASan detect_leaks=0，未声明 LSan 或 U02b 分片已验证。
 - 核对源码确认：新 socket 的选项初值为 0；TLS 客户端配置身份后清除 SNI 存储；getter 不做存活或 owner 授权检查。同步纠正 getter/setter 归属文档，不改变 TLS 身份验证、setter、关闭槽或授权策略。
 - 首次原生命令误指冻结 baseline，因没有新增测试被拒绝，未计作有效反例。另有一次源指针 const 类型编译失败，已按现有 svalue API 修正。重复 --case 只执行最后的 TLS 入口，因此补跑独立 getter；没有将一次运行记成两个入口。原失败/不完整记录均保留。
-- 构建归属：build-organize-debug 指向当前工作树；build-organize-baseline-debug 指向冻结 baseline-source，不能混用。U02a 默认 Linux 验收完成；U02b 的 EOF/读错/本地关闭策略及真实读取边界观测仍待完成，未先合入 carry。所有权政策不收紧；任何新增拒绝仍走兼容决策出口。独立 U03 等单元继续。
+- 构建归属：build-organize-debug 指向当前工作树；build-organize-baseline-debug 指向冻结 baseline-source，不能混用。当时 U02a 默认 Linux 验收完成，U02b 的 EOF/读错/本地关闭策略及真实读取边界观测仍待完成，未先合入 carry；该历史出口已由 11.7b 收口。所有权政策不收紧；任何新增拒绝仍走兼容决策出口。
+
+### 11.7b U02b：TCP/TLS 文本分片、EOF、关闭与 fd 重用
+
+- **状态**：`accepted/Linux`。为每个 socket 增加 `SocketTextAccumulator`，只保存最多 3 字节的合法不完整 UTF-8 尾部；完整输入仍立即使用既有 `u8_sanitize`，`STREAM_BINARY`/`STREAM_TLS_BINARY` 不进入 carry 路径。`clear_socket()` 清除尾部，避免关闭和 fd 重用继承旧状态。
+- **失败优先与根因**：修复前 `STREAM` 与 `STREAM_TLS` 每次 `recv`/`SSL_read` 都独立调用 `u8_sanitize`，跨读取的合法前缀会立即变成替代字符。当前实现把 TCP/TLS 文本路径统一交给同一 accumulator；读错/EOF 在关闭前调用 `flush()`，把未完成尾部按旧行为交付一个替代字符；显式本地 close 清除未完成尾部，不伪造数据。回调交付后只按原始 fd 复核状态，回调关闭 socket 不再继续访问已变化的槽位。
+- **回归**：新增真实 loopback TCP 与 TLS 分片入口，发送 2/3/4 字节字符的跨读前缀、连续 carry 和 ASCII 混合 payload，并断言 TCP/TLS 各至少观察到 3 次实际读回调；新增非法序列入口、BINARY 原字节入口、EOF 残片入口，以及本地 close 后同一 accepted fd 重用入口。TCP 读回调在完整 payload 后主动关闭 socket，覆盖 callback 销毁路径。共享 `SocketTextAccumulator` 单测只作为补充，不能代替上述真实 driver 路径。
+- **EOF/关闭决策**：远端 EOF 或读错先 flush 未完成尾部，保持旧实现的替代字符合同；应用主动本地 close 丢弃尚未交付的尾部并清空 accumulator。fd 重用测试发送不含 UTF-8 前缀的 `A`，确认前一连接的尾部不会泄漏到新连接。该选择不改变 binary 字节交付，也不改变 TLS SNI/证书验证合同。
+- **验收**：6 个 LPC 入口（TCP 分片、TLS 分片、EOF、close/reuse、非法文本、binary）在 Debug、ASan、UBSan、TSan 各 `6/6`，合计 `24/24`，均 `selected=1,passed=1,failed=0,skipped=0`；TSan 使用 `setarch x86_64 -R`。`SocketTextAccumulatorTest.*` 在四种构建各 `3/3`，合计 `12/12`。证据位于 `build-modernization-evidence/u02b/dev-debug-*-v5/`、`build-asan-*-v5/`、`build-ubsan-*-v5/`、`build-tsan-*-v5/`；旧失败/迭代证据未删除。无 timeout、assertion、SIGSEGV 或 sanitizer 诊断，未宣称 LSan。
+- **代码门禁**：`check-format.py --base HEAD` 对 4 个已修改 native 文件通过；两个新增 C++ 文件显式 `--paths` 检查通过。直接检查包含既有全文件时会报告历史格式差异，未对存量文件做全文件格式化。U02b 默认 Linux 门禁完成；Windows、长期 soak 和真实下游不在本项声明内。
 
 ### 11.8 U03：trace 写出与主线程报告
 

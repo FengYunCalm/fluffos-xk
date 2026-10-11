@@ -7,6 +7,8 @@
 #ifndef _SOCKET_EFUNS_H_
 #define _SOCKET_EFUNS_H_
 
+#include "packages/sockets/socket_text.h"
+
 #include <cstdint>
 #include <event2/util.h>
 
@@ -73,6 +75,7 @@ struct lpc_socket_t {
   struct lpc_socket_event_data *ev_data;
   SSL_CTX* ssl_ctx;
   SSL* ssl;
+  SocketTextAccumulator text_input;
   svalue_t options[NUM_SOCKET_OPTIONS];
 };
 

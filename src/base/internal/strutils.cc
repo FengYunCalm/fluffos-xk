@@ -45,6 +45,40 @@ bool u8_validate(const uint8_t *s, size_t len) {
 
 std::string u8_sanitize(std::string_view src) { return utf8::replace_invalid(src); }
 
+size_t u8_incomplete_tail(std::string_view src) {
+  const size_t scan = std::min(src.size(), size_t{3});
+  for (size_t back = 1; back <= scan; ++back) {
+    const auto byte = static_cast<unsigned char>(src[src.size() - back]);
+    if ((byte & 0xc0) == 0x80) {
+      continue;
+    }
+
+    size_t sequence_length = 0;
+    if (byte >= 0xc2 && byte <= 0xdf) {
+      sequence_length = 2;
+    } else if (byte >= 0xe0 && byte <= 0xef) {
+      sequence_length = 3;
+    } else if (byte >= 0xf0 && byte <= 0xf4) {
+      sequence_length = 4;
+    } else {
+      return 0;
+    }
+
+    if (sequence_length <= back) {
+      return 0;
+    }
+    if (back > 1) {
+      const auto second = static_cast<unsigned char>(src[src.size() - back + 1]);
+      if ((byte == 0xe0 && second < 0xa0) || (byte == 0xed && second > 0x9f) ||
+          (byte == 0xf0 && second < 0x90) || (byte == 0xf4 && second > 0x8f)) {
+        return 0;
+      }
+    }
+    return back;
+  }
+  return 0;
+}
+
 // Search "needle' in 'haystack', making sure it matches EGC boundary, returning byte offset.
 int32_t u8_egc_find_as_offset(EGCIterator &iter, const char *needle, size_t needle_len,
                               bool reverse) {

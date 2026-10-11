@@ -34,6 +34,8 @@ title: sockets / socket_create
 
     其中参数 `fd` 是接收到数据的 socket 连接；参数 `message` 是接收到的数据，在非二进制模式下返回值是 utf-8 格式的字符串，在二进制模式下返回值是 buffer；第三个参数 `addr` 为客户端地址。
 
+    非二进制模式下，如果合法 UTF-8 字符跨越网络读取边界，驱动会保留最多 3 个字节的不完整尾部，待后续字节到达后再交付。对端 EOF 或读取错误会按原有规则把未完成尾部交付为 UTF-8 替代字符；显式调用 `socket_close()` 会丢弃尚未交付的尾部。二进制模式直接交付原始字节，不做 UTF-8 清理，也不跨读取保存尾部。
+
     参数 `close_callback` 是在TCP协议下 socket 意外关闭时驱动程序调用的函数名称（如不是通过 socket_close() 关闭）。此函数原型应该是以下格式：
 
     void close_callback(int fd);

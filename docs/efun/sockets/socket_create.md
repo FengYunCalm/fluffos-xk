@@ -43,9 +43,9 @@ title: sockets / socket_create
     Where fd is the socket which received the data, and message is the data
     which was received, addr is the client address.
 
-    In non-binary mode, message will be sanitized with UTF8 encoding and returned as an string.
+    In non-binary mode, message will be sanitized with UTF8 encoding and returned as an string. If a valid UTF-8 character is split across network reads, the driver retains its incomplete suffix (up to three bytes) and delivers it after the remaining bytes arrive. On peer EOF or a read error, an incomplete suffix is delivered using the existing UTF-8 replacement-character behavior. An explicit socket_close() discards an undelivered suffix.
 
-    In binary mode, raw messages will be returned as a buffer.
+    In binary mode, raw messages will be returned as a buffer; bytes are not UTF-8 sanitized or carried between reads.
 
     The argument close_callback is the name of a function for the driver to
     call if the socket closes unexpectedly, i.e. not as  the  result  of  a

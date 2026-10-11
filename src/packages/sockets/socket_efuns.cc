@@ -283,6 +283,7 @@ static void clear_socket(int which, int dofree) {
   lpc_socks[which].w_len = 0;
   lpc_socks[which].ev_read = nullptr;
   lpc_socks[which].ev_write = nullptr;
+  lpc_socks[which].text_input.clear();
   for (int i = 0; i < NUM_SOCKET_OPTIONS; i++) {
     if (lpc_socks[which].options[i].type != T_NUMBER ||
         lpc_socks[which].options[i].u.number != 0) {
@@ -1498,6 +1499,30 @@ static void call_callback(int fd, int what, int num_arg) {
   }
 }
 
+static void deliver_socket_text(int fd, const std::string& text) {
+  if (text.empty()) {
+    return;
+  }
+  push_number(fd);
+  copy_and_push_string(text.c_str());
+  debug(sockets, ("read_socket_handler: apply read callback\n"));
+  call_callback(fd, S_READ_FP, 2);
+}
+
+static bool flush_socket_text(int fd) {
+  if (lpc_socks[fd].flags & S_BINARY) {
+    return true;
+  }
+  auto text = lpc_socks[fd].text_input.flush();
+  if (text.empty()) {
+    return true;
+  }
+  const auto real_fd = lpc_socks[fd].fd;
+  deliver_socket_text(fd, text);
+  return fd < lpc_socks.size() && lpc_socks[fd].state != STATE_CLOSED &&
+         lpc_socks[fd].fd == real_fd;
+}
+
 /*
  * Handle LPC efun socket read select events
  */
@@ -1706,10 +1731,10 @@ void socket_read_select_handler(int fd) {
 #endif
           debug(sockets, "read_socket_handler: read %d bytes\n", cc);
           buf[cc] = '\0';
-          push_number(fd);
           if (lpc_socks[fd].flags & S_BINARY) {
             buffer_t *b;
 
+            push_number(fd);
             b = allocate_buffer(cc);
             if (b) {
               b->ref--;
@@ -1718,12 +1743,12 @@ void socket_read_select_handler(int fd) {
             } else {
               push_number(0);
             }
+            debug(sockets, ("read_socket_handler: apply read callback\n"));
+            call_callback(fd, S_READ_FP, 2);
           } else {
-            auto res = u8_sanitize(buf);
-            copy_and_push_string(res.c_str());
+            auto res = lpc_socks[fd].text_input.consume({buf, static_cast<std::size_t>(cc)});
+            deliver_socket_text(fd, res);
           }
-          debug(sockets, ("read_socket_handler: apply read callback\n"));
-          call_callback(fd, S_READ_FP, 2);
           return;
         case STREAM_BINARY:
         case DATAGRAM_BINARY:
@@ -1756,10 +1781,10 @@ void socket_read_select_handler(int fd) {
 #endif
           debug(sockets, "read_socket_handler: SSL_read %d bytes\n", cc);
           buf[cc] = '\0';
-          push_number(fd);
           if (lpc_socks[fd].flags & S_BINARY) {
             buffer_t *b;
 
+            push_number(fd);
             b = allocate_buffer(cc);
             if (b) {
               b->ref--;
@@ -1768,12 +1793,12 @@ void socket_read_select_handler(int fd) {
             } else {
               push_number(0);
             }
+            debug(sockets, ("read_socket_handler: apply read callback\n"));
+            call_callback(fd, S_READ_FP, 2);
           } else {
-            auto res = u8_sanitize(buf);
-            copy_and_push_string(res.c_str());
+            auto res = lpc_socks[fd].text_input.consume({buf, static_cast<std::size_t>(cc)});
+            deliver_socket_text(fd, res);
           }
-          debug(sockets, ("read_socket_handler: apply read callback\n"));
-          call_callback(fd, S_READ_FP, 2);
           return;
       }
       break;
@@ -1808,6 +1833,9 @@ void socket_read_select_handler(int fd) {
       break;
   }
 
+  if (!flush_socket_text(fd)) {
+    return;
+  }
   lpc_socks[fd].flags |= S_LINKDEAD;
   socket_close(fd, SC_FORCE | SC_DO_CALLBACK | SC_FINAL_CLOSE);
 }

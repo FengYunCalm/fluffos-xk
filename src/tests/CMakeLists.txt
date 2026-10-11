@@ -10,7 +10,8 @@ if(${GTEST_FOUND})
     test_lpc_compiler.cc
     test_lpc_gateway.cc
     test_lpc_owner.cc
-    test_egc.cc)
+    test_egc.cc
+    test_socket_text.cc)
   target_link_libraries(lpc_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest  GTest::Main)
   target_compile_definitions(lpc_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
 
