@@ -1,0 +1,8 @@
+nosave mixed base_gate;
+
+void set_gate(mixed p) { base_gate = p; }
+
+async int base_park(int value) {
+  int gate_value = await base_gate;
+  return value + gate_value;
+}

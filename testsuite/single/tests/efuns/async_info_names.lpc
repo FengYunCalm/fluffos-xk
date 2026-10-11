@@ -1,0 +1,37 @@
+private object clone;
+private mixed gate;
+private int completion_token;
+
+void finish_test() {
+  gate = 0;
+  if (clone) {
+    destruct(clone);
+    clone = 0;
+  }
+  "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+  completion_token = "/command/tests"->begin_async();
+
+  call_out(function() {
+    mapping *info;
+    string found = "<none>";
+
+    clone = clone_object("/clone/async_info_names");
+    ASSERT(objectp(clone));
+    gate = promise_create();
+    clone->set_gate2(gate);
+    clone->named_parker();
+
+    info = async_info();
+    foreach (mapping entry in info) {
+      if (entry["object"] == clone) {
+        found = entry["function"];
+      }
+    }
+    ASSERT_EQ("named_parker", found);
+    promise_resolve(gate, 1);
+    call_out((: finish_test :), 1);
+  }, 1);
+}
