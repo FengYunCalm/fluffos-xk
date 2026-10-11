@@ -1,0 +1,19 @@
+private int parked;
+private int completion_token;
+
+async void parker() {
+  promise pending = async_yield();
+
+  parked = 1;
+  await pending;
+  parked = 2;
+}
+
+void do_tests() {
+  mixed source = read_file("/single/master.c", 1, 1);
+  completion_token = "/command/tests"->begin_async();
+  ASSERT(stringp(source));
+  parker();
+  ASSERT_EQ(1, parked);
+  "/command/tests"->complete_async(completion_token);
+}
