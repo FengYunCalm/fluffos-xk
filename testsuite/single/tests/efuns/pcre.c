@@ -32,27 +32,27 @@ void do_tests() {
 
 #ifndef __PACKAGE_PCRE__
   write("PACKAGE_PCRE not defined, test skipped.");
-  return ;
+  return;
 #endif
 
   // Invalid patterns must raise a catchable LPC error, not crash in the cache.
   ASSERT(catch(pcre_match("abc", "(")));
   ASSERT(catch(pcre_match_all("abc", "(")));
   ASSERT(catch(pcre_extract("abc", "(")));
-  ASSERT(catch(pcre_replace("abc", "(", ({"x"}))));
-  ASSERT(catch(pcre_replace("abc", "(a)", ({1}))));
+  ASSERT(catch(pcre_replace("abc", "(", ({ "x" }))));
+  ASSERT(catch(pcre_replace("abc", "(a)", ({ 1 }))));
   ASSERT(catch(pcre_match(bad_type, "abc")));
   ASSERT(catch(pcre_match("abc", bad_type)));
   ASSERT(catch(pcre_match_all("abc", bad_type)));
   ASSERT(catch(pcre_extract(bad_type, "abc")));
-  ASSERT(catch(pcre_assoc("abc", bad_type, ({1}), 0, 0)));
+  ASSERT(catch(pcre_assoc("abc", bad_type, ({ 1 }), 0, 0)));
 
   // PCRE2_UTF rejects malformed pattern and subject bytes instead of treating
   // them as an unchecked byte stream.
   ASSERT(catch(pcre_match("abc", invalid_utf)));
   ASSERT(catch(pcre_match(invalid_utf, "abc")));
 
-  ASSERT_EQ(1, pcre_match("123", "^[0-9]+$")); // or other pattern
+  ASSERT_EQ(1, pcre_match("123", "^[0-9]+$"));  // or other pattern
 
   // Array form with a 3rd (flag) argument: is_string used to be computed from
   // the wrong stack slot for any 3-argument call, misrouting this into the
@@ -64,31 +64,31 @@ void do_tests() {
   ASSERT(same_array(
     pcre_assoc("testhahatest", ({ "haha", "te" }), ({ 2, 3 }), 4),
     ({ ({ "", "te", "st", "haha", "", "te", "st" }),
-        ({ 4, 3, 4, 2, 4, 3, 4 }) })));
+      ({ 4, 3, 4, 2, 4, 3, 4 }) })));
   ASSERT(catch(pcre_assoc("foo", ({ 1 }), ({ 2, 3 }))));
   ASSERT(catch(pcre_assoc("foo", ({ 1, 2 }), ({ 2, 3 }))));
   ASSERT(catch(pcre_assoc("foo", ({ "bar", "+" }), ({ 0, 1 }))));
 
-  ASSERT_EQ(({"bb"}), pcre_extract( "bbracadabra", "([abc]+)" ));
+  ASSERT_EQ(({ "bb" }), pcre_extract("bbracadabra", "([abc]+)"));
 
   // https://tools.ietf.org/html/rfc3986#appendix-B
   ASSERT_EQ(
-      ({ /* sizeof() == 1 */
-        ({ /* sizeof() == 10 */
-          "http://www.ics.uci.edu/pub/ietf/uri/#Related",
-              "http:",
-              "http",
-              "//www.ics.uci.edu",
-              "www.ics.uci.edu",
-              "/pub/ietf/uri/",
-              "",
-              "",
-              "#Related",
-              "Related"
-        })
-      }),
-      pcre_match_all("http://www.ics.uci.edu/pub/ietf/uri/#Related",
-                           "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?" ));
+    ({ /* sizeof() == 1 */
+      ({ /* sizeof() == 10 */
+        "http://www.ics.uci.edu/pub/ietf/uri/#Related",
+        "http:",
+        "http",
+        "//www.ics.uci.edu",
+        "www.ics.uci.edu",
+        "/pub/ietf/uri/",
+        "",
+        "",
+        "#Related",
+        "Related"
+      })
+    }),
+    pcre_match_all("http://www.ics.uci.edu/pub/ietf/uri/#Related",
+      "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?"));
 
   // multiline phone number
   tmp = @TEXT
@@ -101,84 +101,84 @@ void do_tests() {
 TEXT;
   re = "(?m)^(?:(?:\\+?1\\s*(?:[.-]\\s*)?)?(?:\\(\\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\\s*\\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\\s*(?:[.-]\\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\\s*(?:[.-]\\s*)?([0-9]{4})(?:\\s*(?:#|x\\.?|ext\\.?|extension)\\s*(\\d+))?$";
   ASSERT_EQ(
-      ({ /* sizeof() == 4 */
-        ({ /* sizeof() == 5 */
-          "984-662-2681",
-              "",
-              "984",
-              "662",
-              "2681"
-        }),
-            ({ /* sizeof() == 5 */
-              "747-251-7561",
-                  "",
-                  "747",
-                  "251",
-                  "7561"
-            }),
-            ({ /* sizeof() == 5 */
-              "747-405-0262",
-                  "",
-                  "747",
-                  "405",
-                  "0262"
-            }),
-            ({ /* sizeof() == 5 */
-              "775-203-2073",
-                  "",
-                  "775",
-                  "203",
-                  "2073"
-            })
+    ({ /* sizeof() == 4 */
+      ({ /* sizeof() == 5 */
+        "984-662-2681",
+        "",
+        "984",
+        "662",
+        "2681"
       }),
-      pcre_match_all(tmp, re));
+      ({ /* sizeof() == 5 */
+        "747-251-7561",
+        "",
+        "747",
+        "251",
+        "7561"
+      }),
+      ({ /* sizeof() == 5 */
+        "747-405-0262",
+        "",
+        "747",
+        "405",
+        "0262"
+      }),
+      ({ /* sizeof() == 5 */
+        "775-203-2073",
+        "",
+        "775",
+        "203",
+        "2073"
+      })
+    }),
+    pcre_match_all(tmp, re));
 
   tmp = "However, if you need to match after every line terminator";
   re = "(?:[d-z])([a-z]([a-z]+))";
   ASSERT_EQ(
-      ({ /* sizeof() == 8 */
-        ({ /* sizeof() == 3 */
-          "owever",
-              "wever",
-              "ever"
-        }),
-            ({ /* sizeof() == 3 */
-              "you",
-                  "ou",
-                  "u"
-            }),
-            ({ /* sizeof() == 3 */
-              "need",
-                  "eed",
-                  "ed"
-            }),
-            ({ /* sizeof() == 3 */
-              "match",
-                  "atch",
-                  "tch"
-            }),
-            ({ /* sizeof() == 3 */
-              "fter",
-                  "ter",
-                  "er"
-            }),
-            ({ /* sizeof() == 3 */
-              "every",
-                  "very",
-                  "ery"
-            }),
-            ({ /* sizeof() == 3 */
-              "line",
-                  "ine",
-                  "ne"
-            }),
-            ({ /* sizeof() == 3 */
-              "terminator",
-                  "erminator",
-                  "rminator"
-            })
+    ({ /* sizeof() == 8 */
+      ({ /* sizeof() == 3 */
+        "owever",
+        "wever",
+        "ever"
       }),
-      pcre_match_all(tmp, re));
+      ({ /* sizeof() == 3 */
+        "you",
+        "ou",
+        "u"
+      }),
+      ({ /* sizeof() == 3 */
+        "need",
+        "eed",
+        "ed"
+      }),
+      ({ /* sizeof() == 3 */
+        "match",
+        "atch",
+        "tch"
+      }),
+      ({ /* sizeof() == 3 */
+        "fter",
+        "ter",
+        "er"
+      }),
+      ({ /* sizeof() == 3 */
+        "every",
+        "very",
+        "ery"
+      }),
+      ({ /* sizeof() == 3 */
+        "line",
+        "ine",
+        "ne"
+      }),
+      ({ /* sizeof() == 3 */
+        "terminator",
+        "erminator",
+        "rminator"
+      })
+    }),
+    pcre_match_all(tmp, re));
 
   tmp = "alpha 99";
   re = "(?<word>\\w+) (?<num>\\d+)";
@@ -186,14 +186,14 @@ TEXT;
   ASSERT_EQ(3, sizeof(named));
   ASSERT_EQ("alpha", named[0]);
   ASSERT_EQ("99", named[1]);
-  ASSERT_EQ((["word": "alpha", "num": "99"]), named[2]);
+  ASSERT_EQ(([ "word": "alpha", "num": "99" ]), named[2]);
 
-  ASSERT_EQ(({"alpha", "99"}), pcre_extract(tmp, re));
+  ASSERT_EQ(({ "alpha", "99" }), pcre_extract(tmp, re));
 
   // No named groups but include flag => empty mapping appended.
   mixed *with_empty_map = pcre_extract("abc", "(a)(b)(c)", 1);
   ASSERT_EQ(4, sizeof(with_empty_map));
-  ASSERT_EQ(([ ]), with_empty_map[3]); // empty mapping
+  ASSERT_EQ(([]), with_empty_map[3]);  // empty mapping
   ASSERT_EQ("a", with_empty_map[0]);
 
   // Named group present but not participating should yield empty mapping entry.
@@ -202,40 +202,40 @@ TEXT;
   ASSERT_EQ("a", optional_named[0]);
   ASSERT_EQ("", optional_named[1]);
   ASSERT_EQ("c", optional_named[2]);
-  ASSERT_EQ(([ ]), optional_named[3]);
+  ASSERT_EQ(([]), optional_named[3]);
 
   // Unmatched capture groups are represented by empty strings.
   ASSERT_EQ(({
-    ({"ac", "a", "", "c"})
+    ({ "ac", "a", "", "c" })
   }), pcre_match_all("ac", "(a)(b)?(c)"));
 
-  int flag_i = 1 << 16; // PCRE_I
-  ASSERT_EQ("xbc", pcre_replace("abc", "(A)", ({"x"}), flag_i));
+  int flag_i = 1 << 16;  // PCRE_I
+  ASSERT_EQ("xbc", pcre_replace("abc", "(A)", ({ "x" }), flag_i));
   ASSERT_EQ("a!bc", pcre_replace_callback("abc", "(A)", (: $1 + "!" :), flag_i));
 
   // Nested captures overlap; the outer capture is replaced and the inner one is skipped.
-  ASSERT_EQ("X", pcre_replace("ab", "(a(b))", ({"X", "Y"})));
-  ASSERT_EQ("AC", pcre_replace("ac", "(a)(b)?(c)", ({"A", "B", "C"})));
+  ASSERT_EQ("X", pcre_replace("ab", "(a(b))", ({ "X", "Y" })));
+  ASSERT_EQ("AC", pcre_replace("ac", "(a)(b)?(c)", ({ "A", "B", "C" })));
 
   // Empty matches must advance instead of repeatedly matching the same offset.
   ASSERT_EQ(({
-    ({""}),
-    ({""})
+    ({ "" }),
+    ({ "" })
   }), pcre_match_all("ab", "(?=.)"));
   ASSERT_EQ(({
-    ({""}),
-    ({""})
+    ({ "" }),
+    ({ "" })
   }), pcre_match_all("\u00E9x", "(?=.)"));
   ASSERT_EQ(({
-    ({""}),
-    ({"a"}),
-    ({""})
+    ({ "" }),
+    ({ "a" }),
+    ({ "" })
   }), pcre_match_all("a", "(?:|a)"));
   ASSERT_EQ(({
-    ({""})
+    ({ "" })
   }), pcre_match_all("ab", "$"));
   ASSERT_EQ(({
-    ({""})
+    ({ "" })
   }), pcre_match_all("", "^$"));
 
   // pcre_match with flags: case-insensitive and anchored.
@@ -245,29 +245,29 @@ TEXT;
   // pcre_flags.
   ASSERT_EQ(1, pcre_match("abc", "ABC", flag_i, 0));
   ASSERT_EQ(0, pcre_match("abc", "ABC"));
-  int flag_anchored = (1 << 21); // PCRE_A
+  int flag_anchored = (1 << 21);  // PCRE_A
   ASSERT_EQ(0, pcre_match("zabc", "abc", flag_anchored));
 
   // pcre_match_all with flags: multiline
-  int flag_m = (1 << 17); // PCRE_M
+  int flag_m = (1 << 17);  // PCRE_M
   mixed *ma = pcre_match_all("a\nb\nc", "^b", flag_m);
   ASSERT_EQ(1, sizeof(ma));
   ASSERT_EQ("b", ma[0][0]);
 
   // pcre_extract with flags (case-insensitive)
   mixed *ex = pcre_extract("HELLO", "(hello)", 0, flag_i);
-  ASSERT_EQ(({"HELLO"}), ex);
+  ASSERT_EQ(({ "HELLO" }), ex);
 
   // pcre_assoc with flags: case-insensitive match
-  mixed *assoc_res = pcre_assoc("HelloWorld", ({"hello"}), ({1}), 0, flag_i);
-  ASSERT_EQ(({({"", "Hello", "World"}), ({0,1,0})}), assoc_res);
+  mixed *assoc_res = pcre_assoc("HelloWorld", ({ "hello" }), ({ 1 }), 0, flag_i);
+  ASSERT_EQ(({ ({ "", "Hello", "World" }), ({ 0, 1, 0 }) }), assoc_res);
 
   // Separate calls must not reuse the previous call's subject, offsets, or
   // capture vector when the compiled pattern is cached.
   mixed *first_interleaved = pcre_match_all("a1b2", "([ab])");
   mixed *second_interleaved = pcre_match_all("a1b2", "([0-9])");
-  ASSERT_EQ(({({"a", "a"}), ({"b", "b"})}), first_interleaved);
-  ASSERT_EQ(({({"1", "1"}), ({"2", "2"})}), second_interleaved);
+  ASSERT_EQ(({ ({ "a", "a" }), ({ "b", "b" }) }), first_interleaved);
+  ASSERT_EQ(({ ({ "1", "1" }), ({ "2", "2" }) }), second_interleaved);
 
   tmp = "foobar";
   ASSERT_EQ("foo->bar", pcre_replace_callback(tmp, "(foo)", (: $1 + "->" :)));

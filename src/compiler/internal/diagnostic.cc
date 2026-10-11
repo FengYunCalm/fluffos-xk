@@ -16,8 +16,7 @@ namespace {
 // the compiler's arena cycle ended and its storage became reusable. They
 // therefore live in their own session arena, reset by begin_scope() - the
 // "reset before use" shape T3.1 provides.
-compile_arena::ScratchArena g_diag_arena(false, TAG_COMPILE_DIAGNOSTICS,
-                                         "compile_diagnostics");
+compile_arena::ScratchArena g_diag_arena(false, TAG_COMPILE_DIAGNOSTICS, "compile_diagnostics");
 
 std::vector<Diagnostic> g_compile_diags;
 // Non-zero while the parser of a compile scope is running: records are only
@@ -28,27 +27,27 @@ size_t g_records_outside_scope = 0;
 
 // Arena-backed copy: the record outlives the parser's stack buffers but not the
 // compile scope (see the header).
-const char *arena_dup(const char *text, size_t len);
+const char* arena_dup(const char* text, size_t len);
 
-const char *arena_dup(const char *text) {
+const char* arena_dup(const char* text) {
   if (text == nullptr) {
     return nullptr;
   }
   return arena_dup(text, std::strlen(text));
 }
 
-const char *arena_dup(const char *text, size_t len) {
+const char* arena_dup(const char* text, size_t len) {
   if (text == nullptr) {
     return nullptr;
   }
-  char *copy = g_diag_arena.alloc_string(len);
+  char* copy = g_diag_arena.alloc_string(len);
   if (copy != nullptr) {
     std::memcpy(copy, text, len);
   }
   return copy;
 }
 
-Position make_position(const char *file, int line, int column) {
+Position make_position(const char* file, int line, int column) {
   Position position;
   position.file = arena_dup(file);
   position.line = line;
@@ -72,13 +71,19 @@ void end_scope() {
   }
 }
 
-bool scope_active() { return g_scope_depth > 0; }
+bool scope_active() {
+  return g_scope_depth > 0;
+}
 
-size_t records_outside_scope() { return g_records_outside_scope; }
+size_t records_outside_scope() {
+  return g_records_outside_scope;
+}
 
-void clear() { g_compile_diags.clear(); }
+void clear() {
+  g_compile_diags.clear();
+}
 
-void record(const Source &source) {
+void record(const Source& source) {
   if (g_scope_depth == 0) {
     // Reported outside a compile scope (no arena cycle to own the strings).
     g_records_outside_scope++;
@@ -92,7 +97,7 @@ void record(const Source &source) {
   diagnostic.snippet.end_column = source.column;
   diagnostic.snippet.show_context = source.show_context;
   for (int i = 0; i < source.expansion_count; i++) {
-    const ExpansionSite &site = source.expansion_sites[i];
+    const ExpansionSite& site = source.expansion_sites[i];
     Expansion expansion;
     expansion.message = arena_dup(site.name);
     expansion.position = make_position(site.file, site.line, site.column);
@@ -101,11 +106,15 @@ void record(const Source &source) {
   g_compile_diags.push_back(std::move(diagnostic));
 }
 
-size_t size() { return g_compile_diags.size(); }
+size_t size() {
+  return g_compile_diags.size();
+}
 
-const Diagnostic &at(size_t index) { return g_compile_diags[index]; }
+const Diagnostic& at(size_t index) {
+  return g_compile_diags[index];
+}
 
-const Diagnostic *last() {
+const Diagnostic* last() {
   return g_compile_diags.empty() ? nullptr : &g_compile_diags.back();
 }
 

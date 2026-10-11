@@ -54,7 +54,7 @@
 #define FLUFFOS_CRYPTO_DIAGNOSTIC_POP
 #endif
 
-static char *hexdump(const unsigned char *data, int len) {
+static char* hexdump(const unsigned char* data, int len) {
   const char hexchars[] = "0123456789abcdef";
   char *result, *p;
 
@@ -80,12 +80,12 @@ static char *hexdump(const unsigned char *data, int len) {
  * - Returns nullptr if the algorithm is not supported in the current OpenSSL build
  * - The calling code will then show an appropriate error message to the user
  */
-static char *evp_hash(const char *algo, const unsigned char *data, int data_len) {
-  const EVP_MD *md;
-  EVP_MD_CTX *ctx;
+static char* evp_hash(const char* algo, const unsigned char* data, int data_len) {
+  const EVP_MD* md;
+  EVP_MD_CTX* ctx;
   unsigned char hash[EVP_MAX_MD_SIZE];
   unsigned int hash_len;
-  char *result = nullptr;
+  char* result = nullptr;
 
   // Get the message digest algorithm by name (e.g., "sha3-256")
   md = EVP_get_digestbyname(algo);
@@ -121,7 +121,7 @@ static char *evp_hash(const char *algo, const unsigned char *data, int data_len)
 
   // Clean up the digest context
   EVP_MD_CTX_free(ctx);
-  
+
   // Convert binary hash to hexadecimal string representation
   result = hexdump(hash, hash_len);
   return result;
@@ -129,25 +129,25 @@ static char *evp_hash(const char *algo, const unsigned char *data, int data_len)
 
 void f_hash() {
   const char *algo, *data;
-  char *result = nullptr;
+  char* result = nullptr;
   int data_len;
 
   algo = (sp - 1)->u.string;
   data = sp->u.string;
   data_len = SVALUE_STRLEN(sp);
 
-#define DO_HASH_IF(id, func, hash_size)        \
-  SAFE(if (strcasecmp(algo, id) == 0) {        \
-    unsigned char md[hash_size];               \
-    func((unsigned char *)data, data_len, md); \
-    result = hexdump(md, hash_size);           \
-    goto result;                               \
+#define DO_HASH_IF(id, func, hash_size)       \
+  SAFE(if (strcasecmp(algo, id) == 0) {       \
+    unsigned char md[hash_size];              \
+    func((unsigned char*)data, data_len, md); \
+    result = hexdump(md, hash_size);          \
+    goto result;                              \
   })
 
-#define DO_EVP_HASH_IF(id)                     \
-  SAFE(if (strcasecmp(algo, id) == 0) {        \
-    result = evp_hash(id, (unsigned char *)data, data_len); \
-    goto result;                               \
+#define DO_EVP_HASH_IF(id)                                 \
+  SAFE(if (strcasecmp(algo, id) == 0) {                    \
+    result = evp_hash(id, (unsigned char*)data, data_len); \
+    goto result;                                           \
   })
 
   /* Keep direct legacy calls to preserve MD4/MDC2/RIPEMD compatibility on
@@ -192,7 +192,7 @@ void f_hash() {
 
   /* Modern hash algorithms using EVP interface */
   /* These algorithms require OpenSSL 1.1.1+ and will gracefully fail on older versions */
-  
+
   /* SHA-3 family (FIPS 202 standard) - requires OpenSSL 1.1.1+ */
   DO_EVP_HASH_IF("sha3-224");
   DO_EVP_HASH_IF("sha3-256");

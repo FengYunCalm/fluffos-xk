@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
   vm_start();
 
-    ScopedCurrentObjectAsMaster master_scope;
+  ScopedCurrentObjectAsMaster master_scope;
 
   auto file = get_argument(1, argc, argv);
   struct object_t* obj = nullptr;

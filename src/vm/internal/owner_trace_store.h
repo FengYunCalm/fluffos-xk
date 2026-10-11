@@ -132,10 +132,10 @@ class OwnerTraceStore {
 
   uint64_t next_message_id();
 
-  bool update_message_state_for_task(uint64_t target_task_id, const char *state, const char *result_key,
-                                     const char *error, bool frozen_result,
+  bool update_message_state_for_task(uint64_t target_task_id, const char* state,
+                                     const char* result_key, const char* error, bool frozen_result,
                                      VMObjectHandleResolveStatus target_handle_status);
-  bool update_message_route_for_task(uint64_t target_task_id, const char *target_handle_status,
+  bool update_message_route_for_task(uint64_t target_task_id, const char* target_handle_status,
                                      bool requires_owner_mailbox, bool requires_owner_main_queue,
                                      bool queued_on_main);
 
@@ -152,12 +152,13 @@ class OwnerTraceStore {
   uint64_t total_commit_traced() const;
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-  void mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const;
+  void mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const;
 #endif
 
  private:
   template <typename Trace>
-  OwnerTraceSnapshot<Trace> snapshot_locked(const std::deque<Trace> &events, uint64_t total, int limit) const;
+  OwnerTraceSnapshot<Trace> snapshot_locked(const std::deque<Trace>& events, uint64_t total,
+                                            int limit) const;
 
   mutable std::mutex mutex_;
   std::deque<OwnerTaskTrace> task_traces_;

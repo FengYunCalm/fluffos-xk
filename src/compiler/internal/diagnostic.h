@@ -33,7 +33,7 @@ enum class Severity : unsigned char {
 // 0 means "unknown" for line/column, so a record from a context without a
 // lexer position stays distinguishable from line 0 of a file.
 struct Position {
-  const char *file = nullptr;  // arena string, without the leading '/'
+  const char* file = nullptr;  // arena string, without the leading '/'
   int line = 0;
   int column = 0;  // 1-based column of the caret, 0 when unknown
 };
@@ -48,13 +48,13 @@ struct Range {
 // the renderer and tools see the same shape as the upstream model).
 struct Fixit {
   Range range;
-  const char *replacement = nullptr;
+  const char* replacement = nullptr;
 };
 
 // One step of a macro expansion chain: the position of the expansion site and
 // the ranges it covers, so a diagnostic inside a macro body can be explained.
 struct Expansion {
-  const char *message = nullptr;
+  const char* message = nullptr;
   Position position;
   std::vector<Range> ranges;
 };
@@ -70,7 +70,7 @@ struct Snippet {
 
 struct Diagnostic {
   Severity severity = Severity::kError;
-  const char *message = nullptr;  // arena string, without a trailing newline
+  const char* message = nullptr;  // arena string, without a trailing newline
   Snippet snippet;
   std::vector<Range> ranges;
   std::vector<Fixit> fixits;
@@ -84,21 +84,21 @@ struct Diagnostic {
 // One active macro expansion step (name + expansion site), supplied by the
 // lexer. Kept as a neutral struct so this module does not depend on the lexer.
 struct ExpansionSite {
-  const char *name;
-  const char *file;
+  const char* name;
+  const char* file;
   int line;
   int column;
 };
 
 struct Source {
-  const char *file;  // current_file, without the leading '/'
+  const char* file;  // current_file, without the leading '/'
   int line;          // current_line
   int column;        // 1-based caret column, 0 when unknown
   Severity severity;
-  const char *message;
+  const char* message;
   bool show_context;
   // Outermost-first macro expansion frames, or null when not inside a macro.
-  const ExpansionSite *expansion_sites = nullptr;
+  const ExpansionSite* expansion_sites = nullptr;
   int expansion_count = 0;
 };
 
@@ -114,15 +114,15 @@ size_t records_outside_scope();
 void clear();
 
 // Append one diagnostic; strings are copied into the compile arena.
-void record(const Source &source);
+void record(const Source& source);
 
 // Recorded diagnostics, in report order.
 size_t size();
-const Diagnostic &at(size_t index);
+const Diagnostic& at(size_t index);
 
 // Last recorded diagnostic, or nullptr when none was recorded. Convenience for
 // tests and for callers that only care about the newest record.
-const Diagnostic *last();
+const Diagnostic* last();
 
 }  // namespace compiler_diag
 

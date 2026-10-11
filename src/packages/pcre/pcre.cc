@@ -77,20 +77,21 @@
 #include "vm/internal/base/mapping.h"
 
 // Prototype declarations
-static void pcre_free_memory(pcre_t *p);
-static pcre2_code *pcre_local_compile(pcre_t *p);
-static int pcre_local_exec(pcre_t *p);
-static int pcre_exec_at(pcre_t *p, PCRE2_SIZE offset, uint32_t extra_flags);
-static int pcre_magic(pcre_t *p);
-static int pcre_query_match(pcre_t *p);
+static void pcre_free_memory(pcre_t* p);
+static pcre2_code* pcre_local_compile(pcre_t* p);
+static int pcre_local_exec(pcre_t* p);
+static int pcre_exec_at(pcre_t* p, PCRE2_SIZE offset, uint32_t extra_flags);
+static int pcre_magic(pcre_t* p);
+static int pcre_query_match(pcre_t* p);
 static void pcre_throw_match_error(int rc);
 static inline uint32_t compute_compile_options(int flags);
 static inline uint32_t compute_exec_options(int flags);
-static int pcre_match_single(svalue_t *str, const char *pattern, int pcre_flags);
-static array_t *pcre_match(array_t *v, const char *pattern, int flag, int pcre_flags);
-static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *def, int pcre_flags);
-static char *pcre_get_replace(pcre_t *run, array_t *replacements);
-static array_t *pcre_get_substrings(pcre_t *run, bool include_names);
+static int pcre_match_single(svalue_t* str, const char* pattern, int pcre_flags);
+static array_t* pcre_match(array_t* v, const char* pattern, int flag, int pcre_flags);
+static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* def,
+                           int pcre_flags);
+static char* pcre_get_replace(pcre_t* run, array_t* replacements);
+static array_t* pcre_get_substrings(pcre_t* run, bool include_names);
 
 namespace {
 
@@ -98,12 +99,12 @@ struct pcre_replace_segment_t {
   PCRE2_SIZE start;
   PCRE2_SIZE end;
   size_t replacement_length;
-  const char *replacement;
+  const char* replacement;
 };
 
-static bool pcre_capture_participated(const pcre_t *run, int group) {
-  if (group < 0 || static_cast<PCRE2_SIZE>(group) >
-                      (std::numeric_limits<PCRE2_SIZE>::max() - 1) / 2) {
+static bool pcre_capture_participated(const pcre_t* run, int group) {
+  if (group < 0 ||
+      static_cast<PCRE2_SIZE>(group) > (std::numeric_limits<PCRE2_SIZE>::max() - 1) / 2) {
     return false;
   }
   PCRE2_SIZE const ovec_index = static_cast<PCRE2_SIZE>(group) * 2;
@@ -120,11 +121,12 @@ static PCRE2_SIZE pcre_checked_length(size_t length) {
   return static_cast<PCRE2_SIZE>(length);
 }
 
-static PCRE2_SIZE pcre_subject_length(const pcre_t *run) { return run->s_length; }
+static PCRE2_SIZE pcre_subject_length(const pcre_t* run) {
+  return run->s_length;
+}
 
-static PCRE2_SIZE pcre_advance_after_empty_match(const char *subject,
-                                                  PCRE2_SIZE subject_length,
-                                                  PCRE2_SIZE offset) {
+static PCRE2_SIZE pcre_advance_after_empty_match(const char* subject, PCRE2_SIZE subject_length,
+                                                 PCRE2_SIZE offset) {
   if (offset >= subject_length) {
     return subject_length;
   }
@@ -132,16 +134,15 @@ static PCRE2_SIZE pcre_advance_after_empty_match(const char *subject,
   // PCRE2 is compiled in UTF-8 mode. Advance by one complete code point so a
   // zero-length match cannot be retried at the same byte offset.
   PCRE2_SIZE next = offset + 1;
-  while (next < subject_length &&
-         (static_cast<unsigned char>(subject[next]) & 0xc0) == 0x80) {
+  while (next < subject_length && (static_cast<unsigned char>(subject[next]) & 0xc0) == 0x80) {
     ++next;
   }
   return next;
 }
 
-static std::vector<pcre_replace_segment_t> pcre_build_replace_segments(const pcre_t *run,  // #1247-equivalent PCRE-1/2 (non-overlapping segments)
-                                                                         array_t *replacements,
-                                                                         size_t *result_size) {
+static std::vector<pcre_replace_segment_t> pcre_build_replace_segments(
+    const pcre_t* run,  // #1247-equivalent PCRE-1/2 (non-overlapping segments)
+    array_t* replacements, size_t* result_size) {
   std::vector<pcre_replace_segment_t> segments;
   size_t size = static_cast<size_t>(run->s_length);
   PCRE2_SIZE previous_end = run->ovector[0];
@@ -178,17 +179,16 @@ static std::vector<pcre_replace_segment_t> pcre_build_replace_segments(const pcr
 }  // namespace
 
 // Caching functions
-static int pcre_cache_pattern(struct pcre_cache_t *table, pcre_t *run,
-                              const char *pattern, uint32_t compile_flags);
-static pcre_cache_bucket_t *pcre_get_cached_pattern(struct pcre_cache_t *table,
-                                                     const char *pattern,
-                                                     uint32_t compile_flags);
-static mapping_t *pcre_get_cache();
+static int pcre_cache_pattern(struct pcre_cache_t* table, pcre_t* run, const char* pattern,
+                              uint32_t compile_flags);
+static pcre_cache_bucket_t* pcre_get_cached_pattern(struct pcre_cache_t* table, const char* pattern,
+                                                    uint32_t compile_flags);
+static mapping_t* pcre_get_cache();
 int pcrecachesize = 0;
 // Entries detached during an active match stay rooted until the last borrower
 // releases them. This keeps the shared pattern alive across reentrant cache
 // eviction and callback execution.
-static pcre_cache_bucket_t *pcre_detached_cache = nullptr;
+static pcre_cache_bucket_t* pcre_detached_cache = nullptr;
 // Globals
 struct pcre_cache_t pcre_cache = {{nullptr}};
 
@@ -207,7 +207,7 @@ void f_pcre_match() {
   if (st_num_arg < 2 || st_num_arg > 4) {
     error("pcre_match() requires 2 to 4 arguments\n");
   }
-  array_t *v;
+  array_t* v;
   int flag = 0;
   int pcre_flags = 0;
   // The subject (1st arg) is at sp - st_num_arg + 1 no matter how many
@@ -266,8 +266,8 @@ void f_pcre_assoc() {
   if (st_num_arg < 3 || st_num_arg > 5) {
     error("pcre_assoc() requires 3 to 5 arguments\n");
   }
-  svalue_t *arg;
-  array_t *vec;
+  svalue_t* arg;
+  array_t* vec;
   int pcre_flags = 0;
 
   if (st_num_arg == 5) {
@@ -291,8 +291,8 @@ void f_pcre_assoc() {
     error("Bad argument 3 to pcre_assoc()\n");
   }
 
-  vec = pcre_assoc(arg, (arg + 1)->u.arr, (arg + 2)->u.arr,
-                   st_num_arg > 3 ? (arg + 3) : &const0, pcre_flags);
+  vec = pcre_assoc(arg, (arg + 1)->u.arr, (arg + 2)->u.arr, st_num_arg > 3 ? (arg + 3) : &const0,
+                   pcre_flags);
 
   if (st_num_arg == 4) {
     pop_3_elems();
@@ -310,8 +310,8 @@ void f_pcre_extract() {
   if (st_num_arg < 2 || st_num_arg > 4) {
     error("pcre_extract() requires 2 to 4 arguments\n");
   }
-  pcre_t *run;
-  array_t *ret;
+  pcre_t* run;
+  array_t* ret;
   int include_names = 0;
   int pcre_flags = 0;
 
@@ -324,7 +324,7 @@ void f_pcre_extract() {
     st_num_arg--;
   }
 
-  svalue_t *arg = sp - st_num_arg + 1;
+  svalue_t* arg = sp - st_num_arg + 1;
 
   if (arg->type != T_STRING || (arg + 1)->type != T_STRING) {
     error("Bad subject or pattern argument to pcre_extract()\n");
@@ -339,7 +339,7 @@ void f_pcre_extract() {
     error("pcre_extract() requires 2 or 3 arguments\n");
   }
 
-  run = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_extract : run");
+  run = (pcre_t*)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_extract : run");
   run->pattern = (arg + 1)->u.string;
   run->subject = arg->u.string;
   run->s_length = pcre_checked_length(SVALUE_STRLEN(arg));
@@ -347,11 +347,13 @@ void f_pcre_extract() {
   run->ovecsize = 0;
   run->compile_flags = compute_compile_options(pcre_flags);
   run->exec_flags = compute_exec_options(pcre_flags);
-  DEFER { pcre_free_memory(run); };
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   if (pcre_magic(run) < 0) {
-    error("PCRE compilation failed at offset %zu: %s\n",
-          static_cast<size_t>(run->erroffset), run->error);
+    error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
+          run->error);
   }
 
   if (run->rc == PCRE2_ERROR_NOMATCH) {
@@ -376,10 +378,10 @@ void f_pcre_replace() {
   if (st_num_arg < 3 || st_num_arg > 4) {
     error("pcre_replace() requires 3 or 4 arguments\n");
   }
-  pcre_t *run;
-  array_t *replacements;
+  pcre_t* run;
+  array_t* replacements;
 
-  char *ret;
+  char* ret;
   int pcre_flags = 0;
 
   if (st_num_arg >= 4) {
@@ -402,8 +404,10 @@ void f_pcre_replace() {
     error("Bad argument 3 to pcre_replace()\n");
   }
 
-  run = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_replace: run");
-  DEFER { pcre_free_memory(run); };
+  run = (pcre_t*)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_replace: run");
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   run->ovector = nullptr;
   run->ovecsize = 0;
@@ -422,8 +426,8 @@ void f_pcre_replace() {
   run->exec_flags = compute_exec_options(pcre_flags);
 
   if (pcre_magic(run) < 0) {
-    error("PCRE compilation failed at offset %zu: %s\n",
-          static_cast<size_t>(run->erroffset), run->error);
+    error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
+          run->error);
   }
 
   if (run->rc == PCRE2_ERROR_NOMATCH) {
@@ -464,9 +468,9 @@ void f_pcre_replace_callback() {
   if (num_arg < 3) {
     error("pcre_replace_callback() requires at least 3 arguments\n");
   }
-  char *ret;
-  pcre_t *run;
-  svalue_t *arg;
+  char* ret;
+  pcre_t* run;
+  svalue_t* arg;
   array_t *arr, *r;
   function_to_call_t ftc;
   int pcre_flags = 0;
@@ -489,7 +493,7 @@ void f_pcre_replace_callback() {
     error("Illegal third argument to pcre_replace_callback()\n");
   }
 
-  run = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_replace: run");
+  run = (pcre_t*)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "f_pcre_replace: run");
   run->ovector = nullptr;
   run->ovecsize = 0;
   run->subject = arg->u.string;
@@ -498,11 +502,13 @@ void f_pcre_replace_callback() {
   run->s_length = pcre_checked_length(SVALUE_STRLEN(arg));
   run->compile_flags = compute_compile_options(pcre_flags);
   run->exec_flags = compute_exec_options(pcre_flags);
-  DEFER { pcre_free_memory(run); };
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   if (pcre_magic(run) < 0) {
-    error("PCRE compilation failed at offset %zu: %s\n",
-          static_cast<size_t>(run->erroffset), run->error);
+    error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
+          run->error);
   }
 
   if (run->rc == PCRE2_ERROR_NOMATCH) {
@@ -541,7 +547,7 @@ void f_pcre_replace_callback() {
   save_context(&econ);
   try {
     for (i = 0; i < run->rc - 1; i++) {
-      svalue_t *v;
+      svalue_t* v;
       push_svalue(arr->item + i);
       push_number(i);
       v = call_efun_callback(&ftc, 2);
@@ -555,7 +561,7 @@ void f_pcre_replace_callback() {
         assign_svalue_no_free(&r->item[i], &arr->item[i]);
       }
     }
-  } catch (const char *) {
+  } catch (const char*) {
     restore_context(&econ);
     /* condition was restored to where it was when we came in */
     pop_context(&econ);
@@ -569,7 +575,7 @@ void f_pcre_replace_callback() {
 }
 
 void f_pcre_cache() {
-  mapping_t *m = nullptr;
+  mapping_t* m = nullptr;
   m = pcre_get_cache();
   if (!m) {
     push_number(0);
@@ -581,11 +587,16 @@ void f_pcre_cache() {
 // Internal functions utilized by the efuns
 static inline uint32_t compute_compile_options(int flags) {
   uint32_t opts = PCRE2_UTF;
-  if (flags & PCRE_I) opts |= PCRE2_CASELESS;
-  if (flags & PCRE_M) opts |= PCRE2_MULTILINE;
-  if (flags & PCRE_S) opts |= PCRE2_DOTALL;
-  if (flags & PCRE_U) opts |= PCRE2_UNGREEDY;
-  if (flags & PCRE_X) opts |= PCRE2_EXTENDED;
+  if (flags & PCRE_I)
+    opts |= PCRE2_CASELESS;
+  if (flags & PCRE_M)
+    opts |= PCRE2_MULTILINE;
+  if (flags & PCRE_S)
+    opts |= PCRE2_DOTALL;
+  if (flags & PCRE_U)
+    opts |= PCRE2_UNGREEDY;
+  if (flags & PCRE_X)
+    opts |= PCRE2_EXTENDED;
   return opts;
 }
 
@@ -593,8 +604,8 @@ static inline uint32_t compute_exec_options(int flags) {
   return (flags & PCRE_A) ? PCRE2_ANCHORED : 0;
 }
 
-static void pcre_set_compile_error(pcre_t *p, int errorcode) {
-  int const length = pcre2_get_error_message(errorcode, reinterpret_cast<PCRE2_UCHAR *>(p->error),
+static void pcre_set_compile_error(pcre_t* p, int errorcode) {
+  int const length = pcre2_get_error_message(errorcode, reinterpret_cast<PCRE2_UCHAR*>(p->error),
                                              sizeof(p->error));
   if (length < 0) {
     snprintf(p->error, sizeof(p->error), "PCRE2 error %d", errorcode);
@@ -605,8 +616,8 @@ static void pcre_set_compile_error(pcre_t *p, int errorcode) {
 
 static void pcre_throw_match_error(int rc) {
   char message[256];
-  int const length = pcre2_get_error_message(rc, reinterpret_cast<PCRE2_UCHAR *>(message),
-                                             sizeof(message));
+  int const length =
+      pcre2_get_error_message(rc, reinterpret_cast<PCRE2_UCHAR*>(message), sizeof(message));
   if (length < 0) {
     snprintf(message, sizeof(message), "PCRE2 error %d", rc);
   } else {
@@ -615,18 +626,18 @@ static void pcre_throw_match_error(int rc) {
   error("PCRE matching failed (%d): %s\n", rc, message);
 }
 
-static pcre2_code *pcre_local_compile(pcre_t *p) {
+static pcre2_code* pcre_local_compile(pcre_t* p) {
   int errorcode = 0;
   p->erroffset = 0;
   p->re = pcre2_compile(reinterpret_cast<PCRE2_SPTR>(p->pattern), PCRE2_ZERO_TERMINATED,
-                         p->compile_flags, &errorcode, &p->erroffset, nullptr);
+                        p->compile_flags, &errorcode, &p->erroffset, nullptr);
   if (p->re == nullptr) {
     pcre_set_compile_error(p, errorcode);
   }
   return p->re;
 }
 
-static void pcre_load_pattern_info(pcre_t *p) {
+static void pcre_load_pattern_info(pcre_t* p) {
   p->namecount = 0;
   p->name_entry_size = 0;
   p->name_table = nullptr;
@@ -637,18 +648,22 @@ static void pcre_load_pattern_info(pcre_t *p) {
   }
 }
 
-static int pcre_exec_at(pcre_t *p, PCRE2_SIZE offset, uint32_t extra_flags) {
-  pcre2_match_context *match_context = pcre2_match_context_create(nullptr);
+static int pcre_exec_at(pcre_t* p, PCRE2_SIZE offset, uint32_t extra_flags) {
+  pcre2_match_context* match_context = pcre2_match_context_create(nullptr);
   if (match_context == nullptr) {
     error("Unable to allocate PCRE2 match context.\n");
   }
-  DEFER { pcre2_match_context_free(match_context); };
+  DEFER {
+    pcre2_match_context_free(match_context);
+  };
 
-  pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(p->re, nullptr);
+  pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(p->re, nullptr);
   if (match_data == nullptr) {
     error("Unable to allocate PCRE2 match data.\n");
   }
-  DEFER { pcre2_match_data_free(match_data); };
+  DEFER {
+    pcre2_match_data_free(match_data);
+  };
 
   int const rc = pcre2_match(p->re, reinterpret_cast<PCRE2_SPTR>(p->subject), p->s_length, offset,
                              p->exec_flags | extra_flags, match_data, match_context);
@@ -665,20 +680,22 @@ static int pcre_exec_at(pcre_t *p, PCRE2_SIZE offset, uint32_t extra_flags) {
       error("PCRE2 capture vector is too large.\n");
     }
     p->ovecsize = static_cast<PCRE2_SIZE>(count) * 2;
-    p->ovector = static_cast<PCRE2_SIZE *>(DCALLOC(static_cast<size_t>(p->ovecsize),
-                                                    sizeof(PCRE2_SIZE), TAG_TEMPORARY,
-                                                    "pcre_exec_at: ovector"));
-    PCRE2_SIZE const *source = pcre2_get_ovector_pointer(match_data);
+    p->ovector =
+        static_cast<PCRE2_SIZE*>(DCALLOC(static_cast<size_t>(p->ovecsize), sizeof(PCRE2_SIZE),
+                                         TAG_TEMPORARY, "pcre_exec_at: ovector"));
+    PCRE2_SIZE const* source = pcre2_get_ovector_pointer(match_data);
     memcpy(p->ovector, source, static_cast<size_t>(p->ovecsize) * sizeof(PCRE2_SIZE));
   }
 
   return rc;
 }
 
-static int pcre_local_exec(pcre_t *p) { return pcre_exec_at(p, 0, 0); }
+static int pcre_local_exec(pcre_t* p) {
+  return pcre_exec_at(p, 0, 0);
+}
 
-static int pcre_prepare(pcre_t *p) {
-  pcre_cache_bucket_t *entry = pcre_get_cached_pattern(&pcre_cache, p->pattern, p->compile_flags);
+static int pcre_prepare(pcre_t* p) {
+  pcre_cache_bucket_t* entry = pcre_get_cached_pattern(&pcre_cache, p->pattern, p->compile_flags);
   if (entry != nullptr) {
     p->cache_entry = entry;
     p->re = entry->compiled_pattern;
@@ -696,7 +713,7 @@ static int pcre_prepare(pcre_t *p) {
   return 1;
 }
 
-static int pcre_magic(pcre_t *p) {
+static int pcre_magic(pcre_t* p) {
   if (pcre_prepare(p) < 0) {
     return -1;
   }
@@ -704,7 +721,7 @@ static int pcre_magic(pcre_t *p) {
   return 1;
 }
 
-static int pcre_query_match(pcre_t *p) {
+static int pcre_query_match(pcre_t* p) {
   if (p->rc == PCRE2_ERROR_NOMATCH) {
     return 0;
   }
@@ -714,8 +731,8 @@ static int pcre_query_match(pcre_t *p) {
   return 1;
 }
 
-static void pcre_free_match_arrays(std::vector<array_t *> *matches) {
-  for (array_t *match : *matches) {
+static void pcre_free_match_arrays(std::vector<array_t*>* matches) {
+  for (array_t* match : *matches) {
     if (match != nullptr) {
       free_array(match);
     }
@@ -723,25 +740,29 @@ static void pcre_free_match_arrays(std::vector<array_t *> *matches) {
   matches->clear();
 }
 
-static std::vector<array_t *> pcre_match_all(const char *subject, size_t subject_len,
-                                             const char *pattern, int pcre_flags) {
-  pcre_t *run = static_cast<pcre_t *>(DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY,
-                                              "pcre_match_all: run"));
+static std::vector<array_t*> pcre_match_all(const char* subject, size_t subject_len,
+                                            const char* pattern, int pcre_flags) {
+  pcre_t* run =
+      static_cast<pcre_t*>(DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_match_all: run"));
   run->pattern = pattern;
   run->subject = subject;
   run->s_length = pcre_checked_length(subject_len);
   run->compile_flags = compute_compile_options(pcre_flags);
   run->exec_flags = compute_exec_options(pcre_flags);
 
-  DEFER { pcre_free_memory(run); };
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   if (pcre_prepare(run) < 0) {
     error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
           run->error);
   }
 
-  std::vector<array_t *> matches;
-  SCOPE_FAIL { pcre_free_match_arrays(&matches); };
+  std::vector<array_t*> matches;
+  SCOPE_FAIL {
+    pcre_free_match_arrays(&matches);
+  };
 
   PCRE2_SIZE const subject_length = pcre_subject_length(run);
   PCRE2_SIZE offset = 0;
@@ -762,7 +783,7 @@ static std::vector<array_t *> pcre_match_all(const char *subject, size_t subject
       pcre_throw_match_error(rc);
     }
 
-    array_t *match_array = allocate_array(rc);
+    array_t* match_array = allocate_array(rc);
     bool transferred = false;
     SCOPE_FAIL {
       if (!transferred) {
@@ -775,14 +796,13 @@ static std::vector<array_t *> pcre_match_all(const char *subject, size_t subject
     for (int i = 0; i < rc; ++i) {
       PCRE2_SIZE const start_offset = run->ovector[2 * i];
       PCRE2_SIZE const end_offset = run->ovector[2 * i + 1];
-      size_t const length = pcre_capture_participated(run, i)
-                                ? static_cast<size_t>(end_offset - start_offset)
-                                : 0;
+      size_t const length =
+          pcre_capture_participated(run, i) ? static_cast<size_t>(end_offset - start_offset) : 0;
       if (length > std::numeric_limits<unsigned int>::max()) {
         error("PCRE capture is too large.\n");
       }
-      char const *start = length == 0 ? "" : run->subject + start_offset;
-      char *match_str = new_string(static_cast<unsigned int>(length), "pcre_match_all");
+      char const* start = length == 0 ? "" : run->subject + start_offset;
+      char* match_str = new_string(static_cast<unsigned int>(length), "pcre_match_all");
       if (length > 0) {
         memcpy(match_str, start, length);
       }
@@ -811,11 +831,11 @@ static std::vector<array_t *> pcre_match_all(const char *subject, size_t subject
   return matches;
 }
 
-static int pcre_match_single(svalue_t *str, const char *pattern, int pcre_flags) {
-  pcre_t *run;
+static int pcre_match_single(svalue_t* str, const char* pattern, int pcre_flags) {
+  pcre_t* run;
   int ret;
 
-  run = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_match_single : run");
+  run = (pcre_t*)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_match_single : run");
   run->ovector = nullptr;
   run->ovecsize = 0;
   run->pattern = pattern;
@@ -824,11 +844,13 @@ static int pcre_match_single(svalue_t *str, const char *pattern, int pcre_flags)
   run->compile_flags = compute_compile_options(pcre_flags);
   run->exec_flags = compute_exec_options(pcre_flags);
 
-  DEFER { pcre_free_memory(run); };
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   if (pcre_magic(run) < 0) {
-    error("PCRE compilation failed at offset %zu: %s\n",
-          static_cast<size_t>(run->erroffset), run->error);
+    error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
+          run->error);
   }
 
   ret = pcre_query_match(run);
@@ -836,32 +858,35 @@ static int pcre_match_single(svalue_t *str, const char *pattern, int pcre_flags)
   return ret;
 }
 
-static array_t *pcre_match(array_t *v, const char *pattern, int flag, int pcre_flags) {
-  pcre_t *run;
-  array_t *ret;
+static array_t* pcre_match(array_t* v, const char* pattern, int flag, int pcre_flags) {
+  pcre_t* run;
+  array_t* ret;
   svalue_t *sv1, *sv2;
-  char *res;
+  char* res;
   int num_match, size, match = !(flag & 2);
 
   if (!(size = v->size)) {
     return &the_null_array;
   }
 
-  run = static_cast<pcre_t *>(DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY,
-                                       "pcre_match : run"));
+  run = static_cast<pcre_t*>(DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_match : run"));
   run->pattern = pattern;
   run->compile_flags = compute_compile_options(pcre_flags);
   run->exec_flags = compute_exec_options(pcre_flags);
 
-  DEFER { pcre_free_memory(run); };
+  DEFER {
+    pcre_free_memory(run);
+  };
 
   if (pcre_prepare(run) < 0) {
-    error("PCRE compilation failed at offset %zu: %s\n",
-          static_cast<size_t>(run->erroffset), run->error);
+    error("PCRE compilation failed at offset %zu: %s\n", static_cast<size_t>(run->erroffset),
+          run->error);
   }
 
-  res = static_cast<char *>(DMALLOC(size, TAG_TEMPORARY, "pcre_match: res"));
-  DEFER { FREE(res); };
+  res = static_cast<char*>(DMALLOC(size, TAG_TEMPORARY, "pcre_match: res"));
+  DEFER {
+    FREE(res);
+  };
   sv1 = v->item + size;
   num_match = 0;
 
@@ -903,8 +928,8 @@ static array_t *pcre_match(array_t *v, const char *pattern, int flag, int pcre_f
 
       if (sv1->subtype & STRING_COUNTED) {
         INC_COUNTED_REF(sv1->u.string);
-        md_record_ref_journal(PTR_TO_NODET(sv1->u.string), true,
-                              MSTR_REF(sv1->u.string), __CURRENT_FILE_LINE__);
+        md_record_ref_journal(PTR_TO_NODET(sv1->u.string), true, MSTR_REF(sv1->u.string),
+                              __CURRENT_FILE_LINE__);
         ADD_STRING(MSTR_SIZE(sv1->u.string));
       }
 
@@ -919,11 +944,12 @@ static array_t *pcre_match(array_t *v, const char *pattern, int flag, int pcre_f
 /* This is mostly copy/paste from reg_assoc, some parts are changed
  * TODO: rewrite with new logic
  */
-static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *def, int pcre_flags) {
+static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* def,
+                           int pcre_flags) {
   int i;
   size_t size;
-  const char *tmp;
-  array_t *ret;
+  const char* tmp;
+  array_t* ret;
 
   if ((size = pat->size) != tok->size) {
     error("Pattern and token array size must be identical.\n");
@@ -937,19 +963,19 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
   ret = allocate_empty_array(2);
 
   if (size) {
-    pcre_t **rgpp;
+    pcre_t** rgpp;
     struct RegMatch {
       int tok_i;
       const char *begin, *end;
-      struct RegMatch *next;
-    } *rmp = (struct RegMatch *)nullptr, *rmph = (struct RegMatch *)nullptr;
+      struct RegMatch* next;
+    } *rmp = (struct RegMatch*)nullptr, *rmph = (struct RegMatch*)nullptr;
     int num_match = 0;
     svalue_t *sv1, *sv2, *sv;
     int regindex;
-    pcre_t *tmpreg;
+    pcre_t* tmpreg;
     PCRE2_SIZE laststart;
 
-    rgpp = (pcre_t **)DCALLOC(size, sizeof(pcre_t *), TAG_TEMPORARY, "pcre_assoc : rgpp");
+    rgpp = (pcre_t**)DCALLOC(size, sizeof(pcre_t*), TAG_TEMPORARY, "pcre_assoc : rgpp");
     bool completed = false;
     SCOPE_FAIL {
       if (completed) {
@@ -962,21 +988,21 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
       }
       FREE(rgpp);
       while (rmph != nullptr) {
-        auto *cleanup_match = rmph;
+        auto* cleanup_match = rmph;
         rmph = rmph->next;
-        FREE(reinterpret_cast<char *>(cleanup_match));
+        FREE(reinterpret_cast<char*>(cleanup_match));
       }
       free_array(ret);
     };
 
     for (i = 0; i < size; i++) {
-      rgpp[i] = (pcre_t *)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_assoc : rgpp[i]");
+      rgpp[i] = (pcre_t*)DCALLOC(1, sizeof(pcre_t), TAG_TEMPORARY, "pcre_assoc : rgpp[i]");
       rgpp[i]->pattern = pat->item[i].u.string;
       rgpp[i]->compile_flags = compute_compile_options(pcre_flags);
       rgpp[i]->exec_flags = compute_exec_options(pcre_flags);
 
       if (pcre_prepare(rgpp[i]) < 0) {
-        const char *rerror = rgpp[i]->error;
+        const char* rerror = rgpp[i]->error;
         size_t const offset = static_cast<size_t>(rgpp[i]->erroffset);
 
         error("PCRE compilation failed at offset %zu: %s\n", offset, rerror);
@@ -1019,12 +1045,12 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
         num_match++;
 
         if (rmp) {
-          rmp->next = (struct RegMatch *)DMALLOC(sizeof(struct RegMatch), TAG_TEMPORARY,
-                                                 "pcre_assoc : rmp->next");
+          rmp->next = (struct RegMatch*)DMALLOC(sizeof(struct RegMatch), TAG_TEMPORARY,
+                                                "pcre_assoc : rmp->next");
           rmp = rmp->next;
         } else
-          rmph = rmp = (struct RegMatch *)DMALLOC(sizeof(struct RegMatch), TAG_TEMPORARY,
-                                                  "pcre_assoc : rmp");
+          rmph = rmp =
+              (struct RegMatch*)DMALLOC(sizeof(struct RegMatch), TAG_TEMPORARY, "pcre_assoc : rmp");
 
         tmpreg = rgpp[regindex];
 
@@ -1035,7 +1061,7 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
         rmp->end = tmp = rmpe_tmp;
         used += tmpreg->ovector[1];
         rmp->tok_i = regindex;
-        rmp->next = (struct RegMatch *)nullptr;
+        rmp->next = (struct RegMatch*)nullptr;
       } else {
         break;
       }
@@ -1058,7 +1084,7 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
     tmp = str->u.string;
 
     while (num_match--) {
-      char *svtmp;
+      char* svtmp;
       size_t const prefix_length = static_cast<size_t>(rmp->begin - tmp);
       if (prefix_length > std::numeric_limits<unsigned int>::max()) {
         error("PCRE association result is too large.\n");
@@ -1107,13 +1133,13 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
 
     while ((rmp = rmph)) {
       rmph = rmp->next;
-      FREE((char *)rmp);
+      FREE((char*)rmp);
     }
     completed = true;
     return ret;
   }
-  svalue_t *temp;
-  svalue_t *sv;
+  svalue_t* temp;
+  svalue_t* sv;
 
   (sv = ret->item)->type = T_ARRAY;
   temp = (sv->u.arr = allocate_empty_array(1))->item;
@@ -1124,7 +1150,7 @@ static array_t *pcre_assoc(svalue_t *str, array_t *pat, array_t *tok, svalue_t *
   return ret;
 }
 
-static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
+static array_t* pcre_get_substrings(pcre_t* run, bool include_names) {
   if (run->rc <= 0) {
     error("PCRE substring extraction requires a successful match.\n");
   }
@@ -1135,8 +1161,8 @@ static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
     error("Too many PCRE capture groups.\n");
   }
   unsigned int const ret_size = static_cast<unsigned int>(base_size + (include_names ? 1 : 0));
-  array_t *ret = allocate_empty_array(ret_size);
-  mapping_t *name_map = nullptr;
+  array_t* ret = allocate_empty_array(ret_size);
+  mapping_t* name_map = nullptr;
   bool name_map_published = false;
   bool completed = false;
   SCOPE_FAIL {
@@ -1159,7 +1185,7 @@ static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
     if (length > std::numeric_limits<unsigned int>::max()) {
       error("PCRE capture is too large.\n");
     }
-    char *match = new_string(static_cast<unsigned int>(length), "pcre get substrings");
+    char* match = new_string(static_cast<unsigned int>(length), "pcre get substrings");
     if (length > 0) {
       memcpy(match, run->subject + start, length);
     }
@@ -1173,8 +1199,8 @@ static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
     name_map = allocate_mapping(run->namecount);
     for (uint32_t name_index = 0; name_index < run->namecount; ++name_index) {
       PCRE2_SPTR entry = run->name_table + name_index * run->name_entry_size;
-      uint32_t const group = (static_cast<uint32_t>(entry[0]) << 8) |
-                             static_cast<uint32_t>(entry[1]);
+      uint32_t const group =
+          (static_cast<uint32_t>(entry[0]) << 8) | static_cast<uint32_t>(entry[1]);
       if (group == 0 || group > base_size) {
         continue;
       }
@@ -1188,8 +1214,8 @@ static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
       svalue_t key;
       key.type = T_STRING;
       key.subtype = STRING_SHARED;
-      key.u.string = make_shared_string(reinterpret_cast<const char *>(entry + 2));
-      svalue_t *slot = find_for_insert(name_map, &key, 1);
+      key.u.string = make_shared_string(reinterpret_cast<const char*>(entry + 2));
+      svalue_t* slot = find_for_insert(name_map, &key, 1);
       free_string(key.u.string);
       if (slot != nullptr) {
         assign_svalue(slot, &ret->item[group - 1]);
@@ -1206,7 +1232,7 @@ static array_t *pcre_get_substrings(pcre_t *run, bool include_names) {
   return ret;
 }
 
-static char *pcre_get_replace(pcre_t *run, array_t *replacements) {
+static char* pcre_get_replace(pcre_t* run, array_t* replacements) {
   size_t ret_sz = 0;
   auto const segments = pcre_build_replace_segments(run, replacements, &ret_sz);
   auto const configured_max = CONFIG_INT(__MAX_STRING_LENGTH__);
@@ -1216,7 +1242,7 @@ static char *pcre_get_replace(pcre_t *run, array_t *replacements) {
     error("Maximum string length exceeded in PCRE replacement.\n");
   }
 
-  char *ret = new_string(static_cast<unsigned int>(ret_sz), "pcre get replace");
+  char* ret = new_string(static_cast<unsigned int>(ret_sz), "pcre get replace");
   size_t ret_pos = 0;
   size_t subject_pos = 0;
   size_t const match_start = static_cast<size_t>(run->ovector[0]);
@@ -1228,7 +1254,7 @@ static char *pcre_get_replace(pcre_t *run, array_t *replacements) {
     subject_pos = match_start;
   }
 
-  for (auto const &segment : segments) {
+  for (auto const& segment : segments) {
     size_t const prefix_length = static_cast<size_t>(segment.start) - subject_pos;
     if (prefix_length > 0) {
       memcpy(ret + ret_pos, run->subject + subject_pos, prefix_length);
@@ -1257,7 +1283,7 @@ static char *pcre_get_replace(pcre_t *run, array_t *replacements) {
   return ret;
 }
 
-static void pcre_destroy_cache_entry(pcre_cache_bucket_t *entry) {
+static void pcre_destroy_cache_entry(pcre_cache_bucket_t* entry) {
   if (entry == nullptr) {
     return;
   }
@@ -1266,8 +1292,8 @@ static void pcre_destroy_cache_entry(pcre_cache_bucket_t *entry) {
   FREE(entry);
 }
 
-static void pcre_untrack_detached_cache_entry(pcre_cache_bucket_t *entry) {
-  pcre_cache_bucket_t **link = &pcre_detached_cache;
+static void pcre_untrack_detached_cache_entry(pcre_cache_bucket_t* entry) {
+  pcre_cache_bucket_t** link = &pcre_detached_cache;
   while (*link != nullptr && *link != entry) {
     link = &(*link)->detached_next;
   }
@@ -1278,7 +1304,7 @@ static void pcre_untrack_detached_cache_entry(pcre_cache_bucket_t *entry) {
   entry->detached_next = nullptr;
 }
 
-static void pcre_release_cache_entry(pcre_cache_bucket_t *entry) {
+static void pcre_release_cache_entry(pcre_cache_bucket_t* entry) {
   if (entry == nullptr) {
     return;
   }
@@ -1292,7 +1318,7 @@ static void pcre_release_cache_entry(pcre_cache_bucket_t *entry) {
   }
 }
 
-static void pcre_free_memory(pcre_t *p) {
+static void pcre_free_memory(pcre_t* p) {
   if (p == nullptr) {
     return;
   }
@@ -1307,9 +1333,8 @@ static void pcre_free_memory(pcre_t *p) {
   FREE(p);
 }
 
-static void pcre_detach_cache_entry(struct pcre_cache_t *table, unsigned int bucket,
-                                    pcre_cache_bucket_t *previous,
-                                    pcre_cache_bucket_t *entry) {
+static void pcre_detach_cache_entry(struct pcre_cache_t* table, unsigned int bucket,
+                                    pcre_cache_bucket_t* previous, pcre_cache_bucket_t* entry) {
   if (previous == nullptr) {
     table->buckets[bucket] = entry->next;
   } else {
@@ -1329,16 +1354,15 @@ static void pcre_detach_cache_entry(struct pcre_cache_t *table, unsigned int buc
 
 // Caching functions. A run borrows a cache entry until pcre_free_memory(), so
 // an eviction cannot free code that is still executing or serving a callback.
-static int pcre_cache_pattern(struct pcre_cache_t *table, pcre_t *run,
-                              const char *pattern, uint32_t compile_flags) {
+static int pcre_cache_pattern(struct pcre_cache_t* table, pcre_t* run, const char* pattern,
+                              uint32_t compile_flags) {
   if (run == nullptr || run->re == nullptr) {
     return -1;
   }
 
-  const auto *shared_pattern = make_shared_string(pattern);
-  unsigned int const bucket =
-      (HASH(BLOCK(shared_pattern)) ^ compile_flags) % PCRE_CACHE_SIZE;
-  pcre_cache_bucket_t *node = table->buckets[bucket];
+  const auto* shared_pattern = make_shared_string(pattern);
+  unsigned int const bucket = (HASH(BLOCK(shared_pattern)) ^ compile_flags) % PCRE_CACHE_SIZE;
+  pcre_cache_bucket_t* node = table->buckets[bucket];
   while (node != nullptr) {
     if (shared_pattern == node->pattern && node->compile_flags == compile_flags) {
       pcre2_code_free(run->re);
@@ -1359,8 +1383,8 @@ static int pcre_cache_pattern(struct pcre_cache_t *table, pcre_t *run,
 
   if (pcrecachesize >= 2 * PCRE_CACHE_SIZE) {
     for (unsigned int evict_bucket = 0; evict_bucket < PCRE_CACHE_SIZE; ++evict_bucket) {
-      pcre_cache_bucket_t *previous = nullptr;
-      pcre_cache_bucket_t *tail = table->buckets[evict_bucket];
+      pcre_cache_bucket_t* previous = nullptr;
+      pcre_cache_bucket_t* tail = table->buckets[evict_bucket];
       if (tail == nullptr) {
         continue;
       }
@@ -1373,9 +1397,8 @@ static int pcre_cache_pattern(struct pcre_cache_t *table, pcre_t *run,
     }
   }
 
-  node = static_cast<pcre_cache_bucket_t *>(DCALLOC(1, sizeof(pcre_cache_bucket_t),
-                                                     TAG_PCRE_CACHE,
-                                                     "pcre_cache_pattern: node"));
+  node = static_cast<pcre_cache_bucket_t*>(
+      DCALLOC(1, sizeof(pcre_cache_bucket_t), TAG_PCRE_CACHE, "pcre_cache_pattern: node"));
   if (node == nullptr) {
     free_string(shared_pattern);
     return -1;
@@ -1394,14 +1417,12 @@ static int pcre_cache_pattern(struct pcre_cache_t *table, pcre_t *run,
   return 0;
 }
 
-static pcre_cache_bucket_t *pcre_get_cached_pattern(struct pcre_cache_t *table,
-                                                     const char *pattern,
-                                                     uint32_t compile_flags) {
-  const auto *shared_pattern = make_shared_string(pattern);
-  unsigned int const bucket =
-      (HASH(BLOCK(shared_pattern)) ^ compile_flags) % PCRE_CACHE_SIZE;
-  pcre_cache_bucket_t *node = table->buckets[bucket];
-  pcre_cache_bucket_t *previous = nullptr;
+static pcre_cache_bucket_t* pcre_get_cached_pattern(struct pcre_cache_t* table, const char* pattern,
+                                                    uint32_t compile_flags) {
+  const auto* shared_pattern = make_shared_string(pattern);
+  unsigned int const bucket = (HASH(BLOCK(shared_pattern)) ^ compile_flags) % PCRE_CACHE_SIZE;
+  pcre_cache_bucket_t* node = table->buckets[bucket];
+  pcre_cache_bucket_t* previous = nullptr;
 
   while (node != nullptr) {
     if (shared_pattern == node->pattern && node->compile_flags == compile_flags) {
@@ -1421,10 +1442,10 @@ static pcre_cache_bucket_t *pcre_get_cached_pattern(struct pcre_cache_t *table,
   return nullptr;
 }
 
-static mapping_t *pcre_get_cache() {
+static mapping_t* pcre_get_cache() {
   int size = 0, i;
-  mapping_t *ret;
-  struct pcre_cache_bucket_t *node;
+  mapping_t* ret;
+  struct pcre_cache_bucket_t* node;
 
   // Calculate size for mapping
   for (i = 0; i < PCRE_CACHE_SIZE; i++) {
@@ -1446,7 +1467,7 @@ static mapping_t *pcre_get_cache() {
 
       while (node) {
         size_t keylen = strlen(node->pattern) + 16;
-        char *key = (char *)DMALLOC(keylen, TAG_TEMPORARY, "pcre_cache key");
+        char* key = (char*)DMALLOC(keylen, TAG_TEMPORARY, "pcre_cache key");
         snprintf(key, keylen, "%s|0x%x", node->pattern, node->compile_flags);
         add_mapping_pair(ret, key, node->size);
         FREE(key);
@@ -1458,7 +1479,7 @@ static mapping_t *pcre_get_cache() {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-static void mark_pcre_cache_chain(pcre_cache_bucket_t *node) {
+static void mark_pcre_cache_chain(pcre_cache_bucket_t* node) {
   while (node != nullptr) {
     DO_MARK(node, TAG_PCRE_CACHE);
     EXTRA_REF(BLOCK(node->pattern))++;
@@ -1467,11 +1488,11 @@ static void mark_pcre_cache_chain(pcre_cache_bucket_t *node) {
 }
 
 void mark_pcre_cache() {
-  for (auto &bucket : pcre_cache.buckets) {
+  for (auto& bucket : pcre_cache.buckets) {
     mark_pcre_cache_chain(bucket);
   }
 
-  for (auto *node = pcre_detached_cache; node != nullptr; node = node->detached_next) {
+  for (auto* node = pcre_detached_cache; node != nullptr; node = node->detached_next) {
     DO_MARK(node, TAG_PCRE_CACHE);
     EXTRA_REF(BLOCK(node->pattern))++;
   }
@@ -1479,7 +1500,7 @@ void mark_pcre_cache() {
 #endif
 
 void f_pcre_match_all() {
-  array_t *v;
+  array_t* v;
 
   if (st_num_arg < 2 || st_num_arg > 3) {
     error("pcre_match_all() requires 2 or 3 arguments\n");
@@ -1498,12 +1519,14 @@ void f_pcre_match_all() {
     error("Bad subject or pattern argument to pcre_match_all()\n");
   }
 
-  const auto *pattern = (sp)->u.string;
-  const auto *subject = (sp - 1)->u.string;
+  const auto* pattern = (sp)->u.string;
+  const auto* subject = (sp - 1)->u.string;
   auto subject_len = SVALUE_STRLEN(sp - 1);
 
   auto matches = pcre_match_all(subject, subject_len, pattern, pcre_flags);
-  SCOPE_FAIL { pcre_free_match_arrays(&matches); };
+  SCOPE_FAIL {
+    pcre_free_match_arrays(&matches);
+  };
 
   if (matches.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
     error("PCRE match_all result is too large.\n");
@@ -1513,7 +1536,7 @@ void f_pcre_match_all() {
 
   v = allocate_array(static_cast<int>(matches.size()));
   for (size_t i = 0; i < matches.size(); ++i) {
-    array_t *match_array = matches[i];
+    array_t* match_array = matches[i];
     if (match_array == nullptr) {
       error("Invalid PCRE match_all result.\n");
     }

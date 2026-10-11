@@ -69,7 +69,7 @@ uint64_t next_random() {
   return g_state;
 }
 
-int fuzz_chdir(const char *path) {
+int fuzz_chdir(const char* path) {
 #ifdef _WIN32
   return _chdir(path);
 #else
@@ -105,14 +105,16 @@ bool init_driver_once() {
 struct FuzzGatewayFixture {
   static constexpr int kFd = 4242;
 
-  ~FuzzGatewayFixture() { teardown(); }
+  ~FuzzGatewayFixture() {
+    teardown();
+  }
   FuzzGatewayFixture() = default;
-  FuzzGatewayFixture(const FuzzGatewayFixture &) = delete;
-  FuzzGatewayFixture &operator=(const FuzzGatewayFixture &) = delete;
+  FuzzGatewayFixture(const FuzzGatewayFixture&) = delete;
+  FuzzGatewayFixture& operator=(const FuzzGatewayFixture&) = delete;
 
   bool create() {
     teardown();
-    bufferevent *pair[2]{nullptr, nullptr};
+    bufferevent* pair[2]{nullptr, nullptr};
     if (bufferevent_pair_new(g_event_base, BEV_OPT_CLOSE_ON_FREE, pair) != 0) {
       std::fprintf(stderr, "gateway_fuzz: bufferevent_pair_new failed\n");
       return false;
@@ -131,7 +133,7 @@ struct FuzzGatewayFixture {
 
   // Live master by fd; nullptr when the previous dispatch removed it. Never
   // cache the result across a dispatch.
-  GatewayMaster *current() {
+  GatewayMaster* current() {
     master_ = gateway_master_for_test(kFd);
     return master_;
   }
@@ -145,12 +147,12 @@ struct FuzzGatewayFixture {
     }
   }
 
-  GatewayMaster *master_{nullptr};
-  bufferevent *peer_{nullptr};
+  GatewayMaster* master_{nullptr};
+  bufferevent* peer_{nullptr};
 };
 
 template <typename Scenario>
-bool run_isolated_scenario(Scenario &&scenario) {
+bool run_isolated_scenario(Scenario&& scenario) {
   FuzzGatewayFixture fx;
   if (!fx.create()) {
     return false;
@@ -162,9 +164,8 @@ bool run_isolated_scenario(Scenario &&scenario) {
 // Append bytes and dispatch. Re-resolve the master before every call: the
 // previous dispatch may have removed it. Returns false when the master is
 // gone (caller must stop using the fixture).
-bool append_and_dispatch(FuzzGatewayFixture &fx, const char *data, size_t len,
-                         int budget = 16) {
-  auto *master = fx.current();
+bool append_and_dispatch(FuzzGatewayFixture& fx, const char* data, size_t len, int budget = 16) {
+  auto* master = fx.current();
   if (!master) {
     return false;
   }
@@ -176,7 +177,7 @@ bool append_and_dispatch(FuzzGatewayFixture &fx, const char *data, size_t len,
 // Derive a bounded payload length from the input: reuse the first 4 bytes as
 // a network-order frame length when plausible, otherwise derive one from the
 // input size so every input still produces a complete frame.
-uint32_t derive_frame_length(const uint8_t *data, size_t size) {
+uint32_t derive_frame_length(const uint8_t* data, size_t size) {
   const auto hard_limit = gateway_packet_size_hard_limit_for_test();
   if (size >= sizeof(uint32_t)) {
     uint32_t candidate = 0;
@@ -196,8 +197,7 @@ uint32_t derive_frame_length(const uint8_t *data, size_t size) {
 // Payload bytes for one frame. size == 0 must never dereference data: the
 // byte is a NUL in that case, and the produced frame is still a structurally
 // complete (header + payload) byte sequence.
-std::string make_frame_payload(const uint8_t *data, size_t size,
-                               uint32_t frame_len) {
+std::string make_frame_payload(const uint8_t* data, size_t size, uint32_t frame_len) {
   std::string payload;
   payload.reserve(frame_len);
   for (uint32_t i = 0; i < frame_len; i++) {
@@ -206,11 +206,11 @@ std::string make_frame_payload(const uint8_t *data, size_t size,
   return payload;
 }
 
-std::string encode_frame(const std::string &payload) {
+std::string encode_frame(const std::string& payload) {
   std::string frame;
   frame.reserve(sizeof(uint32_t) + payload.size());
   uint32_t be_len = htonl(static_cast<uint32_t>(payload.size()));
-  frame.append(reinterpret_cast<const char *>(&be_len), sizeof(be_len));
+  frame.append(reinterpret_cast<const char*>(&be_len), sizeof(be_len));
   frame.append(payload);
   return frame;
 }
@@ -219,7 +219,7 @@ std::string encode_frame(const std::string &payload) {
 // session id, so the parser accepts it and reaches gateway_handle_data
 // (data_frames_received++). The payload is built from input bytes but
 // escaped as JSON numbers so the frame is valid for every input.
-std::string make_valid_frame(const uint8_t *data, size_t size) {
+std::string make_valid_frame(const uint8_t* data, size_t size) {
   std::string json = "{\"type\":\"data\",\"cid\":\"sess-001\",\"data\":{\"payload\":[";
   const size_t count = 1 + (size % 16);
   for (size_t i = 0; i < count; i++) {
@@ -235,7 +235,7 @@ std::string make_valid_frame(const uint8_t *data, size_t size) {
 // One fuzz iteration: run every scenario against its own fresh fixture. Scenarios
 // cover: valid full frame, fragmented valid frame, coalesced valid frames,
 // oversized header, truncated frame, invalid JSON and empty input.
-bool fuzz_one_input(const uint8_t *data, size_t size) {
+bool fuzz_one_input(const uint8_t* data, size_t size) {
   const auto frame_len = derive_frame_length(data, size);
   auto payload = make_frame_payload(data, size, frame_len);
   auto frame = encode_frame(payload);
@@ -243,19 +243,17 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   // Full frame (valid JSON only when the input bytes happen to produce a
   // parseable payload; the structured valid frame below guarantees the
   // accepted path).
-  if (!run_isolated_scenario(
-          [&](FuzzGatewayFixture &fx) {
-            append_and_dispatch(fx, frame.data(), frame.size());
-          })) {
+  if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
+        append_and_dispatch(fx, frame.data(), frame.size());
+      })) {
     return false;
   }
 
   // Structured valid frame: guaranteed accepted (data_frames_received).
   auto valid = make_valid_frame(data, size);
-  if (!run_isolated_scenario(
-          [&](FuzzGatewayFixture &fx) {
-            append_and_dispatch(fx, valid.data(), valid.size());
-          })) {
+  if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
+        append_and_dispatch(fx, valid.data(), valid.size());
+      })) {
     return false;
   }
 
@@ -263,10 +261,9 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   // between the two parts so the partial buffer path is exercised.
   if (valid.size() > 1) {
     const size_t split = 1 + (size % (valid.size() - 1));
-    if (!run_isolated_scenario([&](FuzzGatewayFixture &fx) {
+    if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
           if (append_and_dispatch(fx, valid.data(), split)) {
-            append_and_dispatch(fx, valid.data() + split,
-                                valid.size() - split);
+            append_and_dispatch(fx, valid.data() + split, valid.size() - split);
           }
         })) {
       return false;
@@ -276,7 +273,7 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   // Coalesced: two valid frames back to back.
   if (valid.size() < 4096) {
     std::string coalesced = valid + valid;
-    if (!run_isolated_scenario([&](FuzzGatewayFixture &fx) {
+    if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
           append_and_dispatch(fx, coalesced.data(), coalesced.size());
         })) {
       return false;
@@ -289,7 +286,7 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
     uint32_t huge = 0xFFFFFFFFu;
     std::string malicious(sizeof(huge), '\0');
     std::memcpy(malicious.data(), &huge, sizeof(huge));
-    if (!run_isolated_scenario([&](FuzzGatewayFixture &fx) {
+    if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
           append_and_dispatch(fx, malicious.data(), malicious.size());
         })) {
       return false;
@@ -300,7 +297,7 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   // the payload, so the parser must keep a bounded partial frame buffered.
   if (payload.size() > 2) {
     const auto truncated_size = sizeof(uint32_t) + payload.size() / 2;
-    if (!run_isolated_scenario([&](FuzzGatewayFixture &fx) {
+    if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
           append_and_dispatch(fx, frame.data(), truncated_size);
         })) {
       return false;
@@ -311,7 +308,7 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   {
     const std::string broken = "{\"type\":\"data\",\"cid\":";
     auto invalid = encode_frame(broken);
-    if (!run_isolated_scenario([&](FuzzGatewayFixture &fx) {
+    if (!run_isolated_scenario([&](FuzzGatewayFixture& fx) {
           append_and_dispatch(fx, invalid.data(), invalid.size());
         })) {
       return false;
@@ -319,8 +316,9 @@ bool fuzz_one_input(const uint8_t *data, size_t size) {
   }
 
   // Empty input: zero bytes must be a no-op, never a dereference.
-  if (!run_isolated_scenario(
-          [](FuzzGatewayFixture &fx) { append_and_dispatch(fx, "", 0); })) {
+  if (!run_isolated_scenario([](FuzzGatewayFixture& fx) {
+        append_and_dispatch(fx, "", 0);
+      })) {
     return false;
   }
   return true;
@@ -335,16 +333,13 @@ struct SmokeCounters {
 
 SmokeCounters read_counters() {
   SmokeCounters c;
-  c.frames_received = g_gateway_runtime_counters.data_frames_received.load(
+  c.frames_received =
+      g_gateway_runtime_counters.data_frames_received.load(std::memory_order_relaxed);
+  c.length_rejected = g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
       std::memory_order_relaxed);
-  c.length_rejected =
-      g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
-          std::memory_order_relaxed);
-  c.json_rejected = g_gateway_runtime_counters.json_frames_rejected.load(
+  c.json_rejected = g_gateway_runtime_counters.json_frames_rejected.load(std::memory_order_relaxed);
+  c.buffer_rejected = g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
       std::memory_order_relaxed);
-  c.buffer_rejected =
-      g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
-          std::memory_order_relaxed);
   return c;
 }
 
@@ -395,8 +390,7 @@ int run_smoke() {
   }
   const size_t masters_left = gateway_master_count_for_test();
   if (masters_left != 0) {
-    std::fprintf(stderr, "FAIL: %zu master(s) leaked after teardown\n",
-                 masters_left);
+    std::fprintf(stderr, "FAIL: %zu master(s) leaked after teardown\n", masters_left);
     ok = false;
   }
   const int64_t pending_left = gateway_read_dispatch_pending_for_test();
@@ -406,26 +400,26 @@ int run_smoke() {
     ok = false;
   }
 
-  std::printf("gateway_fuzz smoke: %zu inputs, frames_received=%llu, "
-              "length_rejected=%llu, json_rejected=%llu, "
-              "buffer_rejected=%llu, masters_left=%zu, pending_left=%lld\n",
-              kSmokeInputs,
-              static_cast<unsigned long long>(delta.frames_received),
-              static_cast<unsigned long long>(delta.length_rejected),
-              static_cast<unsigned long long>(delta.json_rejected),
-              static_cast<unsigned long long>(delta.buffer_rejected),
-              masters_left, static_cast<long long>(pending_left));
+  std::printf(
+      "gateway_fuzz smoke: %zu inputs, frames_received=%llu, "
+      "length_rejected=%llu, json_rejected=%llu, "
+      "buffer_rejected=%llu, masters_left=%zu, pending_left=%lld\n",
+      kSmokeInputs, static_cast<unsigned long long>(delta.frames_received),
+      static_cast<unsigned long long>(delta.length_rejected),
+      static_cast<unsigned long long>(delta.json_rejected),
+      static_cast<unsigned long long>(delta.buffer_rejected), masters_left,
+      static_cast<long long>(pending_left));
   return ok ? 0 : 1;
 }
 
 }  // namespace
 
 // Exposed for the standalone smoke entry (gateway_fuzz_smoke_main.cc).
-int gateway_fuzz_smoke_main(int /*argc*/, char ** /*argv*/) {
+int gateway_fuzz_smoke_main(int /*argc*/, char** /*argv*/) {
   return run_smoke();
 }
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   if (!init_driver_once()) {
     // Never report "success" for uninitialized runs: abort so the fuzzer
     // stops instead of counting inputs against a parser that never started.

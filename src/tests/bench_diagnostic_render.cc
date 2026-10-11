@@ -49,7 +49,7 @@ compiler_diag::Diagnostic make_expansion_case() {
   return diagnostic;
 }
 
-void measure(const char *name, const compiler_diag::Diagnostic &diagnostic,
+void measure(const char* name, const compiler_diag::Diagnostic& diagnostic,
              compiler_diag::RenderStyle style, int iterations) {
   size_t sink = 0;
   auto const start = std::chrono::steady_clock::now();
@@ -59,10 +59,10 @@ void measure(const char *name, const compiler_diag::Diagnostic &diagnostic,
   }
   auto const elapsed = std::chrono::steady_clock::now() - start;
   double const ns_per_case =
-      static_cast<double>(
-          std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) /
+      static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()) /
       static_cast<double>(iterations);
-  printf("%-34s %10.1f ns/case  (%zu)\n", name, ns_per_case, sink / static_cast<size_t>(iterations));
+  printf("%-34s %10.1f ns/case  (%zu)\n", name, ns_per_case,
+         sink / static_cast<size_t>(iterations));
 }
 
 }  // namespace
@@ -74,10 +74,10 @@ int main() {
 
   printf("render_diagnostic, %d iterations per case\n", kIterations);
   measure("snippet/clang", snippet_case, compiler_diag::RenderStyle::kClang, kIterations);
-  measure("snippet/traditional", snippet_case,
-          compiler_diag::RenderStyle::kTraditional, kIterations);
+  measure("snippet/traditional", snippet_case, compiler_diag::RenderStyle::kTraditional,
+          kIterations);
   measure("expansion/clang", expansion_case, compiler_diag::RenderStyle::kClang, kIterations);
-  measure("expansion/traditional", expansion_case,
-          compiler_diag::RenderStyle::kTraditional, kIterations);
+  measure("expansion/traditional", expansion_case, compiler_diag::RenderStyle::kTraditional,
+          kIterations);
   return 0;
 }

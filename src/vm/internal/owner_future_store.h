@@ -112,15 +112,17 @@ class OwnerFutureStore {
   OwnerFutureState state(uint64_t future_id);
   OwnerFutureTakeResult take(uint64_t future_id);
   bool has_pending_for_task(uint64_t target_task_id) const;
-  std::optional<OwnerFutureCompletion> complete(uint64_t future_id, const char *state, const char *result_key,
-                                                const char *error,
+  std::optional<OwnerFutureCompletion> complete(uint64_t future_id, const char* state,
+                                                const char* result_key, const char* error,
                                                 std::shared_ptr<VMFrozenValue> result = nullptr);
-  std::optional<OwnerFutureCompletion> complete_for_task(uint64_t target_task_id, const char *state,
-                                                         const char *result_key, const char *error,
-                                                         std::shared_ptr<VMFrozenValue> result = nullptr);
-  std::optional<OwnerFutureCompletion> complete_string_for_task(
-      uint64_t target_task_id, const char *result_key, std::string result);
-  OwnerFutureTerminalResult fail_terminal(uint64_t future_id, const char *reason, bool cancelled, bool timed_out);
+  std::optional<OwnerFutureCompletion> complete_for_task(
+      uint64_t target_task_id, const char* state, const char* result_key, const char* error,
+      std::shared_ptr<VMFrozenValue> result = nullptr);
+  std::optional<OwnerFutureCompletion> complete_string_for_task(uint64_t target_task_id,
+                                                                const char* result_key,
+                                                                std::string result);
+  OwnerFutureTerminalResult fail_terminal(uint64_t future_id, const char* reason, bool cancelled,
+                                          bool timed_out);
 
   // Reap expired payload-free terminal records (TTL-based). Safe to call
   // anytime; also invoked lazily from insert/poll/state with a bounded scan.
@@ -145,20 +147,21 @@ class OwnerFutureStore {
   uint64_t byte_reject_count() const;
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-  void mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const;
+  void mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const;
 #endif
 
  private:
-  static const char *normalize_text(const char *text, const char *fallback);
-  static VMObjectHandleResolveStatus target_status(const OwnerFutureRecord &record);
+  static const char* normalize_text(const char* text, const char* fallback);
+  static VMObjectHandleResolveStatus target_status(const OwnerFutureRecord& record);
   void erase_task_index_entry(uint64_t target_task_id, uint64_t future_id);
   // Requires mutex_ held. Single completion path shared by every entry
   // point (complete, complete_for_task, complete_string_for_task,
   // fail_terminal, cancellation): enforces quotas, converts pending ->
   // terminal inside the reserved slot, and keeps a failed tombstone on
   // rejection. At most one of result/native_string may be non-null.
-  OwnerFutureCompletion complete_record(OwnerFutureRecord &record, const char *state, const char *result_key,
-                                        const char *error, std::shared_ptr<VMFrozenValue> result,
+  OwnerFutureCompletion complete_record(OwnerFutureRecord& record, const char* state,
+                                        const char* result_key, const char* error,
+                                        std::shared_ptr<VMFrozenValue> result,
                                         std::shared_ptr<const std::string> native_string);
   // Requires mutex_ held. Removes terminal records that are past TTL and carry
   // no payload (never silently drops payload-bearing records). Scans at most
@@ -166,15 +169,15 @@ class OwnerFutureStore {
   void reap_expired_terminal_locked();
   // Requires mutex_ held. Maintains counters and the TTL time index for a
   // record that just became terminal (or was inserted as terminal).
-  void index_terminal_record_locked(const OwnerFutureRecord &record);
+  void index_terminal_record_locked(const OwnerFutureRecord& record);
   // Requires mutex_ held. Undoes counters and the TTL time index for a
   // terminal record being removed/replaced.
-  void unindex_terminal_record_locked(const OwnerFutureRecord &record);
+  void unindex_terminal_record_locked(const OwnerFutureRecord& record);
   // Requires mutex_ held. Terminates a pending record as failed due to a
   // quota breach. The record is KEPT as a payload-free failed tombstone in
   // its reserved lifecycle slot: it remains queryable via poll/state/take
   // until take(), TTL reaping or cancellation, and its error code is stable.
-  OwnerFutureRecord reject_pending_by_quota_locked(uint64_t future_id, const char *reason);
+  OwnerFutureRecord reject_pending_by_quota_locked(uint64_t future_id, const char* reason);
   // Debug-only invariant check; no-op in release builds.
   void assert_counts_locked() const;
 
@@ -205,5 +208,7 @@ class OwnerFutureStore {
 
  private:
   static uint64_t default_clock();
-  uint64_t now_ns() const { return clock_ ? clock_() : default_clock(); }
+  uint64_t now_ns() const {
+    return clock_ ? clock_() : default_clock();
+  }
 };

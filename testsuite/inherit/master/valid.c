@@ -28,27 +28,22 @@ public string query_recompile_nested_probe_error() {
   return nested_recompile_probe_error;
 }
 
-void create() {
-}
+void create() {}
 
-int
-valid_shadow(object ob)
-{
+int valid_shadow(object ob) {
 #ifdef __PACKAGE_UIDS__
-    if (getuid(ob) == ROOT_UID) {
-        return 1; /* for test */
-    }
+  if (getuid(ob) == ROOT_UID) {
+    return 1; /* for test */
+  }
 #endif
-    if (ob->query_prevent_shadow(previous_object())) {
-        return 0;
-    }
-	return 1;
+  if (ob->query_prevent_shadow(previous_object())) {
+    return 0;
+  }
+  return 1;
 }
 
-int
-valid_author(string)
-{
-	return 1;
+int valid_author(string) {
+  return 1;
 }
 
 // valid_override: controls which simul_efuns may be overridden with
@@ -67,44 +62,36 @@ void clear_last_valid_override() {
   last_valid_override = 0;
 }
 
-int
-valid_override(string file, string name, string mainfile)
-{
+int valid_override(string file, string name, string mainfile) {
   last_valid_override = ({ file, name, mainfile });
-	if (file == OVERRIDES_FILE) {
-		return 1;
-	}
-	if ((name == "move_object") && (file != BASE))
-		return 0;
-//  may also wish to protect destruct, shutdown, snoop, and exec.
-	return 1;
+  if (file == OVERRIDES_FILE) {
+    return 1;
+  }
+  if ((name == "move_object") && (file != BASE))
+    return 0;
+  //  may also wish to protect destruct, shutdown, snoop, and exec.
+  return 1;
 }
 
 // valid_seteuid: determines whether an object ob can become euid str.
 // returns: 1 if seteuid() may succeed, 0 if not.
 
-int
-valid_seteuid(object, string)
-{
-    return 1;
+int valid_seteuid(object, string) {
+  return 1;
 }
 
 // valid_domain: decides if a domain may be created
 // returns: 1 if domain may be created, 0 if not.
 
-int
-valid_domain(string)
-{
-	return 1;
+int valid_domain(string) {
+  return 1;
 }
 
 // valid_socket: controls access to socket efunctions
 // return: 1 if access allowed, 0 if not.
 
-int
-valid_socket(object, string, mixed *)
-{
-	return 1;
+int valid_socket(object, string, mixed *) {
+  return 1;
 }
 
 // Write and Read privileges:
@@ -113,9 +100,7 @@ valid_socket(object, string, mixed *)
 //  and the function by which they called it.
 // return: 1 if access allowed, 0 if access not allowed.
 
-int
-valid_write(string, mixed, string)
-{
+int valid_write(string, mixed, string) {
   inherit_called++;
   return 1;
 }
@@ -132,14 +117,12 @@ object query_include_probe() {
   return include_probe;
 }
 
-int
-valid_read(string file, mixed caller, string operation)
-{
-    inherit_called++;
-    if (include_probe && operation == "include") {
-      return include_probe->check_include_path(file);
-    }
-    return 1;
+int valid_read(string file, mixed caller, string operation) {
+  inherit_called++;
+  if (include_probe && operation == "include") {
+    return include_probe->check_include_path(file);
+  }
+  return 1;
 }
 
 // Tests can register a hook object to observe valid_bind() (and, e.g.,
@@ -153,30 +136,30 @@ public void set_bind_hook(object ob) { bind_hook = ob; }
 public void set_hide_audit_mode(int value) { hide_audit_mode = value; }
 
 int valid_bind(object binder, object old_owner, object new_owner) {
-    inherit_called++;
-    if (bind_hook) return bind_hook->valid_bind_hook(binder, old_owner, new_owner);
-    // This is really unsafe, but testsuite uses it to test bind()
-    return 1;
+  inherit_called++;
+  if (bind_hook) return bind_hook->valid_bind_hook(binder, old_owner, new_owner);
+  // This is really unsafe, but testsuite uses it to test bind()
+  return 1;
 }
 
 int valid_hide() {
-    inherit_called++;
-    // The set_hide regression uses dumpallobj as an observable consumer.
-    return !hide_audit_mode;
+  inherit_called++;
+  // The set_hide regression uses dumpallobj as an observable consumer.
+  return !hide_audit_mode;
 }
 
 int valid_recompile_object(object binder, object target) {
-    inherit_called++;
-    // The outer recompile context is installed before this hook. The nested
-    // call must fail at that public boundary, not reach authorization or
-    // modify the owner/runtime state.
-    if (nested_recompile_probe) {
-        nested_recompile_probe = 0;
-        mixed nested_error = catch(recompile_object(target));
-        nested_recompile_probe_error = sprintf("%O", nested_error);
-        nested_recompile_probe_result = stringp(nested_error);
-    }
-    // Tests use this to exercise the recompile_object() path; production
-    // mudlibs decide here.
-    return 1;
+  inherit_called++;
+  // The outer recompile context is installed before this hook. The nested
+  // call must fail at that public boundary, not reach authorization or
+  // modify the owner/runtime state.
+  if (nested_recompile_probe) {
+    nested_recompile_probe = 0;
+    mixed nested_error = catch(recompile_object(target));
+    nested_recompile_probe_error = sprintf("%O", nested_error);
+    nested_recompile_probe_result = stringp(nested_error);
+  }
+  // Tests use this to exercise the recompile_object() path; production
+  // mudlibs decide here.
+  return 1;
 }

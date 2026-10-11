@@ -5,8 +5,8 @@
  * simul_efun.c
  */
 
-extern struct object_t *simul_efun_ob;
-extern struct function_lookup_info_t *simuls;
+extern struct object_t* simul_efun_ob;
+extern struct function_lookup_info_t* simuls;
 
 // Live dispatch tables (extern for tests; owned by simul_efun.cc).
 // names is the position-keyed table ordered by INTERNED STRING POINTER
@@ -18,14 +18,14 @@ extern struct function_lookup_info_t *simuls;
 // rely on the position ordering (position may coincide with dispatch
 // index); runtime dispatch goes through the dispatch index only.
 struct simul_entry {
-  const char *name;
+  const char* name;
   short index;
 };
-extern simul_entry *simul_names;
+extern simul_entry* simul_names;
 extern int num_simul_efun;
 
-void init_simul_efun(const char *);
-void set_simul_efun(struct object_t *);
+void init_simul_efun(const char*);
+void set_simul_efun(struct object_t*);
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_simuls(void);
@@ -77,29 +77,29 @@ struct simul_efun_prepared_t {
   enum class State { Prepared, Activated, Finalized };
 
   struct ProvisionalEntry {
-    const char *name{nullptr};
-    void *ident{nullptr};  // ident_hash_elem_t* only when prepare allocated it
+    const char* name{nullptr};
+    void* ident{nullptr};  // ident_hash_elem_t* only when prepare allocated it
   };
 
-  void *names{nullptr};    // simul_entry* shadow array (live after activate)
-  void *funcs{nullptr};    // function_lookup_info_t* shadow array
-  void **idents{nullptr};  // ident_hash_elem_t* per entry, pre-inserted
+  void* names{nullptr};    // simul_entry* shadow array (live after activate)
+  void* funcs{nullptr};    // function_lookup_info_t* shadow array
+  void** idents{nullptr};  // ident_hash_elem_t* per entry, pre-inserted
   int count{0};
-  ProvisionalEntry *provisional{nullptr};  // prepare-owned names/ident nodes
+  ProvisionalEntry* provisional{nullptr};  // prepare-owned names/ident nodes
   int provisional_count{0};
   // After activate(), the OLD live tables (handed over alive so a failed
   // create can restore them). finish() frees them; rollback() swaps them
   // back into the live table and frees the new ones.
-  void *old_names{nullptr};  // simul_entry* previous live table
-  void *old_funcs{nullptr};  // function_lookup_info_t* previous live table
+  void* old_names{nullptr};  // simul_entry* previous live table
+  void* old_funcs{nullptr};  // function_lookup_info_t* previous live table
   int old_count{0};
   State state{State::Prepared};
 };
 
-void simul_efuns_prepare(struct program_t *prog, simul_efun_prepared_t *out);
-void simul_efuns_activate(simul_efun_prepared_t *p) noexcept;
-void simul_efuns_finish(simul_efun_prepared_t *p) noexcept;
-void simul_efuns_rollback(simul_efun_prepared_t *p) noexcept;
-void simul_efuns_discard(simul_efun_prepared_t *p) noexcept;
+void simul_efuns_prepare(struct program_t* prog, simul_efun_prepared_t* out);
+void simul_efuns_activate(simul_efun_prepared_t* p) noexcept;
+void simul_efuns_finish(simul_efun_prepared_t* p) noexcept;
+void simul_efuns_rollback(simul_efun_prepared_t* p) noexcept;
+void simul_efuns_discard(simul_efun_prepared_t* p) noexcept;
 
 #endif

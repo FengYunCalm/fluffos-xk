@@ -21,15 +21,15 @@ using compile_arena::ScratchArenaBinding;
 
 // Writes a recognisable pattern so overlapping frees or a bogus rewind show
 // up as corrupted content rather than a silent pass.
-void write_pattern(void *p, size_t len, char seed) {
-  auto *bytes = static_cast<char *>(p);
+void write_pattern(void* p, size_t len, char seed) {
+  auto* bytes = static_cast<char*>(p);
   for (size_t i = 0; i < len; i++) {
     bytes[i] = static_cast<char>(seed + (i % 7));
   }
 }
 
-bool pattern_intact(const void *p, size_t len, char seed) {
-  auto *bytes = static_cast<const char *>(p);
+bool pattern_intact(const void* p, size_t len, char seed) {
+  auto* bytes = static_cast<const char*>(p);
   for (size_t i = 0; i < len; i++) {
     if (bytes[i] != static_cast<char>(seed + (i % 7))) {
       return false;
@@ -44,7 +44,7 @@ TEST(CompileArenaTest, SessionArenaIsIndependentFromTheCompilerArena) {
   ScratchArena session(false);
   ASSERT_EQ(session.bytes_live(), 0u);
 
-  void *session_bytes = session.alloc(64);
+  void* session_bytes = session.alloc(64);
   ASSERT_NE(session_bytes, nullptr);
   write_pattern(session_bytes, 64, 1);
   EXPECT_EQ(session.bytes_live(), 64u);
@@ -53,7 +53,7 @@ TEST(CompileArenaTest, SessionArenaIsIndependentFromTheCompilerArena) {
   // The process-wide compiler scope keeps running its own cycles without
   // touching the session arena.
   compile_arena::begin();
-  void *compiler_bytes = compile_arena::alloc(128);
+  void* compiler_bytes = compile_arena::alloc(128);
   ASSERT_NE(compiler_bytes, nullptr);
   EXPECT_TRUE(pattern_intact(session_bytes, 64, 1))
       << "compiler allocation must not disturb session storage";
@@ -71,7 +71,7 @@ TEST(CompileArenaTest, BeginIsResetBeforeUseAndReportsCrossCycleSurvival) {
   // Cycle 1 storage stays live until the next begin(): an interactive session
   // renders the diagnostics of cycle N before starting cycle N+1, so the
   // session protocol is "reset before use", not "release at the end".
-  void *diagnostic = session.alloc(4096);
+  void* diagnostic = session.alloc(4096);
   ASSERT_NE(diagnostic, nullptr);
   write_pattern(diagnostic, 4096, 3);
   EXPECT_EQ(session.bytes_live(), 4096u);
@@ -84,7 +84,7 @@ TEST(CompileArenaTest, BeginIsResetBeforeUseAndReportsCrossCycleSurvival) {
   EXPECT_EQ(session.bytes_live(), 0u);
   EXPECT_EQ(session.cycle_bytes(), 0u);
 
-  void *next_cycle = session.alloc(4096);
+  void* next_cycle = session.alloc(4096);
   EXPECT_EQ(next_cycle, diagnostic) << "the released storage is handed out again";
   EXPECT_EQ(session.chunk_mallocs(), 1u);
   session.end();
@@ -94,7 +94,7 @@ TEST(CompileArenaTest, BindingReleasesOnlyItsOwnStorage) {
   ScratchArena session(false);
   session.begin();
 
-  void *outer = session.alloc(256);
+  void* outer = session.alloc(256);
   ASSERT_NE(outer, nullptr);
   write_pattern(outer, 256, 5);
   size_t const live_before_binding = session.bytes_live();
@@ -102,7 +102,7 @@ TEST(CompileArenaTest, BindingReleasesOnlyItsOwnStorage) {
   {
     ScratchArenaBinding binding(session);
     EXPECT_EQ(session.bindings_active(), 1u);
-    void *inner = session.alloc(1024);
+    void* inner = session.alloc(1024);
     ASSERT_NE(inner, nullptr);
     write_pattern(inner, 1024, 9);
     EXPECT_EQ(session.bytes_live(), live_before_binding + 1024);
@@ -112,8 +112,7 @@ TEST(CompileArenaTest, BindingReleasesOnlyItsOwnStorage) {
   EXPECT_EQ(session.binding_rewinds(), 1u);
   EXPECT_EQ(session.bytes_live(), live_before_binding)
       << "the binding must release exactly what it allocated";
-  EXPECT_TRUE(pattern_intact(outer, 256, 5))
-      << "storage allocated before the binding stays valid";
+  EXPECT_TRUE(pattern_intact(outer, 256, 5)) << "storage allocated before the binding stays valid";
 
   session.end();
 }
@@ -122,29 +121,28 @@ TEST(CompileArenaTest, BindingRewindsTheChunkItStartedIn) {
   ScratchArena session(false);
   session.begin();
 
-  void *before = session.alloc(64);
+  void* before = session.alloc(64);
   ASSERT_NE(before, nullptr);
   size_t const live_before = session.bytes_live();
 
-  void *first = nullptr;
+  void* first = nullptr;
   {
     ScratchArenaBinding binding(session);
     // Small allocations stay inside the chunk the binding started in, so the
     // release has to rewind the bump cursor, not just drop whole chunks.
     first = session.alloc(64);
-    void *second = session.alloc(64);
+    void* second = session.alloc(64);
     ASSERT_NE(first, nullptr);
     ASSERT_NE(second, nullptr);
     EXPECT_EQ(session.bytes_live(), live_before + 128);
   }
 
-  EXPECT_EQ(session.bytes_live(), live_before)
-      << "the binding released its own two allocations";
+  EXPECT_EQ(session.bytes_live(), live_before) << "the binding released its own two allocations";
   EXPECT_EQ(session.binding_rewinds(), 1u);
 
   // The rewound storage is handed out again at the binding's entry mark, which
   // is where its first allocation started.
-  void *reused = session.alloc(64);
+  void* reused = session.alloc(64);
   EXPECT_EQ(reused, first) << "the rewound region restarts at the entry mark";
   EXPECT_EQ(session.bytes_live(), live_before + 64);
   session.end();
@@ -154,21 +152,21 @@ TEST(CompileArenaTest, NestedBindingsReleaseInnermostFirst) {
   ScratchArena session(false);
   session.begin();
 
-  void *outer_data = session.alloc(128);
+  void* outer_data = session.alloc(128);
   ASSERT_NE(outer_data, nullptr);
   write_pattern(outer_data, 128, 11);
   size_t const live_at_outer_binding = session.bytes_live();
 
   {
     ScratchArenaBinding outer_binding(session);
-    void *middle = session.alloc(128);
+    void* middle = session.alloc(128);
     ASSERT_NE(middle, nullptr);
     write_pattern(middle, 128, 13);
     size_t const live_at_inner_binding = session.bytes_live();
 
     {
       ScratchArenaBinding inner_binding(session);
-      void *leaf = session.alloc(256);
+      void* leaf = session.alloc(256);
       ASSERT_NE(leaf, nullptr);
       EXPECT_EQ(session.bindings_active(), 2u);
       EXPECT_EQ(session.bytes_live(), live_at_inner_binding + 256);
@@ -194,13 +192,13 @@ TEST(CompileArenaTest, OutOfOrderBindingDestructionIsRefused) {
   {
     std::optional<ScratchArenaBinding> outer_binding;
     outer_binding.emplace(session);
-    void *outer_data = session.alloc(128);
+    void* outer_data = session.alloc(128);
     ASSERT_NE(outer_data, nullptr);
     live_with_outer = session.bytes_live();
 
     {
       ScratchArenaBinding inner_binding(session);
-      void *inner_data = session.alloc(128);
+      void* inner_data = session.alloc(128);
       ASSERT_NE(inner_data, nullptr);
       live_with_inner = session.bytes_live();
       ASSERT_EQ(live_with_inner, live_with_outer + 128);
@@ -234,20 +232,19 @@ TEST(CompileArenaTest, OutOfOrderBindingDestructionIsRefused) {
 TEST(CompileArenaTest, OversizeChunksAreNotRetainedAndResetDropsThePool) {
   ScratchArena session(false);
   session.begin();
-  void *huge = session.alloc(compile_arena::kBaseChunkSize + 4096);
+  void* huge = session.alloc(compile_arena::kBaseChunkSize + 4096);
   ASSERT_NE(huge, nullptr);
   EXPECT_EQ(session.retained_chunks(), 0u);
   session.end();
-  EXPECT_EQ(session.retained_chunks(), 0u)
-      << "an oversize chunk is released instead of retained";
+  EXPECT_EQ(session.retained_chunks(), 0u) << "an oversize chunk is released instead of retained";
   EXPECT_EQ(session.bytes_live(), 0u);
 
   // A standard cycle that overflows the base chunk retains the overflow chunk
   // for reuse (this is the C-S1 retention pool the compiler relies on)...
   session.begin();
-  void *status = session.alloc(1024);
+  void* status = session.alloc(1024);
   ASSERT_NE(status, nullptr);
-  void *standard = session.alloc(compile_arena::kBaseChunkSize);
+  void* standard = session.alloc(compile_arena::kBaseChunkSize);
   ASSERT_NE(standard, nullptr);
   session.end();
   EXPECT_EQ(session.retained_chunks(), 1u);
@@ -259,11 +256,10 @@ TEST(CompileArenaTest, OversizeChunksAreNotRetainedAndResetDropsThePool) {
   EXPECT_EQ(session.retained_chunks(), 0u);
   EXPECT_EQ(session.retained_heap_bytes(), 0u);
   EXPECT_EQ(session.bytes_live(), 0u);
-  EXPECT_EQ(session.chunk_mallocs(), mallocs_before_reset)
-      << "reset() itself does not allocate";
+  EXPECT_EQ(session.chunk_mallocs(), mallocs_before_reset) << "reset() itself does not allocate";
 
   // The arena stays usable after a full reset.
-  void *after_reset = session.alloc(64);
+  void* after_reset = session.alloc(64);
   ASSERT_NE(after_reset, nullptr);
   EXPECT_GT(session.chunk_mallocs(), mallocs_before_reset);
   session.reset();
@@ -273,11 +269,11 @@ TEST(CompileArenaTest, StringAllocationIsTerminatedAndAccountingMatches) {
   ScratchArena session(false);
   session.begin();
 
-  char *empty = session.alloc_string(0);
+  char* empty = session.alloc_string(0);
   ASSERT_NE(empty, nullptr);
   EXPECT_EQ(empty[0], '\0');
 
-  char *text = session.alloc_string(31);
+  char* text = session.alloc_string(31);
   ASSERT_NE(text, nullptr);
   std::memcpy(text, "compile_arena", 13);
   text[13] = '\0';

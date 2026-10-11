@@ -4,8 +4,7 @@ private string last_disconnect_code = 0;
 private string last_disconnect_text = 0;
 private int saved_before_destruct = 0;
 
-void gateway_logon(mixed data) {
-}
+void gateway_logon(mixed data) {}
 
 void gateway_disconnected(string reason_code, string reason_text) {
   last_disconnect_code = reason_code;

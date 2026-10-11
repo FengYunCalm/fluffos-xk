@@ -1549,6 +1549,10 @@ function renderLine(toks, mappingContext = false, pendingTernary = 0) {
     // `for (x = 1; ; )`, 6:0) but writes the FULLY-empty header tight
     // (`for (;;)`, its only corpus spelling, and clang-format's): tight
     // whenever everything back to the opening '(' is semicolons.
+    // A numeric left range bound needs a separator before '..'. Without it,
+    // `0 .. end` would render as `0..end`, which the lexer can read as a
+    // trailing-dot number followed by a dot instead of the range operator.
+    else if (t.text === '..' && prev && prev.kind === 'number') sep = ' ';
     else if (NO_SPACE_BEFORE.has(t.text) &&
              !((t.text === ';' || t.text === ')') && prev && prev.text === ';' &&
                !(() => {

@@ -6,7 +6,7 @@ private string last_disconnect_code = 0;
 private string last_disconnect_text = 0;
 
 void finish_gateway_logon(mixed data) {
-  last_gateway_login = mapp(data) ? data : (["raw": data]);
+  last_gateway_login = mapp(data) ? data : ([ "raw": data ]);
 }
 
 mapping query_gateway_login() { return last_gateway_login; }

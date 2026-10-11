@@ -35,14 +35,14 @@ typedef struct {
 } defined_name_t;
 
 typedef struct ifstate_s {
-  struct ifstate_s *next;
+  struct ifstate_s* next;
   int state;
 } ifstate_t;
 
 typedef struct defn_s {
-  struct defn_s *next;
-  char *name;
-  char *exps;
+  struct defn_s* next;
+  char* name;
+  char* exps;
   int flags;
   int nargs;
 } defn_t;
@@ -67,24 +67,24 @@ typedef struct defn_s {
 #define INDENT_HASH_SIZE 1024 /* must be a power of 2 */
 
 struct ident_hash_elem_t {
-  const char *name;
+  const char* name;
   short token;              /* only flags */
   unsigned short sem_value; /* for these, a count of the ambiguity */
-  struct ident_hash_elem_t *next;
+  struct ident_hash_elem_t* next;
   /* the fields above must correspond to struct keyword_t */
-  struct ident_hash_elem_t *next_dirty;
+  struct ident_hash_elem_t* next_dirty;
   defined_name_t dn;
 };
 
 struct lpc_predef_t {
-  char *flag;
-  struct lpc_predef_t *next;
+  char* flag;
+  struct lpc_predef_t* next;
 };
 
 #define EXPECT_ELSE 1
 #define EXPECT_ENDIF 2
 
-extern lpc_predef_t *lpc_predefs;
+extern lpc_predef_t* lpc_predefs;
 
 /*
  * Information about all instructions. This is not really needed as the
@@ -96,7 +96,7 @@ typedef struct {
   lpc_type_t type[4];
   short Default;
   lpc_type_t ret_type;
-  const char *name;
+  const char* name;
   int arg_index;
 } instr_t;
 
@@ -108,11 +108,11 @@ extern int current_line;
 extern int current_line_base;
 extern int current_line_saved;
 extern int total_lines;
-extern const char *current_file;
+extern const char* current_file;
 extern int current_file_id;
 extern int pragmas;
 extern int num_parse_error;
-extern lpc_predef_t *lpc_predefs;
+extern lpc_predef_t* lpc_predefs;
 extern int efun_arg_types[];
 extern char yytext[MAXLINE];
 extern int lex_fatal;
@@ -122,54 +122,54 @@ void push_function_context(void);
 void pop_function_context(void);
 int yylex();
 void init_num_args(void);
-const char *query_instr_name(int);
-char *get_f_name(int);
+const char* query_instr_name(int);
+char* get_f_name(int);
 void init_include_path(void);
 void deinit_include_path(void);
-void set_inc_list(char *);
+void set_inc_list(char*);
 void start_new_file(std::unique_ptr<LexStream>);
 void end_new_file(void);
-int lookup_predef(const char *);
+int lookup_predef(const char*);
 void add_predefines(void);
-const char *main_file_name(void);
-char *get_defined_name(defined_name_t *);
-ident_hash_elem_t *find_or_add_ident(const char *, int);
-ident_hash_elem_t *find_or_add_perm_ident(const char *);
-ident_hash_elem_t *lookup_ident(const char *);
+const char* main_file_name(void);
+char* get_defined_name(defined_name_t*);
+ident_hash_elem_t* find_or_add_ident(const char*, int);
+ident_hash_elem_t* find_or_add_perm_ident(const char*);
+ident_hash_elem_t* lookup_ident(const char*);
 // Find a permanent identifier without requiring a positive semantic reference.
 // This is read-only and includes inactive/orphan entries retained by cumulative
 // dispatch tables; it never moves the hash cursor or allocates.
-ident_hash_elem_t *lookup_perm_ident(const char *);
+ident_hash_elem_t* lookup_perm_ident(const char*);
 // Remove one transaction-provisional permanent identifier without allocating.
 // The caller must own the exact node and keep its name string alive until this
 // function returns; ordinary permanent/active identifiers are rejected.
-bool remove_perm_ident(ident_hash_elem_t *);
+bool remove_perm_ident(ident_hash_elem_t*);
 void free_unused_identifiers(void);
 void init_identifiers(void);
-char *show_error_context(void);
+char* show_error_context(void);
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_all_defines(void);
 #endif
 // Print all predefines using debug_message().
 void print_all_predefines();
 // Get error/warning message from lexer
-std::vector<std::string> prepare_logs(const char *, int, const char *, int, bool);
+std::vector<std::string> prepare_logs(const char*, int, const char*, int, bool);
 /* Lexer position helpers for diagnostics: the start of the current source line
  * (nullptr at EOF) and its 1-based column (0 when unknown). */
-const char *current_line_start();
+const char* current_line_start();
 int current_source_column();
 
 /* Active #define expansion frames, outermost first. A diagnostic reported while
  * a macro body is being expanded uses these to explain where the text came
  * from (the file/line of the report belong to the macro definition). */
 struct macro_expansion_frame_t {
-  const char *name;
-  const char *file;
+  const char* name;
+  const char* file;
   int line;
   int column;
 };
 int macro_expansion_depth();
-const macro_expansion_frame_t *macro_expansion_frame(int index);
+const macro_expansion_frame_t* macro_expansion_frame(int index);
 
 /* Recently completed expansions, newest first. The parser reports problems
  * after a macro body was spliced into the token stream, so these (not the
@@ -180,5 +180,5 @@ const macro_expansion_frame_t *macro_expansion_frame(int index);
 // valid until the next compile scope, which is the window a diagnostic record and
 // its rendering need. Returns 0 when the position is not inside spliced
 // expansion text.
-int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, int capacity);
+int macro_expansion_chain(int line, int column, macro_expansion_frame_t* out, int capacity);
 #endif

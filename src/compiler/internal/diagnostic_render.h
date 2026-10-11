@@ -41,15 +41,15 @@ constexpr size_t kMaxSnippetLineLength = 512;
 // lines. This is the memchr-based scan of the upstream rendering stack: an 8K
 // read buffer, no per-character fgetc (the slow version cost 45.4M calls in one
 // testsuite run to serve 153 diagnostics). A missing file is not an error.
-bool read_source_line(const char *file, int line, char *buf, size_t buflen);
+bool read_source_line(const char* file, int line, char* buf, size_t buflen);
 
 // Renders one diagnostic (with a trailing newline). Never throws, and renders
 // what it can when the snippet is unavailable.
-std::string render_diagnostic(const Diagnostic &diagnostic, RenderStyle style);
+std::string render_diagnostic(const Diagnostic& diagnostic, RenderStyle style);
 
 // Renders the snippet lines only (source line + caret), as used by both styles;
 // empty when the line is unavailable.
-std::string render_snippet(const Diagnostic &diagnostic);
+std::string render_snippet(const Diagnostic& diagnostic);
 
 }  // namespace compiler_diag
 

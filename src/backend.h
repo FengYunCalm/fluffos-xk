@@ -12,13 +12,13 @@
  */
 
 // Global event base
-extern struct event_base *g_event_base;
+extern struct event_base* g_event_base;
 
 // Initialization of main game loop.
-struct event_base *init_backend();
+struct event_base* init_backend();
 
 // This is the main game loop.
-void backend(struct event_base *);
+void backend(struct event_base*);
 
 constexpr int kBackendEventPriorityLevels = 2;
 
@@ -33,8 +33,7 @@ constexpr auto kBackendTickEventWallBudget = std::chrono::milliseconds(4);
 constexpr auto kBackendTickContinuationDelay = std::chrono::milliseconds(1);
 constexpr int kBackendOwnerMainDrainTaskBudget = 64;
 constexpr auto kBackendOwnerMainDrainWallBudget = std::chrono::milliseconds(8);
-constexpr auto kBackendOwnerMainDrainContinuationDelay =
-    std::chrono::milliseconds(1);
+constexpr auto kBackendOwnerMainDrainContinuationDelay = std::chrono::milliseconds(1);
 
 struct BackendRuntimeStatus {
   uint64_t tick_slice_runs{0};
@@ -61,8 +60,7 @@ BackendRuntimeStatus backend_runtime_status();
 // or newly ready Gateway I/O ahead of optional warmups, can be admitted.
 constexpr auto kBackendBackgroundDispatchMaxInterval = std::chrono::milliseconds(2);
 constexpr int kBackendBackgroundDispatchMaxCallbacks = 8;
-constexpr auto kBackendBackgroundDispatchMinPriority =
-    BackendEventPriority::kBackground;
+constexpr auto kBackendBackgroundDispatchMinPriority = BackendEventPriority::kBackground;
 
 // API for registering game tick event.
 // Game ticks provides guaranteed spacing intervals between each invocation.
@@ -70,19 +68,23 @@ struct TickEvent {
   using callback_type = std::function<void()>;
   callback_type callback;
 
-  TickEvent(callback_type &callback) : callback(callback) {}
+  TickEvent(callback_type& callback) : callback(callback) {}
 
-  void cancel() noexcept { valid_.store(false, std::memory_order_release); }
-  bool is_valid() const noexcept { return valid_.load(std::memory_order_acquire); }
+  void cancel() noexcept {
+    valid_.store(false, std::memory_order_release);
+  }
+  bool is_valid() const noexcept {
+    return valid_.load(std::memory_order_acquire);
+  }
 
  private:
   std::atomic<bool> valid_{true};
 };
 
 // Register a event to run on game ticks.
-TickEvent *add_gametick_event(int delay_ticks, TickEvent::callback_type callback);
+TickEvent* add_gametick_event(int delay_ticks, TickEvent::callback_type callback);
 // Realtime event will be executed as close to designated walltime as possible.
-TickEvent *add_walltime_event(std::chrono::milliseconds delay_msecs,
+TickEvent* add_walltime_event(std::chrono::milliseconds delay_msecs,
                               TickEvent::callback_type callback,
                               BackendEventPriority priority = BackendEventPriority::kNormal);
 
@@ -99,7 +101,7 @@ size_t walltime_event_queue_size_for_test();
  * is waiting for the main thread to drain it. Tests that poll a promise settled
  * by a worker use this instead of sleeping on the tick queues. */
 bool backend_wakeup_pending_for_test();
-int walltime_event_priority_for_test(TickEvent *event);
+int walltime_event_priority_for_test(TickEvent* event);
 // Move the game tick clock forward the way finish_game_tick() does, without
 // running the event loop (next_reset/clean_up deadlines are compared against
 // it, so tests that need a deadline to be due use this).
@@ -125,6 +127,6 @@ std::chrono::milliseconds gametick_to_time(int ticks);
 
 void update_load_av();
 void update_compile_av(int);
-char *query_load_av();
+char* query_load_av();
 
 #endif

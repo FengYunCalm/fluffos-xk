@@ -10,9 +10,9 @@
 
 #include <fmt/format.h>
 
-extern int context;                  // FIXME
-extern int func_present;             // FIXME
-extern int compiling_async_function; // parser state
+extern int context;                   // FIXME
+extern int func_present;              // FIXME
+extern int compiling_async_function;  // parser state
 
 // Snapshot of the function declaration's own line, taken in rule_func_type()
 // (fired right after `type optional_star identifier` -- current_line is
@@ -27,10 +27,12 @@ extern int compiling_async_function; // parser state
 // never touch this. (Upstream 06d23cfb #1293.)
 static int pending_func_decl_line;
 
-void rule_program(parse_node_t *$$) { comp_trees[TREE_MAIN] = $$; }
+void rule_program(parse_node_t* $$) {
+  comp_trees[TREE_MAIN] = $$;
+}
 
-bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
-  object_t *ob;
+bool rule_inheritence(parse_node_t** $$, int $1, char* $3) {
+  object_t* ob;
   inherit_t inherit;
   int initializer;
 #ifdef SENSIBLE_MODIFIERS
@@ -43,8 +45,8 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
   acc_mod = ($1 & DECL_ACCESS) & ~global_modifiers;
   if (acc_mod & (acc_mod - 1)) {
     char buf[256];
-    char *end = EndOf(buf);
-    char *p;
+    char* end = EndOf(buf);
+    char* p;
 
     p = strput(buf, end, "Multiple access modifiers (");
     p = get_type_modifiers(p, end, acc_mod);
@@ -53,7 +55,8 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
   }
 #endif
 
-  if (!($1 & DECL_ACCESS)) $1 |= DECL_PUBLIC;
+  if (!($1 & DECL_ACCESS))
+    $1 |= DECL_PUBLIC;
   if (var_defined) {
     yyerror("Illegal to inherit after defining global variables.");
     inherit_file = 0;
@@ -69,7 +72,7 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
   inherit.prog = ob->prog;
 
   if (mem_block[A_INHERITS].current_size) {
-    inherit_t *prev_inherit = INHERIT(NUM_INHERITS - 1);
+    inherit_t* prev_inherit = INHERIT(NUM_INHERITS - 1);
 
     inherit.function_index_offset = prev_inherit->function_index_offset +
                                     prev_inherit->prog->num_functions_defined +
@@ -83,7 +86,7 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
 
   inherit.variable_index_offset = mem_block[A_VAR_TEMP].current_size / sizeof(variable_t);
   inherit.type_mod = $1;
-  add_to_mem_block(A_INHERITS, (char *)&inherit, sizeof inherit);
+  add_to_mem_block(A_INHERITS, (char*)&inherit, sizeof inherit);
 
   /* The following has to come before copy_vars - Sym */
   copy_structures(ob->prog);
@@ -113,7 +116,7 @@ bool rule_inheritence(parse_node_t **$$, int $1, char *$3) {
   return false;
 }
 
-LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
+LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char* identifier) {
   int flags;
 #ifdef SENSIBLE_MODIFIERS
   int acc_mod;
@@ -128,8 +131,8 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
   acc_mod = (flags & DECL_ACCESS) & ~global_modifiers;
   if (acc_mod & (acc_mod - 1)) {
     char buf[256];
-    char *end = EndOf(buf);
-    char *p;
+    char* end = EndOf(buf);
+    char* p;
 
     p = strput(buf, end, "Multiple access modifiers (");
     p = get_type_modifiers(p, end, flags);
@@ -138,7 +141,8 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
   }
 #endif
 
-  if (!(flags & DECL_ACCESS)) flags |= DECL_PUBLIC;
+  if (!(flags & DECL_ACCESS))
+    flags |= DECL_PUBLIC;
 #ifdef SENSIBLE_MODIFIERS
   if (flags & DECL_NOSAVE) {
     yywarn("Illegal to declare nosave function.");
@@ -172,9 +176,10 @@ LPC_INT rule_func_type(LPC_INT type, LPC_INT optional_star, char *identifier) {
   return type;
 }
 
-LPC_INT rule_func_proto(LPC_INT type, LPC_INT optional_star, char **identifier, argument_t argument) {
-  char *p = *identifier;
-  *identifier = (char *)make_shared_string(*identifier);
+LPC_INT rule_func_proto(LPC_INT type, LPC_INT optional_star, char** identifier,
+                        argument_t argument) {
+  char* p = *identifier;
+  *identifier = (char*)make_shared_string(*identifier);
   scratch_free(p);
 
   /* If we had nested functions, we would need to check */
@@ -192,7 +197,7 @@ LPC_INT rule_func_proto(LPC_INT type, LPC_INT optional_star, char **identifier, 
   func_types |= PACKED_TYPE_MODS(type);
 
   define_new_function(*identifier, argument.num_arg, 0, func_types,
-                     PACKED_TYPE_BASIC(type) | optional_star);
+                      PACKED_TYPE_BASIC(type) | optional_star);
   /* This is safe since it is guaranteed to be in the
      function table, so it can't be dangling */
   free_string(*identifier);
@@ -201,16 +206,16 @@ LPC_INT rule_func_proto(LPC_INT type, LPC_INT optional_star, char **identifier, 
   return func_types;
 }
 
-void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, char *identifier, argument_t argument, LPC_INT *func_types,
-               parse_node_t **block_or_semi) {
+void rule_func(parse_node_t** function, LPC_INT type, LPC_INT optional_star, char* identifier,
+               argument_t argument, LPC_INT* func_types, parse_node_t** block_or_semi) {
   /* Either a prototype or a block */
   if (*block_or_semi) {
     int fun;
 
     *func_types &= ~FUNC_PROTOTYPE;
-    if ((*block_or_semi)->kind != NODE_RETURN &&
-        ((*block_or_semi)->kind != NODE_TWO_VALUES || (*block_or_semi)->r.expr->kind != NODE_RETURN)) {
-      parse_node_t *replacement;
+    if ((*block_or_semi)->kind != NODE_RETURN && ((*block_or_semi)->kind != NODE_TWO_VALUES ||
+                                                  (*block_or_semi)->r.expr->kind != NODE_RETURN)) {
+      parse_node_t* replacement;
       CREATE_STATEMENTS(replacement, *block_or_semi, 0);
       CREATE_RETURN(replacement->r.expr, 0);
       *block_or_semi = replacement;
@@ -241,14 +246,16 @@ void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, cha
 
       if (!(*func_types & FUNC_TRUE_VARARGS) && argument.num_arg) {
         bool have_default_args = false;
-        auto default_args_limit = sizeof(FUNCTION_DEF(fun)->default_args_findex) / sizeof(FUNCTION_DEF(fun)->default_args_findex[0]);
+        auto default_args_limit = sizeof(FUNCTION_DEF(fun)->default_args_findex) /
+                                  sizeof(FUNCTION_DEF(fun)->default_args_findex[0]);
         for (int i = 0; i < argument.num_arg; i++) {
           auto local = locals_ptr[i];
           if (local.funcptr_default) {
             have_default_args = true;
             if (i > default_args_limit || argument.num_arg > default_args_limit) {
-              yyerror("Functions with default arguments can only have %zu args", default_args_limit);
-              return ;
+              yyerror("Functions with default arguments can only have %zu args",
+                      default_args_limit);
+              return;
             }
             FUNCTION_DEF(fun)->min_arg--;
             // The helper's name must be unique across the whole inherit
@@ -266,30 +273,33 @@ void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, cha
             auto funcname = fmt::format(FMT_STRING("#__{}_{}_{}"), ++default_arg_seq, identifier,
                                         local.ihe->name);
             // the funcnum here will change in epilog().
-            auto funcnum = define_new_function(funcname.c_str(), 0, 0,
-                                               (*func_types & DECL_ACCESS) | DECL_NOMASK, // same access as origin function
-                                               type_of_locals_ptr[locals_ptr[i].runtime_index]);
+            auto funcnum = define_new_function(
+                funcname.c_str(), 0, 0,
+                (*func_types & DECL_ACCESS) | DECL_NOMASK,  // same access as origin function
+                type_of_locals_ptr[locals_ptr[i].runtime_index]);
             FUNCTION_DEF(fun)->default_args_findex[i] = FUNCTION_TEMP(funcnum)->u.index;
             // debug_message("function %s (%d), new def arg function %s (%d)\n", identifier, fun, funcname.c_str(), funcnum);
 
-            parse_node_t *node_return;
-            CREATE_RETURN(node_return,  local.funcptr_default);
+            parse_node_t* node_return;
+            CREATE_RETURN(node_return, local.funcptr_default);
 
-            auto *node_func = new_node_no_line();
+            auto* node_func = new_node_no_line();
             node_func->kind = NODE_FUNCTION;
             node_func->v.number = funcnum;
             node_func->l.number = 0;
             node_func->r.expr = node_return;
 
-            auto *newnode = *function;
+            auto* newnode = *function;
             CREATE_TWO_VALUES(*function, 0, newnode, node_func);
           } else {
             if (i > 0) {
-              if (i > default_args_limit) continue;
+              if (i > default_args_limit)
+                continue;
               auto prev = FUNCTION_DEF(fun)->default_args_findex[i - 1];
               if (prev != 0) {
-                yyerror("Function arguments with default value closure must be specified continuously.");
-                return ;
+                yyerror(
+                    "Function arguments with default value closure must be specified continuously.");
+                return;
               }
             }
           }
@@ -303,8 +313,8 @@ void rule_func(parse_node_t **function, LPC_INT type, LPC_INT optional_star, cha
   compiling_async_function = 0;
 }
 
-ident_hash_elem_t *rule_define_class(LPC_INT *$$, char *$3) {
-  ident_hash_elem_t *ihe;
+ident_hash_elem_t* rule_define_class(LPC_INT* $$, char* $3) {
+  ident_hash_elem_t* ihe;
 
   ihe = find_or_add_ident(PROG_STRING(*$$ = store_prog_string($3)), FOA_GLOBAL_SCOPE);
   if (ihe->dn.class_num == -1) {
@@ -321,9 +331,9 @@ ident_hash_elem_t *rule_define_class(LPC_INT *$$, char *$3) {
   }
 }
 
-void rule_define_class_members(struct ident_hash_elem_t *$2, LPC_INT $5) {
-  class_def_t *sd;
-  class_member_entry_t *sme;
+void rule_define_class_members(struct ident_hash_elem_t* $2, LPC_INT $5) {
+  class_def_t* sd;
+  class_member_entry_t* sme;
   int i, raise_error = 0;
 
   /* check for a redefinition */
@@ -333,7 +343,7 @@ void rule_define_class_members(struct ident_hash_elem_t *$2, LPC_INT $5) {
       raise_error = 1;
     } else {
       i = sd->size;
-      sme = (class_member_entry_t *)mem_block[A_CLASS_MEMBER].block + sd->index;
+      sme = (class_member_entry_t*)mem_block[A_CLASS_MEMBER].block + sd->index;
       while (i--) {
         /* check for matching names and types */
         if (strcmp(PROG_STRING(sme[i].membername), locals_ptr[i].ihe->name) != 0 ||
@@ -348,12 +358,12 @@ void rule_define_class_members(struct ident_hash_elem_t *$2, LPC_INT $5) {
   if (raise_error) {
     yyerror("Illegal to redefine class '%s',", PROG_STRING($5));
   } else {
-    sd = (class_def_t *)allocate_in_mem_block(A_CLASS_DEF, sizeof(class_def_t));
+    sd = (class_def_t*)allocate_in_mem_block(A_CLASS_DEF, sizeof(class_def_t));
     i = sd->size = current_number_of_locals;
     sd->index = mem_block[A_CLASS_MEMBER].current_size / sizeof(class_member_entry_t);
     sd->classname = $5;
 
-    sme = (class_member_entry_t *)allocate_in_mem_block(
+    sme = (class_member_entry_t*)allocate_in_mem_block(
         A_CLASS_MEMBER, sizeof(class_member_entry_t) * current_number_of_locals);
 
     while (i--) {

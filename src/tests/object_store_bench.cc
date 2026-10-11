@@ -80,7 +80,7 @@ extern "C" void* __wrap__Znwm(size_t size) {
 
 namespace {
 using Clock = std::chrono::steady_clock;
-constexpr const char *kObjectStoreBenchSchemaV1 = "object_store_bench_v1";
+constexpr const char* kObjectStoreBenchSchemaV1 = "object_store_bench_v1";
 
 struct Metric {
   std::string name;
@@ -96,8 +96,12 @@ struct Report {
   std::vector<Metric> metrics;
   std::vector<StringMetric> strings;
 
-  void add(const std::string &name, long long value) { metrics.push_back({name, value}); }
-  void add_string(const std::string &name, std::string value) { strings.push_back({name, std::move(value)}); }
+  void add(const std::string& name, long long value) {
+    metrics.push_back({name, value});
+  }
+  void add_string(const std::string& name, std::string value) {
+    strings.push_back({name, std::move(value)});
+  }
 };
 
 long long elapsed_ns(Clock::time_point start) {
@@ -113,15 +117,15 @@ long long percentile(std::vector<long long> samples, double rank) {
   return samples[index];
 }
 
-void require(bool condition, const std::string &message) {
+void require(bool condition, const std::string& message) {
   if (!condition) {
     throw std::runtime_error(message);
   }
 }
 
-object_t *clone_object_for_bench(const char *path) {
+object_t* clone_object_for_bench(const char* path) {
   error_context_t econ{};
-  object_t *object = nullptr;
+  object_t* object = nullptr;
   ScopedCurrentObjectAsMaster master_scope(ScopedCurrentObjectAsMaster::conditional_t{});
   save_context(&econ);
   try {
@@ -134,7 +138,7 @@ object_t *clone_object_for_bench(const char *path) {
   return object;
 }
 
-void destruct_object_for_bench(object_t *object) {
+void destruct_object_for_bench(object_t* object) {
   if (object == nullptr || (object->flags & O_DESTRUCTED)) {
     return;
   }
@@ -150,7 +154,7 @@ void destruct_object_for_bench(object_t *object) {
   }
 }
 
-std::string json_escape(const std::string &value) {
+std::string json_escape(const std::string& value) {
   std::ostringstream out;
   for (char ch : value) {
     switch (ch) {
@@ -177,7 +181,7 @@ std::string json_escape(const std::string &value) {
   return out.str();
 }
 
-std::string report_json(const Report &report) {
+std::string report_json(const Report& report) {
   std::ostringstream json;
   json << "{\n";
   json << "  \"schema\": \"" << kObjectStoreBenchSchemaV1 << "\",\n";
@@ -217,10 +221,10 @@ void write_json_report(const std::string& path, const std::string& json) {
   }
 }
 
-void run_object_handle_resolve_bench(Report &report) {
+void run_object_handle_resolve_bench(Report& report) {
   constexpr long object_count = 32;
   constexpr long iterations = 256;
-  std::vector<object_t *> objects;
+  std::vector<object_t*> objects;
   std::vector<VMObjectHandle> handles;
   std::vector<long long> resolve_samples;
   std::vector<long long> owner_id_lookup_samples;
@@ -231,7 +235,7 @@ void run_object_handle_resolve_bench(Report &report) {
   objects.reserve(object_count);
   handles.reserve(object_count);
   for (long i = 0; i < object_count; i++) {
-    auto *object = clone_object_for_bench("single/void");
+    auto* object = clone_object_for_bench("single/void");
     require(object != nullptr, "failed to clone object store bench probe");
     objects.push_back(object);
     vm_owner_set_id(object, (std::string("owner/bench/") + std::to_string(i % 4)).c_str());
@@ -240,22 +244,25 @@ void run_object_handle_resolve_bench(Report &report) {
 
   auto start = Clock::now();
   for (long pass = 0; pass < iterations; pass++) {
-    for (const auto &handle : handles) {
+    for (const auto& handle : handles) {
       auto resolve_start = Clock::now();
       auto result = vm_object_handle_resolve_status(handle);
       resolve_samples.push_back(elapsed_ns(resolve_start));
       require(result.status == VMObjectHandleResolveStatus::kCurrent,
-              std::string("object handle resolve failed: ") + vm_object_handle_resolve_status_name(result.status));
+              std::string("object handle resolve failed: ") +
+                  vm_object_handle_resolve_status_name(result.status));
       owner_local_fast_path += result.owner_local_fast_path_used ? 1 : 0;
       global_fallback_used += result.resolved_via_global_index ? 1 : 0;
 
       auto id_start = Clock::now();
-      require(vm_object_store_owner_resolve(handle.owner_id.c_str(), handle.object_id) == result.object,
-              "owner id lookup failed");
+      require(
+          vm_object_store_owner_resolve(handle.owner_id.c_str(), handle.object_id) == result.object,
+          "owner id lookup failed");
       owner_id_lookup_samples.push_back(elapsed_ns(id_start));
 
       auto path_start = Clock::now();
-      require(vm_object_store_owner_path_resolve(handle.owner_id.c_str(), handle.object_path.c_str()) == result.object,
+      require(vm_object_store_owner_path_resolve(handle.owner_id.c_str(),
+                                                 handle.object_path.c_str()) == result.object,
               "owner path lookup failed");
       owner_path_lookup_samples.push_back(elapsed_ns(path_start));
     }
@@ -274,19 +281,19 @@ void run_object_handle_resolve_bench(Report &report) {
   report.add("owner_path_lookup_latency_p50_ns", percentile(owner_path_lookup_samples, 0.50));
   report.add("owner_path_lookup_latency_p95_ns", percentile(owner_path_lookup_samples, 0.95));
 
-  for (auto *object : objects) {
+  for (auto* object : objects) {
     destruct_object_for_bench(object);
   }
 }
 
-void add_samples(Report &report, const std::string &prefix, const std::vector<long long> &samples) {
+void add_samples(Report& report, const std::string& prefix, const std::vector<long long>& samples) {
   report.add(prefix + "_count", static_cast<long long>(samples.size()));
   report.add(prefix + "_p50_ns", percentile(samples, 0.50));
   report.add(prefix + "_p95_ns", percentile(samples, 0.95));
   report.add(prefix + "_p99_ns", percentile(samples, 0.99));
 }
 
-void add_lifecycle_stage_metrics(Report &report, const VMObjectLifecyclePerfSnapshot &snapshot) {
+void add_lifecycle_stage_metrics(Report& report, const VMObjectLifecyclePerfSnapshot& snapshot) {
   for (size_t i = 0; i < VM_OBJECT_LIFECYCLE_PERF_STAGE_COUNT; i++) {
     std::string stage = vm_object_lifecycle_perf_stage_name(i);
     if (stage.empty()) {
@@ -300,7 +307,7 @@ void add_lifecycle_stage_metrics(Report &report, const VMObjectLifecyclePerfSnap
   }
 }
 
-void run_clone_destruct_lifecycle_bench(Report &report) {
+void run_clone_destruct_lifecycle_bench(Report& report) {
   constexpr long iterations = 512;
   std::vector<long long> clone_samples;
   std::vector<long long> destruct_samples;
@@ -312,7 +319,7 @@ void run_clone_destruct_lifecycle_bench(Report &report) {
   auto total_start = Clock::now();
   for (long i = 0; i < iterations; i++) {
     auto clone_start = Clock::now();
-    auto *object = clone_object_for_bench("single/void");
+    auto* object = clone_object_for_bench("single/void");
     clone_samples.push_back(elapsed_ns(clone_start));
     require(object != nullptr, "clone/destruct lifecycle bench clone failed");
 
@@ -331,7 +338,8 @@ void run_clone_destruct_lifecycle_bench(Report &report) {
   report.add("clone_destruct_iterations", iterations);
   report.add("clone_destruct_elapsed_ns", total_elapsed);
   report.add("destructed_backlog_after_clone_destruct", static_cast<long long>(backlog_after_loop));
-  report.add("destructed_cleanup_removed_after_clone_destruct", static_cast<long long>(cleanup_removed));
+  report.add("destructed_cleanup_removed_after_clone_destruct",
+             static_cast<long long>(cleanup_removed));
   report.add("destructed_backlog_after_cleanup", static_cast<long long>(backlog_after_cleanup));
   report.add("destructed_cleanup_total_delta",
              static_cast<long long>(vm_destructed_object_cleanup_total() - cleanup_total_before));
@@ -485,9 +493,9 @@ void run_scaled_store_probe(Report& report, int count, const std::string& operat
 #endif
 }
 
-void print_text_report(const Report &report, const std::string &json_path) {
+void print_text_report(const Report& report, const std::string& json_path) {
   std::cout << "object_store_bench: schema=" << kObjectStoreBenchSchemaV1 << "\n";
-  for (const auto &metric : report.metrics) {
+  for (const auto& metric : report.metrics) {
     std::cout << metric.name << "=" << metric.value << "\n";
   }
   if (!json_path.empty()) {

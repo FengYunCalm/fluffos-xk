@@ -35,7 +35,7 @@ void do_tests() {
   // Baseline: "str" + live object appends "/" + obname.
   expected = "x" + o;
   ASSERT(stringp(expected));
-  ASSERT_EQ("x/" + file_name(o)[1..], expected);
+  ASSERT_EQ("x/" + file_name(o)[1 ..], expected);
 
   // str += ob (statement => F_VOID_ADD_EQ): must not unbalance the stack.
   s = "x";

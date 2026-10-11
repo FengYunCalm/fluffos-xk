@@ -19,7 +19,7 @@
 namespace {
 std::once_flag eval_signal_handler_once;
 
-void set_eval_timer_thread_id(struct sigevent &sev, pid_t thread_id) {
+void set_eval_timer_thread_id(struct sigevent& sev, pid_t thread_id) {
 #if defined(__GLIBC__)
   // glibc exposes the Linux SIGEV_THREAD_ID slot only through this ABI field.
   sev._sigev_un._tid = thread_id;
@@ -31,7 +31,7 @@ void set_eval_timer_thread_id(struct sigevent &sev, pid_t thread_id) {
 #endif
 }
 
-void eval_timer_handler(int /*sig*/, siginfo_t *si, void * /*uc*/) {
+void eval_timer_handler(int /*sig*/, siginfo_t* si, void* /*uc*/) {
   if (!si->si_value.sival_ptr) {
     outoftime = 1;
   }
@@ -60,8 +60,8 @@ class ThreadEvalTimer {
     }
   }
 
-  ThreadEvalTimer(const ThreadEvalTimer &) = delete;
-  ThreadEvalTimer &operator=(const ThreadEvalTimer &) = delete;
+  ThreadEvalTimer(const ThreadEvalTimer&) = delete;
+  ThreadEvalTimer& operator=(const ThreadEvalTimer&) = delete;
 
   void initialize() {
     if (initialized_) {
@@ -110,8 +110,7 @@ class ThreadEvalTimer {
     if (timer_gettime(timer_id_, &it) < 0) {
       return 100;
     }
-    return it.it_value.tv_sec * static_cast<uint64_t>(1000000) +
-           it.it_value.tv_nsec / 1000;
+    return it.it_value.tv_sec * static_cast<uint64_t>(1000000) + it.it_value.tv_nsec / 1000;
   }
 
  private:
@@ -123,12 +122,18 @@ FLUFFOS_VM_THREAD_LOCAL ThreadEvalTimer eval_timer;
 }  // namespace
 
 /* Called by main() to initialize the eval timer for the current VM thread. */
-void init_posix_timers(void) { eval_timer.initialize(); }
+void init_posix_timers(void) {
+  eval_timer.initialize();
+}
 
 /* Set the eval timer for the current VM thread to the given microseconds. */
-void posix_eval_timer_set(uint64_t micros) { eval_timer.set(micros); }
+void posix_eval_timer_set(uint64_t micros) {
+  eval_timer.set(micros);
+}
 
 /* Return the remaining microseconds on the current VM thread's eval timer. */
-uint64_t posix_eval_timer_get(void) { return eval_timer.get(); }
+uint64_t posix_eval_timer_get(void) {
+  return eval_timer.get();
+}
 
 #endif  // __linux__

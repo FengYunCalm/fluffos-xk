@@ -12,7 +12,7 @@ class OwnedStringLexStream : public LexStream {
  public:
   explicit OwnedStringLexStream(std::string data) : data_(std::move(data)) {}
 
-  size_t read(char *buffer, size_t size) override {
+  size_t read(char* buffer, size_t size) override {
     auto remaining = data_.size() - offset_;
     auto count = remaining < size ? remaining : size;
     if (count > 0) {
@@ -22,18 +22,20 @@ class OwnedStringLexStream : public LexStream {
     return count;
   }
 
-  void close() override { offset_ = data_.size(); }
+  void close() override {
+    offset_ = data_.size();
+  }
 
  private:
   std::string data_;
   size_t offset_{0};
 };
 
-bool is_utf8_encoding(const std::string &encoding) {
+bool is_utf8_encoding(const std::string& encoding) {
   return ucnv_compareNames(kLpcInternalStringEncoding, encoding.c_str()) == 0;
 }
 
-std::string read_all(LexStream *stream) {
+std::string read_all(LexStream* stream) {
   std::string data;
   char buffer[8192];
   while (true) {
@@ -49,10 +51,10 @@ std::string read_all(LexStream *stream) {
   return data;
 }
 
-std::string convert_to_utf8(const std::string &source, const std::string &encoding,
-                            int *invalid_sequence_count, std::string *error) {
+std::string convert_to_utf8(const std::string& source, const std::string& encoding,
+                            int* invalid_sequence_count, std::string* error) {
   UErrorCode error_code = U_ZERO_ERROR;
-  auto *converter = ucnv_open(encoding.c_str(), &error_code);
+  auto* converter = ucnv_open(encoding.c_str(), &error_code);
   if (U_FAILURE(error_code)) {
     *error = std::string("invalid source encoding '") + encoding + "': " + u_errorName(error_code);
     return {};
@@ -60,7 +62,7 @@ std::string convert_to_utf8(const std::string &source, const std::string &encodi
 
   error_code = U_ZERO_ERROR;
   auto required = ucnv_toAlgorithmic(UCNV_UTF8, converter, nullptr, 0, source.data(),
-                                    static_cast<int32_t>(source.size()), &error_code);
+                                     static_cast<int32_t>(source.size()), &error_code);
   if (U_FAILURE(error_code) && error_code != U_BUFFER_OVERFLOW_ERROR) {
     *invalid_sequence_count += 1;
     *error = std::string("source encoding conversion failed: ") + u_errorName(error_code);
@@ -82,7 +84,7 @@ std::string convert_to_utf8(const std::string &source, const std::string &encodi
 }
 }  // namespace
 
-LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string &source) {
+LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string& source) {
   LpcSourceEncodingResult result;
   result.encoding = lpc_source_encoding_from_source(source);
   if (result.encoding.empty()) {
@@ -92,7 +94,8 @@ LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string &source) {
     result.data = source;
     return result;
   }
-  result.data = convert_to_utf8(source, result.encoding, &result.invalid_sequence_count, &result.error);
+  result.data =
+      convert_to_utf8(source, result.encoding, &result.invalid_sequence_count, &result.error);
   result.transcoded = result.error.empty();
   if (!result.transcoded) {
     result.data = source;

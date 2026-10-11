@@ -13,11 +13,11 @@
 namespace compile_arena {
 
 struct Chunk {
-  Chunk *next;      // retained-pool / live-chain link
-  size_t size;      // usable bytes of data
-  size_t used;      // bump cursor
-  bool oversize;    // exact-fit chunk: always released at scope end
-  char *data;       // points into the static base array or the malloc'd block
+  Chunk* next;    // retained-pool / live-chain link
+  size_t size;    // usable bytes of data
+  size_t used;    // bump cursor
+  bool oversize;  // exact-fit chunk: always released at scope end
+  char* data;     // points into the static base array or the malloc'd block
 };
 
 namespace {
@@ -34,21 +34,21 @@ size_t align_up(size_t n) {
   return (n + kAlign - 1) & ~(kAlign - 1);
 }
 
-Chunk *new_chunk(size_t size, bool oversize, size_t *chunk_mallocs, int tag, const char *desc) {
-  void *mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
+Chunk* new_chunk(size_t size, bool oversize, size_t* chunk_mallocs, int tag, const char* desc) {
+  void* mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
   (*chunk_mallocs)++;
-  Chunk *c = new (mem) Chunk;
+  Chunk* c = new (mem) Chunk;
   c->next = nullptr;
   c->size = size;
   c->used = 0;
   c->oversize = oversize;
-  c->data = reinterpret_cast<char *>(mem) + kChunkHeaderSize;
+  c->data = reinterpret_cast<char*>(mem) + kChunkHeaderSize;
   return c;
 }
 
 }  // namespace
 
-ScratchArena::ScratchArena(bool static_base, int tag, const char *desc) noexcept
+ScratchArena::ScratchArena(bool static_base, int tag, const char* desc) noexcept
     : static_base_(static_base), tag_(tag), desc_(desc) {
   base_ = static_base_ ? &g_static_base : nullptr;
   current_ = base_;
@@ -69,20 +69,20 @@ ScratchArena::~ScratchArena() {
 }
 
 void ScratchArena::release_retained_pool() noexcept {
-  Chunk *c = retained_;
+  Chunk* c = retained_;
   retained_ = nullptr;
   retained_count_ = 0;
   retained_heap_bytes_ = 0;
   while (c) {
-    Chunk *next = c->next;
+    Chunk* next = c->next;
     FREE(c);
     c = next;
   }
 }
 
-Chunk *ScratchArena::acquire_standard() {
+Chunk* ScratchArena::acquire_standard() {
   if (retained_) {
-    Chunk *c = retained_;
+    Chunk* c = retained_;
     retained_ = c->next;
     retained_count_--;
     retained_heap_bytes_ -= c->size;
@@ -93,7 +93,7 @@ Chunk *ScratchArena::acquire_standard() {
   return new_chunk(kBaseChunkSize, false, &chunk_mallocs_, tag_, desc_);
 }
 
-void ScratchArena::release_chunk(Chunk *chunk) noexcept {
+void ScratchArena::release_chunk(Chunk* chunk) noexcept {
   if (chunk->oversize) {
     // Oversize chunks never enter the retained pool, so they never touch
     // retained_heap_bytes (only retained standard chunks are accounted).
@@ -126,10 +126,10 @@ void ScratchArena::begin() noexcept {
   // amount is the cross-cycle survival metric a session reports.
   clear_bindings();
   cross_cycle_bytes_ = bytes_live_;
-  Chunk *c = live_;
+  Chunk* c = live_;
   live_ = nullptr;
   while (c) {
-    Chunk *next = c->next;
+    Chunk* next = c->next;
     release_chunk(c);
     c = next;
   }
@@ -143,10 +143,10 @@ void ScratchArena::begin() noexcept {
 
 void ScratchArena::end() noexcept {
   clear_bindings();
-  Chunk *c = live_;
+  Chunk* c = live_;
   live_ = nullptr;
   while (c) {
-    Chunk *next = c->next;
+    Chunk* next = c->next;
     release_chunk(c);
     c = next;
   }
@@ -172,7 +172,7 @@ void ScratchArena::reset() noexcept {
   cross_cycle_bytes_ = 0;
 }
 
-void *ScratchArena::alloc(size_t size) {
+void* ScratchArena::alloc(size_t size) {
   if (size == 0) {
     return nullptr;
   }
@@ -182,7 +182,7 @@ void *ScratchArena::alloc(size_t size) {
     current_ = base_;
   }
   size_t need = align_up(size);
-  Chunk *c = current_;
+  Chunk* c = current_;
   if (c->used + need > c->size) {
     // Need a fresh chunk. Oversize (exact-fit) when the request exceeds a
     // standard chunk; otherwise take/allocate a standard chunk.
@@ -195,7 +195,7 @@ void *ScratchArena::alloc(size_t size) {
     live_ = c;
     current_ = c;
   }
-  char *p = c->data + c->used;
+  char* p = c->data + c->used;
   c->used += need;
   cycle_bytes_ += need;
   bytes_allocated_ += need;
@@ -209,19 +209,19 @@ void *ScratchArena::alloc(size_t size) {
   return p;
 }
 
-char *ScratchArena::alloc_string(size_t len) {
-  char *p = static_cast<char *>(alloc(len + 1));
+char* ScratchArena::alloc_string(size_t len) {
+  char* p = static_cast<char*>(alloc(len + 1));
   if (p) {
     p[len] = '\0';
   }
   return p;
 }
 
-void ScratchArena::rewind_to(Chunk *chunk, size_t used, Chunk *live_head) noexcept {
+void ScratchArena::rewind_to(Chunk* chunk, size_t used, Chunk* live_head) noexcept {
   size_t released = 0;
-  Chunk *c = live_;
+  Chunk* c = live_;
   while (c && c != live_head) {
-    Chunk *next = c->next;
+    Chunk* next = c->next;
     released += c->used;
     release_chunk(c);
     c = next;
@@ -238,20 +238,42 @@ void ScratchArena::rewind_to(Chunk *chunk, size_t used, Chunk *live_head) noexce
   bytes_live_ = bytes_live_ > released ? bytes_live_ - released : 0;
 }
 
-size_t ScratchArena::cycle_bytes() const noexcept { return cycle_bytes_; }
-size_t ScratchArena::peak_cycle_bytes() const noexcept { return peak_cycle_bytes_; }
-size_t ScratchArena::bytes_live() const noexcept { return bytes_live_; }
-size_t ScratchArena::peak_live_bytes() const noexcept { return peak_live_bytes_; }
-size_t ScratchArena::cross_cycle_bytes() const noexcept { return cross_cycle_bytes_; }
-size_t ScratchArena::bytes_allocated() const noexcept { return bytes_allocated_; }
-size_t ScratchArena::chunk_mallocs() const noexcept { return chunk_mallocs_; }
-size_t ScratchArena::reset_count() const noexcept { return reset_count_; }
-size_t ScratchArena::retained_chunks() const noexcept { return retained_count_; }
+size_t ScratchArena::cycle_bytes() const noexcept {
+  return cycle_bytes_;
+}
+size_t ScratchArena::peak_cycle_bytes() const noexcept {
+  return peak_cycle_bytes_;
+}
+size_t ScratchArena::bytes_live() const noexcept {
+  return bytes_live_;
+}
+size_t ScratchArena::peak_live_bytes() const noexcept {
+  return peak_live_bytes_;
+}
+size_t ScratchArena::cross_cycle_bytes() const noexcept {
+  return cross_cycle_bytes_;
+}
+size_t ScratchArena::bytes_allocated() const noexcept {
+  return bytes_allocated_;
+}
+size_t ScratchArena::chunk_mallocs() const noexcept {
+  return chunk_mallocs_;
+}
+size_t ScratchArena::reset_count() const noexcept {
+  return reset_count_;
+}
+size_t ScratchArena::retained_chunks() const noexcept {
+  return retained_count_;
+}
 size_t ScratchArena::retained_heap_bytes() const noexcept {
   return retained_heap_bytes_;
 }
-size_t ScratchArena::bindings_active() const noexcept { return bindings_active_; }
-size_t ScratchArena::binding_rewinds() const noexcept { return binding_rewinds_; }
+size_t ScratchArena::bindings_active() const noexcept {
+  return bindings_active_;
+}
+size_t ScratchArena::binding_rewinds() const noexcept {
+  return binding_rewinds_;
+}
 size_t ScratchArena::binding_order_violations() const noexcept {
   return binding_order_violations_;
 }
@@ -259,7 +281,7 @@ size_t ScratchArena::binding_marks_abandoned() const noexcept {
   return binding_marks_abandoned_;
 }
 
-ScratchArenaBinding::ScratchArenaBinding(ScratchArena &arena) noexcept
+ScratchArenaBinding::ScratchArenaBinding(ScratchArena& arena) noexcept
     : arena_(arena),
       mark_index_(arena.binding_marks_.size()),
       generation_(arena.binding_generation_) {
@@ -300,21 +322,41 @@ ScratchArenaBinding::~ScratchArenaBinding() {
   arena_.binding_rewinds_++;
 }
 
-ScratchArena &global() {
+ScratchArena& global() {
   static ScratchArena instance(true);
   return instance;
 }
 
-void begin() noexcept { global().begin(); }
-void end() noexcept { global().end(); }
-void *alloc(size_t size) { return global().alloc(size); }
-char *alloc_string(size_t len) { return global().alloc_string(len); }
+void begin() noexcept {
+  global().begin();
+}
+void end() noexcept {
+  global().end();
+}
+void* alloc(size_t size) {
+  return global().alloc(size);
+}
+char* alloc_string(size_t len) {
+  return global().alloc_string(len);
+}
 
-size_t cycle_bytes() noexcept { return global().cycle_bytes(); }
-size_t peak_cycle_bytes() noexcept { return global().peak_cycle_bytes(); }
-size_t chunk_mallocs() noexcept { return global().chunk_mallocs(); }
-size_t reset_count() noexcept { return global().reset_count(); }
-size_t retained_chunks() noexcept { return global().retained_chunks(); }
-size_t retained_heap_bytes() noexcept { return global().retained_heap_bytes(); }
+size_t cycle_bytes() noexcept {
+  return global().cycle_bytes();
+}
+size_t peak_cycle_bytes() noexcept {
+  return global().peak_cycle_bytes();
+}
+size_t chunk_mallocs() noexcept {
+  return global().chunk_mallocs();
+}
+size_t reset_count() noexcept {
+  return global().reset_count();
+}
+size_t retained_chunks() noexcept {
+  return global().retained_chunks();
+}
+size_t retained_heap_bytes() noexcept {
+  return global().retained_heap_bytes();
+}
 
 }  // namespace compile_arena

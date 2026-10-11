@@ -17,10 +17,10 @@
 struct pcre_cache_bucket_t;
 
 typedef struct {
-  pcre2_code *re;
+  pcre2_code* re;
   char error[256];
-  const char *pattern;
-  const char *subject;
+  const char* pattern;
+  const char* subject;
   PCRE2_SPTR name_table;
   PCRE2_SIZE s_length;
   PCRE2_SIZE erroffset;
@@ -29,25 +29,25 @@ typedef struct {
   uint32_t name_entry_size;
   uint32_t compile_flags;
   uint32_t exec_flags;
-  PCRE2_SIZE *ovector;
+  PCRE2_SIZE* ovector;
   PCRE2_SIZE ovecsize;
   int rc;
-  struct pcre_cache_bucket_t *cache_entry;
+  struct pcre_cache_bucket_t* cache_entry;
 } pcre_t;
 
 struct pcre_cache_bucket_t {
-  pcre2_code *compiled_pattern;
-  const char *pattern;
+  pcre2_code* compiled_pattern;
+  const char* pattern;
   uint32_t compile_flags;
   size_t size;
   unsigned int borrowers;
   int detached;
-  struct pcre_cache_bucket_t *next;
-  struct pcre_cache_bucket_t *detached_next;
+  struct pcre_cache_bucket_t* next;
+  struct pcre_cache_bucket_t* detached_next;
 };
 
 struct pcre_cache_t {
-  struct pcre_cache_bucket_t *buckets[PCRE_CACHE_SIZE];
+  struct pcre_cache_bucket_t* buckets[PCRE_CACHE_SIZE];
 };
 
 #ifdef DEBUGMALLOC_EXTENSIONS

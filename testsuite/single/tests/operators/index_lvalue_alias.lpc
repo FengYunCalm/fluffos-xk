@@ -53,14 +53,14 @@ void trunc_arr_elem(int ref c) {
 
 void splice_then_write(int ref c) {
   c = 'Z';
-  g_trunc[0..1] = "é";
+  g_trunc[0 ..1] = "é";
   c = 'Y';
 }
 
 void splice_then_overflow(int ref c) {
   c = 'Z';
-  g_trunc[0..1] = "é";
-  g_trunc[4..5] = "é";
+  g_trunc[0 ..1] = "é";
+  g_trunc[4 ..5] = "é";
   c = 'Q';
 }
 
@@ -121,10 +121,10 @@ void do_tests() {
 
   // ||= / ??= on a range used to bit-copy the heap box and double-free it.
   a = ({ 1, 2, 3 });
-  kept = (a[0..1] ||= ({ 9 }));
+  kept = (a[0 ..1] ||= ({ 9 }));
   ASSERT_EQ(({ 1, 2 }), kept);
   ASSERT_EQ(({ 1, 2, 3 }), a);
-  kept = (a[0..1] ??= ({ 9 }));
+  kept = (a[0 ..1] ??= ({ 9 }));
   ASSERT_EQ(({ 1, 2 }), kept);
   ASSERT_EQ(({ 1, 2, 3 }), a);
 
@@ -138,7 +138,7 @@ void do_tests() {
   ASSERT_EQ("ab", s);
   mm = ({ 1, 2, 3 });
   for (i = 0; i < 20; i++) {
-    catch(mm[0..1] &= 1);
+    catch(mm[0 ..1] &= 1);
   }
   ASSERT_EQ(({ 1, 2, 3 }), mm);
 

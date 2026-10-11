@@ -47,9 +47,9 @@ void finish_test() {
   ASSERT2(server_handshake_done, "TLS server handshake callback missing");
   ASSERT2(client_handshake_done, "TLS client handshake callback missing");
   ASSERT2(read_callbacks >= 3,
-          sprintf("expected observed TLS split reads, got %d callbacks", read_callbacks));
+    sprintf("expected observed TLS split reads, got %d callbacks", read_callbacks));
   ASSERT2(payload == server_received,
-          sprintf("TLS payload mismatch: expected %O, received %O", payload, server_received));
+    sprintf("TLS payload mismatch: expected %O, received %O", payload, server_received));
   test_completed = 1;
   remove_call_out("timeout_fail");
   cleanup();
@@ -102,7 +102,7 @@ void send_fragment() {
 
   next_stage = client_stage + 1;
   ASSERT2(EESUCCESS == socket_write(client_fd, fragment),
-          sprintf("TLS fragment %d write failed", client_stage));
+    sprintf("TLS fragment %d write failed", client_stage));
   client_stage = next_stage;
   if (client_stage < 6) {
     call_out("send_fragment", 0.05);
@@ -121,10 +121,10 @@ void client_read(int fd, mixed message) {
 void server_read(int fd, string message) {
   read_callbacks++;
   ASSERT2(strsrch(message, "\xef\xbf\xbd") == -1,
-          sprintf("replacement character in TLS fragment %O", message));
+    sprintf("replacement character in TLS fragment %O", message));
   server_received += message;
   ASSERT2(strlen(server_received) <= strlen(payload),
-          sprintf("TLS fragment payload grew unexpectedly: %O", server_received));
+    sprintf("TLS fragment payload grew unexpectedly: %O", server_received));
   if (server_received == payload) {
     call_out("finish_test", 0);
   }
@@ -145,8 +145,8 @@ void start_client(int port) {
   socket_set_option(client_fd, SO_TLS_VERIFY_PEER, 0);
   socket_set_option(client_fd, SO_TLS_SNI_HOSTNAME, "localhost");
   ASSERT_EQ(EESUCCESS,
-            socket_connect(client_fd, sprintf("127.0.0.1 %d", port),
-                           "client_read", "client_write"));
+    socket_connect(client_fd, sprintf("127.0.0.1 %d", port),
+      "client_read", "client_write"));
 }
 
 void begin_test() {

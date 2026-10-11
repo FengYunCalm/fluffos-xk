@@ -23,10 +23,6 @@
 # such input by design. If a new deliberately-unterminated fail fixture is
 # added, add it here too.
 #
-# testsuite/tools/force_exdev_rename.c is real C, not LPC: an LD_PRELOAD shim
-# built by the root CMakeLists.txt makes rename(2) fail with EXDEV. The find
-# below picks up every *.c because legacy LPC sources use that extension, so a
-# genuine C file has to be excluded by path.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,7 +34,6 @@ EXCLUDES=(
   "testsuite/single/tests/compiler/fail/eof_in_string.c"
   "testsuite/single/tests/compiler/fail/eof_in_comment.c"
   "testsuite/single/tests/compiler/fail/bad_at_block.c"
-  "testsuite/tools/force_exdev_rename.c"
 )
 
 is_excluded() {

@@ -11,15 +11,15 @@
 #include <sstream>  // for std::stringstream
 
 #ifdef DEBUGMALLOC
-char *int_string_copy(const char *const, const char *);
-char *int_string_unlink(const char *, const char *);
-char *int_new_string(unsigned int, const char *);
-char *int_alloc_cstring(const char *, const char *);
+char* int_string_copy(const char* const, const char*);
+char* int_string_unlink(const char*, const char*);
+char* int_new_string(unsigned int, const char*);
+char* int_alloc_cstring(const char*, const char*);
 #else
-char *int_string_copy(const char *const);
-char *int_string_unlink(const char *);
-char *int_new_string(unsigned int);
-char *int_alloc_cstring(const char *);
+char* int_string_copy(const char* const);
+char* int_string_unlink(const char*);
+char* int_new_string(unsigned int);
+char* int_alloc_cstring(const char*);
 #endif
 
 #ifdef DEBUGMALLOC
@@ -44,8 +44,9 @@ struct outbuffer_t;
 #ifdef NOISY_DEBUG
 void bp(void);
 #ifdef NOISY_STRING
-#define NDBG(x) \
-  if (strcmp(STRING(x), NOISY_STRING) == 0) debug_message("%s - %d\n", STRING(x), REFS(x)), bp()
+#define NDBG(x)                             \
+  if (strcmp(STRING(x), NOISY_STRING) == 0) \
+  debug_message("%s - %d\n", STRING(x), REFS(x)), bp()
 #else
 #define NDBG(x) debug_message("%s - %d\n", STRING(x), REFS(x)), bp()
 #endif
@@ -63,7 +64,7 @@ void bp(void);
 
    is usually best.
  */
-void check_string_stats(outbuffer_t *);
+void check_string_stats(outbuffer_t*);
 #undef CHECK_STRING_STATS
 // #define CHECK_STRING_STATS check_string_stats(nullptr)  // enable when need to debug
 #define CHECK_STRING_STATS
@@ -79,7 +80,7 @@ constexpr int64_t logical_length(unsigned int stored_length) noexcept {
   return stored_length == UINT_MAX ? -1 : static_cast<int64_t>(stored_length);
 }
 
-inline void adjust_byte_counter(std::atomic<uint64_t> &counter, int64_t delta) noexcept {
+inline void adjust_byte_counter(std::atomic<uint64_t>& counter, int64_t delta) noexcept {
   if (delta >= 0) {
     counter.fetch_add(static_cast<uint64_t>(delta), std::memory_order_relaxed);
     return;
@@ -89,41 +90,39 @@ inline void adjust_byte_counter(std::atomic<uint64_t> &counter, int64_t delta) n
 }
 }  // namespace stralloc_detail
 
-#define ADD_NEW_STRING(len, overhead)                                                \
-  do {                                                                               \
-    num_distinct_strings.fetch_add(1, std::memory_order_relaxed);                    \
-    bytes_distinct_strings.fetch_add(stralloc_detail::bytes_with_terminator((len)),  \
-                                     std::memory_order_relaxed);                     \
-    overhead_bytes.fetch_add(static_cast<uint64_t>(overhead),                        \
-                             std::memory_order_relaxed);                             \
+#define ADD_NEW_STRING(len, overhead)                                                     \
+  do {                                                                                    \
+    num_distinct_strings.fetch_add(1, std::memory_order_relaxed);                         \
+    bytes_distinct_strings.fetch_add(stralloc_detail::bytes_with_terminator((len)),       \
+                                     std::memory_order_relaxed);                          \
+    overhead_bytes.fetch_add(static_cast<uint64_t>(overhead), std::memory_order_relaxed); \
   } while (0)
-#define SUB_NEW_STRING(len, overhead)                                                \
-  do {                                                                               \
-    num_distinct_strings.fetch_sub(1, std::memory_order_relaxed);                    \
-    bytes_distinct_strings.fetch_sub(stralloc_detail::bytes_with_terminator((len)),  \
-                                     std::memory_order_relaxed);                     \
-    overhead_bytes.fetch_sub(static_cast<uint64_t>(overhead),                        \
-                             std::memory_order_relaxed);                             \
+#define SUB_NEW_STRING(len, overhead)                                                     \
+  do {                                                                                    \
+    num_distinct_strings.fetch_sub(1, std::memory_order_relaxed);                         \
+    bytes_distinct_strings.fetch_sub(stralloc_detail::bytes_with_terminator((len)),       \
+                                     std::memory_order_relaxed);                          \
+    overhead_bytes.fetch_sub(static_cast<uint64_t>(overhead), std::memory_order_relaxed); \
   } while (0)
-#define ADD_STRING(len)                                                              \
-  do {                                                                               \
-    allocd_strings.fetch_add(1, std::memory_order_relaxed);                          \
-    allocd_bytes.fetch_add(stralloc_detail::bytes_with_terminator((len)),            \
-                           std::memory_order_relaxed);                               \
-    CHECK_STRING_STATS;                                                              \
+#define ADD_STRING(len)                                                   \
+  do {                                                                    \
+    allocd_strings.fetch_add(1, std::memory_order_relaxed);               \
+    allocd_bytes.fetch_add(stralloc_detail::bytes_with_terminator((len)), \
+                           std::memory_order_relaxed);                    \
+    CHECK_STRING_STATS;                                                   \
   } while (0)
 #define ADD_STRING_SIZE(len)                                                         \
   do {                                                                               \
     const auto string_size_delta = static_cast<int64_t>(len);                        \
-    stralloc_detail::adjust_byte_counter(allocd_bytes, string_size_delta);            \
-    stralloc_detail::adjust_byte_counter(bytes_distinct_strings, string_size_delta);  \
+    stralloc_detail::adjust_byte_counter(allocd_bytes, string_size_delta);           \
+    stralloc_detail::adjust_byte_counter(bytes_distinct_strings, string_size_delta); \
   } while (0)
-#define SUB_STRING(len)                                                              \
-  do {                                                                               \
-    allocd_strings.fetch_sub(1, std::memory_order_relaxed);                          \
-    allocd_bytes.fetch_sub(stralloc_detail::bytes_with_terminator((len)),            \
-                           std::memory_order_relaxed);                               \
-    CHECK_STRING_STATS;                                                              \
+#define SUB_STRING(len)                                                   \
+  do {                                                                    \
+    allocd_strings.fetch_sub(1, std::memory_order_relaxed);               \
+    allocd_bytes.fetch_sub(stralloc_detail::bytes_with_terminator((len)), \
+                           std::memory_order_relaxed);                    \
+    CHECK_STRING_STATS;                                                   \
   } while (0)
 
 // The layout of malloc_block_s must be same as block_s
@@ -141,7 +140,7 @@ inline void adjust_byte_counter(std::atomic<uint64_t> &counter, int64_t delta) n
 #define MSTR_ASCII_NO 2u
 
 typedef struct malloc_block_s {
-  void *_padding1;
+  void* _padding1;
   unsigned int _padding2;
 #ifdef DEBUGMALLOC_EXTENSIONS
   unsigned int extra_ref;
@@ -151,20 +150,20 @@ typedef struct malloc_block_s {
   unsigned char ascii;
 } malloc_block_t;
 
-#define MSTR_BLOCK(x) (((malloc_block_t *)(x)) - 1)
+#define MSTR_BLOCK(x) (((malloc_block_t*)(x)) - 1)
 #define MSTR_EXTRA_REF(x) (MSTR_BLOCK(x)->extra_ref)
 #define MSTR_REF(x) (MSTR_BLOCK(x)->ref)
 #define MSTR_SIZE(x) (MSTR_BLOCK(x)->size)
 /* Valid only for STRING_MALLOC / STRING_SHARED (i.e. STRING_COUNTED) strings;
  * a STRING_CONSTANT points at a literal with no block header. */
 #define MSTR_ASCII(x) (MSTR_BLOCK(x)->ascii)
-#define MSTR_UPDATE_SIZE(x, y)                                                        \
-  SAFE(const auto requested_string_size = (y);                                       \
-       const auto stored_string_size =                                               \
-           requested_string_size > UINT_MAX ? UINT_MAX                               \
-                                            : static_cast<unsigned int>(requested_string_size); \
-       ADD_STRING_SIZE(stralloc_detail::logical_length(stored_string_size) -         \
-                       stralloc_detail::logical_length(MSTR_SIZE(x)));                \
+#define MSTR_UPDATE_SIZE(x, y)                                                                 \
+  SAFE(const auto requested_string_size = (y);                                                 \
+       const auto stored_string_size = requested_string_size > UINT_MAX                        \
+                                           ? UINT_MAX                                          \
+                                           : static_cast<unsigned int>(requested_string_size); \
+       ADD_STRING_SIZE(stralloc_detail::logical_length(stored_string_size) -                   \
+                       stralloc_detail::logical_length(MSTR_SIZE(x)));                         \
        MSTR_BLOCK(x)->size = stored_string_size;)
 
 #define FREE_MSTR(x)                                                                      \
@@ -188,13 +187,15 @@ typedef struct malloc_block_s {
 /* ref == 0 means the string has been referenced USHRT_MAX times and is
    immortal */
 #define INC_COUNTED_REF(x) \
-  if (MSTR_REF(x)) { MSTR_REF(x)++; }
+  if (MSTR_REF(x)) {       \
+    MSTR_REF(x)++;         \
+  }
 /* This is a conditional expression that evaluates to zero if the block
    should be deallocated */
 #define DEC_COUNTED_REF(x) (!(MSTR_REF(x) == 0 || --MSTR_REF(x) > 0))
 
 typedef struct block_s {
-  struct block_s *next; /* next block in the hash chain */
+  struct block_s* next; /* next block in the hash chain */
   unsigned int hash;
 #if defined(DEBUGMALLOC_EXTENSIONS)  //|| (SIZEOF_CHAR_P == 8)
   unsigned int extra_ref;
@@ -213,8 +214,8 @@ static_assert(sizeof(malloc_block_t) == sizeof(block_t),
 #define EXTRA_REF(x) (x)->extra_ref
 #define SIZE(x) (x)->size
 #define HASH(x) (x)->hash
-#define BLOCK(x) (((block_t *)(x)) - 1) /* pointer arithmetic */
-#define STRING(x) ((char *)(x + 1))
+#define BLOCK(x) (((block_t*)(x)) - 1) /* pointer arithmetic */
+#define STRING(x) ((char*)(x + 1))
 
 #define SHARED_STRLEN(x) COUNTED_STRLEN(x)
 
@@ -230,20 +231,20 @@ static_assert(sizeof(malloc_block_t) == sizeof(block_t),
  * stralloc.c
  */
 void init_strings(void);
-const char *findstring(const char *);
-const char *int_make_shared_string(const char *, const char *);
-const char *int_ref_string(const char *, const char *);
+const char* findstring(const char*);
+const char* int_make_shared_string(const char*, const char*);
+const char* int_ref_string(const char*, const char*);
 #define ref_string(x) int_ref_string(x, __CURRENT_FILE_LINE__)
-void int_free_string(const char *, const char *);
+void int_free_string(const char*, const char*);
 #define free_string(x) int_free_string(x, __CURRENT_FILE_LINE__)
-void deallocate_string(char *);
-uint64_t add_string_status(outbuffer_t *, int);
+void deallocate_string(char*);
+uint64_t add_string_status(outbuffer_t*, int);
 
-char *extend_string(const char *, int);
+char* extend_string(const char*, int);
 
 extern FLUFFOS_VM_THREAD_LOCAL unsigned int svalue_strlen_size;
 
 #define make_shared_string(s) int_make_shared_string(s, __CURRENT_FILE_LINE__)
-void stralloc_print_entry(std::stringstream &ss, block_t* entry);
-void dump_stralloc(outbuffer_t *out);
+void stralloc_print_entry(std::stringstream& ss, block_t* entry);
+void dump_stralloc(outbuffer_t* out);
 #endif

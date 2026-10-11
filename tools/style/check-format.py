@@ -398,6 +398,9 @@ def _all_candidates(repo: Path, reporter: Reporter) -> list[Candidate]:
         if _path_has_symlink_component(path):
             reporter.excluded_path("symbolic-link", rel)
             continue
+        if path.stat().st_size == 0:
+            reporter.excluded_path("empty-source", rel)
+            continue
         candidates.append(Candidate(rel, path_bytes, "tracked", path_bytes))
     return candidates
 
@@ -546,6 +549,9 @@ def _check_candidate(
         reporter.error(f"symbolic links are not checkable: {candidate.rel}")
         return
     before_snapshot = _snapshot(path)
+    if before_snapshot.size == 0:
+        print(f"not-applicable: {candidate.rel} (empty source)")
+        return
     data = path.read_bytes()
     ranges: list[LineRange] | None = None
     allowed: list[tuple[int, int]] | None = None

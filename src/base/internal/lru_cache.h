@@ -30,15 +30,23 @@ class lru_cache {
 
   ~lru_cache() = default;
 
-  [[nodiscard]] size_t size() const { return m_map.size(); }
+  [[nodiscard]] size_t size() const {
+    return m_map.size();
+  }
 
-  [[nodiscard]] size_t capacity() const { return m_capacity; }
+  [[nodiscard]] size_t capacity() const {
+    return m_capacity;
+  }
 
-  [[nodiscard]] bool empty() const { return m_map.empty(); }
+  [[nodiscard]] bool empty() const {
+    return m_map.empty();
+  }
 
-  bool contains(const key_type &key) { return m_map.find(key) != m_map.end(); }
+  bool contains(const key_type& key) {
+    return m_map.find(key) != m_map.end();
+  }
 
-  void insert(const key_type &key, const value_type &value) {
+  void insert(const key_type& key, const value_type& value) {
     typename map_type::iterator i = m_map.find(key);
     if (i == m_map.end()) {
       // insert item into the cache, but first check if it is full
@@ -53,7 +61,7 @@ class lru_cache {
     }
   }
 
-  std::optional<value_type> get(const key_type &key) {
+  std::optional<value_type> get(const key_type& key) {
     // lookup value in the cache
     typename map_type::iterator i = m_map.find(key);
     if (i == m_map.end()) {
@@ -71,7 +79,7 @@ class lru_cache {
 
       // update iterator in map
       j = m_list.begin();
-      const value_type &value = i->second.first;
+      const value_type& value = i->second.first;
       m_map[key] = std::make_pair(value, j);
 
       // return the value

@@ -34,7 +34,8 @@ SSL_CTX* tls_server_init(std::string_view file_cert, std::string_view file_key) 
   tls_library_init();
 
   /* We MUST have entropy, or else there's no point to crypto. */
-  if (!RAND_poll() && !RAND_status()) return nullptr;
+  if (!RAND_poll() && !RAND_status())
+    return nullptr;
 
   SSL_CTX* server_ctx = SSL_CTX_new(SSLv23_server_method());
   if (!server_ctx) {
@@ -62,7 +63,9 @@ SSL_CTX* tls_server_init(std::string_view file_cert, std::string_view file_key) 
   return server_ctx;
 }
 
-void tls_server_close(SSL_CTX* ssl_ctx) { SSL_CTX_free(ssl_ctx); }
+void tls_server_close(SSL_CTX* ssl_ctx) {
+  SSL_CTX_free(ssl_ctx);
+}
 
 SSL* tls_get_client_ctx(SSL_CTX* server_ctx) {
   auto ctx = SSL_new(server_ctx);
@@ -70,9 +73,9 @@ SSL* tls_get_client_ctx(SSL_CTX* server_ctx) {
 }
 
 int tls_verify_callback(int preverify_ok, X509_STORE_CTX* x509_ctx) {
-  char  buf[256];
+  char buf[256];
   X509* cert;
-  int   err, depth;
+  int err, depth;
 
   cert = X509_STORE_CTX_get_current_cert(x509_ctx);
   err = X509_STORE_CTX_get_error(x509_ctx);
@@ -83,7 +86,7 @@ int tls_verify_callback(int preverify_ok, X509_STORE_CTX* x509_ctx) {
   /* If error is not X509_V_OK, print out the error information */
   if (err != X509_V_OK) {
     debug(sockets, "tls_verify_callback: verify error:num=%d:%s:depth=%d:%s\n", err,
-           X509_verify_cert_error_string(err), depth, buf);
+          X509_verify_cert_error_string(err), depth, buf);
   }
 
   return preverify_ok;
@@ -111,20 +114,20 @@ bool tls_configure_client_identity(SSL* ssl, const sockaddr* peer, size_t peer_l
   }
 
   char numeric_host[NI_MAXHOST] = {};
-  if (getnameinfo(peer, static_cast<socklen_t>(peer_len), numeric_host,
-                  sizeof(numeric_host), nullptr, 0, NI_NUMERICHOST) != 0) {
+  if (getnameinfo(peer, static_cast<socklen_t>(peer_len), numeric_host, sizeof(numeric_host),
+                  nullptr, 0, NI_NUMERICHOST) != 0) {
     return false;
   }
   auto* verify_param = SSL_get0_param(ssl);
-  return verify_param != nullptr &&
-         X509_VERIFY_PARAM_set1_ip_asc(verify_param, numeric_host) == 1;
+  return verify_param != nullptr && X509_VERIFY_PARAM_set1_ip_asc(verify_param, numeric_host) == 1;
 }
 
 SSL_CTX* tls_client_init() {
   tls_library_init();
 
   /* We MUST have entropy, or else there's no point to crypto. */
-  if (!RAND_poll() && !RAND_status()) return nullptr;
+  if (!RAND_poll() && !RAND_status())
+    return nullptr;
 
   SSL_CTX* ctx = SSL_CTX_new(TLS_client_method());
   if (!ctx) {

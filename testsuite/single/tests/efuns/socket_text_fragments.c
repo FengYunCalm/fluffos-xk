@@ -40,7 +40,7 @@ void timeout_fail() {
 
 void finish_test() {
   ASSERT2(read_callbacks >= 3,
-          sprintf("expected observed split reads, got %d callbacks", read_callbacks));
+    sprintf("expected observed split reads, got %d callbacks", read_callbacks));
   ASSERT_EQ(payload, server_received);
   test_completed = 1;
   remove_call_out("timeout_fail");
@@ -94,7 +94,7 @@ void send_fragment() {
 
   next_stage = client_stage + 1;
   ASSERT2(EESUCCESS == socket_write(client_fd, fragment),
-          sprintf("fragment %d write failed", client_stage));
+    sprintf("fragment %d write failed", client_stage));
   client_stage = next_stage;
   if (client_stage < 6) {
     call_out("send_fragment", 0.05);
@@ -108,7 +108,7 @@ void client_write(int fd) {
 void server_read(int fd, string message) {
   read_callbacks++;
   ASSERT2(strsrch(message, "\xef\xbf\xbd") == -1,
-          sprintf("replacement character in fragment %O", message));
+    sprintf("replacement character in fragment %O", message));
   server_received += message;
   ASSERT2(strlen(server_received) <= strlen(payload), "fragment payload grew unexpectedly");
   if (server_received == payload) {
@@ -119,8 +119,7 @@ void server_read(int fd, string message) {
   }
 }
 
-void server_write(int fd) {
-}
+void server_write(int fd) {}
 
 void server_accept_ready(int fd) {
   accepted_fd = socket_accept(fd, "server_read", "server_write");
@@ -131,9 +130,9 @@ void start_client(int port) {
   client_fd = socket_create(STREAM, "client_read", "client_close");
   ASSERT2(client_fd >= 0, "failed to create client socket");
   ASSERT2(EESUCCESS ==
-              socket_connect(client_fd, sprintf("127.0.0.1 %d", port),
-                             "client_read", "client_write"),
-          "socket_connect failed");
+    socket_connect(client_fd, sprintf("127.0.0.1 %d", port),
+      "client_read", "client_write"),
+    "socket_connect failed");
 }
 
 void client_read(int fd, mixed message) {

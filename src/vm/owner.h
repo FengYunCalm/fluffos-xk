@@ -14,8 +14,8 @@ struct object_t;
 struct svalue_t;
 
 struct VMOwnerComputeResultField {
-  const char *key{nullptr};
-  const char *string_value{nullptr};
+  const char* key{nullptr};
+  const char* string_value{nullptr};
   int64_t number_value{0};
   bool is_string{false};
 };
@@ -59,19 +59,19 @@ struct VMOwnerStringTaskSubmission {
 // creating thread. Enqueueing only links this preallocated node into the
 // main-thread cleanup queue; it must not allocate or free LPC references.
 struct VMOwnerCallbackCleanupRecord {
-  VMOwnerCallbackCleanupRecord *next{nullptr};
+  VMOwnerCallbackCleanupRecord* next{nullptr};
   uint64_t task_id{0};
   uint64_t sequence{0};
   uint64_t owner_epoch{0};
-  const char *owner_id{nullptr};
-  const char *task_type{nullptr};
-  const char *task_key{nullptr};
-  using CleanupCallback = void (*)(void *);
+  const char* owner_id{nullptr};
+  const char* task_type{nullptr};
+  const char* task_key{nullptr};
+  using CleanupCallback = void (*)(void*);
   CleanupCallback callback{nullptr};
-  void *callback_context{nullptr};
+  void* callback_context{nullptr};
 
-  void prepare(const char *owner, uint64_t epoch, const char *type,
-               const char *key, CleanupCallback cleanup, void *context) noexcept {
+  void prepare(const char* owner, uint64_t epoch, const char* type, const char* key,
+               CleanupCallback cleanup, void* context) noexcept {
     next = nullptr;
     task_id = 0;
     sequence = 0;
@@ -97,9 +97,9 @@ struct VMOwnerMainDrainResult {
 
 using VMOwnerFutureTerminalNotifier = void (*)();
 
-const char *vm_owner_default_id();
+const char* vm_owner_default_id();
 int vm_multicore_mode();
-const char *vm_multicore_mode_name(int mode);
+const char* vm_multicore_mode_name(int mode);
 bool vm_multicore_audit_enabled();
 bool vm_multicore_enforced();
 
@@ -131,105 +131,111 @@ inline bool vm_multicore_enforced_fast() {
 #endif
 }
 
-const char *vm_owner_id(object_t *object);
-bool vm_owner_has_explicit_id(object_t *object);
-uint64_t vm_owner_epoch(object_t *object);
-void vm_owner_set_id(object_t *object, const char *owner_id);
-void vm_owner_assign_default(object_t *object, object_t *context_object, const char *fallback_owner_id);
-void vm_owner_clear_id(object_t *object);
-bool vm_owner_matches(object_t *object, const char *expected_owner_id);
-bool vm_owner_epoch_matches(object_t *object, const char *expected_owner_id, uint64_t expected_epoch);
-void vm_owner_record_check(object_t *object, const char *expected_owner_id, bool matched);
+const char* vm_owner_id(object_t* object);
+bool vm_owner_has_explicit_id(object_t* object);
+uint64_t vm_owner_epoch(object_t* object);
+void vm_owner_set_id(object_t* object, const char* owner_id);
+void vm_owner_assign_default(object_t* object, object_t* context_object,
+                             const char* fallback_owner_id);
+void vm_owner_clear_id(object_t* object);
+bool vm_owner_matches(object_t* object, const char* expected_owner_id);
+bool vm_owner_epoch_matches(object_t* object, const char* expected_owner_id,
+                            uint64_t expected_epoch);
+void vm_owner_record_check(object_t* object, const char* expected_owner_id, bool matched);
 uint64_t vm_owner_total_checks();
 uint64_t vm_owner_mismatch_checks();
-mapping_t *vm_owner_status(object_t *object);
-mapping_t *vm_owner_guard(object_t *object, const char *expected_owner_id);
-mapping_t *vm_owner_guard_epoch(object_t *object, const char *expected_owner_id, uint64_t expected_epoch);
-uint64_t vm_owner_enqueue_task(const char *owner_id, const char *task_type, const char *task_key);
-uint64_t vm_owner_enqueue_task_epoch(const char *owner_id, const char *task_type, const char *task_key,
-                                     uint64_t owner_epoch);
-uint64_t vm_owner_record_task_trace(const char *owner_id, const char *task_type, const char *task_key,
-                                     uint64_t owner_epoch, const char *state);
-uint64_t vm_owner_enqueue_main_task(object_t *target, const char *task_type, const char *task_key,
-                                    std::function<void()> callback,
-                                    std::function<void()> drop_callback = nullptr,
-                                    VMOwnerMainTaskPolicy policy = VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
+mapping_t* vm_owner_status(object_t* object);
+mapping_t* vm_owner_guard(object_t* object, const char* expected_owner_id);
+mapping_t* vm_owner_guard_epoch(object_t* object, const char* expected_owner_id,
+                                uint64_t expected_epoch);
+uint64_t vm_owner_enqueue_task(const char* owner_id, const char* task_type, const char* task_key);
+uint64_t vm_owner_enqueue_task_epoch(const char* owner_id, const char* task_type,
+                                     const char* task_key, uint64_t owner_epoch);
+uint64_t vm_owner_record_task_trace(const char* owner_id, const char* task_type,
+                                    const char* task_key, uint64_t owner_epoch, const char* state);
+uint64_t vm_owner_enqueue_main_task(
+    object_t* target, const char* task_type, const char* task_key, std::function<void()> callback,
+    std::function<void()> drop_callback = nullptr,
+    VMOwnerMainTaskPolicy policy = VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
 bool vm_owner_executor_available();
 int64_t vm_owner_main_queue_total_depth();
-uint64_t vm_owner_enqueue_executor_task(object_t *target, const char *task_type, const char *task_key,
-                                        std::function<void()> callback,
+uint64_t vm_owner_enqueue_executor_task(object_t* target, const char* task_type,
+                                        const char* task_key, std::function<void()> callback,
                                         std::function<void()> drop_callback = nullptr);
 VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(
-    object_t *target, const char *task_type, const char *task_key,
-    std::function<bool(std::string *)> projector);
-uint64_t vm_owner_enqueue_executor_callback_cleanup(VMOwnerCallbackCleanupRecord *record);
-uint64_t vm_owner_enqueue_main_task_with_payload(object_t *target, const char *task_type,
-                                                 const char *task_key, const char *payload_key,
-                                                 svalue_t *payload, std::function<void()> callback,
-                                                 std::function<void()> drop_callback = nullptr,
-                                                 const char *execution_frame_model = nullptr,
-                                                 const char *execution_frame_policy = nullptr,
-                                                 const char *command_consume_model = nullptr,
-                                                 const char *command_consume_blocker = nullptr,
-                                                 bool execution_frame_requires_current_interactive = false,
-                                                 bool execution_frame_requires_command_giver = false,
-                                                 const char *execution_frame_restore_policy = nullptr,
-                                                 const char *execution_frame_restore_blocker = nullptr,
-                                                 const char *command_text_snapshot = nullptr,
-                                                 size_t command_text_snapshot_length = 0,
-                                                 VMOwnerMainTaskPolicy policy = VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
+    object_t* target, const char* task_type, const char* task_key,
+    std::function<bool(std::string*)> projector);
+uint64_t vm_owner_enqueue_executor_callback_cleanup(VMOwnerCallbackCleanupRecord* record);
+uint64_t vm_owner_enqueue_main_task_with_payload(
+    object_t* target, const char* task_type, const char* task_key, const char* payload_key,
+    svalue_t* payload, std::function<void()> callback,
+    std::function<void()> drop_callback = nullptr, const char* execution_frame_model = nullptr,
+    const char* execution_frame_policy = nullptr, const char* command_consume_model = nullptr,
+    const char* command_consume_blocker = nullptr,
+    bool execution_frame_requires_current_interactive = false,
+    bool execution_frame_requires_command_giver = false,
+    const char* execution_frame_restore_policy = nullptr,
+    const char* execution_frame_restore_blocker = nullptr,
+    const char* command_text_snapshot = nullptr, size_t command_text_snapshot_length = 0,
+    VMOwnerMainTaskPolicy policy = VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
 int vm_owner_drain_main_tasks(int limit);
-VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(int limit,
-                                                             uint64_t wall_budget_ns);
-uint64_t vm_owner_record_access(object_t *source, object_t *target, const char *operation);
-bool vm_owner_access_fast_bypass(object_t *source, object_t *target);
-uint64_t vm_owner_record_cross_owner_access(object_t *source, object_t *target, const char *operation);
-bool vm_owner_cross_owner_access_blocked(object_t *source, object_t *target, const char *operation);
-mapping_t *vm_owner_drain_mailbox(const char *owner_id, int limit);
-mapping_t *vm_owner_purge_mailbox(const char *owner_id);
-mapping_t *vm_owner_mailbox_status(const char *owner_id);
-mapping_t *vm_owner_schedule(int limit);
-mapping_t *vm_owner_task_trace(int limit);
-mapping_t *vm_owner_executor_trace(int limit);
-mapping_t *vm_owner_access_trace(int limit);
-mapping_t *vm_owner_submit_message(const char *source_owner_id, const char *target_owner_id, const char *message_type,
-                                    const char *payload_key);
-mapping_t *vm_owner_submit_object_message(const char *source_owner_id, const VMObjectHandle &target_handle,
-                                          const char *message_type, const char *payload_key,
-                                          svalue_t *payload = nullptr);
-uint64_t vm_owner_register_compute_future(const char *owner_id, uint64_t worker_task_id, const char *task_type,
-                                          const char *payload_key);
-uint64_t vm_owner_enqueue_compute_result(const char *owner_id, uint64_t worker_task_id, const char *task_type,
-                                         const char *state, const char *result_key, const char *error);
-uint64_t vm_owner_enqueue_compute_result_fields(const char *owner_id, uint64_t worker_task_id, const char *task_type,
-                                                const char *state, const char *result_key, const char *error,
-                                                const VMOwnerComputeResultField *fields, size_t field_count);
-uint64_t vm_owner_enqueue_command_frame_restore(object_t *target);
-mapping_t *vm_owner_message_trace(int limit);
-mapping_t *vm_owner_future_poll(uint64_t future_id);
-mapping_t *vm_owner_future_take(uint64_t future_id);
-mapping_t *vm_owner_future_take(uint64_t future_id, uint64_t *terminal_at_ns);
+VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(int limit, uint64_t wall_budget_ns);
+uint64_t vm_owner_record_access(object_t* source, object_t* target, const char* operation);
+bool vm_owner_access_fast_bypass(object_t* source, object_t* target);
+uint64_t vm_owner_record_cross_owner_access(object_t* source, object_t* target,
+                                            const char* operation);
+bool vm_owner_cross_owner_access_blocked(object_t* source, object_t* target, const char* operation);
+mapping_t* vm_owner_drain_mailbox(const char* owner_id, int limit);
+mapping_t* vm_owner_purge_mailbox(const char* owner_id);
+mapping_t* vm_owner_mailbox_status(const char* owner_id);
+mapping_t* vm_owner_schedule(int limit);
+mapping_t* vm_owner_task_trace(int limit);
+mapping_t* vm_owner_executor_trace(int limit);
+mapping_t* vm_owner_access_trace(int limit);
+mapping_t* vm_owner_submit_message(const char* source_owner_id, const char* target_owner_id,
+                                   const char* message_type, const char* payload_key);
+mapping_t* vm_owner_submit_object_message(const char* source_owner_id,
+                                          const VMObjectHandle& target_handle,
+                                          const char* message_type, const char* payload_key,
+                                          svalue_t* payload = nullptr);
+uint64_t vm_owner_register_compute_future(const char* owner_id, uint64_t worker_task_id,
+                                          const char* task_type, const char* payload_key);
+uint64_t vm_owner_enqueue_compute_result(const char* owner_id, uint64_t worker_task_id,
+                                         const char* task_type, const char* state,
+                                         const char* result_key, const char* error);
+uint64_t vm_owner_enqueue_compute_result_fields(const char* owner_id, uint64_t worker_task_id,
+                                                const char* task_type, const char* state,
+                                                const char* result_key, const char* error,
+                                                const VMOwnerComputeResultField* fields,
+                                                size_t field_count);
+uint64_t vm_owner_enqueue_command_frame_restore(object_t* target);
+mapping_t* vm_owner_message_trace(int limit);
+mapping_t* vm_owner_future_poll(uint64_t future_id);
+mapping_t* vm_owner_future_take(uint64_t future_id);
+mapping_t* vm_owner_future_take(uint64_t future_id, uint64_t* terminal_at_ns);
 VMOwnerFutureStringTakeResult vm_owner_future_take_string(uint64_t future_id);
 void vm_owner_set_future_terminal_notifier(VMOwnerFutureTerminalNotifier notifier);
 VMOwnerFutureState vm_owner_future_state(uint64_t future_id);
-bool vm_owner_future_targets_object(uint64_t future_id, object_t *target);
-mapping_t *vm_owner_future_cancel(uint64_t future_id, const char *reason);
-mapping_t *vm_owner_future_cancel_queued_task(uint64_t future_id,
-                                             const char *reason);
-mapping_t *vm_owner_future_timeout(uint64_t future_id, const char *reason);
-mapping_t *vm_owner_record_commit_boundary(const char *source_owner_id, const char *target_owner_id,
-                                             const char *operation, uint64_t message_id, const char *state);
-uint64_t vm_owner_observe_commit_boundary(const char *source_owner_id, const char *target_owner_id,
-                                          const char *operation, uint64_t message_id, const char *state);
-mapping_t *vm_owner_commit_trace(int limit);
-mapping_t *vm_owner_lpc_probe(object_t *target, const char *owner_id, const char *method);
-mapping_t *vm_owner_lpc_canary(object_t *target, const char *owner_id, const char *method);
-mapping_t *vm_owner_lpc_task(object_t *target, const char *owner_id, const char *method);
-mapping_t *vm_owner_ordinary_lpc_task(object_t *target, const char *owner_id, const char *method, int explicit_open);
+bool vm_owner_future_targets_object(uint64_t future_id, object_t* target);
+mapping_t* vm_owner_future_cancel(uint64_t future_id, const char* reason);
+mapping_t* vm_owner_future_cancel_queued_task(uint64_t future_id, const char* reason);
+mapping_t* vm_owner_future_timeout(uint64_t future_id, const char* reason);
+mapping_t* vm_owner_record_commit_boundary(const char* source_owner_id, const char* target_owner_id,
+                                           const char* operation, uint64_t message_id,
+                                           const char* state);
+uint64_t vm_owner_observe_commit_boundary(const char* source_owner_id, const char* target_owner_id,
+                                          const char* operation, uint64_t message_id,
+                                          const char* state);
+mapping_t* vm_owner_commit_trace(int limit);
+mapping_t* vm_owner_lpc_probe(object_t* target, const char* owner_id, const char* method);
+mapping_t* vm_owner_lpc_canary(object_t* target, const char* owner_id, const char* method);
+mapping_t* vm_owner_lpc_task(object_t* target, const char* owner_id, const char* method);
+mapping_t* vm_owner_ordinary_lpc_task(object_t* target, const char* owner_id, const char* method,
+                                      int explicit_open);
 void vm_owner_thread_start(int requested_threads);
 void vm_owner_thread_stop();
-mapping_t *vm_owner_thread_status();
-mapping_t *vm_owner_runtime_status();
+mapping_t* vm_owner_thread_status();
+mapping_t* vm_owner_runtime_status();
 
 // C++ regression hook: reset the executor budget-yield observation fields
 // under the runtime lock so tests can assert on a known baseline. Not part
@@ -237,7 +243,7 @@ mapping_t *vm_owner_runtime_status();
 void vm_owner_test_support_reset_budget_yield_observations();
 
 // Object snapshot API for safe cross-owner structure inspection.
-mapping_t *vm_owner_query_object_snapshot(object_t *target, const char *requesting_owner_id);
+mapping_t* vm_owner_query_object_snapshot(object_t* target, const char* requesting_owner_id);
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void vm_owner_mark_runtime_refs();

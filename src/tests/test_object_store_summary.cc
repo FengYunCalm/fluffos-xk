@@ -272,7 +272,7 @@ TEST_F(ObjectStoreSummaryTest, PathIndexesKeepMaximumAcrossLiveAndDestructedReco
   {
     ObjectStoreWriteLock lock(object_store_directory_mutex);
     write_owner_local_lifecycle_record_locked(&objects_[0], true);
-    const auto &shard = owner_shards.at("owner/a");
+    const auto& shard = owner_shards.at("owner/a");
     ASSERT_EQ(shard.object_path_index.at("fixture/shared"), 2);
     ASSERT_EQ(shard.destructed_path_index.count("fixture/shared"), 0);
     ASSERT_EQ(shadowed_destructed_path_counts.at("fixture/shared"), 1);

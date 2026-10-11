@@ -91,16 +91,15 @@ void start_reused_client() {
 void server_read(int fd, string message) {
   ASSERT2(phase == 3, sprintf("unexpected server read in phase %d", phase));
   ASSERT2(message == "A",
-          sprintf("stale UTF-8 tail survived local close/reuse: %O", message));
+    sprintf("stale UTF-8 tail survived local close/reuse: %O", message));
   ASSERT2(fd == first_accepted_fd,
-          sprintf("accepted socket was not reused: first=%d second=%d", first_accepted_fd, fd));
+    sprintf("accepted socket was not reused: first=%d second=%d", first_accepted_fd, fd));
   ASSERT_EQ(EESUCCESS, socket_close(fd));
   accepted_fd = -1;
   call_out("finish_test", 0);
 }
 
-void server_write(int fd) {
-}
+void server_write(int fd) {}
 
 void server_accept_ready(int fd) {
   accepted_fd = socket_accept(fd, "server_read", "server_write");

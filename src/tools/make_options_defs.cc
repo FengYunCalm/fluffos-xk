@@ -23,7 +23,8 @@ const char* TPL_FOOTER = R"""(
 )""";
 
 void replaceAll(std::string& str, const std::string& from, const std::string& to) {
-  if (from.empty()) return;
+  if (from.empty())
+    return;
   size_t start_pos = 0;
   while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
     str.replace(start_pos, from.length(), to);
@@ -41,8 +42,10 @@ int main(int argc, char** argv) {
   for (auto p : defns) {
     for (; p; p = p->next) {
       // Ignore define name starts with _ , those are system defines.
-      if (p->name[0] == '_') continue;
-      if (p->flags & DEF_IS_UNDEFINED) continue;
+      if (p->name[0] == '_')
+        continue;
+      if (p->flags & DEF_IS_UNDEFINED)
+        continue;
       auto key = "__" + std::string(p->name) + "__";
       auto value = std::string(p->exps);
       replaceAll(value, "\"", "\\\"");

@@ -58,22 +58,23 @@ extern void update_load_av();
 /*
  * local function prototypes.
  */
-static char *get_user_command(interactive_t * /*ip*/);
-static char *first_cmd_in_buf(interactive_t * /*ip*/);
-static int consume_user_command_snapshot(interactive_t * /*ip*/, const char * /*command_snapshot*/,
+static char* get_user_command(interactive_t* /*ip*/);
+static char* first_cmd_in_buf(interactive_t* /*ip*/);
+static int consume_user_command_snapshot(interactive_t* /*ip*/, const char* /*command_snapshot*/,
                                          size_t /*command_snapshot_length*/);
-static int process_user_command_text(interactive_t * /*ip*/, char * /*user_command*/);
-static int call_function_interactive(interactive_t * /*i*/, char * /*str*/);
-static void print_prompt(interactive_t * /*ip*/);
-static bool receive_user_telnet_data(interactive_t * /*ip*/, const char * /*data*/, size_t /*len*/);
+static int process_user_command_text(interactive_t* /*ip*/, char* /*user_command*/);
+static int call_function_interactive(interactive_t* /*i*/, char* /*str*/);
+static void print_prompt(interactive_t* /*ip*/);
+static bool receive_user_telnet_data(interactive_t* /*ip*/, const char* /*data*/, size_t /*len*/);
 
 #ifdef NO_SNOOP
 #define handle_snoop(str, len, who)
 #else
 #define handle_snoop(str, len, who) \
-  if ((who)->snooped_by) receive_snoop(str, len, (who)->snooped_by)
+  if ((who)->snooped_by)            \
+  receive_snoop(str, len, (who)->snooped_by)
 
-static void receive_snoop(const char * /*buf*/, int /*len*/, object_t *ob);
+static void receive_snoop(const char* /*buf*/, int /*len*/, object_t* ob);
 
 #endif
 
@@ -83,11 +84,14 @@ struct UserEventData {
   int idx;
 };
 
-bool decode_mud_port_payload_length(const char *header, size_t header_size,
-                                    size_t *payload_length) {
+bool decode_mud_port_payload_length(const char* header, size_t header_size,
+                                    size_t* payload_length) {
   constexpr size_t kMudPortHeaderSize = sizeof(uint32_t);
-  constexpr size_t kMudPortMaxPayload = static_cast<size_t>(MAX_TEXT) -  // #1247-equivalent TRANSPORT-1/2 (upstream transport_libevent clamp)
-                                        kMudPortHeaderSize - 1;
+  constexpr size_t kMudPortMaxPayload =
+      static_cast<size_t>(
+          MAX_TEXT) -  // #1247-equivalent TRANSPORT-1/2 (upstream transport_libevent clamp)
+      kMudPortHeaderSize -
+      1;
   if (!header || !payload_length || header_size < kMudPortHeaderSize) {
     return false;
   }
@@ -103,8 +107,8 @@ bool decode_mud_port_payload_length(const char *header, size_t header_size,
   return true;
 }
 
-svalue_t *owner_bound_safe_apply(const char *fun, object_t *ob, int num_arg, int origin,
-                                 const char *task_type) {
+svalue_t* owner_bound_safe_apply(const char* fun, object_t* ob, int num_arg, int origin,
+                                 const char* task_type) {
   if (!ob) {
     return nullptr;
   }
@@ -116,7 +120,7 @@ svalue_t *owner_bound_safe_apply(const char *fun, object_t *ob, int num_arg, int
   return safe_apply(fun, ob, num_arg, origin);
 }
 
-bool gateway_runtime_probe_enabled(interactive_t *ip) {
+bool gateway_runtime_probe_enabled(interactive_t* ip) {
   return ip && (ip->iflags & GATEWAY_SESSION) && ip->gateway_session_id &&
          !gateway_probe_suppressed_for_object(ip->ob);
 }
@@ -127,22 +131,21 @@ uint64_t gateway_runtime_probe_now_ns() {
                                    .count());
 }
 
-void gateway_runtime_record_max(std::atomic<uint64_t> &counter, uint64_t value) {
+void gateway_runtime_record_max(std::atomic<uint64_t>& counter, uint64_t value) {
   auto current = counter.load(std::memory_order_relaxed);
   while (value > current &&
          !counter.compare_exchange_weak(current, value, std::memory_order_relaxed)) {
   }
 }
 
-void gateway_runtime_record_latency(std::atomic<uint64_t> &total, std::atomic<uint64_t> &max,
-                                    std::atomic<uint64_t> &samples,
-                                    uint64_t elapsed_ns) {
+void gateway_runtime_record_latency(std::atomic<uint64_t>& total, std::atomic<uint64_t>& max,
+                                    std::atomic<uint64_t>& samples, uint64_t elapsed_ns) {
   total.fetch_add(elapsed_ns, std::memory_order_relaxed);
   samples.fetch_add(1, std::memory_order_relaxed);
   gateway_runtime_record_max(max, elapsed_ns);
 }
 
-void maybe_schedule_user_command(interactive_t *user) {
+void maybe_schedule_user_command(interactive_t* user) {
   // If user has a complete command, schedule a command execution.
   if (user->iflags & CMD_IN_BUF) {
     struct timeval zero_sec = {0, 0};
@@ -151,7 +154,7 @@ void maybe_schedule_user_command(interactive_t *user) {
   }
 }
 
-void run_user_localecho_restore(interactive_t *ip, object_t *reply_command_giver) {
+void run_user_localecho_restore(interactive_t* ip, object_t* reply_command_giver) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
   }
@@ -162,15 +165,17 @@ void run_user_localecho_restore(interactive_t *ip, object_t *reply_command_giver
   restore_command_giver();
 }
 
-void enqueue_user_localecho_restore(interactive_t *ip, object_t *reply_command_giver) {
+void enqueue_user_localecho_restore(interactive_t* ip, object_t* reply_command_giver) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
   }
 
-  auto task_id = vm_owner_enqueue_main_task(reply_command_giver, "command_reply", "localecho_restore",
-                                            [ip, reply_command_giver] {
-                                              run_user_localecho_restore(ip, reply_command_giver);
-                                            }, nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
+  auto task_id = vm_owner_enqueue_main_task(
+      reply_command_giver, "command_reply", "localecho_restore",
+      [ip, reply_command_giver] {
+        run_user_localecho_restore(ip, reply_command_giver);
+      },
+      nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
   if (task_id == 0) {
     run_user_localecho_restore(ip, reply_command_giver);
     return;
@@ -178,7 +183,8 @@ void enqueue_user_localecho_restore(interactive_t *ip, object_t *reply_command_g
   vm_owner_drain_main_tasks(64);
 }
 
-int detach_user_noecho_localecho_restore_in_owner_frame(interactive_t *ip, object_t *reply_command_giver) {
+int detach_user_noecho_localecho_restore_in_owner_frame(interactive_t* ip,
+                                                        object_t* reply_command_giver) {
   if (!ip || !(ip->iflags & NOECHO)) {
     return 0;
   }
@@ -195,7 +201,7 @@ int detach_user_noecho_localecho_restore_in_owner_frame(interactive_t *ip, objec
 
 enum class UserTerminalModeDelta { LineMode, CharMode };
 
-void run_user_terminal_mode_delta(interactive_t *ip, object_t *reply_command_giver,
+void run_user_terminal_mode_delta(interactive_t* ip, object_t* reply_command_giver,
                                   UserTerminalModeDelta mode_delta) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
@@ -211,8 +217,8 @@ void run_user_terminal_mode_delta(interactive_t *ip, object_t *reply_command_giv
   restore_command_giver();
 }
 
-void enqueue_user_terminal_mode_delta(interactive_t *ip, object_t *reply_command_giver,
-                                      UserTerminalModeDelta mode_delta, const char *task_key) {
+void enqueue_user_terminal_mode_delta(interactive_t* ip, object_t* reply_command_giver,
+                                      UserTerminalModeDelta mode_delta, const char* task_key) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
   }
@@ -221,10 +227,12 @@ void enqueue_user_terminal_mode_delta(interactive_t *ip, object_t *reply_command
     return;
   }
 
-  auto task_id = vm_owner_enqueue_main_task(reply_command_giver, "command_mode_delta", task_key,
-                                            [ip, reply_command_giver, mode_delta] {
-                                              run_user_terminal_mode_delta(ip, reply_command_giver, mode_delta);
-                                            }, nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
+  auto task_id = vm_owner_enqueue_main_task(
+      reply_command_giver, "command_mode_delta", task_key,
+      [ip, reply_command_giver, mode_delta] {
+        run_user_terminal_mode_delta(ip, reply_command_giver, mode_delta);
+      },
+      nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
   if (task_id == 0) {
     run_user_terminal_mode_delta(ip, reply_command_giver, mode_delta);
     return;
@@ -232,7 +240,7 @@ void enqueue_user_terminal_mode_delta(interactive_t *ip, object_t *reply_command
   vm_owner_drain_main_tasks(64);
 }
 
-void run_user_command_reply_side_effects(interactive_t *ip, object_t *reply_command_giver) {
+void run_user_command_reply_side_effects(interactive_t* ip, object_t* reply_command_giver) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
   }
@@ -267,7 +275,7 @@ void run_user_command_reply_side_effects(interactive_t *ip, object_t *reply_comm
   gateway_probe_finish_suppressed_command_for_object(reply_command_giver);
 }
 
-void enqueue_user_command_reply_side_effects(interactive_t *ip, object_t *reply_command_giver) {
+void enqueue_user_command_reply_side_effects(interactive_t* ip, object_t* reply_command_giver) {
   if (!IP_VALID(ip, reply_command_giver)) {
     return;
   }
@@ -290,12 +298,11 @@ void enqueue_user_command_reply_side_effects(interactive_t *ip, object_t *reply_
         }
         run_user_command_reply_side_effects(ip, reply_command_giver);
       },
-      nullptr,
-      VM_OWNER_MAIN_TASK_IO_ADAPTER);
+      nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
   if (task_id == 0) {
     if (gateway_probe) {
-      g_gateway_runtime_counters.reply_tasks_inline_fallbacks.fetch_add(
-          1, std::memory_order_relaxed);
+      g_gateway_runtime_counters.reply_tasks_inline_fallbacks.fetch_add(1,
+                                                                        std::memory_order_relaxed);
     }
     run_user_command_reply_side_effects(ip, reply_command_giver);
     return;
@@ -306,11 +313,11 @@ void enqueue_user_command_reply_side_effects(interactive_t *ip, object_t *reply_
   vm_owner_drain_main_tasks(64);
 }
 
-void on_user_command(evutil_socket_t fd, short what, void *arg) {
+void on_user_command(evutil_socket_t fd, short what, void* arg) {
   debug(event, "User has an full command ready: %d:%s%s%s%s \n", (int)fd,
         (what & EV_TIMEOUT) ? " timeout" : "", (what & EV_READ) ? " read" : "",
         (what & EV_WRITE) ? " write" : "", (what & EV_SIGNAL) ? " signal" : "");
-  auto *user = reinterpret_cast<interactive_t *>(arg);
+  auto* user = reinterpret_cast<interactive_t*>(arg);
 
   if (user == nullptr) {
     DEBUG_FATAL("on_user_command: user == NULL, Driver BUG.");
@@ -319,13 +326,16 @@ void on_user_command(evutil_socket_t fd, short what, void *arg) {
 
   if (user->ob && !(user->ob->flags & O_DESTRUCTED) &&
       vm_multicore_mode() != VM_MULTICORE_MODE_OFF) {
-    vm_owner_enqueue_main_task(user->ob, "input", "process_user_command", [user] {
-      set_eval(max_eval_cost);
-      process_user_command(user);
+    vm_owner_enqueue_main_task(
+        user->ob, "input", "process_user_command",
+        [user] {
+          set_eval(max_eval_cost);
+          process_user_command(user);
 
-      /* Has to be cleared if we jumped out of process_user_command() */
-      vm_context_set_current_interactive(vm_context(), nullptr);
-    }, nullptr, VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
+          /* Has to be cleared if we jumped out of process_user_command() */
+          vm_context_set_current_interactive(vm_context(), nullptr);
+        },
+        nullptr, VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
     vm_owner_drain_main_tasks(64);
   } else {
     set_eval(max_eval_cost);
@@ -346,8 +356,8 @@ void on_user_command(evutil_socket_t fd, short what, void *arg) {
   // maybe_schedule_user_command(user);
 }
 
-void on_user_read(bufferevent * /*bev*/, void *arg) {
-  auto *user = reinterpret_cast<interactive_t *>(arg);
+void on_user_read(bufferevent* /*bev*/, void* arg) {
+  auto* user = reinterpret_cast<interactive_t*>(arg);
 
   if (user == nullptr) {
     DEBUG_FATAL("on_user_read: user == NULL, Driver BUG.");
@@ -361,8 +371,8 @@ void on_user_read(bufferevent * /*bev*/, void *arg) {
   // should probably move it here.
 }
 
-void on_user_write(bufferevent * /*bev*/, void *arg) {
-  auto *user = reinterpret_cast<interactive_t *>(arg);
+void on_user_write(bufferevent* /*bev*/, void* arg) {
+  auto* user = reinterpret_cast<interactive_t*>(arg);
   if (user == nullptr) {
     DEBUG_FATAL("on_user_write: user == NULL, Driver BUG.");
     return;
@@ -370,8 +380,8 @@ void on_user_write(bufferevent * /*bev*/, void *arg) {
   // nothing to do.
 }
 
-void on_user_events(bufferevent * /*bev*/, short events, void *arg) {
-  auto *user = reinterpret_cast<interactive_t *>(arg);
+void on_user_events(bufferevent* /*bev*/, short events, void* arg) {
+  auto* user = reinterpret_cast<interactive_t*>(arg);
 
   if (user == nullptr) {
     DEBUG_FATAL("on_user_events: user == NULL, Driver BUG.");
@@ -386,9 +396,9 @@ void on_user_events(bufferevent * /*bev*/, short events, void *arg) {
   }
 }
 
-void new_user_event_listener(event_base *base, interactive_t *user) {
+void new_user_event_listener(event_base* base, interactive_t* user) {
   auto options = BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
-  auto *bev = user->ssl ? bufferevent_openssl_socket_new(base, user->fd, user->ssl,
+  auto* bev = user->ssl ? bufferevent_openssl_socket_new(base, user->fd, user->ssl,
                                                          BUFFEREVENT_SSL_ACCEPTING, options)
                         : bufferevent_socket_new(base, user->fd, options);
 
@@ -404,13 +414,13 @@ void new_user_event_listener(event_base *base, interactive_t *user) {
  * If space is available, an interactive data structure is initialized and
  * the user is connected.
  */
-void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct sockaddr *addr,
-                      int addrlen, void *arg) {
+void new_conn_handler(evconnlistener* listener, evutil_socket_t fd, struct sockaddr* addr,
+                      int addrlen, void* arg) {
   debug(connections, "New connection from %s.\n", sockaddr_to_string(addr, addrlen));
 
   // TODO: we don't really need to pass in port, we can figure out by
   // evconnlistener_get_fd and compare it
-  auto *port = reinterpret_cast<port_def_t *>(arg);
+  auto* port = reinterpret_cast<port_def_t*>(arg);
 
   {
     int one = 1;
@@ -418,7 +428,7 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
 #ifndef _WIN32
                    &one,
 #else
-                   (const char *)&one,
+                   (const char*)&one,
 #endif
                    sizeof(one)) == -1) {
       debug(connections,
@@ -436,9 +446,9 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
     return;
   } else {
     // For other connections go straight to no handshake necessary, schedule to logon.
-    auto *base = evconnlistener_get_base(listener);
+    auto* base = evconnlistener_get_base(listener);
 
-    auto *user = new_user(port, fd, addr, addrlen);
+    auto* user = new_user(port, fd, addr, addrlen);
     new_user_event_listener(base, user);
 
     if (user->connection_type == PORT_TYPE_TELNET) {
@@ -458,13 +468,13 @@ void new_conn_handler(evconnlistener *listener, evutil_socket_t fd, struct socka
 
 namespace {
 
-void user_logon_event_callback(evutil_socket_t /*fd*/, short /*what*/, void *arg) {
-  auto *user = reinterpret_cast<interactive_t *>(arg);
+void user_logon_event_callback(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
+  auto* user = reinterpret_cast<interactive_t*>(arg);
   if (!user) {
     return;
   }
 
-  auto *event = user->ev_logon;
+  auto* event = user->ev_logon;
   user->ev_logon = nullptr;
   if (event) {
     event_free(event);
@@ -477,12 +487,12 @@ void user_logon_event_callback(evutil_socket_t /*fd*/, short /*what*/, void *arg
 
 }  // namespace
 
-bool schedule_user_logon(struct event_base *base, interactive_t *user) {
+bool schedule_user_logon(struct event_base* base, interactive_t* user) {
   if (!base || !user || user->ev_logon) {
     return false;
   }
 
-  auto *event = event_new(base, -1, EV_TIMEOUT, user_logon_event_callback, user);
+  auto* event = event_new(base, -1, EV_TIMEOUT, user_logon_event_callback, user);
   if (!event) {
     return false;
   }
@@ -496,28 +506,28 @@ bool schedule_user_logon(struct event_base *base, interactive_t *user) {
   return true;
 }
 
-void cancel_user_logon(interactive_t *user) {
+void cancel_user_logon(interactive_t* user) {
   if (!user || !user->ev_logon) {
     return;
   }
-  auto *event = user->ev_logon;
+  auto* event = user->ev_logon;
   user->ev_logon = nullptr;
   event_del(event);
   event_free(event);
 }
 
-bool decode_mud_port_payload_length_for_test(const char *header, size_t header_size,
-                                             size_t *payload_length) {
+bool decode_mud_port_payload_length_for_test(const char* header, size_t header_size,
+                                             size_t* payload_length) {
   return decode_mud_port_payload_length(header, header_size, payload_length);
 }
 
 // Initialize an new user
-interactive_t *new_user(port_def_t *port, evutil_socket_t fd, sockaddr *addr,
+interactive_t* new_user(port_def_t* port, evutil_socket_t fd, sockaddr* addr,
                         ev_socklen_t addrlen) {
   /*
    * initialize new user interactive data structure.
    */
-  auto *user = user_add();
+  auto* user = user_add();
 
   user->connection_type = port->kind;
   user->ob = master_ob;
@@ -533,14 +543,14 @@ interactive_t *new_user(port_def_t *port, evutil_socket_t fd, sockaddr *addr,
   }
 
   // Command handler
-  auto *base = evconnlistener_get_base(port->ev_conn);
+  auto* base = evconnlistener_get_base(port->ev_conn);
   user->ev_command = evtimer_new(base, on_user_command, user);
 
   return user;
 }
 
 // Called upon user, when he's finished negotiations , and ready to logon
-void on_user_logon(interactive_t *user) {
+void on_user_logon(interactive_t* user) {
   set_command_giver(master_ob);
   master_ob->flags |= O_ONCE_INTERACTIVE;
   master_ob->interactive = user;
@@ -552,7 +562,7 @@ void on_user_logon(interactive_t *user) {
    * the right copy of the object.
    */
   object_t *master, *ob;
-  svalue_t *ret;
+  svalue_t* ret;
 
   master = master_ob;
   add_ref(master_ob, "new_user");
@@ -562,9 +572,9 @@ void on_user_logon(interactive_t *user) {
   /* master_ob->interactive can be zero if the master object self
    destructed in the above (don't ask) */
   set_command_giver(nullptr);
-  if (ret == nullptr || ret == (svalue_t *)-1 || ret->type != T_OBJECT || !master_ob->interactive) {
+  if (ret == nullptr || ret == (svalue_t*)-1 || ret->type != T_OBJECT || !master_ob->interactive) {
     debug_message("Can not accept connection from %s due to error in connect().\n",
-                  sockaddr_to_string(reinterpret_cast<sockaddr *>(&user->addr), user->addrlen));
+                  sockaddr_to_string(reinterpret_cast<sockaddr*>(&user->addr), user->addrlen));
     if (master_ob->interactive) {
       remove_interactive(master_ob, 0);
     }
@@ -616,16 +626,16 @@ void on_user_logon(interactive_t *user) {
  */
 
 // R2-F11: actual bound port of a socket (getsockname result), family-agnostic.
-static int socket_actual_port(const sockaddr *sa) {
+static int socket_actual_port(const sockaddr* sa) {
   if (!sa) {
     return 0;
   }
   if (sa->sa_family == AF_INET) {
-    return ntohs(reinterpret_cast<const sockaddr_in *>(sa)->sin_port);
+    return ntohs(reinterpret_cast<const sockaddr_in*>(sa)->sin_port);
   }
 #ifdef IPV6
   if (sa->sa_family == AF_INET6) {
-    return ntohs(reinterpret_cast<const sockaddr_in6 *>(sa)->sin6_port);
+    return ntohs(reinterpret_cast<const sockaddr_in6*>(sa)->sin6_port);
   }
 #endif
   return 0;
@@ -633,20 +643,20 @@ static int socket_actual_port(const sockaddr *sa) {
 
 // IP address only of a sockaddr (no port): used by listener logs so the
 // reported port is the post-bind actual port, never a stale 0.
-static const char *sockaddr_ip_only(const sockaddr *sa, socklen_t /*len*/) {
+static const char* sockaddr_ip_only(const sockaddr* sa, socklen_t /*len*/) {
   static thread_local char ipbuf[INET6_ADDRSTRLEN] = {0};
   if (!sa) {
     return "?";
   }
   if (sa->sa_family == AF_INET) {
-    const auto *sin = reinterpret_cast<const sockaddr_in *>(sa);
+    const auto* sin = reinterpret_cast<const sockaddr_in*>(sa);
     if (inet_ntop(AF_INET, &sin->sin_addr, ipbuf, sizeof(ipbuf))) {
       return ipbuf;
     }
   }
 #ifdef IPV6
   if (sa->sa_family == AF_INET6) {
-    const auto *sin6 = reinterpret_cast<const sockaddr_in6 *>(sa);
+    const auto* sin6 = reinterpret_cast<const sockaddr_in6*>(sa);
     if (inet_ntop(AF_INET6, &sin6->sin6_addr, ipbuf, sizeof(ipbuf))) {
       return ipbuf;
     }
@@ -656,7 +666,7 @@ static const char *sockaddr_ip_only(const sockaddr *sa, socklen_t /*len*/) {
 }
 
 bool init_user_conn() {
-  for (auto &port : external_port) {
+  for (auto& port : external_port) {
 #ifdef F_NETWORK_STATS
     port.in_packets = 0;
     port.in_volume = 0;
@@ -665,7 +675,8 @@ bool init_user_conn() {
 #endif
     // R2-F11: port 0 is a legal configuration (OS-assigned port); only
     // UNDEFINED ports are skipped.
-    if (port.kind == PORT_TYPE_UNDEFINED) continue;
+    if (port.kind == PORT_TYPE_UNDEFINED)
+      continue;
 #ifdef IPV6
     auto fd = socket(AF_INET6, SOCK_STREAM, 0);
 #else
@@ -692,9 +703,9 @@ bool init_user_conn() {
       int one = 1;
       if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
 #ifndef _WIN32
-                     (void *)&one,
+                     (void*)&one,
 #else
-                     (const char *)&one,
+                     (const char*)&one,
 #endif
                      sizeof(one)) < 0) {
         evutil_closesocket(fd);
@@ -710,7 +721,7 @@ bool init_user_conn() {
     // On windows, IPv6 sockets are IPv6 only by default. We have to change it.
     {
       auto zero = 0;
-      if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, (void *)&zero, sizeof(zero)) == -1) {
+      if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, (void*)&zero, sizeof(zero)) == -1) {
         debug_message("socket_create: setsockopt error: %s.\n",
                       evutil_socket_error_to_string(evutil_socket_geterror(fd)));
         evutil_closesocket(fd);
@@ -737,7 +748,7 @@ bool init_user_conn() {
           }
           port.tls_cert = fs::absolute(real_cert_path).string();
           port.tls_key = fs::absolute(real_key_path).string();
-        } catch (fs::filesystem_error &e) {
+        } catch (fs::filesystem_error& e) {
           debug_message("Error: %s (%d).\n", e.what(), e.code().value());
           return false;
         }
@@ -747,7 +758,7 @@ bool init_user_conn() {
       /*
        * fill in socket address information.
        */
-      struct addrinfo *res;
+      struct addrinfo* res;
 
       char service[NI_MAXSERV];
       snprintf(service, sizeof(service), "%u", port.port);
@@ -767,7 +778,7 @@ bool init_user_conn() {
 
       int ret;
 
-      auto *mudip = CONFIG_STR(__MUD_IP__);
+      auto* mudip = CONFIG_STR(__MUD_IP__);
       if (mudip != nullptr && strlen(mudip) > 0) {
         ret = evutil_getaddrinfo(mudip, service, &hints, &res);
       } else {
@@ -793,11 +804,11 @@ bool init_user_conn() {
       if (port.port == 0) {
         sockaddr_storage actual_storage = {};
         socklen_t actual_len = sizeof(actual_storage);
-        auto *actual_sa = reinterpret_cast<sockaddr *>(&actual_storage);
+        auto* actual_sa = reinterpret_cast<sockaddr*>(&actual_storage);
         if (getsockname(fd, actual_sa, &actual_len) == 0) {
           port.port = socket_actual_port(actual_sa);
-          debug_message("init_user_conn: port 0 assigned actual port %d for %s\n",
-                        port.port, port_kind_name(port.kind));
+          debug_message("init_user_conn: port 0 assigned actual port %d for %s\n", port.port,
+                        port_kind_name(port.kind));
         } else {
           debug_message("init_user_conn: getsockname failed after port-0 bind: %s.\n",
                         evutil_socket_error_to_string(evutil_socket_geterror(fd)));
@@ -806,7 +817,7 @@ bool init_user_conn() {
 
       // Websocket TLS is handled in init_websocket_context
       if (!port.tls_cert.empty() && port.kind != PORT_TYPE_WEBSOCKET) {
-        SSL_CTX *ctx = tls_server_init(port.tls_cert, port.tls_key);
+        SSL_CTX* ctx = tls_server_init(port.tls_cert, port.tls_key);
         if (!ctx) {
           debug_message("Unable to create TLS context.\n");
           evutil_closesocket(fd);
@@ -822,7 +833,7 @@ bool init_user_conn() {
     }
 
     // Listen on connection event
-    auto *conn = evconnlistener_new(
+    auto* conn = evconnlistener_new(
         g_event_base, new_conn_handler, &port,
         LEV_OPT_REUSEABLE | LEV_OPT_CLOSE_ON_FREE | LEV_OPT_CLOSE_ON_EXEC, 1024, fd);
     if (conn == nullptr) {
@@ -842,14 +853,17 @@ bool init_user_conn() {
  * Shut down new user accept file descriptor.
  */
 void shutdown_external_ports() {
-  for (auto &port : external_port) {
+  for (auto& port : external_port) {
     if (port.kind == PORT_TYPE_UNDEFINED) {
       continue;
     }
-    if (port.ssl) tls_server_close(port.ssl);
+    if (port.ssl)
+      tls_server_close(port.ssl);
     // will also close the FD.
-    if (port.ev_conn) evconnlistener_free(port.ev_conn);
-    if (port.lws_context) close_websocket_context(port.lws_context);
+    if (port.ev_conn)
+      evconnlistener_free(port.ev_conn);
+    if (port.lws_context)
+      close_websocket_context(port.lws_context);
   }
 
   debug_message("closed external ports\n");
@@ -871,7 +885,7 @@ void shutdown_external_ports() {
 #endif
 
 #ifdef SHADOW_CATCH_MESSAGE
-static int shadow_catch_message(object_t *ob, const char *str) {
+static int shadow_catch_message(object_t* ob, const char* str) {
   if (CONFIG_INT(__RC_INTERACTIVE_CATCH_TELL__)) {
     return 0;
   }
@@ -899,7 +913,7 @@ static int shadow_catch_message(object_t *ob, const char *str) {
  * Send a message to an interactive object. If that object is shadowed,
  * special handling is done.
  */
-void add_message(object_t *who, const char *data, int len) {
+void add_message(object_t* who, const char* data, int len) {
   /*
    * if who->interactive is not valid, write message on stderr.
    * (maybe)
@@ -915,11 +929,11 @@ void add_message(object_t *who, const char *data, int len) {
 
   inet_packets++;
 
-  auto *ip = who->interactive;
+  auto* ip = who->interactive;
 
 #ifdef PACKAGE_GATEWAY
   if ((ip->iflags & GATEWAY_SESSION) && ip->gateway_session_id) {
-    extern int gateway_send_to_session(const char *session_id, const char *data, size_t len);
+    extern int gateway_send_to_session(const char* session_id, const char* data, size_t len);
     auto gateway_probe = gateway_runtime_probe_enabled(ip);
     if (vm_context_is_main_thread()) {
       auto execute_started_at = gateway_probe ? gateway_runtime_probe_now_ns() : 0;
@@ -934,26 +948,26 @@ void add_message(object_t *who, const char *data, int len) {
       auto session_id = std::string(ip->gateway_session_id);
       auto payload = std::string(data, len);
       auto enqueued_at = gateway_probe ? gateway_runtime_probe_now_ns() : 0;
-      vm_owner_enqueue_main_task(who, "gateway", "gateway_output",
-                                 [session_id, payload, gateway_probe, enqueued_at] {
-                                   if (gateway_probe) {
-                                     gateway_runtime_record_latency(
-                                         g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_total,
-                                         g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_max,
-                                         g_gateway_runtime_counters.output_enqueue_to_dispatch_samples,
-                                         gateway_runtime_probe_now_ns() - enqueued_at);
-                                   }
-                                   auto execute_started_at = gateway_probe ? gateway_runtime_probe_now_ns() : 0;
-                                   gateway_send_to_session(session_id.c_str(), payload.data(), payload.size());
-                                   if (gateway_probe) {
-                                     gateway_runtime_record_latency(
-                                         g_gateway_runtime_counters.output_execute_ns_total,
-                                         g_gateway_runtime_counters.output_execute_ns_max,
-                                         g_gateway_runtime_counters.output_execute_samples,
-                                         gateway_runtime_probe_now_ns() - execute_started_at);
-                                   }
-                                 },
-                                 nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
+      vm_owner_enqueue_main_task(
+          who, "gateway", "gateway_output",
+          [session_id, payload, gateway_probe, enqueued_at] {
+            if (gateway_probe) {
+              gateway_runtime_record_latency(
+                  g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_total,
+                  g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_max,
+                  g_gateway_runtime_counters.output_enqueue_to_dispatch_samples,
+                  gateway_runtime_probe_now_ns() - enqueued_at);
+            }
+            auto execute_started_at = gateway_probe ? gateway_runtime_probe_now_ns() : 0;
+            gateway_send_to_session(session_id.c_str(), payload.data(), payload.size());
+            if (gateway_probe) {
+              gateway_runtime_record_latency(g_gateway_runtime_counters.output_execute_ns_total,
+                                             g_gateway_runtime_counters.output_execute_ns_max,
+                                             g_gateway_runtime_counters.output_execute_samples,
+                                             gateway_runtime_probe_now_ns() - execute_started_at);
+            }
+          },
+          nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
     }
 #ifdef SHADOW_CATCH_MESSAGE
     if (shadow_catch_message(who, data)) {
@@ -1012,7 +1026,7 @@ void add_message(object_t *who, const char *data, int len) {
   add_message_calls++;
 } /* add_message() */
 
-void add_vmessage(object_t *who, const char *format, ...) {
+void add_vmessage(object_t* who, const char* format, ...) {
   va_list args, args2;
   va_start(args, format);
   va_copy(args2, args);
@@ -1028,7 +1042,8 @@ void add_vmessage(object_t *who, const char *format, ...) {
     } else {
       std::unique_ptr<char[]> const msg(new char[result + 1]);
       result = vsnprintf(msg.get(), result + 1, format, args2);
-      if (result < 0) break;
+      if (result < 0)
+        break;
       add_message(who, msg.get(), result);
     }
   } while (false);
@@ -1039,7 +1054,7 @@ void add_vmessage(object_t *who, const char *format, ...) {
 /*
  * Flush outgoing message buffer of current interactive object.
  */
-int flush_message(interactive_t *ip) {
+int flush_message(interactive_t* ip) {
   /*
    * if ip is not valid, do nothing.
    */
@@ -1058,17 +1073,18 @@ int flush_message(interactive_t *ip) {
   // ip->lws.
   if (ip->ev_buffer) {
     // Try to flush things normally
-    if (bufferevent_flush(ip->ev_buffer, EV_WRITE, BEV_FLUSH) == -1) return 0;
+    if (bufferevent_flush(ip->ev_buffer, EV_WRITE, BEV_FLUSH) == -1)
+      return 0;
 
     // For socket based bufferevent, bufferevent_flush is actually a no-op, thus we have to
     // implement our own.
     if (ip->ssl) {
-      auto *ssl = bufferevent_openssl_get_ssl(ip->ev_buffer);
-      auto *output = bufferevent_get_output(ip->ev_buffer);
+      auto* ssl = bufferevent_openssl_get_ssl(ip->ev_buffer);
+      auto* output = bufferevent_get_output(ip->ev_buffer);
       auto len = evbuffer_get_length(output);
       if (len > 0) {
         evbuffer_freeze(output, 1);
-        auto *data = evbuffer_pullup(output, len);
+        auto* data = evbuffer_pullup(output, len);
         auto wrote = SSL_write(ssl, data, len);
         // must left unfreezed
         // https://github.com/libevent/libevent/issues/1469
@@ -1083,7 +1099,7 @@ int flush_message(interactive_t *ip) {
       if (fd == -1) {
         return 0;
       }
-      auto *output = bufferevent_get_output(ip->ev_buffer);
+      auto* output = bufferevent_get_output(ip->ev_buffer);
       auto total = evbuffer_get_length(output);
       if (total > 0) {
         evbuffer_unfreeze(output, 1);
@@ -1098,7 +1114,9 @@ int flush_message(interactive_t *ip) {
 }
 
 void flush_message_all() {
-  users_foreach([](interactive_t *user) { flush_message(user); });
+  users_foreach([](interactive_t* user) {
+    flush_message(user);
+  });
 }
 
 /*
@@ -1112,7 +1130,7 @@ void flush_message_all() {
  * into ip->text must bound its read by this, never by the size of a local
  * scratch buffer.
  */
-static int comm_reserve_input_space(interactive_t *ip, size_t reserve) {
+static int comm_reserve_input_space(interactive_t* ip, size_t reserve) {
   int text_space = sizeof(ip->text) - ip->text_end;
 
   if (static_cast<size_t>(text_space) < reserve) {
@@ -1138,15 +1156,14 @@ static int comm_reserve_input_space(interactive_t *ip, size_t reserve) {
  * enforced here rather than trusted from the caller's text_space computation.
  * Returns the number of bytes actually stored.
  */
-static int comm_append_input(interactive_t *ip, const unsigned char *data, int len) {
+static int comm_append_input(interactive_t* ip, const unsigned char* data, int len) {
   if (len <= 0) {
     return 0;
   }
 
   int room = sizeof(ip->text) - ip->text_end;
   if (len > room) {
-    debug_message("get_user_data: fd %d input overflow, dropping %d bytes.\n", ip->fd,
-                  len - room);
+    debug_message("get_user_data: fd %d input overflow, dropping %d bytes.\n", ip->fd, len - room);
     len = room;
   }
 
@@ -1161,22 +1178,22 @@ static int comm_append_input(interactive_t *ip, const unsigned char *data, int l
  * the stack of a read callback frame, and interactive IO only ever runs on the
  * main thread, so one process-wide buffer is enough.
  */
-static unsigned char *comm_read_scratch() {
+static unsigned char* comm_read_scratch() {
   static std::unique_ptr<unsigned char[]> scratch(new unsigned char[MAX_TEXT]);
   return scratch.get();
 }
 
-int comm_reserve_input_space_for_test(interactive_t *ip, size_t reserve) {
+int comm_reserve_input_space_for_test(interactive_t* ip, size_t reserve) {
   return comm_reserve_input_space(ip, reserve);
 }
 
-int comm_append_input_for_test(interactive_t *ip, const unsigned char *data, int len) {
+int comm_append_input_for_test(interactive_t* ip, const unsigned char* data, int len) {
   return comm_append_input(ip, data, len);
 }
 
-void get_user_data(interactive_t *ip) {
+void get_user_data(interactive_t* ip) {
   int num_bytes, text_space;
-  unsigned char *buf = comm_read_scratch();
+  unsigned char* buf = comm_read_scratch();
 
   text_space = MAX_TEXT;
 
@@ -1199,14 +1216,13 @@ void get_user_data(interactive_t *ip) {
         text_space = 4 - ip->text_end;
       } else {
         size_t payload_length = 0;
-        if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t),
-                                            &payload_length) ||
+        if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t), &payload_length) ||
             static_cast<size_t>(ip->text_end) > sizeof(uint32_t) + payload_length) {
           remove_user_connection(ip);
           return;
         }
-        text_space = static_cast<int>(sizeof(uint32_t) + payload_length -
-                                      static_cast<size_t>(ip->text_end));
+        text_space =
+            static_cast<int>(sizeof(uint32_t) + payload_length - static_cast<size_t>(ip->text_end));
       }
       break;
 
@@ -1245,7 +1261,7 @@ void get_user_data(interactive_t *ip) {
       int const start = ip->text_end;
 
       // this will read data into ip->text
-      if (!receive_user_telnet_data(ip, reinterpret_cast<const char *>(&buf[0]), num_bytes)) {
+      if (!receive_user_telnet_data(ip, reinterpret_cast<const char*>(&buf[0]), num_bytes)) {
         return;
       }
 
@@ -1273,8 +1289,7 @@ void get_user_data(interactive_t *ip) {
       if (num_bytes == text_space) {
         if (ip->text_end == 4) {
           size_t payload_length = 0;
-          if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t),
-                                              &payload_length)) {
+          if (!decode_mud_port_payload_length(ip->text, sizeof(uint32_t), &payload_length)) {
             remove_user_connection(ip);
             return;
           }
@@ -1301,7 +1316,7 @@ void get_user_data(interactive_t *ip) {
       comm_append_input(ip, buf, num_bytes);
 
       p = ip->text + ip->text_start;
-      while ((nl = reinterpret_cast<char *>(memchr(p, '\n', ip->text_end - ip->text_start)))) {
+      while ((nl = reinterpret_cast<char*>(memchr(p, '\n', ip->text_end - ip->text_start)))) {
         ip->text_start = (nl + 1) - ip->text;
 
         *nl = 0;
@@ -1310,7 +1325,7 @@ void get_user_data(interactive_t *ip) {
         }
 
         if (!(ip->ob->flags & O_DESTRUCTED)) {
-          char *str;
+          char* str;
 
           str = new_string(nl - p, "PORT_ASCII");
           memcpy(str, p, nl - p + 1);
@@ -1329,7 +1344,7 @@ void get_user_data(interactive_t *ip) {
     } break;
 
     case PORT_TYPE_BINARY: {
-      buffer_t *buffer;
+      buffer_t* buffer;
 
       buffer = allocate_buffer(num_bytes);
       memcpy(buffer->item, buf, num_bytes);
@@ -1341,7 +1356,7 @@ void get_user_data(interactive_t *ip) {
   }
 }
 
-static int clean_buf(interactive_t *ip) {
+static int clean_buf(interactive_t* ip) {
   /* skip null input */
   while (ip->text_start < ip->text_end && !*(ip->text + ip->text_start)) {
     ip->text_start++;
@@ -1355,7 +1370,7 @@ static int clean_buf(interactive_t *ip) {
   /* if we're skipping the current command, check to see if it has been
    completed yet.  if it has, flush it and clear the skip bit */
   if (ip->iflags & SKIP_COMMAND) {
-    char *p;
+    char* p;
 
     for (p = ip->text + ip->text_start; p < ip->text + ip->text_end; p++) {
       if (*p == '\r' || *p == '\n') {
@@ -1369,7 +1384,7 @@ static int clean_buf(interactive_t *ip) {
   return (ip->text_end > ip->text_start);
 }
 
-void on_user_websocket_received(interactive_t *ip, const char *data, size_t len) {
+void on_user_websocket_received(interactive_t* ip, const char* data, size_t len) {
   if (!len) {
     return;
   }
@@ -1400,7 +1415,7 @@ void on_user_websocket_received(interactive_t *ip, const char *data, size_t len)
   }
 }
 
-void on_user_websocket_telnet_received(interactive_t *ip, const char *data, size_t len) {
+void on_user_websocket_telnet_received(interactive_t* ip, const char* data, size_t len) {
   if (!len) {
     return;
   }
@@ -1427,14 +1442,13 @@ void on_user_websocket_telnet_received(interactive_t *ip, const char *data, size
   }
 }
 
-
 // ANSI
 static const int ANSI_SUBSTITUTE = 0x20;
 
 // Used by both telnet and ws_ascii, in case of telnet, default is linemode, which means
 // client will actually send entire line. In ascii mode, we will get an single char input
 // each time.
-void on_user_input(interactive_t *ip, const char *data, size_t len) {
+void on_user_input(interactive_t* ip, const char* data, size_t len) {
   for (int i = 0; i < len; i++) {
     if (ip->text_end == sizeof(ip->text) - 1) {
       // No more space
@@ -1466,8 +1480,8 @@ void on_user_input(interactive_t *ip, const char *data, size_t len) {
 }
 
 // Also used by ws_ascii.
-int cmd_in_buf(interactive_t *ip) {
-  char *p;
+int cmd_in_buf(interactive_t* ip) {
+  char* p;
 
   /* do standard input buffer cleanup */
   if (!clean_buf(ip)) {
@@ -1489,8 +1503,8 @@ int cmd_in_buf(interactive_t *ip) {
   return 0;
 }
 
-static char *first_cmd_in_buf(interactive_t *ip) {
-  char *p;
+static char* first_cmd_in_buf(interactive_t* ip) {
+  char* p;
   static char tmp[2];
 
   /* do standard input buffer cleanup */
@@ -1540,8 +1554,8 @@ static char *first_cmd_in_buf(interactive_t *ip) {
  * command in their buffer.  A command is defined to be a single character
  * when SINGLE_CHAR is set, or a newline terminated string otherwise.
  */
-static char *get_user_command(interactive_t *ip) {
-  char *user_command = nullptr;
+static char* get_user_command(interactive_t* ip) {
+  char* user_command = nullptr;
 
   if (!ip || !ip->ob || (ip->ob->flags & O_DESTRUCTED)) {
     return nullptr;
@@ -1570,7 +1584,7 @@ static char *get_user_command(interactive_t *ip) {
   return user_command;
 } /* get_user_command() */
 
-static int consume_user_command_snapshot(interactive_t *ip, const char *command_snapshot,
+static int consume_user_command_snapshot(interactive_t* ip, const char* command_snapshot,
                                          size_t command_snapshot_length) {
   if (!ip || !ip->ob || (ip->ob->flags & O_DESTRUCTED) || !command_snapshot) {
     return 0;
@@ -1605,7 +1619,8 @@ static int consume_user_command_snapshot(interactive_t *ip, const char *command_
       end++;
     }
     if (end >= ip->text_end || command_snapshot_length != static_cast<size_t>(end - start) ||
-        (command_snapshot_length > 0 && memcmp(command_snapshot, ip->text + start, command_snapshot_length) != 0)) {
+        (command_snapshot_length > 0 &&
+         memcmp(command_snapshot, ip->text + start, command_snapshot_length) != 0)) {
       return 0;
     }
     ip->text_start = end;
@@ -1626,7 +1641,7 @@ static int consume_user_command_snapshot(interactive_t *ip, const char *command_
   return 1;
 }
 
-static int escape_command(interactive_t *ip, const char *user_command) {
+static int escape_command(interactive_t* ip, const char* user_command) {
   if (user_command[0] != '!') {
     return 0;
   }
@@ -1643,7 +1658,7 @@ static int escape_command(interactive_t *ip, const char *user_command) {
   return 0;
 }
 
-static void parse_user_command_in_owner_frame(char *user_command, object_t *parser_command_giver) {
+static void parse_user_command_in_owner_frame(char* user_command, object_t* parser_command_giver) {
   if (!parser_command_giver || vm_multicore_mode() == VM_MULTICORE_MODE_OFF) {
     safe_parse_command(user_command, parser_command_giver);
     return;
@@ -1657,8 +1672,8 @@ static void parse_user_command_in_owner_frame(char *user_command, object_t *pars
   safe_parse_command(user_command, parser_command_giver);
 }
 
-static svalue_t *apply_user_process_input_in_owner_frame(char *user_command,
-                                                        object_t *parser_command_giver) {
+static svalue_t* apply_user_process_input_in_owner_frame(char* user_command,
+                                                         object_t* parser_command_giver) {
   copy_and_push_string(user_command);
   if (parser_command_giver && !(parser_command_giver->flags & O_DESTRUCTED)) {
     vm_owner_record_task_trace(vm_owner_id(parser_command_giver), "interactive_command_parser",
@@ -1669,7 +1684,7 @@ static svalue_t *apply_user_process_input_in_owner_frame(char *user_command,
                                 "interactive");
 }
 
-static int handle_user_mxp_tag_filter_in_owner_frame(interactive_t *ip, const char *user_command) {
+static int handle_user_mxp_tag_filter_in_owner_frame(interactive_t* ip, const char* user_command) {
   if (!(ip->iflags & USING_MXP)) {
     return 1;
   }
@@ -1685,7 +1700,7 @@ static int handle_user_mxp_tag_filter_in_owner_frame(interactive_t *ip, const ch
 }
 
 #ifdef OLD_ED
-static int handle_user_ed_command_in_owner_frame(interactive_t *ip, char *user_command) {
+static int handle_user_ed_command_in_owner_frame(interactive_t* ip, char* user_command) {
   if (!ip->ed_buffer) {
     return 0;
   }
@@ -1699,8 +1714,8 @@ static int handle_user_ed_command_in_owner_frame(interactive_t *ip, char *user_c
 }
 #endif
 
-static void process_input(interactive_t *ip, char *user_command) {
-  svalue_t *ret;
+static void process_input(interactive_t* ip, char* user_command) {
+  svalue_t* ret;
 
   if (!(ip->iflags & HAS_PROCESS_INPUT)) {
     parse_user_command_in_owner_frame(user_command, command_giver);
@@ -1724,8 +1739,10 @@ static void process_input(interactive_t *ip, char *user_command) {
 
 #ifndef NO_ADD_ACTION
   if (ret->type == T_STRING) {
-    auto *command = string_copy(ret->u.string, "current_command: " __CURRENT_FILE_LINE__);
-    DEFER { FREE_MSTR(command); };
+    auto* command = string_copy(ret->u.string, "current_command: " __CURRENT_FILE_LINE__);
+    DEFER {
+      FREE_MSTR(command);
+    };
     parse_user_command_in_owner_frame(command, command_giver);
   } else {
     if (ret->type != T_NUMBER || !ret->u.number) {
@@ -1741,7 +1758,7 @@ static void process_input(interactive_t *ip, char *user_command) {
  * This function calls get_user_command() to get a user command.
  * One user command is processed per execution of this function.
  */
-static int process_user_command_text(interactive_t *ip, char *user_command) {
+static int process_user_command_text(interactive_t* ip, char* user_command) {
   if (!user_command) {
     return 0;
   }
@@ -1827,8 +1844,8 @@ exit:
   return 1;
 }
 
-int process_user_command(interactive_t *ip) {
-  char *user_command;
+int process_user_command(interactive_t* ip) {
+  char* user_command;
 
   /*
    * WARNING: get_user_command() sets command_giver via
@@ -1840,7 +1857,8 @@ int process_user_command(interactive_t *ip) {
   return process_user_command_text(ip, user_command);
 }
 
-int process_user_command_snapshot(interactive_t *ip, const char *command_snapshot, size_t command_snapshot_length) {
+int process_user_command_snapshot(interactive_t* ip, const char* command_snapshot,
+                                  size_t command_snapshot_length) {
   if (!consume_user_command_snapshot(ip, command_snapshot, command_snapshot_length)) {
     return 0;
   }
@@ -1848,7 +1866,8 @@ int process_user_command_snapshot(interactive_t *ip, const char *command_snapsho
   std::vector<char> user_command;
   user_command.reserve(command_snapshot_length + 1);
   if (command_snapshot_length > 0) {
-    user_command.insert(user_command.end(), command_snapshot, command_snapshot + command_snapshot_length);
+    user_command.insert(user_command.end(), command_snapshot,
+                        command_snapshot + command_snapshot_length);
   }
   user_command.push_back('\0');
   return process_user_command_text(ip, user_command.data());
@@ -1893,7 +1912,7 @@ void release_user_resources(interactive_t* ip) {
   }
 }
 
-void finish_deferred_user_cleanup(interactive_t *ip) {
+void finish_deferred_user_cleanup(interactive_t* ip) {
   if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0) {
     return;
   }
@@ -1904,7 +1923,7 @@ void finish_deferred_user_cleanup(interactive_t *ip) {
 
 class TelnetReceiveGuard {
  public:
-  explicit TelnetReceiveGuard(interactive_t *ip) : ip_(ip) {
+  explicit TelnetReceiveGuard(interactive_t* ip) : ip_(ip) {
     ++ip_->telnet_receive_depth;
   }
 
@@ -1918,12 +1937,12 @@ class TelnetReceiveGuard {
   }
 
  private:
-  interactive_t *ip_;
+  interactive_t* ip_;
 };
 
 }  // namespace
 
-static bool receive_user_telnet_data(interactive_t *ip, const char *data, size_t len) {
+static bool receive_user_telnet_data(interactive_t* ip, const char* data, size_t len) {
   TelnetReceiveGuard guard(ip);
   telnet_recv(ip->telnet, data, len);
   return guard.connection_alive();
@@ -1954,15 +1973,15 @@ void remove_user_connection(interactive_t* ip) {
 /*
  * Remove an interactive user immediately.
  */
-void remove_interactive(object_t *ob, int dested) {
+void remove_interactive(object_t* ob, int dested) {
   /* don't have to worry about this dangling, since this is the routine
    * that causes this to dangle elsewhere, and we are protected from
    * getting called recursively by CLOSING.  safe_apply() should be
    * used here, since once we start this process we can't back out,
    * so jumping out with an error would be bad.
    */
-  interactive_t *ip = ob->interactive;
-  object_t *net_dead_guard = nullptr;
+  interactive_t* ip = ob->interactive;
+  object_t* net_dead_guard = nullptr;
 
   if (!ip) {
     return;
@@ -1975,7 +1994,7 @@ void remove_interactive(object_t *ob, int dested) {
     return;
   }
   debug(connections, "Closing connection from %s.\n",
-        sockaddr_to_string((struct sockaddr *)&ip->addr, ip->addrlen));
+        sockaddr_to_string((struct sockaddr*)&ip->addr, ip->addrlen));
   cancel_user_logon(ip);
   ip->iflags |= CLOSING;
   flush_message(ip);
@@ -2043,7 +2062,7 @@ void remove_interactive(object_t *ob, int dested) {
 
 #ifdef PACKAGE_GATEWAY
   if (ip->iflags & GATEWAY_SESSION) {
-    extern void gateway_handle_remove_interactive(interactive_t *ip);
+    extern void gateway_handle_remove_interactive(interactive_t * ip);
     gateway_handle_remove_interactive(ip);
 
     if (ip->gateway_session_id) {
@@ -2073,15 +2092,15 @@ void remove_interactive(object_t *ob, int dested) {
 
 #if defined(F_INPUT_TO) || defined(F_GET_CHAR)
 struct UserInputCallbackFrame {
-  object_t *ob = nullptr;
-  funptr_t *funp = nullptr;
-  const char *function = nullptr;
-  svalue_t *args = nullptr;
+  object_t* ob = nullptr;
+  funptr_t* funp = nullptr;
+  const char* function = nullptr;
+  svalue_t* args = nullptr;
   int num_arg = 0;
 };
 
-static int detach_user_input_callback_frame(interactive_t *i, sentence_t *sent,
-                                            UserInputCallbackFrame *frame) {
+static int detach_user_input_callback_frame(interactive_t* i, sentence_t* sent,
+                                            UserInputCallbackFrame* frame) {
   if (!i || !sent || !frame) {
     return 0;
   }
@@ -2118,8 +2137,8 @@ static int detach_user_input_callback_frame(interactive_t *i, sentence_t *sent,
 
   if (frame->ob && !(frame->ob->flags & O_DESTRUCTED)) {
     vm_owner_record_task_trace(vm_owner_id(frame->ob), "interactive_input_callback",
-                               frame->function ? frame->function : "<function>", vm_owner_epoch(frame->ob),
-                               "frame_detached");
+                               frame->function ? frame->function : "<function>",
+                               vm_owner_epoch(frame->ob), "frame_detached");
   }
   return 1;
 }
@@ -2130,7 +2149,7 @@ struct UserInputCallbackModeDelta {
   int was_noecho = 0;
 };
 
-static UserInputCallbackModeDelta detach_user_input_callback_mode_delta(interactive_t *i,
+static UserInputCallbackModeDelta detach_user_input_callback_mode_delta(interactive_t* i,
                                                                         int noescape_cleared) {
   UserInputCallbackModeDelta delta;
   delta.noescape_cleared = noescape_cleared;
@@ -2155,7 +2174,8 @@ static UserInputCallbackModeDelta detach_user_input_callback_mode_delta(interact
   return delta;
 }
 
-static void apply_user_input_callback_in_owner_frame(UserInputCallbackFrame *frame, object_t *ob, char *str) {
+static void apply_user_input_callback_in_owner_frame(UserInputCallbackFrame* frame, object_t* ob,
+                                                     char* str) {
   copy_and_push_string(str);
   if (frame->args) {
     transfer_push_some_svalues(frame->args, frame->num_arg);
@@ -2173,19 +2193,20 @@ static void apply_user_input_callback_in_owner_frame(UserInputCallbackFrame *fra
   } else {
     VMOwnerScope owner_scope(vm_context(), vm_owner_id(frame->funp->hdr.owner),
                              vm_owner_epoch(frame->funp->hdr.owner));
-    vm_owner_record_task_trace(vm_owner_id(frame->funp->hdr.owner), "interactive_input_callback", "<function>",
-                               vm_owner_epoch(frame->funp->hdr.owner), "frame_entered");
-    vm_owner_record_task_trace(vm_owner_id(frame->funp->hdr.owner), "interactive_input_to", "<function>",
-                               vm_owner_epoch(frame->funp->hdr.owner), "dispatched");
+    vm_owner_record_task_trace(vm_owner_id(frame->funp->hdr.owner), "interactive_input_callback",
+                               "<function>", vm_owner_epoch(frame->funp->hdr.owner),
+                               "frame_entered");
+    vm_owner_record_task_trace(vm_owner_id(frame->funp->hdr.owner), "interactive_input_to",
+                               "<function>", vm_owner_epoch(frame->funp->hdr.owner), "dispatched");
     safe_call_function_pointer(frame->funp, frame->num_arg + 1);
   }
 
   pop_stack(); /* remove `function' from stack */
 }
 
-static int call_function_interactive(interactive_t *i, char *str) {
-  object_t *ob;
-  sentence_t *sent;
+static int call_function_interactive(interactive_t* i, char* str) {
+  object_t* ob;
+  sentence_t* sent;
   int ret = 0;
 
   int noescape_cleared = (i->iflags & NOESC) ? 1 : 0;
@@ -2260,11 +2281,11 @@ static int call_function_interactive(interactive_t *i, char *str) {
   return ret;
 } /* call_function_interactive() */
 
-int set_call(object_t *ob, sentence_t *sent, int flags) {
+int set_call(object_t* ob, sentence_t* sent, int flags) {
   if (ob == nullptr || sent == nullptr) {
     return (0);
   }
-  auto *ip = ob->interactive;
+  auto* ip = ob->interactive;
   if (ip == nullptr || ip->input_to) {
     return (0);
   }
@@ -2280,13 +2301,13 @@ int set_call(object_t *ob, sentence_t *sent, int flags) {
 } /* set_call() */
 #endif
 
-void set_prompt(const char *str) {
+void set_prompt(const char* str) {
   if (command_giver && command_giver->interactive) {
     command_giver->interactive->prompt = str;
   }
 } /* set_prompt() */
 
-static svalue_t *apply_user_write_prompt_in_owner_frame(interactive_t *ip) {
+static svalue_t* apply_user_write_prompt_in_owner_frame(interactive_t* ip) {
   if (ip && ip->ob && !(ip->ob->flags & O_DESTRUCTED)) {
     vm_owner_record_task_trace(vm_owner_id(ip->ob), "command_reply", "write_prompt_apply",
                                vm_owner_epoch(ip->ob), "frame_entered");
@@ -2297,7 +2318,7 @@ static svalue_t *apply_user_write_prompt_in_owner_frame(interactive_t *ip) {
 /*
  * Print the prompt, but only if input_to not is disabled.
  */
-static void print_prompt(interactive_t *ip) {
+static void print_prompt(interactive_t* ip) {
   if (!ip || !ip->ob || !IP_VALID(ip, ip->ob)) {
     return;
   }
@@ -2317,10 +2338,10 @@ static void print_prompt(interactive_t *ip) {
 } /* print_prompt() */
 
 #ifndef NO_SNOOP
-static void receive_snoop(const char *buf, int len, object_t *snooper) {
+static void receive_snoop(const char* buf, int len, object_t* snooper) {
   /* command giver no longer set to snooper */
   if (CONFIG_INT(__RC_RECEIVE_SNOOP__)) {
-    char *str;
+    char* str;
 
     str = new_string(len, "receive_snoop");
     memcpy(str, buf, len);
@@ -2348,9 +2369,9 @@ static void receive_snoop(const char *buf, int len, object_t *snooper) {
  * 0 or 1 depending on success.
  */
 #ifndef NO_SNOOP
-int new_set_snoop(object_t *by, object_t *victim) {
-  interactive_t *ip;
-  object_t *tmp;
+int new_set_snoop(object_t* by, object_t* victim) {
+  interactive_t* ip;
+  object_t* tmp;
 
   if (by->flags & O_DESTRUCTED) {
     return 0;
@@ -2369,7 +2390,7 @@ int new_set_snoop(object_t *by, object_t *victim) {
      * Stop snoop.
      */
     if (by->flags & O_SNOOP) {
-      users_foreach([by](interactive_t *user) {
+      users_foreach([by](interactive_t* user) {
         if (user->snooped_by == by) {
           user->snooped_by = nullptr;
         }
@@ -2408,7 +2429,7 @@ int new_set_snoop(object_t *by, object_t *victim) {
 } /* set_new_snoop() */
 #endif
 
-char *query_host_name() {
+char* query_host_name() {
   static char name[400];
 
   gethostname(name, sizeof(name));
@@ -2417,18 +2438,18 @@ char *query_host_name() {
 } /* query_host_name() */
 
 #ifndef NO_SNOOP
-object_t *query_snoop(object_t *ob) {
+object_t* query_snoop(object_t* ob) {
   if (!ob->interactive) {
     return nullptr;
   }
   return ob->interactive->snooped_by;
 } /* query_snoop() */
 
-object_t *query_snooping(object_t *ob) {
+object_t* query_snooping(object_t* ob) {
   if (!(ob->flags & O_SNOOP)) {
     return nullptr;
   }
-  for (const auto &user : users()) {
+  for (const auto& user : users()) {
     if (user->snooped_by == ob) {
       return user->ob;
     }
@@ -2438,14 +2459,14 @@ object_t *query_snooping(object_t *ob) {
 } /* query_snooping() */
 #endif
 
-int query_idle(object_t *ob) {
+int query_idle(object_t* ob) {
   if (!ob->interactive) {
     error("query_idle() of non-interactive object.\n");
   }
   return (get_current_time() - ob->interactive->last_time);
 } /* query_idle() */
 
-const char *sockaddr_to_string(const sockaddr *addr, socklen_t len) {
+const char* sockaddr_to_string(const sockaddr* addr, socklen_t len) {
   static char result[NI_MAXHOST + NI_MAXSERV];
 
   char host[NI_MAXHOST], service[NI_MAXSERV];

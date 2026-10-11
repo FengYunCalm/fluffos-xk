@@ -46,7 +46,7 @@ static size_t heap_used() {
 #endif
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   int rounds = 5;
   for (int i = 1; i < argc; i++) {
     if (std::string(argv[i]) == "--rounds" && i + 1 < argc) {
@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
     rounds = 1;
   }
 
-  const char *tokens[] = {"if",       "return", "string", "mapping", "int",
-                          "void",     "foreach", "switch", "case",    "default"};
+  const char* tokens[] = {"if",   "return",  "string", "mapping", "int",
+                          "void", "foreach", "switch", "case",    "default"};
   std::string acc;
   for (int i = 0; i < 200; i++) {
     acc += "0123456789abcdef";
@@ -80,21 +80,21 @@ int main(int argc, char **argv) {
     compile_arena::begin();
     auto t0 = Clock::now();
     for (int i = 0; i < 20000; i++) {
-      char *s = scratch_copy(tokens[i % 10]);
+      char* s = scratch_copy(tokens[i % 10]);
       (void)s;
     }
     for (int i = 0; i < 2000; i++) {
-      char *s = scratch_copy(acc.c_str());
+      char* s = scratch_copy(acc.c_str());
       (void)s;
     }
     for (int i = 0; i < 2000; i++) {
-      char *s = scratch_alloc(64 + (i % 7));
+      char* s = scratch_alloc(64 + (i % 7));
       (void)s;
     }
     for (int i = 0; i < 500; i++) {
-      char *a = scratch_copy("prefix_");
-      char *b = scratch_copy(macro.c_str());
-      char *j = scratch_join(a, b);
+      char* a = scratch_copy("prefix_");
+      char* b = scratch_copy(macro.c_str());
+      char* j = scratch_join(a, b);
       (void)j;
     }
     auto t1 = Clock::now();
@@ -115,10 +115,11 @@ int main(int argc, char **argv) {
   }
   // The compile corpus never crosses the 1MB base chunk (vacuous pass);
   // this layer is where chunk behavior is actually exercised.
-  std::printf("arena: chunk_mallocs=%zu retained_chunks=%zu retained_heap_bytes=%zu "
-              "peak_cycle_bytes=%zu resets=%zu\n",
-              compile_arena::chunk_mallocs(), compile_arena::retained_chunks(),
-              compile_arena::retained_heap_bytes(), compile_arena::peak_cycle_bytes(),
-              compile_arena::reset_count());
+  std::printf(
+      "arena: chunk_mallocs=%zu retained_chunks=%zu retained_heap_bytes=%zu "
+      "peak_cycle_bytes=%zu resets=%zu\n",
+      compile_arena::chunk_mallocs(), compile_arena::retained_chunks(),
+      compile_arena::retained_heap_bytes(), compile_arena::peak_cycle_bytes(),
+      compile_arena::reset_count());
   return 0;
 }

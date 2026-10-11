@@ -8,7 +8,7 @@
 #include <sstream>
 #include <utility>
 
-const std::array<LpcOwnerAuditRule, 4> &lpc_owner_audit_rules() {
+const std::array<LpcOwnerAuditRule, 4>& lpc_owner_audit_rules() {
   static const std::array<LpcOwnerAuditRule, 4> rules{{
       {"cross_owner_mutable_write", "owner_boundary", "error",
        "strict owner code must route cross-owner mutable writes through owner message, future, or commit",
@@ -26,7 +26,7 @@ const std::array<LpcOwnerAuditRule, 4> &lpc_owner_audit_rules() {
   return rules;
 }
 
-bool lpc_modern_pragma_name(const char *name, int *flag) {
+bool lpc_modern_pragma_name(const char* name, int* flag) {
   if (std::strcmp(name, "modern_lpc") == 0) {
     *flag = LPC_MODERN_PRAGMA_MODERN_LPC;
     return true;
@@ -38,7 +38,7 @@ bool lpc_modern_pragma_name(const char *name, int *flag) {
   return false;
 }
 
-const char *lpc_modern_pragma_name_for_flag(int flag) {
+const char* lpc_modern_pragma_name_for_flag(int flag) {
   switch (flag) {
     case LPC_MODERN_PRAGMA_MODERN_LPC:
       return "modern_lpc";
@@ -50,8 +50,8 @@ const char *lpc_modern_pragma_name_for_flag(int flag) {
 }
 
 namespace {
-const LpcOwnerAuditRule *owner_audit_rule(const char *code) {
-  for (const auto &rule : lpc_owner_audit_rules()) {
+const LpcOwnerAuditRule* owner_audit_rule(const char* code) {
+  for (const auto& rule : lpc_owner_audit_rules()) {
     if (std::strcmp(rule.code, code) == 0) {
       return &rule;
     }
@@ -59,7 +59,7 @@ const LpcOwnerAuditRule *owner_audit_rule(const char *code) {
   return nullptr;
 }
 
-std::string strip_line_comment(const std::string &line) {
+std::string strip_line_comment(const std::string& line) {
   auto comment = line.find("//");
   if (comment == std::string::npos) {
     return line;
@@ -77,7 +77,7 @@ std::string trim_copy(std::string value) {
   return value;
 }
 
-std::string extract_source_encoding_pragma(const std::string &line) {
+std::string extract_source_encoding_pragma(const std::string& line) {
   auto pragma = line.find("#pragma");
   if (pragma == std::string::npos) {
     return {};
@@ -99,9 +99,9 @@ std::string extract_source_encoding_pragma(const std::string &line) {
   return value;
 }
 
-void add_finding(LpcOwnerAuditReport *report, const char *code, int line, size_t column,
-                 const std::string &excerpt) {
-  auto *rule = owner_audit_rule(code);
+void add_finding(LpcOwnerAuditReport* report, const char* code, int line, size_t column,
+                 const std::string& excerpt) {
+  auto* rule = owner_audit_rule(code);
   if (!rule) {
     return;
   }
@@ -117,8 +117,8 @@ void add_finding(LpcOwnerAuditReport *report, const char *code, int line, size_t
   report->findings.push_back(std::move(finding));
 }
 
-bool contains_any(const std::string &line, std::initializer_list<const char *> needles) {
-  for (auto *needle : needles) {
+bool contains_any(const std::string& line, std::initializer_list<const char*> needles) {
+  for (auto* needle : needles) {
     if (line.find(needle) != std::string::npos) {
       return true;
     }
@@ -127,7 +127,7 @@ bool contains_any(const std::string &line, std::initializer_list<const char *> n
 }
 }  // namespace
 
-std::string lpc_source_encoding_from_source(const std::string &source) {
+std::string lpc_source_encoding_from_source(const std::string& source) {
   std::istringstream input(source);
   std::string line;
   int scanned_lines = 0;
@@ -140,7 +140,7 @@ std::string lpc_source_encoding_from_source(const std::string &source) {
   return kLpcInternalStringEncoding;
 }
 
-LpcOwnerAuditReport lpc_owner_audit_source(const std::string &source) {
+LpcOwnerAuditReport lpc_owner_audit_source(const std::string& source) {
   LpcOwnerAuditReport report;
   auto decoded = lpc_source_decode_to_utf8(source);
   report.source_encoding = decoded.encoding;

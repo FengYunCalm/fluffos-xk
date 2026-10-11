@@ -30,7 +30,7 @@ uint64_t totals[MAX_TAGS];
 
 int malloc_mask = 0;
 
-md_node_t *table[MD_TABLE_SIZE];
+md_node_t* table[MD_TABLE_SIZE];
 unsigned int total_malloced = 0L;
 unsigned int hiwater = 0L;
 
@@ -40,52 +40,53 @@ uint64_t current_gametick();
 #ifdef DEBUGMALLOC_EXTENSIONS
 // journal to record all ref/unref operations
 namespace {
-std::map<int, std::vector<std::string>> &md_refjournal() {
-  static auto *journal = new std::map<int, std::vector<std::string>>();
+std::map<int, std::vector<std::string>>& md_refjournal() {
+  static auto* journal = new std::map<int, std::vector<std::string>>();
   return *journal;
 }
 
-std::mutex &md_refjournal_mutex() {
-  static auto *mutex = new std::mutex();
+std::mutex& md_refjournal_mutex() {
+  static auto* mutex = new std::mutex();
   return *mutex;
 }
-} // namespace
+}  // namespace
 #endif
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void md_record_ref_journal(md_node_t *node, bool is_ref, int current_ref, std::string_view desc) {
+void md_record_ref_journal(md_node_t* node, bool is_ref, int current_ref, std::string_view desc) {
   auto tag = node->tag & 0xff;
   if (tag != (TAG_STRING & 0xff) && tag != (TAG_MALLOC_STRING & 0xff) &&
       tag != (TAG_SHARED_STRING & 0xff)) {
     return;
   }
   auto id = node->id;
-  auto entry = fmt::format(FMT_STRING("{:s}: {:s}, ref={:d}\n"), is_ref ? "REF" : "UNREF", desc, current_ref);
+  auto entry = fmt::format(FMT_STRING("{:s}: {:s}, ref={:d}\n"), is_ref ? "REF" : "UNREF", desc,
+                           current_ref);
   std::lock_guard<std::mutex> lock(md_refjournal_mutex());
   md_refjournal()[id].push_back(std::move(entry));
 }
 
-void md_print_ref_journal(md_node_t *node, outbuffer_t *outbuf) {
+void md_print_ref_journal(md_node_t* node, outbuffer_t* outbuf) {
   auto id = node->id;
   std::vector<std::string> entries;
   {
     std::lock_guard<std::mutex> lock(md_refjournal_mutex());
-    auto &journal = md_refjournal();
+    auto& journal = md_refjournal();
     auto it = journal.find(id);
     if (it == journal.end()) {
       return;
     }
     entries = it->second;
   }
-  for (auto &entry: entries) {
+  for (auto& entry : entries) {
     outbuf_add(outbuf, entry.c_str());
   }
 }
 #endif  // DEBUGMALLOC_EXTENSIONS
 
 namespace {
-std::recursive_mutex &md_allocation_mutex() {
-  static auto *mutex = new std::recursive_mutex();
+std::recursive_mutex& md_allocation_mutex() {
+  static auto* mutex = new std::recursive_mutex();
   return *mutex;
 }
 
@@ -94,7 +95,7 @@ void clear_ref_journal(md_node_t* node) {
   auto id = node->id;
   std::vector<std::string> entries;
   std::lock_guard<std::mutex> lock(md_refjournal_mutex());
-  auto &journal = md_refjournal();
+  auto& journal = md_refjournal();
   auto it = journal.find(id);
   if (it == journal.end()) {
     return;
@@ -103,10 +104,9 @@ void clear_ref_journal(md_node_t* node) {
   journal.erase(it);
 #endif
 }
-} // namespace
+}  // namespace
 
-
-void MDmalloc(md_node_t *node, int size, int tag, const char *desc) {
+void MDmalloc(md_node_t* node, int size, int tag, const char* desc) {
   std::lock_guard<std::recursive_mutex> lock(md_allocation_mutex());
   unsigned long h;
   static int count = 0;
@@ -146,9 +146,9 @@ void MDmalloc(md_node_t *node, int size, int tag, const char *desc) {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void set_tag(const void *ptr, int tag) {
+void set_tag(const void* ptr, int tag) {
   std::lock_guard<std::recursive_mutex> lock(md_allocation_mutex());
-  md_node_t *node = PTR_TO_NODET(ptr);
+  md_node_t* node = PTR_TO_NODET(ptr);
 
   if ((node->tag & 0xff) > MAX_CATEGORY) {
     totals[node->tag & 0xff] -= node->size;
@@ -173,7 +173,7 @@ void set_tag(const void *ptr, int tag) {
 }
 #endif
 
-int MDfree(md_node_t *ptr) {
+int MDfree(md_node_t* ptr) {
   std::lock_guard<std::recursive_mutex> lock(md_allocation_mutex());
   unsigned long h;
   md_node_t *entry, **oentry;

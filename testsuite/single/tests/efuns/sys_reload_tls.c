@@ -1,7 +1,9 @@
 void do_tests_real() {
   // boundary: below 1 must be rejected before any index arithmetic
-  ASSERT_NE(0, catch(sys_reload_tls(-MAX_INT - 1))); /* INT_MIN */
-  ASSERT_NE(0, catch(sys_reload_tls(-1)));
+  ASSERT_NE(
+    0,
+    catch(sys_reload_tls(-MAX_INT - 1))
+  ); /* INT_MIN */ ASSERT_NE(0, catch(sys_reload_tls(-1)));
   ASSERT_NE(0, catch(sys_reload_tls(0)));
 
   // non tls port

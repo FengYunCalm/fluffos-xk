@@ -24,9 +24,9 @@ void do_tests() {
   // function_exists() uses the extension-less object identity for both
   // legacy and .lpc source programs.
   ASSERT_EQ("/clone/dual_pick_c",
-            function_exists("which", find_object("/clone/dual_pick_c")));
+    function_exists("which", find_object("/clone/dual_pick_c")));
   ASSERT_EQ("/clone/dual_only_lpc",
-            function_exists("which", load_object("/clone/dual_only_lpc")));
+    function_exists("which", load_object("/clone/dual_only_lpc")));
 
   // Extension-less names prefer .lpc and fall back to .c.
   ob = load_object("/clone/dual_pick_default");
@@ -45,7 +45,7 @@ void do_tests() {
   ASSERT(ob == find_object("/clone/dual_only_lpc.lpc"));
   ASSERT(load_object("/clone/dual_only_lpc.c") == ob);
   ASSERT(load_object("/clone/dual_pick_c.lpc") ==
-         find_object("/clone/dual_pick_c"));
+    find_object("/clone/dual_pick_c"));
   ASSERT_EQ(children("/clone/dual_pick_c"), children("/clone/dual_pick_c.c"));
   ASSERT_EQ(children("/clone/dual_pick_c"), children("/clone/dual_pick_c.lpc"));
   ASSERT(sizeof(children("/clone/dual_pick_c.lpc")) >= 1);

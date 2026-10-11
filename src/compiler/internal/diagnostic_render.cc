@@ -16,8 +16,8 @@ namespace {
 // Appends the source line and a caret under the recorded column. The line is
 // read from disk; when it cannot be read the snippet is skipped instead of
 // pointing at the wrong text.
-void append_snippet(std::string &out, const Diagnostic &diagnostic, bool trim_line) {
-  const char *file = diagnostic.snippet.position.file;
+void append_snippet(std::string& out, const Diagnostic& diagnostic, bool trim_line) {
+  const char* file = diagnostic.snippet.position.file;
   int const line = diagnostic.snippet.position.line;
   if (file == nullptr || line <= 0) {
     return;
@@ -50,25 +50,24 @@ void append_snippet(std::string &out, const Diagnostic &diagnostic, bool trim_li
 
 // One note per macro expansion step: a diagnostic inside a macro body is
 // otherwise impossible to place (the file/line belong to the macro definition).
-void append_expansions(std::string &out, const Diagnostic &diagnostic,
-                       RenderStyle style) {
-  for (auto const &expansion : diagnostic.expansions) {
-    const char *file = expansion.position.file ? expansion.position.file : "?";
+void append_expansions(std::string& out, const Diagnostic& diagnostic, RenderStyle style) {
+  for (auto const& expansion : diagnostic.expansions) {
+    const char* file = expansion.position.file ? expansion.position.file : "?";
     if (style == RenderStyle::kClang) {
-      out += fmt::format("{}:{}:{}: note: expanded from macro '{}'\n", file,
-                         expansion.position.line, expansion.position.column,
-                         expansion.message ? expansion.message : "?");
+      out +=
+          fmt::format("{}:{}:{}: note: expanded from macro '{}'\n", file, expansion.position.line,
+                      expansion.position.column, expansion.message ? expansion.message : "?");
     } else {
-      out += fmt::format("  in expansion of macro '{}' at {} line {}\n",
-                         expansion.message ? expansion.message : "?", file,
-                         expansion.position.line);
+      out +=
+          fmt::format("  in expansion of macro '{}' at {} line {}\n",
+                      expansion.message ? expansion.message : "?", file, expansion.position.line);
     }
   }
 }
 
 }  // namespace
 
-bool read_source_line(const char *file, int line, char *buf, size_t buflen) {
+bool read_source_line(const char* file, int line, char* buf, size_t buflen) {
   if (file == nullptr || line <= 0 || buf == nullptr || buflen == 0) {
     return false;
   }
@@ -76,7 +75,7 @@ bool read_source_line(const char *file, int line, char *buf, size_t buflen) {
   while (*file == '/') {
     file++;
   }
-  FILE *fp = fopen(file, "rb");
+  FILE* fp = fopen(file, "rb");
   if (fp == nullptr) {
     return false;
   }
@@ -88,11 +87,11 @@ bool read_source_line(const char *file, int line, char *buf, size_t buflen) {
   size_t collected = 0;
 
   while (size_t n = fread(scan, 1, sizeof(scan), fp)) {
-    char *p = scan;
-    char *end = scan + n;
+    char* p = scan;
+    char* end = scan + n;
     while (p < end) {
-      char *nl = static_cast<char *>(std::memchr(p, '\n', static_cast<size_t>(end - p)));
-      char *segment_end = nl ? nl : end;
+      char* nl = static_cast<char*>(std::memchr(p, '\n', static_cast<size_t>(end - p)));
+      char* segment_end = nl ? nl : end;
       if (collecting) {
         size_t const take = static_cast<size_t>(segment_end - p);
         size_t const room = buflen - 1 - collected;
@@ -132,21 +131,20 @@ bool read_source_line(const char *file, int line, char *buf, size_t buflen) {
   return collected != 0;
 }
 
-std::string render_snippet(const Diagnostic &diagnostic) {
+std::string render_snippet(const Diagnostic& diagnostic) {
   std::string out;
   append_snippet(out, diagnostic, false);
   return out;
 }
 
-std::string render_diagnostic(const Diagnostic &diagnostic, RenderStyle style) {
-  const char *file = diagnostic.snippet.position.file ? diagnostic.snippet.position.file : "?";
-  const char *message = diagnostic.message ? diagnostic.message : "";
+std::string render_diagnostic(const Diagnostic& diagnostic, RenderStyle style) {
+  const char* file = diagnostic.snippet.position.file ? diagnostic.snippet.position.file : "?";
+  const char* message = diagnostic.message ? diagnostic.message : "";
 
   std::string out;
   if (style == RenderStyle::kClang) {
-    int const column = diagnostic.snippet.position.column > 0
-                           ? diagnostic.snippet.position.column
-                           : 1;
+    int const column =
+        diagnostic.snippet.position.column > 0 ? diagnostic.snippet.position.column : 1;
     out += fmt::format("{}:{}:{}: {}: {}", file, diagnostic.snippet.position.line, column,
                        diagnostic.severity == Severity::kWarning ? "warning" : "error", message);
     if (out.empty() || out.back() != '\n') {

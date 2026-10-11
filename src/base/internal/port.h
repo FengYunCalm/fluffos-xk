@@ -26,10 +26,10 @@
 int64_t random_number(int64_t);
 int64_t secure_random_number(int64_t);
 time_t get_current_time(void);
-void get_usec_clock(long *, long *);
-long get_cpu_times(unsigned long *, unsigned long *);
+void get_usec_clock(long*, long*);
+long get_cpu_times(unsigned long*, unsigned long*);
 int64_t get_current_performance_wall_time_ns();
 int64_t get_current_thread_cpu_time_ns();
-char *get_current_dir(char *, int);
+char* get_current_dir(char*, int);
 
 #endif

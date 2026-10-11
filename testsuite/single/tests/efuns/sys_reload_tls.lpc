@@ -45,4 +45,3 @@ void do_tests() {
   ASSERT(1);
 }
 #endif
-

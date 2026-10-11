@@ -2,23 +2,41 @@
 
 #include "vm/context.h"
 
-OwnerRuntimeMetrics &OwnerRuntimeCoordinator::metrics() { return metrics_; }
+OwnerRuntimeMetrics& OwnerRuntimeCoordinator::metrics() {
+  return metrics_;
+}
 
-OwnerFutureStore &OwnerRuntimeCoordinator::futures() { return futures_; }
+OwnerFutureStore& OwnerRuntimeCoordinator::futures() {
+  return futures_;
+}
 
-OwnerSchedulerState &OwnerRuntimeCoordinator::scheduler() { return scheduler_; }
+OwnerSchedulerState& OwnerRuntimeCoordinator::scheduler() {
+  return scheduler_;
+}
 
-OwnerTraceStore &OwnerRuntimeCoordinator::traces() { return traces_; }
+OwnerTraceStore& OwnerRuntimeCoordinator::traces() {
+  return traces_;
+}
 
-std::mutex &OwnerRuntimeCoordinator::mutex() { return mutex_; }
+std::mutex& OwnerRuntimeCoordinator::mutex() {
+  return mutex_;
+}
 
-std::condition_variable &OwnerRuntimeCoordinator::cv() { return cv_; }
+std::condition_variable& OwnerRuntimeCoordinator::cv() {
+  return cv_;
+}
 
-bool &OwnerRuntimeCoordinator::thread_stopping() { return thread_stopping_; }
+bool& OwnerRuntimeCoordinator::thread_stopping() {
+  return thread_stopping_;
+}
 
-bool &OwnerRuntimeCoordinator::main_draining() { return main_draining_; }
+bool& OwnerRuntimeCoordinator::main_draining() {
+  return main_draining_;
+}
 
-std::vector<std::thread> &OwnerRuntimeCoordinator::threads() { return threads_; }
+std::vector<std::thread>& OwnerRuntimeCoordinator::threads() {
+  return threads_;
+}
 
 void OwnerRuntimeCoordinator::claim_begin_locked() {
   // Caller must already hold the runtime mutex (owner.cc claim_next_owner).
@@ -33,7 +51,9 @@ void OwnerRuntimeCoordinator::claim_end() {
   cv_.notify_all();
 }
 
-OwnerRecompileState &OwnerRuntimeCoordinator::recompile_state() { return recompile_state_; }
+OwnerRecompileState& OwnerRuntimeCoordinator::recompile_state() {
+  return recompile_state_;
+}
 
 OwnerRuntimeCounterSnapshot OwnerRuntimeCoordinator::snapshot() {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -41,9 +61,8 @@ OwnerRuntimeCounterSnapshot OwnerRuntimeCoordinator::snapshot() {
 }
 
 OwnerRuntimeCounterSnapshot OwnerRuntimeCoordinator::snapshot_locked() const {
-  return OwnerRuntimeCounterSnapshot{
-      active_owner_claims_, quiesce_attempts_, quiesce_success_,
-      quiesce_timeouts_, recompile_epoch_, admission_rejected_};
+  return OwnerRuntimeCounterSnapshot{active_owner_claims_, quiesce_attempts_, quiesce_success_,
+                                     quiesce_timeouts_,    recompile_epoch_,  admission_rejected_};
 }
 
 uint64_t OwnerRuntimeCoordinator::advance_recompile_epoch() {
@@ -71,13 +90,13 @@ void OwnerRuntimeCoordinator::note_quiesce_timeout_locked() {
   quiesce_timeouts_++;
 }
 
-OwnerRuntimeCoordinator &owner_runtime_coordinator() {
+OwnerRuntimeCoordinator& owner_runtime_coordinator() {
 #ifdef _WIN32
   // Owner threads are stopped explicitly by VM shutdown. Keep the
   // process-lifetime coordinator alive so its thread and synchronization
   // members are not destroyed after the Windows threading runtime starts
   // tearing down.
-  static auto *coordinator = new OwnerRuntimeCoordinator();
+  static auto* coordinator = new OwnerRuntimeCoordinator();
   return *coordinator;
 #else
   static OwnerRuntimeCoordinator coordinator;
@@ -85,33 +104,50 @@ OwnerRuntimeCoordinator &owner_runtime_coordinator() {
 #endif
 }
 
-OwnerRuntimeMetrics &owner_runtime_metrics_instance() { return owner_runtime_coordinator().metrics(); }
+OwnerRuntimeMetrics& owner_runtime_metrics_instance() {
+  return owner_runtime_coordinator().metrics();
+}
 
-OwnerFutureStore &owner_future_store_instance() { return owner_runtime_coordinator().futures(); }
+OwnerFutureStore& owner_future_store_instance() {
+  return owner_runtime_coordinator().futures();
+}
 
-OwnerSchedulerState &owner_scheduler_state_instance() { return owner_runtime_coordinator().scheduler(); }
+OwnerSchedulerState& owner_scheduler_state_instance() {
+  return owner_runtime_coordinator().scheduler();
+}
 
-OwnerTraceStore &owner_trace_store_instance() { return owner_runtime_coordinator().traces(); }
+OwnerTraceStore& owner_trace_store_instance() {
+  return owner_runtime_coordinator().traces();
+}
 
-std::mutex &owner_runtime_mutex_instance() { return owner_runtime_coordinator().mutex(); }
+std::mutex& owner_runtime_mutex_instance() {
+  return owner_runtime_coordinator().mutex();
+}
 
-std::condition_variable &owner_runtime_cv_instance() { return owner_runtime_coordinator().cv(); }
+std::condition_variable& owner_runtime_cv_instance() {
+  return owner_runtime_coordinator().cv();
+}
 
-bool &owner_thread_stopping_flag() { return owner_runtime_coordinator().thread_stopping(); }
+bool& owner_thread_stopping_flag() {
+  return owner_runtime_coordinator().thread_stopping();
+}
 
-bool &owner_main_draining_flag() { return owner_runtime_coordinator().main_draining(); }
+bool& owner_main_draining_flag() {
+  return owner_runtime_coordinator().main_draining();
+}
 
-std::vector<std::thread> &owner_threads_instance() { return owner_runtime_coordinator().threads(); }
+std::vector<std::thread>& owner_threads_instance() {
+  return owner_runtime_coordinator().threads();
+}
 
 // E3 P1: owner-wide quiescence. begin() is main-thread-only; it closes
 // admission, waits for active owner claims (worker-side, executor-local) to
 // drain, then freezes. Any failure path restores OPEN. end() reopens with an epoch
 // guard so a stale end() from a failed transaction cannot unlock a newer
 // one. (v0.4 §7.)
-OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(
-    std::chrono::milliseconds timeout) {
+OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(std::chrono::milliseconds timeout) {
   OwnerRecompileQuiesceResult result;
-  auto &coordinator = owner_runtime_coordinator();
+  auto& coordinator = owner_runtime_coordinator();
   std::unique_lock<std::mutex> lock(coordinator.mutex());
 
   if (!vm_context_is_main_thread()) {
@@ -160,7 +196,7 @@ OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(
 }
 
 void vm_owner_recompile_quiesce_end(uint64_t epoch) noexcept {
-  auto &coordinator = owner_runtime_coordinator();
+  auto& coordinator = owner_runtime_coordinator();
   std::lock_guard<std::mutex> lock(coordinator.mutex());
   if (coordinator.recompile_state() == OwnerRecompileState::kFrozen &&
       coordinator.snapshot_locked().recompile_epoch == epoch) {
@@ -169,4 +205,3 @@ void vm_owner_recompile_quiesce_end(uint64_t epoch) noexcept {
     coordinator.cv().notify_all();
   }
 }
-

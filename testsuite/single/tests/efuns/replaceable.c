@@ -1,7 +1,6 @@
 inherit "/inherit/tests";
 
-void do_tests()
-{
+void do_tests() {
 #ifdef __PACKAGE_CONTRIB__
   object ob;
 

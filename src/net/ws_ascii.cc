@@ -13,37 +13,37 @@
 #include "interactive.h"
 #include "net/websocket.h"
 
-void on_user_websocket_received(interactive_t *ip, const char *data, size_t len);
+void on_user_websocket_received(interactive_t* ip, const char* data, size_t len);
 
 namespace {
 
 /* one of these is created for each vhost our protocol is used with */
 struct per_vhost_data {
-  struct lws_context *context;
-  struct lws_vhost *vhost;
-  const struct lws_protocols *protocol;
+  struct lws_context* context;
+  struct lws_vhost* vhost;
+  const struct lws_protocols* protocol;
 
-  WebSocketSession *pss_list; /* linked-list of live pss*/
+  WebSocketSession* pss_list; /* linked-list of live pss*/
 };
 
 }  // namespace
 
-int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in,
+int ws_ascii_callback(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in,
                       size_t len) {
-  auto *pss = reinterpret_cast<WebSocketSession *>(user);
-  auto *vhd =
-      (struct per_vhost_data *)lws_protocol_vh_priv_get(lws_get_vhost(wsi), lws_get_protocol(wsi));
+  auto* pss = reinterpret_cast<WebSocketSession*>(user);
+  auto* vhd =
+      (struct per_vhost_data*)lws_protocol_vh_priv_get(lws_get_vhost(wsi), lws_get_protocol(wsi));
 
   switch (reason) {
     case LWS_CALLBACK_PROTOCOL_INIT:
       lwsl_info("LWS_CALLBACK_PROTOCOL_INIT\n");
       // freed automatically when context is destroyed.
-      vhd = reinterpret_cast<per_vhost_data *>(lws_protocol_vh_priv_zalloc(
+      vhd = reinterpret_cast<per_vhost_data*>(lws_protocol_vh_priv_zalloc(
           lws_get_vhost(wsi), lws_get_protocol(wsi), sizeof(struct per_vhost_data)));
       vhd->context = lws_get_context(wsi);
       vhd->protocol = lws_get_protocol(wsi);
       vhd->vhost = lws_get_vhost(wsi);
-     break;
+      break;
     case LWS_CALLBACK_PROTOCOL_DESTROY:
       lwsl_info("LWS_CALLBACK_PROTOCOL_DESTROY\n");
       break;
@@ -88,7 +88,7 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
 #ifdef DEBUG
       if (!u8_validate(&buf[LWS_PRE], numbytes)) {
         char buf1[sizeof(buf) + 1] = {};
-        strncpy(buf1, reinterpret_cast<const char *>(&buf[LWS_PRE]), numbytes);
+        strncpy(buf1, reinterpret_cast<const char*>(&buf[LWS_PRE]), numbytes);
         debug_message("Illegal UTF8 Websocket output string: %s.", buf1);
       }
 #endif
@@ -134,7 +134,7 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
         // late input instead of aborting the drain.
         break;
       }
-      on_user_websocket_received(ip, (const char *)in, len);
+      on_user_websocket_received(ip, (const char*)in, len);
       break;
     }
     default:
@@ -145,9 +145,9 @@ int ws_ascii_callback(struct lws *wsi, enum lws_callback_reasons reason, void *u
   return 0;
 }
 
-void ws_ascii_send(struct lws *wsi, const char *data, size_t len) {
+void ws_ascii_send(struct lws* wsi, const char* data, size_t len) {
   DEBUG_CHECK(lws_get_protocol(wsi)->id != PROTOCOL_WS_ASCII, "wrong protocol!");
-  auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
+  auto pss = reinterpret_cast<WebSocketSession*>(lws_wsi_user(wsi));
   DEBUG_CHECK(pss == nullptr, "no session data!");
 
   evbuffer_add(pss->buffer, data, len);

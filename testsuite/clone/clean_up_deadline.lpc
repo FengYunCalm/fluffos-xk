@@ -5,9 +5,8 @@
 // cross-thread sweep would have to expose. Driven by
 // DriverTest.TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot in
 // src/tests/test_lpc.cc.
-void create() {
-}
+void create() {}
 
 void clean_up(int inherited) {
-    destruct(this_object());
+  destruct(this_object());
 }

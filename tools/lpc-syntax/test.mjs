@@ -372,14 +372,19 @@ check('indexing and ranges stay tight; varargs/spread keep normal spacing',
       (() => {
         const out = formatLPC('int f() { return a[0] + b[1..2] + c()[0] + e[..<4]; }\n');
         const va = formatLPC('mixed f(int a, ...) { return g(1, 2, ...); }\n');
-        return out.includes('a[0]') && out.includes('b[1..2]') && out.includes('c()[0]') &&
+        return out.includes('a[0]') && out.includes('b[1 ..2]') && out.includes('c()[0]') &&
                out.includes('e[..<4]') && va.includes('int a, ...') && va.includes('g(1, 2, ...)');
+      })());
+check('numeric range bounds stay lexically separate from the range operator',
+      (() => {
+        const out = formatLPC('string f(string s) { return s[0 .. 2] + s[1 .. <2]; }\n');
+        return out.includes('s[0 ..2]') && out.includes('s[1 ..<2]') && formatLPC(out) === out;
       })());
 check('indexing/mapping literals nested inside a multiline array literal do not corrupt bracket tracking',
       (() => {
         const src = 'mixed x = ({\n  a[0],\n  b[1..2],\n  ([ "k": 1 ]),\n});\n';
         const once = formatLPC(src);
-        return formatLPC(once) === once && once.includes('a[0],') && once.includes('b[1..2],') &&
+        return formatLPC(once) === once && once.includes('a[0],') && once.includes('b[1 ..2],') &&
                once.includes('([ "k": 1 ]),');
       })());
 check('a non-empty array/mapping literal always gets at least one inner space -- a mapping literal'
@@ -944,7 +949,7 @@ check("unescaped quote-char literal `'''` lexes as ONE char token (lex.cc:"
         if (!out.includes("case ''':  //'\n")) return false;
         if (!out.includes("case '\\\"':  //\"\n")) return false;
         // ...and the statements survive, NOT on a comment-bearing line.
-        for (const stmt of ['cmd = "say " + cmd[1..];', 'cmd = "tell " + cmd[1..];']) {
+        for (const stmt of ['cmd = "say " + cmd[1 ..];', 'cmd = "tell " + cmd[1 ..];']) {
           const line = out.split('\n').find((l) => l.includes(stmt));
           if (!line || line.includes('//')) return false;
         }
@@ -1046,7 +1051,7 @@ check('docs/lpc/style-guide.md contract: every spelling the style guide'
           'void f() { x = -a; y = !ok; z = ~bits; ++i; i++; }\n',
           'void f() { x = (string)x; y = (mixed *)arr; }\n',
           'int f() { return (int)v; }\n',
-          'void f() { x = arr[0]; y = m["key"]; z = s[1..<2]; }\n',
+          'void f() { x = arr[0]; y = m["key"]; z = s[1 ..<2]; }\n',
           'void f() { ob->query(); efun::write("x"); }\n',
           'string *names;\nint *fn(mixed *args) { return args; }\n',
           'int *a = ({ 1, 2, 3 });\nint *b = ({});\n',

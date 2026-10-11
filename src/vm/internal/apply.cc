@@ -22,11 +22,17 @@
 // global static result
 FLUFFOS_VM_THREAD_LOCAL svalue_t apply_ret_value;
 
-bool vm_apply_return_thread_local_storage_ready() { return FLUFFOS_OWNER_THREAD_VM != 0; }
+bool vm_apply_return_thread_local_storage_ready() {
+  return FLUFFOS_OWNER_THREAD_VM != 0;
+}
 
-int vm_apply_return_value_type() { return apply_ret_value.type; }
+int vm_apply_return_value_type() {
+  return apply_ret_value.type;
+}
 
-int vm_apply_return_value_subtype() { return apply_ret_value.subtype; }
+int vm_apply_return_value_subtype() {
+  return apply_ret_value.subtype;
+}
 
 bool vm_apply_return_empty() {
   return apply_ret_value.type == T_NUMBER && (apply_ret_value.subtype & T_UNDEFINED);
@@ -76,7 +82,7 @@ int convert_type(int type) {
 }
 
 // TODO: These should be moved somewhere else
-void check_co_args2(lpc_type_t *types, int num_arg, const char *name, const char *ob_name,
+void check_co_args2(lpc_type_t* types, int num_arg, const char* name, const char* ob_name,
                     int sparg) {
   int argc = sparg;
   int exptype, i = 0;
@@ -96,12 +102,12 @@ void check_co_args2(lpc_type_t *types, int num_arg, const char *name, const char
       if ((sp - argc)->type == T_NUMBER && !(sp - argc)->u.number) {
         continue;
       }
-      auto message = fmt::format(
-          FMT_STRING("Bad argument {} in call to {}() in {}\nExpected: {} Got {}.\n"), i,
-          name, ob_name, type_name(exptype), type_name((sp - argc)->type));
+      auto message =
+          fmt::format(FMT_STRING("Bad argument {} in call to {}() in {}\nExpected: {} Got {}.\n"),
+                      i, name, ob_name, type_name(exptype), type_name((sp - argc)->type));
       if (CONFIG_INT(__RC_CALL_OTHER_WARN__)) {
         if (current_prog) {
-          const char *file;
+          const char* file;
           int line;
           get_line_number_info(&file, &line);
           int prsave = pragmas;
@@ -119,7 +125,7 @@ void check_co_args2(lpc_type_t *types, int num_arg, const char *name, const char
 }
 
 // util functions
-void check_co_args(int num_arg, const program_t *prog, function_t *fun, int findex) {
+void check_co_args(int num_arg, const program_t* prog, function_t* fun, int findex) {
   if (CONFIG_INT(__RC_CALL_OTHER_TYPE_CHECK__)) {
     if (num_arg != fun->num_arg) {
       // if(!current_prog) what do i need this for again?
@@ -128,7 +134,7 @@ void check_co_args(int num_arg, const program_t *prog, function_t *fun, int find
                                  fun->funcname, prog->filename);
       if (CONFIG_INT(__RC_CALL_OTHER_WARN__)) {
         if (current_prog) {
-          const char *file;
+          const char* file;
           int line;
           int prsave = pragmas;
           pragmas &= ~PRAGMA_ERROR_CONTEXT;
@@ -187,7 +193,7 @@ void check_co_args(int num_arg, const program_t *prog, function_t *fun, int find
  */
 
 template <bool context_tracking_enabled, bool funcname_shared = false>
-static int apply_low_impl(const char *fun, object_t *ob, int num_arg) {
+static int apply_low_impl(const char* fun, object_t* ob, int num_arg) {
 #if FLUFFOS_OWNER_THREAD_VM
   ScopedTracer _tracer("apply_low");
 #endif
@@ -195,7 +201,7 @@ static int apply_low_impl(const char *fun, object_t *ob, int num_arg) {
   int local_call_origin = call_origin;
 
 #ifdef DEBUG
-  control_stack_t *save_csp;
+  control_stack_t* save_csp;
 #endif
 
   if (!local_call_origin) {
@@ -262,7 +268,7 @@ retry_for_shadow:
   /* Ready to call the function now. */
   {
     int need;
-    function_t *funp = entry.funp;
+    function_t* funp = entry.funp;
     int findex = (funp - entry.progp->function_table);
     int funflags = ob->prog->function_flags[entry.runtime_index];
 
@@ -284,8 +290,8 @@ retry_for_shadow:
     }
     /* setup default arguments if needed */
     {
-      auto *progp = entry.progp;
-      auto *funcp = entry.funp;
+      auto* progp = entry.progp;
+      auto* funcp = entry.funp;
 
       if (!(funflags & FUNC_TRUE_VARARGS) && funcp->min_arg != funcp->num_arg) {
         if (num_arg < funcp->min_arg) {
@@ -296,27 +302,30 @@ retry_for_shadow:
         // for functions with default argument values, we want to invoke the closure to
         // fill in the arguments
         if (num_arg != funcp->num_arg) {
-          auto *saved_fp = fp;
+          auto* saved_fp = fp;
           fp = sp;  // leave the already pushed args on the stack
           // fp is manually repointed per iteration below; restore it
           // unconditionally, including if a default-argument closure error()s
           // and unwinds out of here (AGENTS.md section 4).
-          DEFER { fp = saved_fp; };
+          DEFER {
+            fp = saved_fp;
+          };
 
           // NOTE: this assumes default arguments closure are always generated right after the function in order
           for (int i = num_arg; i < funcp->num_arg; i++) {
             auto current_sp = sp;
-            auto *default_funcp =progp->function_table + funcp->default_args_findex[i];
-            if(default_funcp->funcname[0]!=APPLY___INIT_SPECIAL_CHAR) {
+            auto* default_funcp = progp->function_table + funcp->default_args_findex[i];
+            if (default_funcp->funcname[0] != APPLY___INIT_SPECIAL_CHAR) {
 #ifdef DEBUG
-                  dump_vm_state();
-                  dump_prog(progp, stdout, 1|2);
+              dump_vm_state();
+              dump_prog(progp, stdout, 1 | 2);
 #endif
-                  error("Driver Bug: Illegal default argument function name %s in %s\n", default_funcp->funcname, progp->filename);
+              error("Driver Bug: Illegal default argument function name %s in %s\n",
+                    default_funcp->funcname, progp->filename);
             }
             // notice we don't change current_object here, so the default arguments closure
             // will be called in the context of the caller
-            fp = sp + 1; // zero args
+            fp = sp + 1;  // zero args
             push_control_stack(FRAME_FUNCTION);
             if constexpr (context_tracking_enabled) {
               vm_context_set_caller_type(vm_context(), ORIGIN_LOCAL);
@@ -343,10 +352,13 @@ retry_for_shadow:
 
             // Drop sv_funcp's ref on every path, including if the closure
             // below error()s (AGENTS.md section 4).
-            DEFER { free_svalue(&sv_funcp, "apply_low: default args closure"); };
+            DEFER {
+              free_svalue(&sv_funcp, "apply_low: default args closure");
+            };
 
-            DEBUG_CHECK((sv_funcp.type != T_FUNCTION || sv_funcp.u.fp == nullptr) && dump_vm_state(),
-                        "apply_low: default args closure returned null.");
+            DEBUG_CHECK(
+                (sv_funcp.type != T_FUNCTION || sv_funcp.u.fp == nullptr) && dump_vm_state(),
+                "apply_low: default args closure returned null.");
 
             // Evaluate the closure into a local BEFORE pushing: push_svalue(x)
             // is `STACK_INC; assign_svalue_no_free(sp, x);`, so pushing
@@ -355,10 +367,11 @@ retry_for_shadow:
             // error()), sp is left one slot high pointing at garbage and the
             // unwind's pop_n_elems() frees it and crashes. (Sibling of the
             // same fix in interpret.cc's fill_default_args().)
-            svalue_t *result = call_function_pointer(sv_funcp.u.fp, 0);
+            svalue_t* result = call_function_pointer(sv_funcp.u.fp, 0);
             push_svalue(result);
 
-            DEBUG_CHECK(sp - current_sp != 1 && dump_vm_state(), "Bad stack after default arguments call.");
+            DEBUG_CHECK(sp - current_sp != 1 && dump_vm_state(),
+                        "Bad stack after default arguments call.");
           }
 
           num_arg = funcp->num_arg;
@@ -417,7 +430,7 @@ retry_for_shadow:
   }
 }
 
-int apply_low(const char *fun, object_t *ob, int num_arg) {
+int apply_low(const char* fun, object_t* ob, int num_arg) {
 #if !FLUFFOS_OWNER_THREAD_VM
   return apply_low_impl<false>(fun, ob, num_arg);
 #else
@@ -428,7 +441,7 @@ int apply_low(const char *fun, object_t *ob, int num_arg) {
 #endif
 }
 
-int apply_low_shared(const char *fun, object_t *ob, int num_arg) {
+int apply_low_shared(const char* fun, object_t* ob, int num_arg) {
 #if !FLUFFOS_OWNER_THREAD_VM
   return apply_low_impl<false, true>(fun, ob, num_arg);
 #else
@@ -449,13 +462,13 @@ int apply_low_shared(const char *fun, object_t *ob, int num_arg) {
  * are deallocated.
  */
 
-svalue_t *apply_with_context_tracking(const char *fun, object_t *ob, int num_arg, int where,
+svalue_t* apply_with_context_tracking(const char* fun, object_t* ob, int num_arg, int where,
                                       bool context_tracking_enabled) {
   if (!context_tracking_enabled) {
     return apply_without_context_tracking(fun, ob, num_arg, where);
   }
 #ifdef DEBUG
-  svalue_t *expected_sp;
+  svalue_t* expected_sp;
   expected_sp = sp - num_arg;
 #endif
 
@@ -470,9 +483,9 @@ svalue_t *apply_with_context_tracking(const char *fun, object_t *ob, int num_arg
   return &apply_ret_value;
 }
 
-svalue_t *apply_without_context_tracking(const char *fun, object_t *ob, int num_arg, int where) {
+svalue_t* apply_without_context_tracking(const char* fun, object_t* ob, int num_arg, int where) {
 #ifdef DEBUG
-  svalue_t *expected_sp;
+  svalue_t* expected_sp;
   expected_sp = sp - num_arg;
 #endif
 
@@ -487,10 +500,10 @@ svalue_t *apply_without_context_tracking(const char *fun, object_t *ob, int num_
   return &apply_ret_value;
 }
 
-svalue_t *apply(const char *fun, object_t *ob, int num_arg, int where) {
+svalue_t* apply(const char* fun, object_t* ob, int num_arg, int where) {
 #if !FLUFFOS_OWNER_THREAD_VM
 #ifdef DEBUG
-  svalue_t *expected_sp;
+  svalue_t* expected_sp;
 #endif
 
   call_origin = where;
@@ -517,7 +530,7 @@ svalue_t *apply(const char *fun, object_t *ob, int num_arg, int where) {
  * applied function and the driver depends on being able to do something
  * after the apply. (such as the ed exit function, and the net_dead function).
  */
-svalue_t *safe_apply(const char *fun, object_t *ob, int num_arg, int where) {
+svalue_t* safe_apply(const char* fun, object_t* ob, int num_arg, int where) {
   /* Arguments are already pushed on stack */
 
   if (ob->flags & O_DESTRUCTED) {
@@ -528,10 +541,10 @@ svalue_t *safe_apply(const char *fun, object_t *ob, int num_arg, int where) {
   error_context_t econ;
   save_context(&econ);
 
-  svalue_t *ret = nullptr;
+  svalue_t* ret = nullptr;
   try {
     ret = apply(fun, ob, num_arg, where);
-  } catch (const char *) {
+  } catch (const char*) {
     restore_context(&econ);
     pop_n_elems(num_arg);
     ret = nullptr;

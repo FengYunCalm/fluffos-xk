@@ -55,13 +55,13 @@ constexpr uint32_t kProgramDerivedFlags = O_WILL_CLEAN_UP;
 // block (the migration's own new_block was moved into the object during
 // commit_swap publish and is empty here). Reference copy, old slots
 // untouched. noexcept: assign_svalue only bumps refcounts.
-void copy_matches(PreparedVariableMigration *m, svalue_t *attached_new_data) noexcept;
-void release_migration_payload(PreparedVariableMigration *m) noexcept;
+void copy_matches(PreparedVariableMigration* m, svalue_t* attached_new_data) noexcept;
+void release_migration_payload(PreparedVariableMigration* m) noexcept;
 }  // namespace
 
 namespace {
 
-bool program_contains(const program_t *root, const program_t *needle) noexcept {
+bool program_contains(const program_t* root, const program_t* needle) noexcept {
   if (!root || !needle) {
     return false;
   }
@@ -101,7 +101,7 @@ RecompileExecutionContext::~RecompileExecutionContext() {
   }
 }
 
-void RecompileExecutionContext::record_funptr_birth(funptr_t *fp) noexcept {
+void RecompileExecutionContext::record_funptr_birth(funptr_t* fp) noexcept {
   if (!fp || fp->hdr.birth_context) {
     return;
   }
@@ -117,20 +117,20 @@ void RecompileExecutionContext::record_funptr_birth(funptr_t *fp) noexcept {
 
 void RecompileExecutionContext::finalize_funptr_births(bool committed) noexcept {
   while (birth_head_) {
-    funptr_t *fp = birth_head_;
+    funptr_t* fp = birth_head_;
     birth_head_ = fp->hdr.birth_next;
     fp->hdr.birth_context = nullptr;
     fp->hdr.birth_prev = nullptr;
     fp->hdr.birth_next = nullptr;
     if (!committed || fp->hdr.state == funptr_hdr_t::lifecycle_state::StagedBorn) {
-      fp->hdr.state = committed ? funptr_hdr_t::lifecycle_state::Live
-                                : funptr_hdr_t::lifecycle_state::Invalid;
+      fp->hdr.state =
+          committed ? funptr_hdr_t::lifecycle_state::Live : funptr_hdr_t::lifecycle_state::Invalid;
     }
     free_funp(fp);  // release the journal pin
   }
 }
 
-void RecompileExecutionContext::record_funptr_pin(funptr_t *fp) noexcept {
+void RecompileExecutionContext::record_funptr_pin(funptr_t* fp) noexcept {
   if (!fp || fp->hdr.transaction_pin_context) {
     return;
   }
@@ -146,7 +146,7 @@ void RecompileExecutionContext::record_funptr_pin(funptr_t *fp) noexcept {
 
 void RecompileExecutionContext::release_funptr_pins() noexcept {
   while (transaction_pin_head_) {
-    funptr_t *fp = transaction_pin_head_;
+    funptr_t* fp = transaction_pin_head_;
     transaction_pin_head_ = fp->hdr.transaction_pin_next;
     fp->hdr.transaction_pin_context = nullptr;
     fp->hdr.transaction_pin_prev = nullptr;
@@ -155,7 +155,7 @@ void RecompileExecutionContext::release_funptr_pins() noexcept {
   }
 }
 
-void RecompileExecutionContext::attach_prepared(RecompilePrepared *prepared) noexcept {
+void RecompileExecutionContext::attach_prepared(RecompilePrepared* prepared) noexcept {
   prepared_ = prepared;
   phase_ = RecompileExecutionPhase::Prepared;
   if (prepared_) {
@@ -163,7 +163,7 @@ void RecompileExecutionContext::attach_prepared(RecompilePrepared *prepared) noe
   }
 }
 
-void RecompileExecutionContext::detach_prepared(RecompilePrepared *prepared) noexcept {
+void RecompileExecutionContext::detach_prepared(RecompilePrepared* prepared) noexcept {
   if (prepared_ == prepared) {
     prepared_ = nullptr;
   }
@@ -184,11 +184,11 @@ void RecompileExecutionContext::mark_rolled_back() noexcept {
   phase_ = RecompileExecutionPhase::RolledBack;
 }
 
-bool RecompileExecutionContext::blocks_target_lifecycle(object_t *object) const noexcept {
+bool RecompileExecutionContext::blocks_target_lifecycle(object_t* object) const noexcept {
   if (!object || !prepared_ || !is_active_phase(phase_)) {
     return false;
   }
-  for (const auto &target : prepared_->targets) {
+  for (const auto& target : prepared_->targets) {
     if (target.ob == object) {
       return true;
     }
@@ -196,7 +196,7 @@ bool RecompileExecutionContext::blocks_target_lifecycle(object_t *object) const 
   return false;
 }
 
-bool RecompileExecutionContext::blocks_clone_source(object_t *prototype) const noexcept {
+bool RecompileExecutionContext::blocks_clone_source(object_t* prototype) const noexcept {
   if (!prototype || !prepared_ || !is_active_phase(phase_)) {
     return false;
   }
@@ -207,7 +207,7 @@ bool RecompileExecutionContext::blocks_clone_source(object_t *prototype) const n
          prototype->prog == prepared_->staged.prog;
 }
 
-bool RecompileExecutionContext::blocks_program_publication(program_t *program) const noexcept {
+bool RecompileExecutionContext::blocks_program_publication(program_t* program) const noexcept {
   if (!program || !prepared_ || !is_active_phase(phase_) || !prepared_->staged.prog) {
     return false;
   }
@@ -219,12 +219,12 @@ bool RecompileExecutionContext::blocks_new_compile() const noexcept {
          prepared_->kind == RecompileTargetKind::SimulEfun;
 }
 
-bool RecompileExecutionContext::target_is_valid(object_t *object) const noexcept {
+bool RecompileExecutionContext::target_is_valid(object_t* object) const noexcept {
   if (!object || !prepared_ || phase_ != RecompileExecutionPhase::Swapped ||
       !prepared_->staged.prog) {
     return false;
   }
-  for (const auto &target : prepared_->targets) {
+  for (const auto& target : prepared_->targets) {
     if (target.ob == object) {
       return (object->flags & O_DESTRUCTED) == 0 && object->prog == prepared_->staged.prog;
     }
@@ -232,27 +232,27 @@ bool RecompileExecutionContext::target_is_valid(object_t *object) const noexcept
   return false;
 }
 
-RecompileExecutionContext *vm_recompile_execution_context() noexcept {
+RecompileExecutionContext* vm_recompile_execution_context() noexcept {
   return vm_context().recompile_execution_context;
 }
 
-void vm_recompile_reject_lifecycle(object_t *object, const char *operation) {
-  auto *context = vm_recompile_execution_context();
+void vm_recompile_reject_lifecycle(object_t* object, const char* operation) {
+  auto* context = vm_recompile_execution_context();
   if (context && context->blocks_target_lifecycle(object)) {
     error("recompile_object: target lifecycle operation '%s' is blocked\n",
           operation ? operation : "lifecycle");
   }
 }
 
-void vm_recompile_reject_clone_source(object_t *prototype) {
-  auto *context = vm_recompile_execution_context();
+void vm_recompile_reject_clone_source(object_t* prototype) {
+  auto* context = vm_recompile_execution_context();
   if (context && context->blocks_clone_source(prototype)) {
     error("recompile_object: cloning a transaction target is blocked\n");
   }
 }
 
-void vm_recompile_reject_program_publication(program_t *program) {
-  auto *context = vm_recompile_execution_context();
+void vm_recompile_reject_program_publication(program_t* program) {
+  auto* context = vm_recompile_execution_context();
   if (context && context->blocks_program_publication(program)) {
     // The caller has not published this freshly compiled program yet. Consume
     // its initial reference before raising so the rejected candidate cannot
@@ -263,7 +263,7 @@ void vm_recompile_reject_program_publication(program_t *program) {
 }
 
 void vm_recompile_reject_new_compile() {
-  auto *context = vm_recompile_execution_context();
+  auto* context = vm_recompile_execution_context();
   if (context && context->blocks_new_compile()) {
     // compile_file() may still have live C++ containers on its stack. Using
     // the LPC error machinery here would long-jump through those frames
@@ -278,7 +278,7 @@ void vm_recompile_reject_new_compile() {
 // Staging compile (v0.4 §8.1)
 // ---------------------------------------------------------------------------
 
-StagedProgram compile_program_for_recompile(object_t *blueprint) {
+StagedProgram compile_program_for_recompile(object_t* blueprint) {
   if (!blueprint || (blueprint->flags & O_DESTRUCTED) || !blueprint->prog) {
     error("recompile_object: invalid blueprint\n");
   }
@@ -291,9 +291,9 @@ StagedProgram compile_program_for_recompile(object_t *blueprint) {
   // filename (prog->filename carries the extension the loader chose, e.g.
   // "/foo.lpc" for a .lpc source), instead of assuming ".c" -- otherwise
   // hot-reload of a .lpc-sourced blueprint would always fail to open.
-  const char *compile_name = blueprint->prog->filename ? blueprint->prog->filename : "";
+  const char* compile_name = blueprint->prog->filename ? blueprint->prog->filename : "";
   size_t clen = strlen(compile_name);
-  const char *requested_ext = nullptr;
+  const char* requested_ext = nullptr;
   if (clen > 4 && strcmp(compile_name + clen - 4, ".lpc") == 0) {
     requested_ext = ".lpc";
   } else if (clen > 2 && compile_name[clen - 1] == 'c' && compile_name[clen - 2] == '.') {
@@ -305,11 +305,11 @@ StagedProgram compile_program_for_recompile(object_t *blueprint) {
   // .lpc source must degrade to the .c twin, and recompile cannot know the
   // original request was explicit -- the loader may already have fallen
   // back, so prog->filename is authoritative only as a preference.
-  const char *src_ext;
+  const char* src_ext;
   char real_name[PATH_MAX];
   char obname[PATH_MAX];
-  resolve_source_spelling(source_path.c_str(), requested_ext, true, &src_ext,
-                          real_name, sizeof real_name);
+  resolve_source_spelling(source_path.c_str(), requested_ext, true, &src_ext, real_name,
+                          sizeof real_name);
   (void)strcpy(obname, source_path.c_str());
   (void)strcat(obname, src_ext);
 
@@ -332,16 +332,16 @@ StagedProgram compile_program_for_recompile(object_t *blueprint) {
 
   error_context_t econ{};
   save_context(&econ);
-  program_t *prog = nullptr;
+  program_t* prog = nullptr;
   try {
     auto stream = std::make_unique<FileLexStream>(f);
     prog = compile_file(std::move(stream), obname);
-  } catch (const RecompileCompilationBlocked &) {
+  } catch (const RecompileCompilationBlocked&) {
     close(f);
     restore_context(&econ);
     pop_context(&econ);
     throw;
-  } catch (const char *) {
+  } catch (const char*) {
     close(f);
     restore_context(&econ);
     pop_context(&econ);
@@ -365,11 +365,11 @@ StagedProgram compile_program_for_recompile(object_t *blueprint) {
 // Frozen target snapshot (v0.4 §8.3)
 // ---------------------------------------------------------------------------
 
-void snapshot_recompile_targets(object_t *blueprint, RecompilePrepared *prepared) {
+void snapshot_recompile_targets(object_t* blueprint, RecompilePrepared* prepared) {
   if (!blueprint || (blueprint->flags & O_DESTRUCTED) || !blueprint->prog) {
     error("recompile_object: invalid blueprint\n");
   }
-  program_t *old_prog = blueprint->prog;
+  program_t* old_prog = blueprint->prog;
 
   // The top-level frame's csp->prog holds the CALLER's program (captured at
   // push_control_stack() time), so walking frames alone misses the target
@@ -383,16 +383,18 @@ void snapshot_recompile_targets(object_t *blueprint, RecompilePrepared *prepared
   if (current_prog == old_prog) {
     error("recompile_object target program is executing\n");
   }
-  for (control_stack_t *frame = csp; frame && frame >= control_stack; frame--) {
+  for (control_stack_t* frame = csp; frame && frame >= control_stack; frame--) {
     if (frame->prog == old_prog) {
       error("recompile_object target program is executing\n");
     }
   }
 
   int found = 0;
-  for (object_t *ob = obj_list; ob; ob = ob->next_all) {
-    if (ob->prog != old_prog) continue;
-    if (ob->flags & O_DESTRUCTED) continue;
+  for (object_t* ob = obj_list; ob; ob = ob->next_all) {
+    if (ob->prog != old_prog)
+      continue;
+    if (ob->flags & O_DESTRUCTED)
+      continue;
     if (ob->shadowing || ob->shadowed) {
       error("recompile_object target is shadowing or shadowed\n");
     }
@@ -408,10 +410,9 @@ void snapshot_recompile_targets(object_t *blueprint, RecompilePrepared *prepared
       // though the function still exists. The staged bit is derived from its
       // own prepared apply table and is not allowed to inspect ob->prog.
       t.old_derived_flags = ob->flags & kProgramDerivedFlags;
-      t.new_derived_flags =
-          function_exists_in_program(APPLY_CLEAN_UP, prepared->staged.prog, 1)
-              ? kProgramDerivedFlags
-              : 0;
+      t.new_derived_flags = function_exists_in_program(APPLY_CLEAN_UP, prepared->staged.prog, 1)
+                                ? kProgramDerivedFlags
+                                : 0;
       prepared->targets.push_back(std::move(t));
       found++;
     } catch (...) {
@@ -436,12 +437,11 @@ void RecompilePrepared::retain_funptr_transaction_pins() noexcept {
   if (!execution_context) {
     return;
   }
-  for (const auto &target : targets) {
+  for (const auto& target : targets) {
     if (!target.ob) {
       continue;
     }
-    for (funptr_t *fp = target.ob->funptr_registry_head; fp;
-         fp = fp->hdr.registry_next) {
+    for (funptr_t* fp = target.ob->funptr_registry_head; fp; fp = fp->hdr.registry_next) {
       execution_context->record_funptr_pin(fp);
     }
   }
@@ -465,20 +465,22 @@ RecompilePrepared::~RecompilePrepared() {
   }
   // The staged program's initial ref is released here too (rollback() already
   // released the commit pin + N reservations).
-  for (auto &t : targets) {
-    if (t.ob) free_object(&t.ob, "recompile_prepared");
+  for (auto& t : targets) {
+    if (t.ob)
+      free_object(&t.ob, "recompile_prepared");
   }
   // PreparedVariableMigration owns both detached payloads. Clearing the
   // vector invokes its single noexcept destructor for every prepare failure.
   migrations.clear();
-  if (old_prog) free_prog(&old_prog);
+  if (old_prog)
+    free_prog(&old_prog);
   if (kind == RecompileTargetKind::SimulEfun) {
     simul_efuns_discard(&simuls);
   }
 }
 
 void RecompilePrepared::commit_swap() noexcept {
-  program_t *new_prog = staged.prog;
+  program_t* new_prog = staged.prog;
   // A transaction without a staged program is a caller bug: commit_swap()
   // must never silently skip the swap (commit_finish() would then release
   // N old_prog references while the targets still point at old_prog, orphaning
@@ -489,24 +491,24 @@ void RecompilePrepared::commit_swap() noexcept {
   // publishing a pointer so a caller that skips preparation cannot partially
   // mutate the transaction before the per-target layout assertion below.
   RecompileLifecycle lifecycle = recompile_lifecycle_for(kind);
-  bool layout_changed =
-      !old_layout.variables.empty() || !new_layout.variables.empty()
-          ? !recompile_layouts_match(old_layout, new_layout, nullptr)
-          : false;
+  bool layout_changed = !old_layout.variables.empty() || !new_layout.variables.empty()
+                            ? !recompile_layouts_match(old_layout, new_layout, nullptr)
+                            : false;
   bool migration_required =
       lifecycle.migrate == RecompileMigrationPolicy::Always ||
-      (lifecycle.migrate == RecompileMigrationPolicy::OnMigratableLayoutChange &&
-       layout_changed);
+      (lifecycle.migrate == RecompileMigrationPolicy::OnMigratableLayoutChange && layout_changed);
   assert(!migration_required || migrations.size() == targets.size());
   new_prog->ref++;  // commit pin
 
   // v0.4 §9.1: every target now holds a reference to new_prog (objects free
   // their program reference on dealloc). Accounted before any swap.
-  for (auto &t : targets) {
-    if (t.ob) new_prog->ref++;
+  for (auto& t : targets) {
+    if (t.ob)
+      new_prog->ref++;
   }
-  for (auto &t : targets) {
-    if (!t.ob) continue;
+  for (auto& t : targets) {
+    if (!t.ob)
+      continue;
     t.old_generation = t.ob->prog_generation;  // rollback() restores this
     t.ob->prog = new_prog;
     t.ob->prog_generation++;
@@ -560,8 +562,9 @@ void RecompilePrepared::run_create() {
   RecompileLifecycle lifecycle = recompile_lifecycle_for(kind);
   bool has_migration = migrations.size() == targets.size();
   for (size_t i = 0; i < targets.size(); i++) {
-    auto &t = targets[i];
-    if (!t.ob) continue;
+    auto& t = targets[i];
+    if (!t.ob)
+      continue;
     if (execution_context && !execution_context->target_is_valid(t.ob)) {
       error("recompile_object: target lifecycle changed before create phase\n");
     }
@@ -571,7 +574,7 @@ void RecompilePrepared::run_create() {
     if (kind != RecompileTargetKind::BlueprintFamily) {
       set_nextreset(t.ob);
     }
-    PreparedVariableMigration *m = has_migration ? migrations[i].get() : nullptr;
+    PreparedVariableMigration* m = has_migration ? migrations[i].get() : nullptr;
     bool run_init = false;
     switch (lifecycle.init) {
       case RecompileInitPolicy::Always:
@@ -585,14 +588,18 @@ void RecompilePrepared::run_create() {
         break;
     }
     if (lifecycle.state_order == RecompileStateOrder::InitThenMigrate) {
-      if (run_init) call___INIT(t.ob);
+      if (run_init)
+        call___INIT(t.ob);
       if (execution_context && !execution_context->target_is_valid(t.ob)) {
         error("recompile_object: target lifecycle changed during __INIT\n");
       }
-      if (m) copy_matches(m, obj_vars_data(&t.ob->variables));
+      if (m)
+        copy_matches(m, obj_vars_data(&t.ob->variables));
     } else {
-      if (m) copy_matches(m, obj_vars_data(&t.ob->variables));
-      if (run_init) call___INIT(t.ob);
+      if (m)
+        copy_matches(m, obj_vars_data(&t.ob->variables));
+      if (run_init)
+        call___INIT(t.ob);
       if (execution_context && !execution_context->target_is_valid(t.ob)) {
         error("recompile_object: target lifecycle changed during __INIT\n");
       }
@@ -612,8 +619,9 @@ void RecompilePrepared::run_create() {
   // Any error -- from create(), or the interpreter -- propagates as a C++
   // exception and must end in rollback(); a target that destructs itself
   // during create is a stable error too.
-  for (auto &t : targets) {
-    if (!t.ob) continue;
+  for (auto& t : targets) {
+    if (!t.ob)
+      continue;
     call_create_only(t.ob, 0);
     if (execution_context && !execution_context->target_is_valid(t.ob)) {
       error("recompile_object: target lifecycle changed during create()\n");
@@ -655,8 +663,8 @@ bool RecompilePrepared::run_create_guarded() {
   return true;
 }
 
-void start_recompile_transaction(object_t *ob, RecompileTargetKind kind,
-                                 RecompilePrepared *prepared) {
+void start_recompile_transaction(object_t* ob, RecompileTargetKind kind,
+                                 RecompilePrepared* prepared) {
   prepared->kind = kind;
   prepared->old_prog = ob->prog;
   prepared->old_prog->ref++;  // transaction pin
@@ -672,7 +680,7 @@ void start_recompile_transaction(object_t *ob, RecompileTargetKind kind,
   // (Allocation allowed here, in the frozen-segment preparation.)
   prepare_apply_lookup_table(prepared->staged.prog);
   snapshot_recompile_targets(ob, prepared);
-  if (auto *context = vm_recompile_execution_context()) {
+  if (auto* context = vm_recompile_execution_context()) {
     context->attach_prepared(prepared);
   }
   prepared->retain_funptr_transaction_pins();
@@ -700,10 +708,12 @@ RecompileLifecycle recompile_lifecycle_for(RecompileTargetKind kind) {
 // BlueprintFamily but ALWAYS does for Master/SimulEfun (their __INIT must
 // read the old state, so the new block must carry the old values before
 // __INIT runs).
-void prepare_variable_migrations(RecompilePrepared *prepared) {
-  if (!prepared->migrations.empty()) return;  // already prepared
+void prepare_variable_migrations(RecompilePrepared* prepared) {
+  if (!prepared->migrations.empty())
+    return;  // already prepared
   RecompileLifecycle lifecycle = recompile_lifecycle_for(prepared->kind);
-  if (lifecycle.migrate == RecompileMigrationPolicy::None) return;
+  if (lifecycle.migrate == RecompileMigrationPolicy::None)
+    return;
 
   // Reuse the admission-time classification (single source of truth).
   // Defensive fallback: direct-driver paths (tests) that never ran the
@@ -728,7 +738,7 @@ void prepare_variable_migrations(RecompilePrepared *prepared) {
   if (!diff.migratable()) {
     error("recompile_object: layout diff is not migratable\n");
   }
-  for (auto &t : prepared->targets) {
+  for (auto& t : prepared->targets) {
     auto m = std::make_unique<PreparedVariableMigration>();
     m->diff = diff;
     m->matches = diff.matches;
@@ -742,9 +752,9 @@ namespace {
 // #1247 B-S3: copy every matched old slot into the object's attached new
 // block (reference copy, old slots untouched). noexcept: assign_svalue
 // only bumps refcounts.
-void copy_matches(PreparedVariableMigration *m, svalue_t *attached_new_data) noexcept {
-  for (const auto &match : m->matches) {
-    auto *old_value = &m->old_block.data[match.old_slot];
+void copy_matches(PreparedVariableMigration* m, svalue_t* attached_new_data) noexcept {
+  for (const auto& match : m->matches) {
+    auto* old_value = &m->old_block.data[match.old_slot];
     assign_svalue(&attached_new_data[match.new_slot], old_value);
   }
 }
@@ -752,7 +762,7 @@ void copy_matches(PreparedVariableMigration *m, svalue_t *attached_new_data) noe
 // #1247 B-S3: release a detached migration payload's svalue contents and
 // the payload allocation. Safe on empty blocks (post-publish new_block,
 // post-rollback old_block).
-void release_migration_payload(PreparedVariableMigration *m) noexcept {
+void release_migration_payload(PreparedVariableMigration* m) noexcept {
   if (m->old_block.data) {
     for (uint32_t i = 0; i < m->old_block.count; i++) {
       free_svalue(&m->old_block.data[i], "recompile_migration");
@@ -798,12 +808,12 @@ void RecompilePrepared::commit_finish() noexcept {
   // Release the N old-program references held by the targets. The
   // transaction pin keeps old_prog alive until this loop.
   for (size_t i = 0; i < targets.size(); i++) {
-    program_t *old_ref = old_prog;
+    program_t* old_ref = old_prog;
     free_prog(&old_ref);
   }
 
   // Drop the commit pin; the targets now hold the new program's refs.
-  program_t *staged_pin = staged.prog;
+  program_t* staged_pin = staged.prog;
   free_prog(&staged_pin);
 
   // Release the transaction pin on old_prog: the N object references are
@@ -816,33 +826,33 @@ void RecompilePrepared::commit_finish() noexcept {
   }
 }
 
-void RecompilePrepared::release_pin_and_snapshot_refs(const char *tag) noexcept {
-  program_t *pin = old_prog;
+void RecompilePrepared::release_pin_and_snapshot_refs(const char* tag) noexcept {
+  program_t* pin = old_prog;
   old_prog = nullptr;
   free_prog(&pin);
 
   // Release the snapshot add_refs (objects are live and keep their
   // identity; the refs were for snapshot stability only).
-  for (auto &t : targets) {
+  for (auto& t : targets) {
     if (t.ob) {
-      object_t *snap = t.ob;
+      object_t* snap = t.ob;
       t.ob = nullptr;
       free_object(&snap, tag);
     }
   }
 }
 
-
 void RecompilePrepared::rollback() noexcept {
-  program_t *new_prog = staged.prog;
+  program_t* new_prog = staged.prog;
   // Reverse swap: targets point back at old_prog (their references never
   // left it -- the swap only redirected the pointer). Generation and
   // derived flags are restored so the object is exactly in its pre-swap
   // state; funptrs bound during the create phase carry the swap-era
   // generation and stay rejected, like any reload.
   constexpr uint32_t kProgramDerivedFlags = O_WILL_CLEAN_UP;
-  for (auto &t : targets) {
-    if (!t.ob) continue;
+  for (auto& t : targets) {
+    if (!t.ob)
+      continue;
     t.ob->prog = old_prog;
     t.ob->prog_generation = t.old_generation;
     t.ob->flags = (t.ob->flags & ~kProgramDerivedFlags) | t.old_derived_flags;
@@ -855,9 +865,10 @@ void RecompilePrepared::rollback() noexcept {
   // is empty (it was moved back out).
   if (migrations.size() == targets.size()) {
     for (size_t i = 0; i < targets.size(); i++) {
-      auto &t = targets[i];
-      if (!t.ob) continue;
-      auto &m = migrations[i];
+      auto& t = targets[i];
+      if (!t.ob)
+        continue;
+      auto& m = migrations[i];
       obj_vars_move(&m->new_block, &t.ob->variables);
       obj_vars_move(&t.ob->variables, &m->old_block);
     }
@@ -888,7 +899,7 @@ void RecompilePrepared::rollback() noexcept {
   // reservations (N). staged.prog's own initial ref is released by the
   // destructor, which then deallocates it.
   for (size_t i = 0; i <= targets.size(); i++) {
-    program_t *p = new_prog;
+    program_t* p = new_prog;
     free_prog(&p);
   }
 

@@ -37,7 +37,7 @@
 namespace {
 using Clock = std::chrono::steady_clock;
 
-void bench_set_env(const char *name, const char *value) {
+void bench_set_env(const char* name, const char* value) {
 #ifdef _WIN32
   (void)_putenv_s(name, value);
 #else
@@ -45,7 +45,7 @@ void bench_set_env(const char *name, const char *value) {
 #endif
 }
 
-void bench_unset_env(const char *name) {
+void bench_unset_env(const char* name) {
 #ifdef _WIN32
   (void)_putenv_s(name, "");
 #else
@@ -53,7 +53,7 @@ void bench_unset_env(const char *name) {
 #endif
 }
 
-int bench_chdir(const char *path) {
+int bench_chdir(const char* path) {
 #ifdef _WIN32
   return _chdir(path);
 #else
@@ -75,12 +75,16 @@ struct Report {
   std::vector<Metric> metrics;
   std::vector<StringMetric> strings;
 
-  void add(const std::string &name, long long value) { metrics.push_back({name, value}); }
-  void add_string(const std::string &name, std::string value) { strings.push_back({name, std::move(value)}); }
+  void add(const std::string& name, long long value) {
+    metrics.push_back({name, value});
+  }
+  void add_string(const std::string& name, std::string value) {
+    strings.push_back({name, std::move(value)});
+  }
 };
 
-LPC_INT mapping_number(mapping_t *map, const char *key) {
-  auto *value = find_string_in_mapping(map, key);
+LPC_INT mapping_number(mapping_t* map, const char* key) {
+  auto* value = find_string_in_mapping(map, key);
   if (!value || value->type != T_NUMBER) {
     std::ostringstream error;
     error << "missing numeric mapping key: " << key;
@@ -106,15 +110,15 @@ long long percentile(std::vector<long long> samples, double rank) {
   return samples[index];
 }
 
-void require(bool condition, const std::string &message) {
+void require(bool condition, const std::string& message) {
   if (!condition) {
     throw std::runtime_error(message);
   }
 }
 
-object_t *clone_object_for_bench(const char *path) {
+object_t* clone_object_for_bench(const char* path) {
   error_context_t econ{};
-  object_t *object = nullptr;
+  object_t* object = nullptr;
   ScopedCurrentObjectAsMaster master_scope(ScopedCurrentObjectAsMaster::conditional_t{});
   save_context(&econ);
   try {
@@ -127,7 +131,7 @@ object_t *clone_object_for_bench(const char *path) {
   return object;
 }
 
-void destruct_object_for_bench(object_t *object) {
+void destruct_object_for_bench(object_t* object) {
   if (object == nullptr || (object->flags & O_DESTRUCTED)) {
     return;
   }
@@ -143,7 +147,7 @@ void destruct_object_for_bench(object_t *object) {
   }
 }
 
-std::string json_escape(const std::string &value) {
+std::string json_escape(const std::string& value) {
   std::ostringstream out;
   for (char ch : value) {
     switch (ch) {
@@ -170,7 +174,7 @@ std::string json_escape(const std::string &value) {
   return out.str();
 }
 
-std::string report_json(const Report &report) {
+std::string report_json(const Report& report) {
   std::ostringstream json;
   json << "{\n";
   json << "  \"schema\": \"owner_runtime_bench_v1\",\n";
@@ -191,7 +195,7 @@ std::string report_json(const Report &report) {
   return json.str();
 }
 
-void write_json_report(const std::string &path, const std::string &json) {
+void write_json_report(const std::string& path, const std::string& json) {
   if (path.empty()) {
     return;
   }
@@ -208,7 +212,7 @@ void write_json_report(const std::string &path, const std::string &json) {
 
 void wait_for_probe_count(long expected_probe_count) {
   for (int i = 0; i < 400; i++) {
-    auto *status = vm_owner_thread_status();
+    auto* status = vm_owner_thread_status();
     auto probe_done = mapping_number(status, "executor_probe_executed");
     free_mapping(status);
     if (probe_done >= expected_probe_count) {
@@ -219,18 +223,18 @@ void wait_for_probe_count(long expected_probe_count) {
   throw std::runtime_error("timed out waiting for owner executor probe tasks");
 }
 
-std::string metric_key(const std::string &prefix, const std::string &case_name, int workers,
-                       const std::string &suffix) {
+std::string metric_key(const std::string& prefix, const std::string& case_name, int workers,
+                       const std::string& suffix) {
   std::ostringstream key;
   key << prefix << "_" << case_name << "_" << workers << "w_" << suffix;
   return key.str();
 }
 
-long long run_probe_matrix_case(Report &report, const std::string &case_name,
-                                const std::vector<std::string> &owners, long tasks_per_owner,
+long long run_probe_matrix_case(Report& report, const std::string& case_name,
+                                const std::vector<std::string>& owners, long tasks_per_owner,
                                 int workers, int probe_delay_ms) {
   const auto total_tasks = static_cast<long>(owners.size()) * tasks_per_owner;
-  auto *before = vm_owner_thread_status();
+  auto* before = vm_owner_thread_status();
   auto before_probe = mapping_number(before, "executor_probe_executed");
   auto before_claim_conflicts = mapping_number(before, "executor_same_owner_claim_conflicts");
   auto before_dispatched = mapping_number(before, "thread_dispatched");
@@ -239,7 +243,7 @@ long long run_probe_matrix_case(Report &report, const std::string &case_name,
   bench_set_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS", std::to_string(probe_delay_ms).c_str());
   auto start = Clock::now();
   for (long i = 0; i < tasks_per_owner; i++) {
-    for (const auto &owner : owners) {
+    for (const auto& owner : owners) {
       require(vm_owner_enqueue_task(owner.c_str(), "executor_probe", case_name.c_str()) > 0,
               case_name + " enqueue failed");
     }
@@ -248,7 +252,7 @@ long long run_probe_matrix_case(Report &report, const std::string &case_name,
   vm_owner_thread_start(workers);
   wait_for_probe_count(before_probe + total_tasks);
   auto elapsed = elapsed_us(start);
-  auto *running = vm_owner_thread_status();
+  auto* running = vm_owner_thread_status();
   auto completed = mapping_number(running, "executor_probe_executed") - before_probe;
   auto dispatched = mapping_number(running, "thread_dispatched") - before_dispatched;
   auto claim_conflicts =
@@ -271,7 +275,7 @@ long long run_probe_matrix_case(Report &report, const std::string &case_name,
   return throughput;
 }
 
-void run_probe_thread_matrix(Report &report) {
+void run_probe_thread_matrix(Report& report) {
   const long tasks_per_owner = 16;
   const int probe_delay_ms = 5;
   const std::vector<int> worker_counts{1, 2, 4};
@@ -291,13 +295,13 @@ void run_probe_thread_matrix(Report &report) {
       "owner/service/bench/runtime-v4/shard-d",
   };
 
-  auto run_case = [&](const std::string &case_name, const std::vector<std::string> &owners) {
+  auto run_case = [&](const std::string& case_name, const std::vector<std::string>& owners) {
     long long one_worker = 0;
     long long four_worker = 0;
     for (auto workers : worker_counts) {
       vm_owner_thread_stop();
-      auto throughput =
-          run_probe_matrix_case(report, case_name, owners, tasks_per_owner, workers, probe_delay_ms);
+      auto throughput = run_probe_matrix_case(report, case_name, owners, tasks_per_owner, workers,
+                                              probe_delay_ms);
       if (workers == 1) {
         one_worker = throughput;
       } else if (workers == 4) {
@@ -313,10 +317,10 @@ void run_probe_thread_matrix(Report &report) {
   run_case("service_shard", service_shards);
 }
 
-void run_same_owner_bench(Report &report) {
-  const char *owner = "owner/bench/runtime-v4/same";
+void run_same_owner_bench(Report& report) {
+  const char* owner = "owner/bench/runtime-v4/same";
   const long tasks = 32;
-  auto *before = vm_owner_thread_status();
+  auto* before = vm_owner_thread_status();
   auto before_probe = mapping_number(before, "executor_probe_executed");
   free_mapping(before);
 
@@ -328,7 +332,7 @@ void run_same_owner_bench(Report &report) {
     enqueue_samples.push_back(elapsed_us(enqueue_start));
     require(task_id > 0, "same-owner enqueue failed");
   }
-  auto *queued = vm_owner_mailbox_status(owner);
+  auto* queued = vm_owner_mailbox_status(owner);
   report.add("same_owner_initial_queue_depth", mapping_number(queued, "owner_queue_depth"));
   free_mapping(queued);
 
@@ -337,41 +341,42 @@ void run_same_owner_bench(Report &report) {
   vm_owner_thread_stop();
   auto total_elapsed = elapsed_us(start);
 
-  auto *after = vm_owner_thread_status();
+  auto* after = vm_owner_thread_status();
   auto completed = mapping_number(after, "executor_probe_executed") - before_probe;
   report.add("same_owner_tasks", tasks);
   report.add("same_owner_completed", completed);
   report.add("same_owner_elapsed_us", total_elapsed);
-  report.add("same_owner_throughput_per_sec", total_elapsed > 0 ? completed * 1000000LL / total_elapsed : 0);
+  report.add("same_owner_throughput_per_sec",
+             total_elapsed > 0 ? completed * 1000000LL / total_elapsed : 0);
   report.add("scheduler_enqueue_api_latency_p50_us", percentile(enqueue_samples, 0.50));
   report.add("scheduler_enqueue_api_latency_p95_us", percentile(enqueue_samples, 0.95));
   report.add("scheduler_enqueue_api_latency_p99_us", percentile(enqueue_samples, 0.99));
-  report.add("same_owner_claim_conflicts", mapping_number(after, "executor_same_owner_claim_conflicts"));
+  report.add("same_owner_claim_conflicts",
+             mapping_number(after, "executor_same_owner_claim_conflicts"));
   free_mapping(after);
 
   // R2-F07: cleanup contract metrics for the evidence gate. The wrapper
   // derives cleanup.state from these: queue/backlog zero, deferred refs
   // zero, future pending zero. A bench that leaves work behind writes
   // cleanup=failed and the gate refuses the envelope.
-  auto *mailbox_after = vm_owner_mailbox_status(owner);
-  report.add("cleanup_owner_queue_depth",
-             mapping_number(mailbox_after, "owner_queue_depth"));
+  auto* mailbox_after = vm_owner_mailbox_status(owner);
+  report.add("cleanup_owner_queue_depth", mapping_number(mailbox_after, "owner_queue_depth"));
   free_mapping(mailbox_after);
-  auto *runtime_after = vm_owner_runtime_status();
+  auto* runtime_after = vm_owner_runtime_status();
   report.add("cleanup_future_pending_backlog",
              mapping_number(runtime_after, "owner_executor_future_pending_backlog"));
   free_mapping(runtime_after);
-  auto *thread_after = vm_owner_thread_status();
+  auto* thread_after = vm_owner_thread_status();
   report.add("cleanup_deferred_target_releases",
              mapping_number(thread_after, "deferred_target_releases"));
   free_mapping(thread_after);
 }
 
-void run_different_owner_bench(Report &report) {
-  const char *owner_a = "owner/bench/runtime-v4/parallel-a";
-  const char *owner_b = "owner/bench/runtime-v4/parallel-b";
+void run_different_owner_bench(Report& report) {
+  const char* owner_a = "owner/bench/runtime-v4/parallel-a";
+  const char* owner_b = "owner/bench/runtime-v4/parallel-b";
   const long tasks_per_owner = 16;
-  auto *before = vm_owner_thread_status();
+  auto* before = vm_owner_thread_status();
   auto before_probe = mapping_number(before, "executor_probe_executed");
   auto before_claims = mapping_number(before, "executor_owner_claims");
   auto before_releases = mapping_number(before, "executor_owner_releases");
@@ -380,8 +385,10 @@ void run_different_owner_bench(Report &report) {
   bench_set_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS", "4");
   auto start = Clock::now();
   for (long i = 0; i < tasks_per_owner; i++) {
-    require(vm_owner_enqueue_task(owner_a, "executor_probe", "bench_parallel_a") > 0, "parallel owner A enqueue failed");
-    require(vm_owner_enqueue_task(owner_b, "executor_probe", "bench_parallel_b") > 0, "parallel owner B enqueue failed");
+    require(vm_owner_enqueue_task(owner_a, "executor_probe", "bench_parallel_a") > 0,
+            "parallel owner A enqueue failed");
+    require(vm_owner_enqueue_task(owner_b, "executor_probe", "bench_parallel_b") > 0,
+            "parallel owner B enqueue failed");
   }
   vm_owner_thread_start(2);
   wait_for_probe_count(before_probe + tasks_per_owner * 2);
@@ -389,14 +396,15 @@ void run_different_owner_bench(Report &report) {
   bench_unset_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS");
   auto total_elapsed = elapsed_us(start);
 
-  auto *after = vm_owner_thread_status();
+  auto* after = vm_owner_thread_status();
   auto completed = mapping_number(after, "executor_probe_executed") - before_probe;
   auto claim_delta = mapping_number(after, "executor_owner_claims") - before_claims;
   auto release_delta = mapping_number(after, "executor_owner_releases") - before_releases;
   report.add("different_owner_tasks", tasks_per_owner * 2);
   report.add("different_owner_completed", completed);
   report.add("different_owner_elapsed_us", total_elapsed);
-  report.add("different_owner_throughput_per_sec", total_elapsed > 0 ? completed * 1000000LL / total_elapsed : 0);
+  report.add("different_owner_throughput_per_sec",
+             total_elapsed > 0 ? completed * 1000000LL / total_elapsed : 0);
   report.add("different_owner_max_parallel", mapping_number(after, "executor_max_parallel_owners"));
   report.add("owner_claim_delta", claim_delta);
   report.add("owner_release_delta", release_delta);
@@ -404,48 +412,49 @@ void run_different_owner_bench(Report &report) {
   free_mapping(after);
 }
 
-void run_future_bench(Report &report) {
+void run_future_bench(Report& report) {
   std::vector<long long> samples;
   auto start = Clock::now();
-  auto future_cancel = vm_owner_register_compute_future("owner/bench/runtime-v4/future-cancel", 9301,
-                                                        "bench_future_cancel", "payload");
-  auto future_timeout = vm_owner_register_compute_future("owner/bench/runtime-v4/future-timeout", 9302,
-                                                         "bench_future_timeout", "payload");
+  auto future_cancel = vm_owner_register_compute_future("owner/bench/runtime-v4/future-cancel",
+                                                        9301, "bench_future_cancel", "payload");
+  auto future_timeout = vm_owner_register_compute_future("owner/bench/runtime-v4/future-timeout",
+                                                         9302, "bench_future_timeout", "payload");
   require(future_cancel > 0 && future_timeout > 0, "future registration failed");
   auto poll_start = Clock::now();
-  auto *pending = vm_owner_future_poll(future_cancel);
+  auto* pending = vm_owner_future_poll(future_cancel);
   samples.push_back(elapsed_us(poll_start));
   free_mapping(pending);
   auto cancel_start = Clock::now();
-  auto *cancelled = vm_owner_future_cancel(future_cancel, "bench cancel");
+  auto* cancelled = vm_owner_future_cancel(future_cancel, "bench cancel");
   samples.push_back(elapsed_us(cancel_start));
   free_mapping(cancelled);
   auto timeout_start = Clock::now();
-  auto *timed_out = vm_owner_future_timeout(future_timeout, "bench timeout");
+  auto* timed_out = vm_owner_future_timeout(future_timeout, "bench timeout");
   samples.push_back(elapsed_us(timeout_start));
   free_mapping(timed_out);
 
-  auto *runtime = vm_owner_runtime_status();
+  auto* runtime = vm_owner_runtime_status();
   report.add("future_ops_elapsed_us", elapsed_us(start));
   report.add("future_api_latency_p50_us", percentile(samples, 0.50));
   report.add("future_api_latency_p95_us", percentile(samples, 0.95));
   report.add("future_api_latency_p99_us", percentile(samples, 0.99));
-  report.add("future_pending_backlog", mapping_number(runtime, "owner_executor_future_pending_backlog"));
+  report.add("future_pending_backlog",
+             mapping_number(runtime, "owner_executor_future_pending_backlog"));
   report.add("future_cancelled_total", mapping_number(runtime, "owner_executor_future_cancelled"));
   report.add("future_timeout_total", mapping_number(runtime, "owner_executor_future_timeout"));
   free_mapping(runtime);
 }
 
-mapping_t *make_frozen_payload_bench_value(int item_count) {
-  auto *payload = allocate_mapping(5);
+mapping_t* make_frozen_payload_bench_value(int item_count) {
+  auto* payload = allocate_mapping(5);
   add_mapping_string(payload, "payload_key", "bench/frozen-payload/v1");
   add_mapping_string(payload, "type", "protocol_payload");
   add_mapping_pair(payload, "server_seq", 123456);
   add_mapping_string(payload, "title", "representative owner payload");
 
-  auto *items = allocate_array(item_count);
+  auto* items = allocate_array(item_count);
   for (int i = 0; i < item_count; i++) {
-    auto *item = allocate_mapping(6);
+    auto* item = allocate_mapping(6);
     auto id = "item/" + std::to_string(i);
     auto name = "representative payload item " + std::to_string(i);
     add_mapping_string(item, "id", id.c_str());
@@ -453,7 +462,8 @@ mapping_t *make_frozen_payload_bench_value(int item_count) {
     add_mapping_pair(item, "count", i + 1);
     add_mapping_pair(item, "weight", (i + 1) * 25);
     add_mapping_string(item, "category", i % 2 == 0 ? "equipment" : "consumable");
-    add_mapping_string(item, "description", "fixed nested payload text for frozen traversal benchmark");
+    add_mapping_string(item, "description",
+                       "fixed nested payload text for frozen traversal benchmark");
     items->item[i].type = T_MAPPING;
     items->item[i].subtype = 0;
     items->item[i].u.map = item;
@@ -463,9 +473,9 @@ mapping_t *make_frozen_payload_bench_value(int item_count) {
   return payload;
 }
 
-void run_frozen_payload_traversal_case(Report &report, const std::string &case_name,
-                                       int item_count, int iterations) {
-  auto *payload = make_frozen_payload_bench_value(item_count);
+void run_frozen_payload_traversal_case(Report& report, const std::string& case_name, int item_count,
+                                       int iterations) {
+  auto* payload = make_frozen_payload_bench_value(item_count);
   svalue_t source{T_MAPPING, 0, {0}};
   source.u.map = payload;
   std::string error;
@@ -521,13 +531,13 @@ void run_frozen_payload_traversal_case(Report &report, const std::string &case_n
   free_mapping(payload);
 }
 
-void run_frozen_payload_traversal_bench(Report &report) {
+void run_frozen_payload_traversal_bench(Report& report) {
   constexpr int iterations = 1000;
   run_frozen_payload_traversal_case(report, "small", 4, iterations);
   run_frozen_payload_traversal_case(report, "medium", 16, iterations);
 }
 
-void run_future_completion_lookup_case(Report &report, int backlog) {
+void run_future_completion_lookup_case(Report& report, int backlog) {
   OwnerFutureStore store;
   for (int i = 1; i <= backlog; i++) {
     OwnerFutureRecord future;
@@ -544,8 +554,8 @@ void run_future_completion_lookup_case(Report &report, int backlog) {
 
   auto completion_start = Clock::now();
   for (int i = 1; i <= backlog; i++) {
-    auto completion = store.complete_for_task(static_cast<uint64_t>(100000 + i),
-                                              "completed", "bench_result", "");
+    auto completion =
+        store.complete_for_task(static_cast<uint64_t>(100000 + i), "completed", "bench_result", "");
     require(completion.has_value(), "future completion lookup missed target task");
   }
   auto completion_total_ns = elapsed_ns(completion_start);
@@ -566,34 +576,34 @@ void run_future_completion_lookup_case(Report &report, int backlog) {
   report.add(prefix + "_take_avg_ns", take_total_ns / backlog);
 }
 
-void run_future_completion_lookup_bench(Report &report) {
+void run_future_completion_lookup_bench(Report& report) {
   for (auto backlog : {16, 256, 2048}) {
     run_future_completion_lookup_case(report, backlog);
   }
 }
 
-long query_lpc_number_for_bench(object_t *target, const char *method) {
-  auto *value = safe_apply(method, target, 0, ORIGIN_DRIVER);
+long query_lpc_number_for_bench(object_t* target, const char* method) {
+  auto* value = safe_apply(method, target, 0, ORIGIN_DRIVER);
   require(value != nullptr && value->type == T_NUMBER,
           std::string("missing numeric LPC benchmark result: ") + method);
   return value->u.number;
 }
 
-std::string query_lpc_string_for_bench(object_t *target, const char *method) {
-  auto *value = safe_apply(method, target, 0, ORIGIN_DRIVER);
+std::string query_lpc_string_for_bench(object_t* target, const char* method) {
+  auto* value = safe_apply(method, target, 0, ORIGIN_DRIVER);
   require(value != nullptr && value->type == T_STRING,
           std::string("missing string LPC benchmark result: ") + method);
   return std::string(value->u.string, SVALUE_STRLEN(value));
 }
 
-void run_json_encode_case(Report &report, object_t *target, const std::string &case_name,
+void run_json_encode_case(Report& report, object_t* target, const std::string& case_name,
                           int item_count, int iterations) {
   push_number(item_count);
   push_number(iterations);
-  auto *value = safe_apply("benchmark_json_encoders", target, 2, ORIGIN_DRIVER);
+  auto* value = safe_apply("benchmark_json_encoders", target, 2, ORIGIN_DRIVER);
   require(value != nullptr && value->type == T_MAPPING,
           case_name + " JSON encoder benchmark result missing");
-  auto *result = value->u.map;
+  auto* result = value->u.map;
   auto lpc_total_ns = mapping_number(result, "lpc_total_ns");
   auto native_total_ns = mapping_number(result, "native_total_ns");
   require(mapping_number(result, "byte_equal") == 1,
@@ -611,20 +621,20 @@ void run_json_encode_case(Report &report, object_t *target, const std::string &c
   report.add(prefix + "_saved_avg_ns", (lpc_total_ns - native_total_ns) / iterations);
 }
 
-void run_json_encode_bench(Report &report) {
-  auto *target = clone_object_for_bench("clone/gateway_login_example");
+void run_json_encode_bench(Report& report) {
+  auto* target = clone_object_for_bench("clone/gateway_login_example");
   require(target != nullptr, "failed to clone JSON encoder benchmark target");
   run_json_encode_case(report, target, "medium", 16, 100);
   run_json_encode_case(report, target, "large", 64, 50);
   destruct_object_for_bench(target);
 }
 
-void run_submit_watch_current_path_case(Report &report, object_t *target,
-                                        const std::string &case_name, int item_count,
+void run_submit_watch_current_path_case(Report& report, object_t* target,
+                                        const std::string& case_name, int item_count,
                                         int iterations) {
   constexpr int timeout_ms = 1000;
-  const char *owner_id = "owner/bench/runtime-v4/submit-watch";
-  auto *payload = make_frozen_payload_bench_value(item_count);
+  const char* owner_id = "owner/bench/runtime-v4/submit-watch";
+  auto* payload = make_frozen_payload_bench_value(item_count);
   std::vector<long long> samples;
   samples.reserve(iterations);
 
@@ -633,23 +643,21 @@ void run_submit_watch_current_path_case(Report &report, object_t *target,
     push_mapping(payload);
     push_number(timeout_ms);
     auto started_at = Clock::now();
-    auto *submitted = safe_apply("submit_and_watch_generic_owner_future", target, 3,
-                                 ORIGIN_DRIVER);
+    auto* submitted = safe_apply("submit_and_watch_generic_owner_future", target, 3, ORIGIN_DRIVER);
     samples.push_back(elapsed_ns(started_at));
     require(submitted != nullptr && submitted->type == T_NUMBER && submitted->u.number == 1,
             case_name + " submit-watch current path failed");
 
     auto future_id = query_lpc_number_for_bench(target, "query_last_submit_watch_future_id");
     require(future_id > 0, case_name + " submit-watch future id missing");
-    auto *cancelled = vm_owner_future_cancel(static_cast<uint64_t>(future_id),
-                                             "submit-watch benchmark cleanup");
+    auto* cancelled =
+        vm_owner_future_cancel(static_cast<uint64_t>(future_id), "submit-watch benchmark cleanup");
     free_mapping(cancelled);
     require(gateway_process_future_watches_at(std::numeric_limits<uint64_t>::max()) == 1,
             case_name + " submit-watch cleanup did not consume watch");
-    auto *purged = vm_owner_purge_mailbox(owner_id);
+    auto* purged = vm_owner_purge_mailbox(owner_id);
     free_mapping(purged);
-    require(gateway_future_watch_count() == 0,
-            case_name + " submit-watch leaked generic watcher");
+    require(gateway_future_watch_count() == 0, case_name + " submit-watch leaked generic watcher");
   }
 
   auto total_ns = std::accumulate(samples.begin(), samples.end(), 0LL);
@@ -664,9 +672,9 @@ void run_submit_watch_current_path_case(Report &report, object_t *target,
   free_mapping(payload);
 }
 
-void run_submit_watch_current_path_bench(Report &report) {
+void run_submit_watch_current_path_bench(Report& report) {
   constexpr int iterations = 128;
-  auto *target = clone_object_for_bench("clone/gateway_login_example");
+  auto* target = clone_object_for_bench("clone/gateway_login_example");
   require(target != nullptr, "failed to clone submit-watch benchmark target");
   vm_owner_set_id(target, "owner/bench/runtime-v4/submit-watch");
   vm_object_store_register(target);
@@ -678,25 +686,24 @@ void run_submit_watch_current_path_bench(Report &report) {
   destruct_object_for_bench(target);
 }
 
-object_t *create_gateway_session_for_bench(const char *session_id, int master_fd) {
+object_t* create_gateway_session_for_bench(const char* session_id, int master_fd) {
   svalue_t data{T_MAPPING, 0, {0}};
   data.u.map = allocate_mapping(1);
   add_mapping_string(data.u.map, "ip", "127.0.0.1");
   copy_and_push_string("/clone/gateway_login_example");
   safe_apply("set_test_login_ob", master_ob, 1, ORIGIN_DRIVER);
-  auto *target = gateway_create_session_internal(session_id, &data, "127.0.0.1",
-                                                 6040, master_fd);
+  auto* target = gateway_create_session_internal(session_id, &data, "127.0.0.1", 6040, master_fd);
   safe_apply("reset_test_login_ob", master_ob, 0, ORIGIN_DRIVER);
   free_svalue(&data, "owner runtime gateway session benchmark");
   return target;
 }
 
-void run_session_submit_watch_upfront_case(Report &report, object_t *target,
-                                           const std::string &case_name, int item_count,
+void run_session_submit_watch_upfront_case(Report& report, object_t* target,
+                                           const std::string& case_name, int item_count,
                                            int iterations) {
   constexpr int timeout_ms = 1000;
-  const char *owner_id = "owner/bench/runtime-v4/session-submit-watch";
-  auto *payload = make_frozen_payload_bench_value(item_count);
+  const char* owner_id = "owner/bench/runtime-v4/session-submit-watch";
+  auto* payload = make_frozen_payload_bench_value(item_count);
   std::vector<long long> samples;
   samples.reserve(iterations);
 
@@ -705,8 +712,7 @@ void run_session_submit_watch_upfront_case(Report &report, object_t *target,
     auto reservation_id = gateway_reserve_session_output_for_object(target);
     require(reservation_id > 0, case_name + " session reservation failed");
     push_mapping(payload);
-    auto *submitted = safe_apply("submit_gateway_owner_future_payload", target, 1,
-                                 ORIGIN_DRIVER);
+    auto* submitted = safe_apply("submit_gateway_owner_future_payload", target, 1, ORIGIN_DRIVER);
     require(submitted != nullptr && submitted->type == T_MAPPING,
             case_name + " session owner submit failed");
     auto future_id = mapping_number(submitted->u.map, "future_id");
@@ -716,19 +722,17 @@ void run_session_submit_watch_upfront_case(Report &report, object_t *target,
             case_name + " session future watch failed");
     samples.push_back(elapsed_ns(started_at));
 
-    auto *cancelled = vm_owner_future_cancel(static_cast<uint64_t>(future_id),
+    auto* cancelled = vm_owner_future_cancel(static_cast<uint64_t>(future_id),
                                              "session submit-watch benchmark cleanup");
     free_mapping(cancelled);
-    require(gateway_process_session_future_watches_at(
-                std::numeric_limits<uint64_t>::max()) == 1,
+    require(gateway_process_session_future_watches_at(std::numeric_limits<uint64_t>::max()) == 1,
             case_name + " session watcher cleanup failed");
-    auto *purged = vm_owner_purge_mailbox(owner_id);
+    auto* purged = vm_owner_purge_mailbox(owner_id);
     free_mapping(purged);
-    auto *session = gateway_find_session_by_object(target);
+    auto* session = gateway_find_session_by_object(target);
     require(session != nullptr && session->output_fifo.empty(),
             case_name + " session FIFO did not drain");
-    require(gateway_session_future_watch_count() == 0,
-            case_name + " session watcher leaked");
+    require(gateway_session_future_watch_count() == 0, case_name + " session watcher leaked");
   }
 
   auto total_ns = std::accumulate(samples.begin(), samples.end(), 0LL);
@@ -743,10 +747,10 @@ void run_session_submit_watch_upfront_case(Report &report, object_t *target,
   free_mapping(payload);
 }
 
-void run_session_submit_watch_upfront_bench(Report &report) {
+void run_session_submit_watch_upfront_bench(Report& report) {
   constexpr int iterations = 128;
-  const char *session_id = "gw-bench-session-submit-watch";
-  auto *target = create_gateway_session_for_bench(session_id, 99);
+  const char* session_id = "gw-bench-session-submit-watch";
+  auto* target = create_gateway_session_for_bench(session_id, 99);
   require(target != nullptr, "failed to create session submit-watch benchmark target");
   add_ref(target, "owner runtime session submit-watch benchmark");
   vm_owner_set_id(target, "owner/bench/runtime-v4/session-submit-watch");
@@ -760,15 +764,15 @@ void run_session_submit_watch_upfront_bench(Report &report) {
   free_object(&target, "owner runtime session submit-watch benchmark");
 }
 
-mapping_t *make_owner_frame_bench_payload(int frame_bytes) {
-  auto *payload = allocate_mapping(2);
+mapping_t* make_owner_frame_bench_payload(int frame_bytes) {
+  auto* payload = allocate_mapping(2);
   add_mapping_string(payload, "payload_key", "bench/session-frame/v1");
   auto frame = std::string(static_cast<size_t>(frame_bytes), 'x');
   add_mapping_string(payload, "frame", frame.c_str());
   return payload;
 }
 
-void wait_for_owner_future_terminal(uint64_t future_id, const std::string &case_name) {
+void wait_for_owner_future_terminal(uint64_t future_id, const std::string& case_name) {
   for (int i = 0; i < 1000; i++) {
     auto state = vm_owner_future_state(future_id);
     if (state == VM_OWNER_FUTURE_COMPLETED || state == VM_OWNER_FUTURE_FAILED) {
@@ -779,13 +783,13 @@ void wait_for_owner_future_terminal(uint64_t future_id, const std::string &case_
   throw std::runtime_error(case_name + " owner future did not reach terminal state");
 }
 
-void run_session_publish_case(Report &report, const std::string &case_name,
-                              int frame_bytes, int iterations, bool native_output = false) {
-  auto *payload = make_owner_frame_bench_payload(frame_bytes);
+void run_session_publish_case(Report& report, const std::string& case_name, int frame_bytes,
+                              int iterations, bool native_output = false) {
+  auto* payload = make_owner_frame_bench_payload(frame_bytes);
   auto frame = std::string(static_cast<size_t>(frame_bytes), 'x');
   std::vector<long long> process_samples;
   process_samples.reserve(iterations);
-  auto *before = gateway_status_internal();
+  auto* before = gateway_status_internal();
   auto before_take_samples = mapping_number(before, "gateway_future_watch_take_samples");
   auto before_take_total_us = mapping_number(before, "gateway_future_watch_take_total_us");
   auto before_callback_samples = mapping_number(before, "gateway_future_watch_callback_samples");
@@ -796,7 +800,7 @@ void run_session_publish_case(Report &report, const std::string &case_name,
     auto session_id = "gw-bench-session-publish-" +
                       std::string(native_output ? "native-" : "lpc-") + case_name + "-" +
                       std::to_string(i);
-    auto *target = create_gateway_session_for_bench(session_id.c_str(), 99);
+    auto* target = create_gateway_session_for_bench(session_id.c_str(), 99);
     require(target != nullptr, case_name + " failed to create publish session");
     add_ref(target, "owner runtime session publish benchmark");
     vm_owner_set_id(target, "owner/bench/runtime-v4/session-publish");
@@ -808,9 +812,9 @@ void run_session_publish_case(Report &report, const std::string &case_name,
     } else {
       push_mapping(payload);
     }
-    auto *submitted = safe_apply(native_output ? "submit_gateway_owner_frame_string"
-                                               : "submit_gateway_owner_frame",
-                                 target, 1, ORIGIN_DRIVER);
+    auto* submitted = safe_apply(
+        native_output ? "submit_gateway_owner_frame_string" : "submit_gateway_owner_frame", target,
+        1, ORIGIN_DRIVER);
     require(submitted != nullptr && submitted->type == T_MAPPING,
             case_name + " owner frame submit failed");
     auto future_id = mapping_number(submitted->u.map, "future_id");
@@ -820,42 +824,34 @@ void run_session_publish_case(Report &report, const std::string &case_name,
                              target, reservation_id, static_cast<uint64_t>(future_id), 1000)
                        : gateway_watch_session_future_for_object(
                              target, reservation_id, static_cast<uint64_t>(future_id), 1000);
-    require(watched == 1,
-            case_name + " owner frame watch failed");
+    require(watched == 1, case_name + " owner frame watch failed");
 
     wait_for_owner_future_terminal(static_cast<uint64_t>(future_id), case_name);
     auto process_started_at = Clock::now();
-    require(gateway_process_session_future_watches_at(
-                std::numeric_limits<uint64_t>::max()) == 1,
+    require(gateway_process_session_future_watches_at(std::numeric_limits<uint64_t>::max()) == 1,
             case_name + " owner frame publish did not process");
     process_samples.push_back(elapsed_ns(process_started_at));
 
-    require(query_lpc_number_for_bench(target,
-                                       "query_last_owner_future_callback_off_main") == 0,
+    require(query_lpc_number_for_bench(target, "query_last_owner_future_callback_off_main") == 0,
             case_name + " owner frame callback ran off main");
-    auto callback_reservation = query_lpc_number_for_bench(
-        target, "query_last_owner_future_reservation_id");
-    require(callback_reservation ==
-                (native_output ? 0 : static_cast<long>(reservation_id)),
+    auto callback_reservation =
+        query_lpc_number_for_bench(target, "query_last_owner_future_reservation_id");
+    require(callback_reservation == (native_output ? 0 : static_cast<long>(reservation_id)),
             case_name + " owner frame callback mode mismatch");
     if (native_output) {
-      require(query_lpc_number_for_bench(
-                  target, "query_last_owner_future_output_reservation_id") ==
+      require(query_lpc_number_for_bench(target, "query_last_owner_future_output_reservation_id") ==
                   static_cast<long>(reservation_id),
               case_name + " owner frame output notification used wrong reservation");
-      require(query_lpc_string_for_bench(target,
-                                         "query_last_owner_future_output_state") ==
-                  "completed",
-              case_name + " owner frame output notification used wrong state");
-      require(query_lpc_number_for_bench(
-                  target, "query_last_owner_future_output_callback_off_main") == 0,
+      require(
+          query_lpc_string_for_bench(target, "query_last_owner_future_output_state") == "completed",
+          case_name + " owner frame output notification used wrong state");
+      require(query_lpc_number_for_bench(target,
+                                         "query_last_owner_future_output_callback_off_main") == 0,
               case_name + " owner frame output notification ran off main");
     }
-    require(vm_owner_future_state(static_cast<uint64_t>(future_id)) ==
-                VM_OWNER_FUTURE_UNKNOWN,
+    require(vm_owner_future_state(static_cast<uint64_t>(future_id)) == VM_OWNER_FUTURE_UNKNOWN,
             case_name + " owner frame future was not consumed");
-    require(gateway_session_future_watch_count() == 0,
-            case_name + " owner frame watcher leaked");
+    require(gateway_session_future_watch_count() == 0, case_name + " owner frame watcher leaked");
 
     require(gateway_destroy_session_internal(session_id.c_str(), "bench_done", "bench done") == 1,
             case_name + " failed to destroy publish session");
@@ -863,23 +859,22 @@ void run_session_publish_case(Report &report, const std::string &case_name,
     free_object(&target, "owner runtime session publish benchmark");
   }
 
-  auto *after = gateway_status_internal();
-  auto take_samples = mapping_number(after, "gateway_future_watch_take_samples") -
-                      before_take_samples;
-  auto take_total_us = mapping_number(after, "gateway_future_watch_take_total_us") -
-                       before_take_total_us;
-  auto callback_samples = mapping_number(after, "gateway_future_watch_callback_samples") -
-                          before_callback_samples;
-  auto callback_total_us = mapping_number(after, "gateway_future_watch_callback_total_us") -
-                           before_callback_total_us;
+  auto* after = gateway_status_internal();
+  auto take_samples =
+      mapping_number(after, "gateway_future_watch_take_samples") - before_take_samples;
+  auto take_total_us =
+      mapping_number(after, "gateway_future_watch_take_total_us") - before_take_total_us;
+  auto callback_samples =
+      mapping_number(after, "gateway_future_watch_callback_samples") - before_callback_samples;
+  auto callback_total_us =
+      mapping_number(after, "gateway_future_watch_callback_total_us") - before_callback_total_us;
   free_mapping(after);
   require(take_samples == iterations && callback_samples == iterations,
           case_name + " publish timing sample count mismatch");
 
   auto process_total_ns = std::accumulate(process_samples.begin(), process_samples.end(), 0LL);
-  auto prefix = std::string(native_output ? "session_publish_native_"
-                                          : "session_publish_") +
-                case_name;
+  auto prefix =
+      std::string(native_output ? "session_publish_native_" : "session_publish_") + case_name;
   report.add(prefix + "_frame_bytes", frame_bytes);
   report.add(prefix + "_iterations", iterations);
   report.add(prefix + "_process_avg_ns", process_total_ns / iterations);
@@ -891,7 +886,7 @@ void run_session_publish_case(Report &report, const std::string &case_name,
   free_mapping(payload);
 }
 
-void run_session_publish_bench(Report &report) {
+void run_session_publish_bench(Report& report) {
   constexpr int iterations = 64;
   vm_owner_thread_start(1);
   run_session_publish_case(report, "frame_512b", 512, iterations);
@@ -901,9 +896,9 @@ void run_session_publish_bench(Report &report) {
   vm_owner_thread_stop();
 }
 
-void run_object_resolve_bench(Report &report) {
+void run_object_resolve_bench(Report& report) {
   const long iterations = 256;
-  object_t *probe = clone_object_for_bench("single/void");
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone resolve probe object");
   vm_owner_set_id(probe, "owner/bench/runtime-v4/resolve");
   vm_object_store_register(probe);
@@ -918,7 +913,8 @@ void run_object_resolve_bench(Report &report) {
     auto resolved = vm_object_handle_resolve_status(handle);
     samples.push_back(elapsed_us(sample_start));
     require(resolved.object == probe, "object handle resolve returned wrong object");
-    require(resolved.status == VMObjectHandleResolveStatus::kCurrent, "object handle resolve is not current");
+    require(resolved.status == VMObjectHandleResolveStatus::kCurrent,
+            "object handle resolve is not current");
     if (resolved.owner_local_fast_path_used && resolved.resolved_via_owner_local_store) {
       fast_path++;
     }
@@ -938,13 +934,13 @@ void run_object_resolve_bench(Report &report) {
   destruct_object_for_bench(probe);
 }
 
-void run_callback_admission_bench(Report &report) {
-  object_t *probe = clone_object_for_bench("single/void");
+void run_callback_admission_bench(Report& report) {
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone callback probe object");
-  const char *owner = "owner/bench/runtime-v4/callback";
+  const char* owner = "owner/bench/runtime-v4/callback";
   vm_owner_set_id(probe, owner);
 
-  auto *before = vm_owner_runtime_status();
+  auto* before = vm_owner_runtime_status();
   auto before_accepted = mapping_number(before, "owner_executor_admission_accepted");
   auto before_rejected = mapping_number(before, "owner_executor_admission_rejected");
   auto before_dropped = mapping_number(before, "owner_executor_admission_dropped");
@@ -967,7 +963,8 @@ void run_callback_admission_bench(Report &report) {
   samples.push_back(elapsed_us(adapter_start));
   require(adapter > 0, "callback main adapter enqueue failed");
   require(vm_owner_drain_main_tasks(16) >= 1, "callback main adapter did not drain");
-  require(adapter_ran.load(std::memory_order_acquire) == 1, "callback main adapter did not run on main thread");
+  require(adapter_ran.load(std::memory_order_acquire) == 1,
+          "callback main adapter did not run on main thread");
 
   auto stale_start = Clock::now();
   auto stale = vm_owner_enqueue_executor_task(
@@ -983,42 +980,52 @@ void run_callback_admission_bench(Report &report) {
   vm_owner_set_id(probe, "owner/bench/runtime-v4/callback/moved");
   require(vm_owner_drain_main_tasks(16) >= 1, "stale callback main adapter did not drain");
   require(vm_owner_drain_main_tasks(16) >= 1, "stale callback cleanup did not drain");
-  require(stale_ran.load(std::memory_order_acquire) == 0, "stale callback should not run after owner move");
+  require(stale_ran.load(std::memory_order_acquire) == 0,
+          "stale callback should not run after owner move");
   require(stale_drop_cleanup.load(std::memory_order_acquire) == 1,
           "stale callback cleanup should run on main thread");
   vm_owner_thread_stop();
 
-  auto *after = vm_owner_runtime_status();
+  auto* after = vm_owner_runtime_status();
   report.add("callback_admission_api_latency_p50_us", percentile(samples, 0.50));
   report.add("callback_admission_api_latency_p95_us", percentile(samples, 0.95));
   report.add("callback_admission_api_latency_p99_us", percentile(samples, 0.99));
-  report.add("callback_admission_accept_delta", mapping_number(after, "owner_executor_admission_accepted") - before_accepted);
-  report.add("callback_admission_reject_delta", mapping_number(after, "owner_executor_admission_rejected") - before_rejected);
-  report.add("callback_admission_drop_delta", mapping_number(after, "owner_executor_admission_dropped") - before_dropped);
-  report.add("callback_drop_cleanup_main_thread", stale_drop_cleanup.load(std::memory_order_acquire));
+  report.add("callback_admission_accept_delta",
+             mapping_number(after, "owner_executor_admission_accepted") - before_accepted);
+  report.add("callback_admission_reject_delta",
+             mapping_number(after, "owner_executor_admission_rejected") - before_rejected);
+  report.add("callback_admission_drop_delta",
+             mapping_number(after, "owner_executor_admission_dropped") - before_dropped);
+  report.add("callback_drop_cleanup_main_thread",
+             stale_drop_cleanup.load(std::memory_order_acquire));
   free_mapping(after);
 
   vm_owner_clear_id(probe);
   destruct_object_for_bench(probe);
 }
 
-void add_final_status(Report &report) {
-  auto *runtime = vm_owner_runtime_status();
-  report.add("normal_path_main_fallback_count", mapping_number(runtime, "normal_path_main_fallback_count"));
-  report.add("executor_context_cleanup_leaks", mapping_number(runtime, "owner_executor_context_cleanup_leaks"));
-  report.add("owner_runtime_layering_guard_ready", mapping_number(runtime, "owner_runtime_layering_guard_ready"));
+void add_final_status(Report& report) {
+  auto* runtime = vm_owner_runtime_status();
+  report.add("normal_path_main_fallback_count",
+             mapping_number(runtime, "normal_path_main_fallback_count"));
+  report.add("executor_context_cleanup_leaks",
+             mapping_number(runtime, "owner_executor_context_cleanup_leaks"));
+  report.add("owner_runtime_layering_guard_ready",
+             mapping_number(runtime, "owner_runtime_layering_guard_ready"));
   free_mapping(runtime);
 
-  auto *thread = vm_owner_thread_status();
+  auto* thread = vm_owner_thread_status();
   report.add("executor_queue_depth", mapping_number(thread, "executor_queue_depth"));
-  report.add("executor_runnable_queue_depth", mapping_number(thread, "executor_runnable_queue_depth"));
-  report.add("executor_same_owner_claim_conflicts", mapping_number(thread, "executor_same_owner_claim_conflicts"));
+  report.add("executor_runnable_queue_depth",
+             mapping_number(thread, "executor_runnable_queue_depth"));
+  report.add("executor_same_owner_claim_conflicts",
+             mapping_number(thread, "executor_same_owner_claim_conflicts"));
   free_mapping(thread);
 }
 
-void print_text_report(const Report &report, const std::string &json_path) {
+void print_text_report(const Report& report, const std::string& json_path) {
   std::cout << "owner_runtime_bench: schema=owner_runtime_bench_v1\n";
-  for (const auto &metric : report.metrics) {
+  for (const auto& metric : report.metrics) {
     std::cout << metric.name << "=" << metric.value << "\n";
   }
   if (!json_path.empty()) {
@@ -1028,7 +1035,7 @@ void print_text_report(const Report &report, const std::string &json_path) {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::string json_path;
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -1082,7 +1089,7 @@ int main(int argc, char **argv) {
     print_text_report(report, json_path);
     std::cout << json;
     return 0;
-  } catch (const std::exception &error) {
+  } catch (const std::exception& error) {
     vm_owner_thread_stop();
     std::cerr << "owner_runtime_bench failed: " << error.what() << "\n";
     return 1;

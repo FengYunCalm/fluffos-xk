@@ -58,7 +58,8 @@ constexpr unsigned kUnparkableStackTags =
 /* Catch the "forgot to extend the list" mistake for the indexed-lvalue
  * family: every tag is_stack_lvalue() recognises must be rejected at park
  * time, or await would happily copy a box pointer out of the doomed frame. */
-static_assert((kUnparkableStackTags & (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT)) ==
+static_assert((kUnparkableStackTags &
+               (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT)) ==
                   (T_LVALUE | T_LVALUE_BYTE | T_LVALUE_RANGE | T_LVALUE_CODEPOINT),
               "kUnparkableStackTags must cover every stack-lvalue tag");
 
@@ -184,7 +185,8 @@ static size_t suspended_coroutine_count() {
   if (g_resuming_coro != nullptr && g_resuming_coro->registered) {
     n--;
   }
-  if (g_freeing_coro != nullptr && g_freeing_coro != g_resuming_coro && g_freeing_coro->registered) {
+  if (g_freeing_coro != nullptr && g_freeing_coro != g_resuming_coro &&
+      g_freeing_coro->registered) {
     n--;
   }
   /* Frames whose owner was destructed while their delivery was already
@@ -192,7 +194,6 @@ static size_t suspended_coroutine_count() {
   n -= g_abandoned_queued;
   return n;
 }
-
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 /* Result promises whose only reference is a C++ local in a running
@@ -309,9 +310,10 @@ void schedule_drain() {
     if (!g_draining && !backend_in_tick_events()) {
       if (g_drain_event_is_tick && g_drain_event != nullptr) {
         g_drain_event->cancel();
-        g_drain_event = add_walltime_event(
-            std::chrono::milliseconds(0),
-            TickEvent::callback_type([] { drain_promise_microtasks(); }));
+        g_drain_event =
+            add_walltime_event(std::chrono::milliseconds(0), TickEvent::callback_type([] {
+                                 drain_promise_microtasks();
+                               }));
         g_drain_event_is_tick = false;
       }
       /* Counted whether this settle did the upgrade or found the pending
@@ -326,7 +328,9 @@ void schedule_drain() {
     return;
   }
   g_drain_scheduled = true;
-  TickEvent::callback_type cb([] { drain_promise_microtasks(); });
+  TickEvent::callback_type cb([] {
+    drain_promise_microtasks();
+  });
   /* delay 0 here is a one-shot, not a self-re-posting callback, so it cannot
    * spin the loop the way a zero-delay continuation would (see
    * schedule_drain_continue) -- it just runs on the next pass. */
@@ -395,9 +399,9 @@ void schedule_drain_continue() {
      * converts the throttled continuation back into an immediate one and the
      * 1ms delay stops doing its job. */
     g_drain_event_is_tick = false;
-    g_drain_event = add_walltime_event(
-        kBackendTickContinuationDelay,
-        TickEvent::callback_type([] { drain_promise_microtasks(); }));
+    g_drain_event = add_walltime_event(kBackendTickContinuationDelay, TickEvent::callback_type([] {
+                                         drain_promise_microtasks();
+                                       }));
   }
 }
 
@@ -609,7 +613,9 @@ void deliver_reaction(QueuedReaction* qr) {
 
 void drain_promise_microtasks() {
   g_draining = true;
-  DEFER { g_draining = false; };
+  DEFER {
+    g_draining = false;
+  };
   g_drain_scheduled = false;
   g_drain_event = nullptr; /* the event now firing is being disposed */
 
@@ -991,8 +997,7 @@ void free_coroutine(lpc_coroutine_t* coro, svalue_t* reject_with, bool run_lpc) 
      *
      * Decided here rather than at the four call sites so it also covers a
      * defer handler that destructs the owner partway through the list. */
-    bool const can_run = run_lpc && coro->ob != nullptr &&
-                         !(coro->ob->flags & O_DESTRUCTED) &&
+    bool const can_run = run_lpc && coro->ob != nullptr && !(coro->ob->flags & O_DESTRUCTED) &&
                          coro->prog_generation == coro->ob->prog_generation &&
                          coro->ob->prog == coro->object_prog;
     if (can_run) {
@@ -1232,7 +1237,9 @@ void resume_coroutine(lpc_coroutine_t* coro, promise_t* source) {
 }  // namespace
 
 /* Queue depth, for the registration ceiling in promise_then/promise_catch. */
-size_t pending_promise_deliveries() { return g_promise_microtasks.size(); }
+size_t pending_promise_deliveries() {
+  return g_promise_microtasks.size();
+}
 
 promise_t* promise_async_yield() {
   /* Checked BEFORE allocating, so the error() unwind has nothing to clean up.
@@ -1270,40 +1277,38 @@ promise_t* promise_async_yield() {
   p->ref++; /* one for the caller, one for the registry */
 
   if (g_yield_event == nullptr) {
-    g_yield_event = add_walltime_event(
-        kBackendTickContinuationDelay,
-        TickEvent::callback_type([] {
-      g_yield_event = nullptr;
-      if (g_promises_shut_down) {
-        return;
-      }
-      /* Swapped out BEFORE settling. Settling only QUEUES deliveries, but
+    g_yield_event = add_walltime_event(kBackendTickContinuationDelay, TickEvent::callback_type([] {
+                                         g_yield_event = nullptr;
+                                         if (g_promises_shut_down) {
+                                           return;
+                                         }
+                                         /* Swapped out BEFORE settling. Settling only QUEUES deliveries, but
        * promise_settle() runs the adoption/self-resolve paths and a settle
        * can arm the drain, and a later delivery can call async_yield()
        * again -- which must land in the NEXT pass, on a fresh event, not be
        * appended to the batch being walked here. */
-      std::vector<promise_t*> due;
-      due.swap(g_pending_yields);
-      for (auto* p : due) {
-        /* Skip one whose fate LPC already committed to an adoption
+                                         std::vector<promise_t*> due;
+                                         due.swap(g_pending_yields);
+                                         for (auto* p : due) {
+                                           /* Skip one whose fate LPC already committed to an adoption
          * (`promise_resolve(y, other)` with `other` still pending). The
          * efuns refuse a second settle in that state on the grounds that
          * the adoption owns the outcome; settling here anyway would
          * override it and silently discard the adopted value. */
-        if (!p->resolving) {
-          svalue_t zero = const0;
-          (void)promise_settle(p, &zero, 0);
-        }
-        free_promise(p);
-      }
-    }));
+                                           if (!p->resolving) {
+                                             svalue_t zero = const0;
+                                             (void)promise_settle(p, &zero, 0);
+                                           }
+                                           free_promise(p);
+                                         }
+                                       }));
   }
   return p;
 }
 
 promise_t* promise_alloc() {
-  auto* p = reinterpret_cast<promise_t*>(
-      DCALLOC(1, sizeof(promise_t), TAG_PROMISE, "promise_alloc"));
+  auto* p =
+      reinterpret_cast<promise_t*>(DCALLOC(1, sizeof(promise_t), TAG_PROMISE, "promise_alloc"));
   p->ref = 1;
   p->state = PROMISE_PENDING;
   p->handled = false;
@@ -1598,7 +1603,9 @@ void run_async_function(char* entry_pc, const function_t* funp) {
   /* paired by RAII, not a tail pop: see the note in resume_coroutine(). A C++
    * exception escaping run_coroutine_body() would otherwise leave this entry
    * behind, and the ref checker would keep marking a promise that is gone. */
-  DEFER { g_active_body_promises.pop_back(); };
+  DEFER {
+    g_active_body_promises.pop_back();
+  };
 #endif
   /* the caller set this frame up; nothing is stacked above it yet */
   bool const propagate_eval_error = run_coroutine_body(entry_pc, p, csp);
@@ -1815,9 +1822,9 @@ void abandon_coroutines_of_object(object_t* ob) {
    * survives its object's destruct forever, which is exactly the bug this
    * function exists to prevent and is otherwise silent. */
   for (auto& entry : g_live_coroutines) {
-    DEBUG_CHECK(entry.second->ob == ob &&
-                    std::find(mine.begin(), mine.end(), entry.first) == mine.end(),
-                "abandon_coroutines_of_object: owner index missed a parked frame\n");
+    DEBUG_CHECK(
+        entry.second->ob == ob && std::find(mine.begin(), mine.end(), entry.first) == mine.end(),
+        "abandon_coroutines_of_object: owner index missed a parked frame\n");
   }
 #endif
 
@@ -1867,7 +1874,6 @@ void abandon_coroutines_of_object(object_t* ob) {
     free_svalue(&reason, "abandon_coroutines_of_object");
   }
 }
-
 
 mapping_t* build_async_scheduler_info() {
   /* allocate_mapping can error() (OOM), and add_mapping_pair can too, so the
@@ -1946,11 +1952,12 @@ array_t* build_async_info() {
      * function_name() takes a RUNTIME index into function_flags[] instead,
      * so feeding it this one names a different function whenever the
      * defining program inherits anything. */
-    add_mapping_string(m, "function",
-                       coro->table_index >= 0 &&
-                               coro->table_index < static_cast<long>(coro->prog->num_functions_defined)
-                           ? coro->prog->function_table[coro->table_index].funcname
-                           : "<unknown>");
+    add_mapping_string(
+        m, "function",
+        coro->table_index >= 0 &&
+                coro->table_index < static_cast<long>(coro->prog->num_functions_defined)
+            ? coro->prog->function_table[coro->table_index].funcname
+            : "<unknown>");
     get_explicit_line_number_info(coro->prog->program + coro->pc_offset, coro->prog, &file, &line);
     add_mapping_malloced_string(m, "file", add_slash(file));
     add_mapping_pair(m, "line", line);

@@ -8,11 +8,11 @@
 namespace {
 constexpr int k_max_frozen_value_depth = 8;
 
-const char *safe_error_prefix(const char *error_prefix) {
+const char* safe_error_prefix(const char* error_prefix) {
   return error_prefix && error_prefix[0] ? error_prefix : "value";
 }
 
-bool report_validation_error(const char *prefix, const char *message, std::string *error) {
+bool report_validation_error(const char* prefix, const char* message, std::string* error) {
   if (error) {
     *error = std::string(safe_error_prefix(prefix)) + message;
   }
@@ -22,7 +22,7 @@ bool report_validation_error(const char *prefix, const char *message, std::strin
 template <typename T>
 class ActiveValueScope {
  public:
-  ActiveValueScope(std::unordered_set<const T *> *active, const T *value)
+  ActiveValueScope(std::unordered_set<const T*>* active, const T* value)
       : active_(active), value_(value), entered_(active_->insert(value).second) {}
 
   ~ActiveValueScope() {
@@ -31,22 +31,24 @@ class ActiveValueScope {
     }
   }
 
-  bool entered() const { return entered_; }
+  bool entered() const {
+    return entered_;
+  }
 
  private:
-  std::unordered_set<const T *> *active_;
-  const T *value_;
+  std::unordered_set<const T*>* active_;
+  const T* value_;
   bool entered_;
 };
 
 struct FrozenTraversalState {
-  std::unordered_set<const array_t *> active_arrays;
-  std::unordered_set<const mapping_t *> active_mappings;
+  std::unordered_set<const array_t*> active_arrays;
+  std::unordered_set<const mapping_t*> active_mappings;
 };
 
-bool frozen_value_safe_impl(const svalue_t *value, int depth, int max_depth,
-                            const char *error_prefix, std::string *error,
-                            FrozenTraversalState *state) {
+bool frozen_value_safe_impl(const svalue_t* value, int depth, int max_depth,
+                            const char* error_prefix, std::string* error,
+                            FrozenTraversalState* state) {
   if (!value) {
     return true;
   }
@@ -68,8 +70,8 @@ bool frozen_value_safe_impl(const svalue_t *value, int depth, int max_depth,
         return report_validation_error(error_prefix, " contains a cycle", error);
       }
       for (int i = 0; i < value->u.arr->size; i++) {
-        if (!frozen_value_safe_impl(&value->u.arr->item[i], depth + 1, max_depth,
-                                    error_prefix, error, state)) {
+        if (!frozen_value_safe_impl(&value->u.arr->item[i], depth + 1, max_depth, error_prefix,
+                                    error, state)) {
           return false;
         }
       }
@@ -84,12 +86,12 @@ bool frozen_value_safe_impl(const svalue_t *value, int depth, int max_depth,
         return report_validation_error(error_prefix, " contains a cycle", error);
       }
       for (unsigned int i = 0; i <= value->u.map->table_size; i++) {
-        for (auto *node = value->u.map->table[i]; node; node = node->next) {
+        for (auto* node = value->u.map->table[i]; node; node = node->next) {
           if (node->values[0].type != T_STRING) {
             return report_validation_error(error_prefix, " mapping keys must be strings", error);
           }
-          if (!frozen_value_safe_impl(&node->values[1], depth + 1, max_depth,
-                                      error_prefix, error, state)) {
+          if (!frozen_value_safe_impl(&node->values[1], depth + 1, max_depth, error_prefix, error,
+                                      state)) {
             return false;
           }
         }
@@ -97,67 +99,73 @@ bool frozen_value_safe_impl(const svalue_t *value, int depth, int max_depth,
       return true;
     }
     default:
-      return report_validation_error(error_prefix,
-                                     " must be frozen data, not object/function/buffer/class",
-                                     error);
+      return report_validation_error(
+          error_prefix, " must be frozen data, not object/function/buffer/class", error);
   }
 }
 
 class ArrayAllocationGuard {
  public:
-  explicit ArrayAllocationGuard(array_t *value) : value_(value) {}
+  explicit ArrayAllocationGuard(array_t* value) : value_(value) {}
   ~ArrayAllocationGuard() {
     if (value_) {
       free_array(value_);
     }
   }
 
-  void release() { value_ = nullptr; }
+  void release() {
+    value_ = nullptr;
+  }
 
  private:
-  array_t *value_;
+  array_t* value_;
 };
 
 class MappingAllocationGuard {
  public:
-  explicit MappingAllocationGuard(mapping_t *value) : value_(value) {}
+  explicit MappingAllocationGuard(mapping_t* value) : value_(value) {}
   ~MappingAllocationGuard() {
     if (value_) {
       free_mapping(value_);
     }
   }
 
-  void release() { value_ = nullptr; }
+  void release() {
+    value_ = nullptr;
+  }
 
  private:
-  mapping_t *value_;
+  mapping_t* value_;
 };
 
 class SvalueGuard {
  public:
-  explicit SvalueGuard(const char *reason) : reason_(reason) {}
+  explicit SvalueGuard(const char* reason) : reason_(reason) {}
   ~SvalueGuard() {
     if (active_) {
       free_svalue(&value_, reason_);
     }
   }
 
-  svalue_t *get() { return &value_; }
-  void release() { active_ = false; }
+  svalue_t* get() {
+    return &value_;
+  }
+  void release() {
+    active_ = false;
+  }
 
  private:
   svalue_t value_{const0u};
-  const char *reason_;
+  const char* reason_;
   bool active_{true};
 };
 
 struct FrozenCopyState : FrozenTraversalState {};
 
-bool copy_frozen_svalue_impl(svalue_t *dest, const svalue_t *source, int depth,
-                             FrozenCopyState *state);
+bool copy_frozen_svalue_impl(svalue_t* dest, const svalue_t* source, int depth,
+                             FrozenCopyState* state);
 
-bool copy_frozen_array(svalue_t *dest, const array_t *source, int depth,
-                       FrozenCopyState *state) {
+bool copy_frozen_array(svalue_t* dest, const array_t* source, int depth, FrozenCopyState* state) {
   if (!source || source->size < 0) {
     return false;
   }
@@ -166,7 +174,7 @@ bool copy_frozen_array(svalue_t *dest, const array_t *source, int depth,
     return false;
   }
 
-  auto *array = allocate_array(source->size);
+  auto* array = allocate_array(source->size);
   ArrayAllocationGuard array_guard(array);
   for (int i = 0; i < source->size; i++) {
     if (!copy_frozen_svalue_impl(&array->item[i], &source->item[i], depth + 1, state)) {
@@ -180,8 +188,8 @@ bool copy_frozen_array(svalue_t *dest, const array_t *source, int depth,
   return true;
 }
 
-bool copy_frozen_mapping(svalue_t *dest, const mapping_t *source, int depth,
-                         FrozenCopyState *state) {
+bool copy_frozen_mapping(svalue_t* dest, const mapping_t* source, int depth,
+                         FrozenCopyState* state) {
   if (!source || !source->table) {
     return false;
   }
@@ -190,19 +198,19 @@ bool copy_frozen_mapping(svalue_t *dest, const mapping_t *source, int depth,
     return false;
   }
 
-  auto *map = allocate_mapping(MAP_COUNT(source));
+  auto* map = allocate_mapping(MAP_COUNT(source));
   MappingAllocationGuard map_guard(map);
   for (unsigned int i = 0; i <= source->table_size; i++) {
-    for (auto *node = source->table[i]; node; node = node->next) {
+    for (auto* node = source->table[i]; node; node = node->next) {
       if (node->values[0].type != T_STRING) {
         return false;
       }
       SvalueGuard key_guard("frozen mapping key");
       key_guard.get()->type = T_STRING;
       key_guard.get()->subtype = STRING_SHARED;
-      key_guard.get()->u.string = make_shared_string(node->values[0].u.string ?
-                                                      node->values[0].u.string : "");
-      auto *slot = find_for_insert(map, key_guard.get(), 1);
+      key_guard.get()->u.string =
+          make_shared_string(node->values[0].u.string ? node->values[0].u.string : "");
+      auto* slot = find_for_insert(map, key_guard.get(), 1);
       if (!slot) {
         return false;
       }
@@ -220,8 +228,8 @@ bool copy_frozen_mapping(svalue_t *dest, const mapping_t *source, int depth,
   return true;
 }
 
-bool copy_frozen_svalue_impl(svalue_t *dest, const svalue_t *source, int depth,
-                             FrozenCopyState *state) {
+bool copy_frozen_svalue_impl(svalue_t* dest, const svalue_t* source, int depth,
+                             FrozenCopyState* state) {
   if (!source) {
     *dest = const0u;
     return true;
@@ -250,9 +258,11 @@ bool copy_frozen_svalue_impl(svalue_t *dest, const svalue_t *source, int depth,
 }
 }  // namespace
 
-VMFrozenValue::~VMFrozenValue() { free_svalue(&value, "vm frozen value"); }
+VMFrozenValue::~VMFrozenValue() {
+  free_svalue(&value, "vm frozen value");
+}
 
-bool vm_copy_frozen_svalue(svalue_t *dest, svalue_t *source) {
+bool vm_copy_frozen_svalue(svalue_t* dest, svalue_t* source) {
   if (!dest) {
     return false;
   }
@@ -264,7 +274,7 @@ bool vm_copy_frozen_svalue(svalue_t *dest, svalue_t *source) {
   }
 }
 
-std::shared_ptr<VMFrozenValue> vm_clone_frozen_value(svalue_t *source) {
+std::shared_ptr<VMFrozenValue> vm_clone_frozen_value(svalue_t* source) {
   auto value = std::make_shared<VMFrozenValue>();
   if (!vm_copy_frozen_svalue(&value->value, source)) {
     return nullptr;
@@ -272,8 +282,8 @@ std::shared_ptr<VMFrozenValue> vm_clone_frozen_value(svalue_t *source) {
   return value;
 }
 
-bool vm_frozen_value_safe_with_max_depth(const svalue_t *value, int depth, int max_depth,
-                                         const char *error_prefix, std::string *error) {
+bool vm_frozen_value_safe_with_max_depth(const svalue_t* value, int depth, int max_depth,
+                                         const char* error_prefix, std::string* error) {
   try {
     FrozenTraversalState state;
     return frozen_value_safe_impl(value, depth, max_depth, error_prefix, error, &state);
@@ -289,22 +299,22 @@ bool vm_frozen_value_safe_with_max_depth(const svalue_t *value, int depth, int m
   }
 }
 
-bool vm_frozen_value_safe(const svalue_t *value, int depth, const char *error_prefix,
-                          std::string *error) {
-  return vm_frozen_value_safe_with_max_depth(value, depth, k_max_frozen_value_depth,
-                                             error_prefix, error);
+bool vm_frozen_value_safe(const svalue_t* value, int depth, const char* error_prefix,
+                          std::string* error) {
+  return vm_frozen_value_safe_with_max_depth(value, depth, k_max_frozen_value_depth, error_prefix,
+                                             error);
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void vm_mark_frozen_value(const VMFrozenValue *value) {
+void vm_mark_frozen_value(const VMFrozenValue* value) {
   if (value) {
-    mark_svalue(const_cast<svalue_t *>(&value->value));
+    mark_svalue(const_cast<svalue_t*>(&value->value));
   }
 }
 
-void vm_mark_frozen_value_once(const std::shared_ptr<VMFrozenValue> &value,
-                               std::unordered_set<const VMFrozenValue *> &seen) {
-  auto *raw = value.get();
+void vm_mark_frozen_value_once(const std::shared_ptr<VMFrozenValue>& value,
+                               std::unordered_set<const VMFrozenValue*>& seen) {
+  auto* raw = value.get();
   if (!raw || !seen.insert(raw).second) {
     return;
   }

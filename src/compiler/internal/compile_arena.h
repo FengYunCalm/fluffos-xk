@@ -50,14 +50,14 @@ class ScratchArena {
   // session-owned arenas use a permanent-class tag so check_memory() does not
   // read their live chunks as un-released scratch.
   explicit ScratchArena(bool static_base, int tag = TAG_COMPILER,
-                        const char *desc = "compile_arena") noexcept;
+                        const char* desc = "compile_arena") noexcept;
   // Frees the arena's own memory: the live chain, the retained pool and (for
   // non-static arenas) the base chunk. The process-wide arena keeps its BSS
   // base, which is what makes allocation possible before/around main().
   ~ScratchArena();
 
-  ScratchArena(const ScratchArena &) = delete;
-  ScratchArena &operator=(const ScratchArena &) = delete;
+  ScratchArena(const ScratchArena&) = delete;
+  ScratchArena& operator=(const ScratchArena&) = delete;
 
   // Start a cycle: rewind to the base chunk and release what the previous
   // cycle left live (a leftover chain from an exception is part of that).
@@ -73,24 +73,24 @@ class ScratchArena {
 
   // Monotonic bump allocation, max_align_t aligned, never crossing a chunk.
   // Returns nullptr only for size 0 (callers treat 0 as no-op).
-  void *alloc(size_t size);
+  void* alloc(size_t size);
 
   // Allocate len+1 bytes and NUL-terminate (len excludes the NUL).
-  char *alloc_string(size_t len);
+  char* alloc_string(size_t len);
 
   // Observability.
-  size_t cycle_bytes() const noexcept;        // bytes used in the current cycle
-  size_t peak_cycle_bytes() const noexcept;   // high-water of cycle_bytes
-  size_t bytes_live() const noexcept;         // bytes live right now
-  size_t peak_live_bytes() const noexcept;    // high-water of bytes_live
-  size_t cross_cycle_bytes() const noexcept;  // bytes begin() released last
-  size_t bytes_allocated() const noexcept;    // lifetime total
-  size_t chunk_mallocs() const noexcept;      // malloc() calls for chunks
-  size_t reset_count() const noexcept;        // end() calls
-  size_t retained_chunks() const noexcept;    // chunks in the retained pool
-  size_t retained_heap_bytes() const noexcept;  // heap bytes of retained chunks
-  size_t bindings_active() const noexcept;      // nesting depth right now
-  size_t binding_rewinds() const noexcept;      // bindings that released
+  size_t cycle_bytes() const noexcept;               // bytes used in the current cycle
+  size_t peak_cycle_bytes() const noexcept;          // high-water of cycle_bytes
+  size_t bytes_live() const noexcept;                // bytes live right now
+  size_t peak_live_bytes() const noexcept;           // high-water of bytes_live
+  size_t cross_cycle_bytes() const noexcept;         // bytes begin() released last
+  size_t bytes_allocated() const noexcept;           // lifetime total
+  size_t chunk_mallocs() const noexcept;             // malloc() calls for chunks
+  size_t reset_count() const noexcept;               // end() calls
+  size_t retained_chunks() const noexcept;           // chunks in the retained pool
+  size_t retained_heap_bytes() const noexcept;       // heap bytes of retained chunks
+  size_t bindings_active() const noexcept;           // nesting depth right now
+  size_t binding_rewinds() const noexcept;           // bindings that released
   size_t binding_order_violations() const noexcept;  // non-LIFO destructions
   // Marks dropped at a cycle boundary because their binding never released
   // them (out-of-order destruction, or a binding spanning a cycle). Their
@@ -105,24 +105,24 @@ class ScratchArena {
   // binding objects, so a binding that is destroyed out of order cannot leave
   // the arena pointing at freed memory.
   struct BindingMark {
-    Chunk *chunk;
+    Chunk* chunk;
     size_t used;
-    Chunk *live_head;
+    Chunk* live_head;
   };
 
-  Chunk *acquire_standard();
-  void release_chunk(Chunk *chunk) noexcept;
-  void rewind_to(Chunk *chunk, size_t used, Chunk *live_head) noexcept;
+  Chunk* acquire_standard();
+  void release_chunk(Chunk* chunk) noexcept;
+  void rewind_to(Chunk* chunk, size_t used, Chunk* live_head) noexcept;
   void clear_bindings() noexcept;
   void release_retained_pool() noexcept;
 
-  Chunk *base_ = nullptr;      // first chunk (static BSS or owned)
+  Chunk* base_ = nullptr;      // first chunk (static BSS or owned)
   bool static_base_ = false;   // true when base_ points at the BSS array
-  Chunk *live_ = nullptr;      // chunks allocated in the current cycle
-  Chunk *retained_ = nullptr;  // retained standard chunks (LIFO)
+  Chunk* live_ = nullptr;      // chunks allocated in the current cycle
+  Chunk* retained_ = nullptr;  // retained standard chunks (LIFO)
   size_t retained_count_ = 0;
   size_t retained_heap_bytes_ = 0;
-  Chunk *current_ = nullptr;   // chunk the bump cursor points into
+  Chunk* current_ = nullptr;  // chunk the bump cursor points into
 
   size_t cycle_bytes_ = 0;
   size_t peak_cycle_bytes_ = 0;
@@ -133,7 +133,7 @@ class ScratchArena {
   size_t chunk_mallocs_ = 0;
   size_t reset_count_ = 0;
   int tag_;
-  const char *desc_;
+  const char* desc_;
   size_t bindings_active_ = 0;
   size_t binding_rewinds_ = 0;
   size_t binding_order_violations_ = 0;
@@ -150,16 +150,18 @@ class ScratchArena {
 // that binding still owns.
 class ScratchArenaBinding {
  public:
-  explicit ScratchArenaBinding(ScratchArena &arena) noexcept;
+  explicit ScratchArenaBinding(ScratchArena& arena) noexcept;
   ~ScratchArenaBinding();
 
-  ScratchArenaBinding(const ScratchArenaBinding &) = delete;
-  ScratchArenaBinding &operator=(const ScratchArenaBinding &) = delete;
+  ScratchArenaBinding(const ScratchArenaBinding&) = delete;
+  ScratchArenaBinding& operator=(const ScratchArenaBinding&) = delete;
 
-  size_t bytes_released() const noexcept { return bytes_released_; }
+  size_t bytes_released() const noexcept {
+    return bytes_released_;
+  }
 
  private:
-  ScratchArena &arena_;
+  ScratchArena& arena_;
   size_t mark_index_;
   uint64_t generation_;
   size_t bytes_released_ = 0;
@@ -167,22 +169,22 @@ class ScratchArenaBinding {
 };
 
 // The process-wide arena the compiler allocates from.
-ScratchArena &global();
+ScratchArena& global();
 
 // Compile-scope API (delegates to global()); unchanged call surface for the
 // lexer, parser and grammar callbacks.
 void begin() noexcept;
 void end() noexcept;
-void *alloc(size_t size);
-char *alloc_string(size_t len);
+void* alloc(size_t size);
+char* alloc_string(size_t len);
 
 // Observability (mud_status()).
-size_t cycle_bytes() noexcept;           // bytes used in the current scope
-size_t peak_cycle_bytes() noexcept;      // high-water of cycle_bytes
-size_t chunk_mallocs() noexcept;         // malloc() calls for chunks
-size_t reset_count() noexcept;           // end() calls
-size_t retained_chunks() noexcept;       // chunks in the retained pool
-size_t retained_heap_bytes() noexcept;   // heap bytes of retained chunks
+size_t cycle_bytes() noexcept;          // bytes used in the current scope
+size_t peak_cycle_bytes() noexcept;     // high-water of cycle_bytes
+size_t chunk_mallocs() noexcept;        // malloc() calls for chunks
+size_t reset_count() noexcept;          // end() calls
+size_t retained_chunks() noexcept;      // chunks in the retained pool
+size_t retained_heap_bytes() noexcept;  // heap bytes of retained chunks
 
 }  // namespace compile_arena
 

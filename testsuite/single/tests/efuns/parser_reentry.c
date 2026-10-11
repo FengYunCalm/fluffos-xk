@@ -1,4 +1,4 @@
-string* parse_command_id_list() {
+string *parse_command_id_list() {
   return ({ "bag" });
 }
 

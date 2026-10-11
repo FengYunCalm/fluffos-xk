@@ -16,7 +16,7 @@
 struct evbuffer;
 struct TickEvent;
 
-using GatewayOutputWriter = int (*)(int fd, const char *data, size_t len);
+using GatewayOutputWriter = int (*)(int fd, const char* data, size_t len);
 
 enum GatewayReadPauseReason : uint8_t {
   GATEWAY_READ_PAUSE_BUFFERED_BACKLOG = 1u << 0,
@@ -292,7 +292,7 @@ extern GatewayRuntimeCounters g_gateway_runtime_counters;
 
 struct GatewayMaster {
   int fd{-1};
-  bufferevent *bev{nullptr};
+  bufferevent* bev{nullptr};
   std::string ip;
   bool closing{false};
   time_t connected_at{0};
@@ -302,12 +302,12 @@ struct GatewayMaster {
   std::string read_buffer;
   size_t read_buffer_offset{0};
   bool read_dispatch_scheduled{false};
-  TickEvent *read_dispatch_event{nullptr};
+  TickEvent* read_dispatch_event{nullptr};
   bool read_dispatch_pending{false};
   bool read_dispatch_input_paused{false};
   uint8_t read_dispatch_pause_reasons{0};
   bool write_flush_scheduled{false};
-  TickEvent *write_flush_event{nullptr};
+  TickEvent* write_flush_event{nullptr};
   bool ingress_ack_pending{false};
   uint64_t ingress_ack_sequence{0};
 
@@ -384,7 +384,7 @@ struct GatewaySession {
   time_t detached_at{0};
   time_t connected_at{0};
   time_t last_active{0};
-  object_t *user_ob{nullptr};
+  object_t* user_ob{nullptr};
   std::string user_ob_name;
   int64_t user_ob_load_time{0};
   std::atomic<bool> command_input_pending{false};
@@ -439,8 +439,7 @@ struct GatewayPendingMessageEventBatchFillResult {
 // Object-free immutable input shared by inline and owner projection. Dynamic
 // session metadata lives in the separate columns structure below.
 struct GatewayPendingMessageEventProjectionSnapshot {
-  std::vector<std::shared_ptr<const GatewayPreencodedMessageEventWave>>
-      wave_table;
+  std::vector<std::shared_ptr<const GatewayPreencodedMessageEventWave>> wave_table;
   std::vector<size_t> event_wave_indices;
   LPC_INT text_length_total{0};
   uint64_t generation{0};
@@ -470,7 +469,7 @@ void init_gateway(void);
 void cleanup_gateway(void);
 
 int gateway_listen_internal(int port, int bind_all);
-mapping_t *gateway_status_internal();
+mapping_t* gateway_status_internal();
 int gateway_get_session_count();
 LPC_INT gateway_session_fifo_depth_total();
 LPC_INT gateway_session_fifo_pending_reservations_total();
@@ -489,100 +488,85 @@ uint64_t gateway_session_fifo_wire_bytes_rejected_total();
 size_t gateway_session_fifo_wire_aggregate_limit();
 size_t gateway_session_fifo_wire_detached_bytes();
 size_t gateway_write_buffer_limit();
-int gateway_flush_session_output_fifo_with_writer(GatewaySession *sess, GatewayOutputWriter writer);
-int gateway_flush_session_output_fifo(GatewaySession *sess);
+int gateway_flush_session_output_fifo_with_writer(GatewaySession* sess, GatewayOutputWriter writer);
+int gateway_flush_session_output_fifo(GatewaySession* sess);
 int gateway_flush_master_output_fifos(int master_fd, size_t budget);
 bool gateway_master_output_pending(int master_fd);
-int gateway_enqueue_session_protocol_output(GatewaySession *sess, const char *data,
-                                            size_t len);
-uint64_t gateway_reserve_session_output(GatewaySession *sess);
-bool gateway_session_pending_reservation_has_ready_successor(
-    const GatewaySession *sess, uint64_t reservation_id);
-bool gateway_reserve_session_outputs(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &existing_reservation_ids,
-    GatewaySessionBatchReservationResult *result);
+int gateway_enqueue_session_protocol_output(GatewaySession* sess, const char* data, size_t len);
+uint64_t gateway_reserve_session_output(GatewaySession* sess);
+bool gateway_session_pending_reservation_has_ready_successor(const GatewaySession* sess,
+                                                             uint64_t reservation_id);
+bool gateway_reserve_session_outputs(const std::vector<GatewaySession*>& sessions,
+                                     const std::vector<uint64_t>& existing_reservation_ids,
+                                     GatewaySessionBatchReservationResult* result);
 bool gateway_append_preencoded_message_event_wave(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &reservation_ids,
-    const std::vector<LPC_INT> &slot_server_seqs,
-    const std::vector<LPC_INT> &message_server_seqs,
-    const std::vector<LPC_INT> &message_epochs,
-    const std::vector<LPC_INT> &message_seqs, const std::string &stable_json,
-    const std::string &scope_type, LPC_INT sent_at, size_t batch_limit);
+    const std::vector<GatewaySession*>& sessions, const std::vector<uint64_t>& reservation_ids,
+    const std::vector<LPC_INT>& slot_server_seqs, const std::vector<LPC_INT>& message_server_seqs,
+    const std::vector<LPC_INT>& message_epochs, const std::vector<LPC_INT>& message_seqs,
+    const std::string& stable_json, const std::string& scope_type, LPC_INT sent_at,
+    size_t batch_limit);
 bool gateway_reserve_and_append_preencoded_message_event_wave(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &existing_reservation_ids,
-    LPC_INT first_server_seq,
-    const std::vector<LPC_INT> &message_epochs,
-    const std::vector<LPC_INT> &message_seqs, const std::string &stable_json,
-    const std::string &scope_type, LPC_INT sent_at, size_t batch_limit,
-    GatewaySessionBatchReservationResult *result);
+    const std::vector<GatewaySession*>& sessions,
+    const std::vector<uint64_t>& existing_reservation_ids, LPC_INT first_server_seq,
+    const std::vector<LPC_INT>& message_epochs, const std::vector<LPC_INT>& message_seqs,
+    const std::string& stable_json, const std::string& scope_type, LPC_INT sent_at,
+    size_t batch_limit, GatewaySessionBatchReservationResult* result);
 bool gateway_reserve_and_append_compact_preencoded_message_event_wave(
-    const std::vector<GatewaySession *> &sessions, LPC_INT first_server_seq,
-    const std::vector<LPC_INT> &message_epochs,
-    const std::vector<LPC_INT> &message_seqs, const std::string &stable_json,
-    const std::string &scope_type, LPC_INT sent_at, size_t batch_limit,
-    size_t text_length, GatewaySessionCompactMessageEventWaveResult *result);
+    const std::vector<GatewaySession*>& sessions, LPC_INT first_server_seq,
+    const std::vector<LPC_INT>& message_epochs, const std::vector<LPC_INT>& message_seqs,
+    const std::string& stable_json, const std::string& scope_type, LPC_INT sent_at,
+    size_t batch_limit, size_t text_length, GatewaySessionCompactMessageEventWaveResult* result);
 bool gateway_commit_compact_preencoded_message_event_wave(
-    const std::vector<GatewaySession *> &sessions, uint64_t wave_id);
+    const std::vector<GatewaySession*>& sessions, uint64_t wave_id);
 bool gateway_rollback_compact_preencoded_message_event_wave_with_writer(
-    const std::vector<GatewaySession *> &sessions, uint64_t wave_id,
-    GatewayOutputWriter writer);
-bool gateway_pending_message_event_batch_status(
-    const GatewaySession *sess, uint64_t reservation_id,
-    GatewayPendingMessageEventBatchStatus *status);
+    const std::vector<GatewaySession*>& sessions, uint64_t wave_id, GatewayOutputWriter writer);
+bool gateway_pending_message_event_batch_status(const GatewaySession* sess, uint64_t reservation_id,
+                                                GatewayPendingMessageEventBatchStatus* status);
 bool gateway_rollback_preencoded_message_event_wave_with_writer(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &reservation_ids,
-    const std::vector<bool> &reused, uint64_t wave_id,
-    GatewayOutputWriter writer);
-size_t gateway_pending_message_event_count(const GatewaySession *sess,
-                                           uint64_t reservation_id);
-int gateway_fill_pending_message_event_batch_with_writer(
-    GatewaySession *sess, uint64_t reservation_id, const std::string &scope_id,
-    LPC_INT slot_epoch, GatewayOutputWriter writer);
+    const std::vector<GatewaySession*>& sessions, const std::vector<uint64_t>& reservation_ids,
+    const std::vector<bool>& reused, uint64_t wave_id, GatewayOutputWriter writer);
+size_t gateway_pending_message_event_count(const GatewaySession* sess, uint64_t reservation_id);
+int gateway_fill_pending_message_event_batch_with_writer(GatewaySession* sess,
+                                                         uint64_t reservation_id,
+                                                         const std::string& scope_id,
+                                                         LPC_INT slot_epoch,
+                                                         GatewayOutputWriter writer);
 bool gateway_fill_pending_message_event_batches_with_writer(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &reservation_ids,
-    const std::vector<std::string> &scope_ids,
-    const std::vector<LPC_INT> &slot_epochs, GatewayOutputWriter writer,
-    GatewayPendingMessageEventBatchFillResult *result);
+    const std::vector<GatewaySession*>& sessions, const std::vector<uint64_t>& reservation_ids,
+    const std::vector<std::string>& scope_ids, const std::vector<LPC_INT>& slot_epochs,
+    GatewayOutputWriter writer, GatewayPendingMessageEventBatchFillResult* result);
 bool gateway_snapshot_pending_message_event_batch(
-    const GatewaySession *sess, uint64_t reservation_id,
-    const std::string &scope_id, LPC_INT slot_epoch,
-    GatewayPendingMessageEventProjectionSnapshot *snapshot,
-    GatewayPendingMessageEventProjectionColumns *columns);
+    const GatewaySession* sess, uint64_t reservation_id, const std::string& scope_id,
+    LPC_INT slot_epoch, GatewayPendingMessageEventProjectionSnapshot* snapshot,
+    GatewayPendingMessageEventProjectionColumns* columns);
 bool gateway_encode_pending_message_event_projection(
-    const GatewayPendingMessageEventProjectionSnapshot &snapshot,
-    const GatewayPendingMessageEventProjectionColumns &columns,
-    std::string *wire_bytes);
+    const GatewayPendingMessageEventProjectionSnapshot& snapshot,
+    const GatewayPendingMessageEventProjectionColumns& columns, std::string* wire_bytes);
 bool gateway_submit_pending_message_event_batches_for_objects(
-    const std::vector<object_t *> &targets,
-    const std::vector<uint64_t> &reservation_ids,
-    const std::vector<std::string> &scope_ids,
-    const std::vector<LPC_INT> &slot_epochs, int timeout_ms,
-    GatewayPendingMessageEventBatchOwnerSubmitResult *result);
-int gateway_fill_pending_message_event_batch_for_object(
-    object_t *ob, uint64_t reservation_id, const char *scope_id,
-    size_t scope_id_len, LPC_INT slot_epoch);
-int gateway_fill_session_protocol_output_with_writer(
-    GatewaySession *sess, uint64_t reservation_id, const char *data, size_t len,
-    GatewayOutputWriter writer);
-int gateway_release_session_output_with_writer(GatewaySession *sess, uint64_t reservation_id,
+    const std::vector<object_t*>& targets, const std::vector<uint64_t>& reservation_ids,
+    const std::vector<std::string>& scope_ids, const std::vector<LPC_INT>& slot_epochs,
+    int timeout_ms, GatewayPendingMessageEventBatchOwnerSubmitResult* result);
+int gateway_fill_pending_message_event_batch_for_object(object_t* ob, uint64_t reservation_id,
+                                                        const char* scope_id, size_t scope_id_len,
+                                                        LPC_INT slot_epoch);
+int gateway_fill_session_protocol_output_with_writer(GatewaySession* sess, uint64_t reservation_id,
+                                                     const char* data, size_t len,
+                                                     GatewayOutputWriter writer);
+int gateway_release_session_output_with_writer(GatewaySession* sess, uint64_t reservation_id,
                                                GatewayOutputWriter writer);
-int gateway_release_session_output(GatewaySession *sess, uint64_t reservation_id);
-uint64_t gateway_reserve_session_output_for_object(object_t *ob);
-int gateway_fill_session_output_for_object(object_t *ob, uint64_t reservation_id, const char *data, size_t len);
-int gateway_release_session_output_for_object(object_t *ob, uint64_t reservation_id);
-int gateway_session_pending_reservation_has_ready_successor_for_object(
-    object_t *ob, uint64_t reservation_id);
-int gateway_watch_session_future_for_object(object_t *ob, uint64_t reservation_id,
+int gateway_release_session_output(GatewaySession* sess, uint64_t reservation_id);
+uint64_t gateway_reserve_session_output_for_object(object_t* ob);
+int gateway_fill_session_output_for_object(object_t* ob, uint64_t reservation_id, const char* data,
+                                           size_t len);
+int gateway_release_session_output_for_object(object_t* ob, uint64_t reservation_id);
+int gateway_session_pending_reservation_has_ready_successor_for_object(object_t* ob,
+                                                                       uint64_t reservation_id);
+int gateway_watch_session_future_for_object(object_t* ob, uint64_t reservation_id,
                                             uint64_t future_id, int timeout_ms);
-int gateway_watch_session_future_output_for_object(object_t *ob, uint64_t reservation_id,
+int gateway_watch_session_future_output_for_object(object_t* ob, uint64_t reservation_id,
                                                    uint64_t future_id, int timeout_ms);
-int gateway_watch_future_for_object(object_t *ob, uint64_t context_id,
-                                    uint64_t future_id, int timeout_ms);
+int gateway_watch_future_for_object(object_t* ob, uint64_t context_id, uint64_t future_id,
+                                    int timeout_ms);
 int gateway_process_session_future_watches_at(uint64_t now_ms);
 int gateway_process_future_watches_at(uint64_t now_ms);
 LPC_INT gateway_session_future_watch_count();
@@ -591,9 +575,9 @@ LPC_INT gateway_room_output_projection_wave_count();
 LPC_INT gateway_room_output_projection_reservation_count();
 LPC_INT gateway_room_output_projection_retry_count();
 LPC_INT gateway_future_watch_count();
-mapping_t *gateway_owner_output_quiesce(const char *reason);
-int gateway_send_raw_to_fd(int fd, const char *data, size_t len);
-int gateway_svalue_to_json_string(const svalue_t *sv, std::string *out);
+mapping_t* gateway_owner_output_quiesce(const char* reason);
+int gateway_send_raw_to_fd(int fd, const char* data, size_t len);
+int gateway_svalue_to_json_string(const svalue_t* sv, std::string* out);
 int gateway_ping_master_internal(int fd);
 void gateway_check_heartbeat_timeouts();
 bool gateway_has_master(int fd);
@@ -603,83 +587,77 @@ void gateway_schedule_write_flush_for_test(int fd);
 
 // C++ regression hooks; not part of the LPC/runtime API.
 bool gateway_external_bind_allowed_for_test();
-bool gateway_dispatch_message_for_test(int fd, const char *payload);
-int gateway_dispatch_buffered_frames_for_test(GatewayMaster *master, int budget);
-void gateway_set_read_dispatch_pending_for_test(GatewayMaster *master, bool pending);
+bool gateway_dispatch_message_for_test(int fd, const char* payload);
+int gateway_dispatch_buffered_frames_for_test(GatewayMaster* master, int budget);
+void gateway_set_read_dispatch_pending_for_test(GatewayMaster* master, bool pending);
 void gateway_service_admitted_receive_tasks_for_test();
-bool gateway_master_has_buffered_input_for_test(const GatewayMaster *master);
+bool gateway_master_has_buffered_input_for_test(const GatewayMaster* master);
 size_t gateway_read_buffer_limit_for_test();
-bool gateway_append_read_bytes_for_test(GatewayMaster *master, const char *data,
-                                        size_t len);
+bool gateway_append_read_bytes_for_test(GatewayMaster* master, const char* data, size_t len);
 size_t gateway_packet_size_hard_limit_for_test();
 bool gateway_set_max_packet_size_for_test(size_t value);
 size_t gateway_write_buffer_limit_for_test();
-GatewayMaster *gateway_register_master_for_test(int fd, bufferevent *bev);
-void gateway_invoke_master_write_callback_for_test(GatewayMaster *master);
+GatewayMaster* gateway_register_master_for_test(int fd, bufferevent* bev);
+void gateway_invoke_master_write_callback_for_test(GatewayMaster* master);
 void gateway_remove_master_for_test(int fd);
 // Live-master lookup by fd (nullptr when not registered). Fuzz harnesses
 // must re-resolve by fd after every dispatch: a dispatch may remove the
 // master, and the old raw pointer is freed at that moment.
-GatewayMaster *gateway_master_for_test(int fd);
+GatewayMaster* gateway_master_for_test(int fd);
 size_t gateway_master_count_for_test();
 // Current number of masters marked read-dispatch pending (leak check).
 int64_t gateway_read_dispatch_pending_for_test();
 void gateway_reset_ingress_sequence_for_test();
-int gateway_append_framed_output_for_test(evbuffer *output, const char *data,
-                                          size_t len);
-std::string gateway_encode_output_envelope_for_test(const std::string &session_id,
-                                                    const char *data, size_t len);
-int gateway_enqueue_session_wire_json_for_test(GatewaySession *sess,
-                                               const std::string &wire_json);
-int gateway_enqueue_session_payload_json_for_test(
-    GatewaySession *sess, const std::string &payload_json);
-bool gateway_fill_projected_wires_for_test(
-    const std::vector<GatewaySession *> &sessions,
-    const std::vector<uint64_t> &reservation_ids,
-    const std::vector<std::string> &wire_json,
-    GatewayOutputWriter writer);
+int gateway_append_framed_output_for_test(evbuffer* output, const char* data, size_t len);
+std::string gateway_encode_output_envelope_for_test(const std::string& session_id, const char* data,
+                                                    size_t len);
+int gateway_enqueue_session_wire_json_for_test(GatewaySession* sess, const std::string& wire_json);
+int gateway_enqueue_session_payload_json_for_test(GatewaySession* sess,
+                                                  const std::string& payload_json);
+bool gateway_fill_projected_wires_for_test(const std::vector<GatewaySession*>& sessions,
+                                           const std::vector<uint64_t>& reservation_ids,
+                                           const std::vector<std::string>& wire_json,
+                                           GatewayOutputWriter writer);
 void gateway_reset_projected_wire_full_validation_count_for_test();
 uint64_t gateway_projected_wire_full_validation_count_for_test();
 bool gateway_drop_room_output_wave_for_test(uint64_t reservation_id);
 std::string gateway_encode_preencoded_chat_batch_for_test(
-    const std::vector<std::string> &stable_children_json, LPC_INT message_epoch,
-    LPC_INT first_server_seq, LPC_INT sent_at, const std::string &outer_dynamic_json);
+    const std::vector<std::string>& stable_children_json, LPC_INT message_epoch,
+    LPC_INT first_server_seq, LPC_INT sent_at, const std::string& outer_dynamic_json);
 std::string gateway_encode_preencoded_message_event_batch_for_test(
-    const std::vector<std::string> &stable_children_json,
-    const std::vector<std::string> &scope_types, const std::string &scope_id,
-    const std::vector<LPC_INT> &message_seqs,
-    const std::vector<LPC_INT> &server_seqs,
-    const std::vector<LPC_INT> &message_epochs,
-    const std::vector<LPC_INT> &sent_ats, LPC_INT slot_server_seq,
-    LPC_INT slot_epoch, LPC_INT slot_sent_at);
+    const std::vector<std::string>& stable_children_json,
+    const std::vector<std::string>& scope_types, const std::string& scope_id,
+    const std::vector<LPC_INT>& message_seqs, const std::vector<LPC_INT>& server_seqs,
+    const std::vector<LPC_INT>& message_epochs, const std::vector<LPC_INT>& sent_ats,
+    LPC_INT slot_server_seq, LPC_INT slot_epoch, LPC_INT slot_sent_at);
 void gateway_clear_message_event_template_cache_for_test();
 void gateway_fail_next_command_event_for_test();
 
-GatewaySession *gateway_find_session(const char *session_id);
-GatewaySession *gateway_find_session_by_object(object_t *ob);
-bool gateway_session_id_is_valid(const char *data, size_t len);
-int gateway_bind_session_object(const char *session_id, object_t *ob, const char *ip,
-                                int port, int master_fd);
-object_t *gateway_rebind_session_internal(const char *session_id, const char *ip,
-                                          int port, int master_fd);
-void gateway_unbind_session_object(object_t *ob);
+GatewaySession* gateway_find_session(const char* session_id);
+GatewaySession* gateway_find_session_by_object(object_t* ob);
+bool gateway_session_id_is_valid(const char* data, size_t len);
+int gateway_bind_session_object(const char* session_id, object_t* ob, const char* ip, int port,
+                                int master_fd);
+object_t* gateway_rebind_session_internal(const char* session_id, const char* ip, int port,
+                                          int master_fd);
+void gateway_unbind_session_object(object_t* ob);
 void gateway_cleanup_master_sessions(int master_fd);
-object_t *gateway_create_session_internal(const char *session_id, svalue_t *data_val,
-                                          const char *ip, int port, int master_fd);
-int gateway_destroy_session_internal(const char *session_id, const char *reason_code,
-                                     const char *reason_text);
-int gateway_inject_input_internal(object_t *user, const char *input);
-uint64_t gateway_enqueue_pending_command_internal(object_t *user);
-int gateway_process_pending_command_internal(object_t *user);
-int gateway_send_to_session(const char *session_id, const char *data, size_t len);
+object_t* gateway_create_session_internal(const char* session_id, svalue_t* data_val,
+                                          const char* ip, int port, int master_fd);
+int gateway_destroy_session_internal(const char* session_id, const char* reason_code,
+                                     const char* reason_text);
+int gateway_inject_input_internal(object_t* user, const char* input);
+uint64_t gateway_enqueue_pending_command_internal(object_t* user);
+int gateway_process_pending_command_internal(object_t* user);
+int gateway_send_to_session(const char* session_id, const char* data, size_t len);
 void gateway_check_session_timeouts();
 void cleanup_gateway_sessions();
 
-void gateway_session_exec_update(object_t *new_ob, object_t *old_ob);
-void gateway_handle_remove_interactive(interactive_t *ip);
-bool gateway_is_session(object_t *ob);
-int gateway_probe_suppress_once_for_object(object_t *ob);
-bool gateway_probe_suppressed_for_object(object_t *ob);
-void gateway_probe_finish_suppressed_command_for_object(object_t *ob);
+void gateway_session_exec_update(object_t* new_ob, object_t* old_ob);
+void gateway_handle_remove_interactive(interactive_t* ip);
+bool gateway_is_session(object_t* ob);
+int gateway_probe_suppress_once_for_object(object_t* ob);
+bool gateway_probe_suppressed_for_object(object_t* ob);
+void gateway_probe_finish_suppressed_command_for_object(object_t* ob);
 
 #endif /* PACKAGES_GATEWAY_H */

@@ -43,8 +43,12 @@ struct Report {
   std::vector<Metric> metrics;
   std::vector<StringMetric> strings;
 
-  void add(const std::string &name, long long value) { metrics.push_back({name, value}); }
-  void add_string(const std::string &name, std::string value) { strings.push_back({name, std::move(value)}); }
+  void add(const std::string& name, long long value) {
+    metrics.push_back({name, value});
+  }
+  void add_string(const std::string& name, std::string value) {
+    strings.push_back({name, std::move(value)});
+  }
 };
 
 long long elapsed_ns(Clock::time_point start) {
@@ -60,15 +64,15 @@ long long percentile(std::vector<long long> samples, double rank) {
   return samples[index];
 }
 
-void require(bool condition, const std::string &message) {
+void require(bool condition, const std::string& message) {
   if (!condition) {
     throw std::runtime_error(message);
   }
 }
 
-object_t *clone_object_for_bench(const char *path) {
+object_t* clone_object_for_bench(const char* path) {
   error_context_t econ{};
-  object_t *object = nullptr;
+  object_t* object = nullptr;
   ScopedCurrentObjectAsMaster master_scope(ScopedCurrentObjectAsMaster::conditional_t{});
   save_context(&econ);
   try {
@@ -81,7 +85,7 @@ object_t *clone_object_for_bench(const char *path) {
   return object;
 }
 
-void destruct_object_for_bench(object_t *object) {
+void destruct_object_for_bench(object_t* object) {
   if (object == nullptr || (object->flags & O_DESTRUCTED)) {
     return;
   }
@@ -97,7 +101,7 @@ void destruct_object_for_bench(object_t *object) {
   }
 }
 
-std::string json_escape(const std::string &value) {
+std::string json_escape(const std::string& value) {
   std::ostringstream out;
   for (char ch : value) {
     switch (ch) {
@@ -124,7 +128,7 @@ std::string json_escape(const std::string &value) {
   return out.str();
 }
 
-std::string report_json(const Report &report) {
+std::string report_json(const Report& report) {
   std::ostringstream json;
   json << "{\n";
   json << "  \"schema\": \"" << kLpcVmBenchSchemaV1 << "\",\n";
@@ -145,7 +149,7 @@ std::string report_json(const Report &report) {
   return json.str();
 }
 
-void write_json_report(const std::string &path, const std::string &json) {
+void write_json_report(const std::string& path, const std::string& json) {
   if (path.empty()) {
     return;
   }
@@ -160,12 +164,12 @@ void write_json_report(const std::string &path, const std::string &json) {
   output << json;
 }
 
-void run_apply_cache_bench(Report &report) {
+void run_apply_cache_bench(Report& report) {
   const long iterations = 512;
   lpc_vm_profile_set_recording(true);
   lpc_vm_profile_reset();
 
-  object_t *probe = clone_object_for_bench("single/void");
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone VM profile probe object");
 
   std::vector<long long> hit_samples;
@@ -189,14 +193,20 @@ void run_apply_cache_bench(Report &report) {
   auto snapshot = lpc_vm_profile_snapshot();
   report.add("apply_cache_iterations", iterations);
   report.add("apply_cache_elapsed_ns", elapsed_ns(start));
-  report.add("apply_cache_profile_lookups", static_cast<long long>(snapshot.apply_cache_lookup_count));
+  report.add("apply_cache_profile_lookups",
+             static_cast<long long>(snapshot.apply_cache_lookup_count));
   report.add("apply_cache_profile_hits", static_cast<long long>(snapshot.apply_cache_hit_count));
   report.add("apply_cache_profile_misses", static_cast<long long>(snapshot.apply_cache_miss_count));
-  report.add("apply_cache_table_builds", static_cast<long long>(snapshot.apply_cache_table_build_count));
-  report.add("apply_cache_table_items", static_cast<long long>(snapshot.apply_cache_table_item_count));
-  report.add("apply_cache_table_build_ns", static_cast<long long>(snapshot.apply_cache_table_build_ns));
-  report.add("apply_dispatch_cache_lookups", static_cast<long long>(snapshot.apply_dispatch_cache_lookup_count));
-  report.add("apply_dispatch_cache_hits", static_cast<long long>(snapshot.apply_dispatch_cache_hit_count));
+  report.add("apply_cache_table_builds",
+             static_cast<long long>(snapshot.apply_cache_table_build_count));
+  report.add("apply_cache_table_items",
+             static_cast<long long>(snapshot.apply_cache_table_item_count));
+  report.add("apply_cache_table_build_ns",
+             static_cast<long long>(snapshot.apply_cache_table_build_ns));
+  report.add("apply_dispatch_cache_lookups",
+             static_cast<long long>(snapshot.apply_dispatch_cache_lookup_count));
+  report.add("apply_dispatch_cache_hits",
+             static_cast<long long>(snapshot.apply_dispatch_cache_hit_count));
   report.add("apply_dispatch_cache_epoch_invalidations",
              static_cast<long long>(snapshot.apply_dispatch_cache_epoch_invalidation_count));
   report.add("apply_cache_hit_latency_p50_ns", percentile(hit_samples, 0.50));
@@ -210,10 +220,10 @@ void run_apply_cache_bench(Report &report) {
   lpc_vm_profile_set_recording(false);
 }
 
-void run_dispatch_bench(Report &report) {
+void run_dispatch_bench(Report& report) {
   constexpr long kWarmupIterations = 4096;
   constexpr long kMeasuredIterations = 250000;
-  object_t *probe = clone_object_for_bench("single/void");
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone dispatch probe object");
 
   auto direct = apply_cache_lookup("dummy", probe->prog);
@@ -227,7 +237,7 @@ void run_dispatch_bench(Report &report) {
         call_direct(probe, direct.runtime_index, ORIGIN_DRIVER, 0);
         pop_stack();
       }
-    } catch (const char *error) {
+    } catch (const char* error) {
       restore_context(&econ);
       pop_context(&econ);
       throw std::runtime_error(std::string("direct dispatch probe failed: ") + error);
@@ -247,8 +257,7 @@ void run_dispatch_bench(Report &report) {
 
   auto apply_start = Clock::now();
   for (long i = 0; i < kMeasuredIterations; i++) {
-    require(safe_apply("dummy", probe, 0, ORIGIN_DRIVER) != nullptr,
-            "dispatch apply probe failed");
+    require(safe_apply("dummy", probe, 0, ORIGIN_DRIVER) != nullptr, "dispatch apply probe failed");
   }
   const auto apply_elapsed = elapsed_ns(apply_start);
 
@@ -265,14 +274,14 @@ void run_dispatch_bench(Report &report) {
   destruct_object_for_bench(probe);
 }
 
-long long require_mapping_number(mapping_t *map, const char *key) {
-  auto *value = map ? find_string_in_mapping(map, key) : nullptr;
+long long require_mapping_number(mapping_t* map, const char* key) {
+  auto* value = map ? find_string_in_mapping(map, key) : nullptr;
   require(value != nullptr && value->type == T_NUMBER,
           std::string("representative LPC workload missing numeric field: ") + key);
   return value->u.number;
 }
 
-void run_representative_lpc_bench(Report &report) {
+void run_representative_lpc_bench(Report& report) {
   constexpr long kItemCount = 16;
 #ifdef _WIN32
   // GetThreadTimes has coarse resolution; keep the measured workload above it.
@@ -280,45 +289,39 @@ void run_representative_lpc_bench(Report &report) {
 #else
   constexpr long kIterations = 256;
 #endif
-  object_t *probe = clone_object_for_bench("single/void");
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone representative LPC workload probe");
 
   push_number(kItemCount);
   push_number(8);
-  require(safe_apply("benchmark_representative_lpc_workload", probe, 2,
-                     ORIGIN_DRIVER) != nullptr,
+  require(safe_apply("benchmark_representative_lpc_workload", probe, 2, ORIGIN_DRIVER) != nullptr,
           "representative LPC workload warmup failed");
 
   push_number(kItemCount);
   push_number(kIterations);
   auto wall_start = Clock::now();
-  auto *result = safe_apply("benchmark_representative_lpc_workload", probe, 2,
-                            ORIGIN_DRIVER);
+  auto* result = safe_apply("benchmark_representative_lpc_workload", probe, 2, ORIGIN_DRIVER);
   auto wall_elapsed = elapsed_ns(wall_start);
   require(result != nullptr && result->type == T_MAPPING,
           "representative LPC workload result missing");
-  auto *values = result->u.map;
+  auto* values = result->u.map;
   auto cpu_total_ns = require_mapping_number(values, "cpu_total_ns");
   auto iterations = require_mapping_number(values, "iterations");
   require(iterations == kIterations && cpu_total_ns > 0,
           "representative LPC workload returned invalid timing");
 
-  report.add("representative_lpc_items",
-             require_mapping_number(values, "item_count"));
+  report.add("representative_lpc_items", require_mapping_number(values, "item_count"));
   report.add("representative_lpc_iterations", iterations);
-  report.add("representative_lpc_checksum",
-             require_mapping_number(values, "checksum"));
+  report.add("representative_lpc_checksum", require_mapping_number(values, "checksum"));
   report.add("representative_lpc_cpu_total_ns", cpu_total_ns);
-  report.add("representative_lpc_cpu_ns_per_iteration",
-             cpu_total_ns / iterations);
+  report.add("representative_lpc_cpu_ns_per_iteration", cpu_total_ns / iterations);
   report.add("representative_lpc_wall_total_ns", wall_elapsed);
-  report.add("representative_lpc_wall_ns_per_iteration",
-             wall_elapsed / iterations);
+  report.add("representative_lpc_wall_ns_per_iteration", wall_elapsed / iterations);
 
   destruct_object_for_bench(probe);
 }
 
-void run_message_event_template_cache_bench(Report &report) {
+void run_message_event_template_cache_bench(Report& report) {
   constexpr size_t kTemplateCount = 104;
   constexpr size_t kUncachedRecipients = 16;
   constexpr size_t kWarmRecipients = 64;
@@ -340,8 +343,8 @@ void run_message_event_template_cache_bench(Report &report) {
         "{\"schema_version\":1,\"channel\":\"main\",\"intent\":\"append\","
         "\"priority\":\"normal\",\"reliability\":\"important\","
         "\"display_mode\":\"paced\",\"ttl_ms\":30000,\"collapse_key\":\"\","
-        "\"text\":\"room event " + std::to_string(index) +
-        "\",\"payload\":{}}");
+        "\"text\":\"room event " +
+        std::to_string(index) + "\",\"payload\":{}}");
     scope_types.emplace_back("player");
     message_seqs.push_back(static_cast<LPC_INT>(index + 1));
     server_seqs.push_back(static_cast<LPC_INT>(1000 + index));
@@ -354,24 +357,21 @@ void run_message_event_template_cache_bench(Report &report) {
   for (size_t recipient = 0; recipient < kUncachedRecipients; ++recipient) {
     gateway_clear_message_event_template_cache_for_test();
     auto frame = gateway_encode_preencoded_message_event_batch_for_test(
-        stable_children, scope_types,
-        "observer-uncached-" + std::to_string(recipient), message_seqs,
-        server_seqs, epochs, sent_ats,
-        static_cast<LPC_INT>(3000 + recipient), 0, 2000);
+        stable_children, scope_types, "observer-uncached-" + std::to_string(recipient),
+        message_seqs, server_seqs, epochs, sent_ats, static_cast<LPC_INT>(3000 + recipient), 0,
+        2000);
     require(!frame.empty(), "message-event uncached probe failed");
     output_bytes += frame.size();
   }
   const auto uncached_elapsed = elapsed_ns(uncached_started_at);
 
   gateway_clear_message_event_template_cache_for_test();
-  const auto hits_before =
-      g_gateway_runtime_counters.message_event_template_cache_hits.load();
-  const auto misses_before =
-      g_gateway_runtime_counters.message_event_template_cache_misses.load();
+  const auto hits_before = g_gateway_runtime_counters.message_event_template_cache_hits.load();
+  const auto misses_before = g_gateway_runtime_counters.message_event_template_cache_misses.load();
   auto cold_started_at = Clock::now();
   auto cold_frame = gateway_encode_preencoded_message_event_batch_for_test(
-      stable_children, scope_types, "observer-cold", message_seqs,
-      server_seqs, epochs, sent_ats, 999, 0, 1999);
+      stable_children, scope_types, "observer-cold", message_seqs, server_seqs, epochs, sent_ats,
+      999, 0, 1999);
   const auto cold_elapsed = elapsed_ns(cold_started_at);
   require(!cold_frame.empty(), "message-event cold cache probe failed");
 
@@ -379,64 +379,62 @@ void run_message_event_template_cache_bench(Report &report) {
   auto warm_started_at = Clock::now();
   for (size_t recipient = 0; recipient < kWarmRecipients; ++recipient) {
     auto frame = gateway_encode_preencoded_message_event_batch_for_test(
-        stable_children, scope_types,
-        "observer-warm-" + std::to_string(recipient), message_seqs,
-        server_seqs, epochs, sent_ats,
-        static_cast<LPC_INT>(2000 + recipient), 0, 2000);
+        stable_children, scope_types, "observer-warm-" + std::to_string(recipient), message_seqs,
+        server_seqs, epochs, sent_ats, static_cast<LPC_INT>(2000 + recipient), 0, 2000);
     require(!frame.empty(), "message-event warm cache probe failed");
     output_bytes += frame.size();
   }
   const auto warm_elapsed = elapsed_ns(warm_started_at);
 
   report.add("message_event_template_count", kTemplateCount);
-  report.add("message_event_template_uncached_recipients",
-             kUncachedRecipients);
-  report.add("message_event_template_uncached_fill_total_ns",
-             uncached_elapsed);
+  report.add("message_event_template_uncached_recipients", kUncachedRecipients);
+  report.add("message_event_template_uncached_fill_total_ns", uncached_elapsed);
   report.add("message_event_template_uncached_fill_ns_per_recipient",
              uncached_elapsed / kUncachedRecipients);
   report.add("message_event_template_cold_fill_ns", cold_elapsed);
   report.add("message_event_template_warm_recipients", kWarmRecipients);
   report.add("message_event_template_warm_fill_total_ns", warm_elapsed);
-  report.add("message_event_template_warm_fill_ns_per_recipient",
-             warm_elapsed / kWarmRecipients);
-  report.add("message_event_template_output_bytes",
-             static_cast<long long>(output_bytes));
+  report.add("message_event_template_warm_fill_ns_per_recipient", warm_elapsed / kWarmRecipients);
+  report.add("message_event_template_output_bytes", static_cast<long long>(output_bytes));
   report.add(
       "message_event_template_cache_hits",
-      static_cast<long long>(
-          g_gateway_runtime_counters.message_event_template_cache_hits.load() -
-          hits_before));
+      static_cast<long long>(g_gateway_runtime_counters.message_event_template_cache_hits.load() -
+                             hits_before));
   report.add(
       "message_event_template_cache_misses",
-      static_cast<long long>(
-          g_gateway_runtime_counters.message_event_template_cache_misses.load() -
-          misses_before));
+      static_cast<long long>(g_gateway_runtime_counters.message_event_template_cache_misses.load() -
+                             misses_before));
 }
 
-void add_profile_snapshot_metrics(Report &report, const std::string &prefix,
-                                  const LpcVmProfileSnapshot &snapshot) {
-  report.add(prefix + "opcode_dispatch_count", static_cast<long long>(snapshot.opcode_dispatch_count));
+void add_profile_snapshot_metrics(Report& report, const std::string& prefix,
+                                  const LpcVmProfileSnapshot& snapshot) {
+  report.add(prefix + "opcode_dispatch_count",
+             static_cast<long long>(snapshot.opcode_dispatch_count));
   report.add(prefix + "efun_dispatch_count", static_cast<long long>(snapshot.efun_dispatch_count));
   report.add(prefix + "efun_dispatch_ns", static_cast<long long>(snapshot.efun_dispatch_ns));
-  report.add(prefix + "call_other_dispatch_count", static_cast<long long>(snapshot.call_other_dispatch_count));
+  report.add(prefix + "call_other_dispatch_count",
+             static_cast<long long>(snapshot.call_other_dispatch_count));
   report.add(prefix + "function_pointer_dispatch_count",
              static_cast<long long>(snapshot.function_pointer_dispatch_count));
   report.add(prefix + "function_pointer_efun_dispatch_count",
              static_cast<long long>(snapshot.function_pointer_efun_dispatch_count));
-  report.add(prefix + "parser_action_lookup_count", static_cast<long long>(snapshot.parser_action_lookup_count));
-  report.add(prefix + "parser_action_match_count", static_cast<long long>(snapshot.parser_action_match_count));
-  report.add(prefix + "mapping_lookup_count", static_cast<long long>(snapshot.mapping_lookup_count));
-  report.add(prefix + "mapping_insert_lookup_count", static_cast<long long>(snapshot.mapping_insert_lookup_count));
+  report.add(prefix + "parser_action_lookup_count",
+             static_cast<long long>(snapshot.parser_action_lookup_count));
+  report.add(prefix + "parser_action_match_count",
+             static_cast<long long>(snapshot.parser_action_match_count));
+  report.add(prefix + "mapping_lookup_count",
+             static_cast<long long>(snapshot.mapping_lookup_count));
+  report.add(prefix + "mapping_insert_lookup_count",
+             static_cast<long long>(snapshot.mapping_insert_lookup_count));
   report.add(prefix + "string_push_count", static_cast<long long>(snapshot.string_push_count));
 }
 
-void run_hot_path_profile_bench(Report &report, bool recording_enabled, const std::string &prefix) {
+void run_hot_path_profile_bench(Report& report, bool recording_enabled, const std::string& prefix) {
   const long iterations = 4096;
   lpc_vm_profile_set_recording(recording_enabled);
   lpc_vm_profile_reset();
 
-  object_t *probe = clone_object_for_bench("single/void");
+  object_t* probe = clone_object_for_bench("single/void");
   require(probe != nullptr, "failed to clone VM hot path probe object");
 
   for (long i = 0; i < 128; i++) {
@@ -450,12 +448,12 @@ void run_hot_path_profile_bench(Report &report, bool recording_enabled, const st
   for (long i = 0; i < iterations; i++) {
     auto call_start = Clock::now();
     push_object(probe);
-    auto *result = safe_apply("call_target", probe, 1, ORIGIN_DRIVER);
+    auto* result = safe_apply("call_target", probe, 1, ORIGIN_DRIVER);
     call_other_samples.push_back(elapsed_ns(call_start));
     require(result != nullptr, "call_target() did not return");
   }
 
-  mapping_t *map = allocate_mapping(4);
+  mapping_t* map = allocate_mapping(4);
   add_mapping_pair(map, "alpha", 1);
   add_mapping_pair(map, "beta", 2);
   require(find_string_in_mapping(map, "alpha")->type == T_NUMBER, "mapping alpha lookup failed");
@@ -482,9 +480,9 @@ void run_hot_path_profile_bench(Report &report, bool recording_enabled, const st
   lpc_vm_profile_set_recording(false);
 }
 
-void print_text_report(const Report &report, const std::string &json_path) {
+void print_text_report(const Report& report, const std::string& json_path) {
   std::cout << "lpc_vm_bench: schema=" << kLpcVmBenchSchemaV1 << "\n";
-  for (const auto &metric : report.metrics) {
+  for (const auto& metric : report.metrics) {
     std::cout << metric.name << "=" << metric.value << "\n";
   }
   if (!json_path.empty()) {
@@ -493,7 +491,7 @@ void print_text_report(const Report &report, const std::string &json_path) {
 }
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::string json_path;
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -527,10 +525,8 @@ int main(int argc, char **argv) {
     report.add_string("dispatch_cache_probe", "apply_cache_lookup_v1");
     report.add_string("dispatch_hot_path_probe", "apply_and_call_direct_v1");
     report.add_string("hot_path_profile_probe", "opcode_efun_call_other_mapping_string_v1");
-    report.add_string("representative_lpc_probe",
-                      "mapping_array_sort_sprintf_json_encode_v1");
-    report.add_string("message_event_template_probe",
-                      "validated_stable_json_cache_104x64_v1");
+    report.add_string("representative_lpc_probe", "mapping_array_sort_sprintf_json_encode_v1");
+    report.add_string("message_event_template_probe", "validated_stable_json_cache_104x64_v1");
     report.add_string("profile_comparison", "explicit_enabled_vs_disabled_same_audit_mode");
 
     run_apply_cache_bench(report);
@@ -545,7 +541,7 @@ int main(int argc, char **argv) {
     print_text_report(report, json_path);
     std::cout << json;
     return 0;
-  } catch (const std::exception &error) {
+  } catch (const std::exception& error) {
     std::cerr << "lpc_vm_bench failed: " << error.what() << "\n";
     return 1;
   }

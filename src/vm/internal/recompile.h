@@ -9,10 +9,10 @@
 #include <string>
 #include <vector>
 
-#include <memory>  // std::unique_ptr
-#include "vm/internal/base/program.h"  // free_prog, program_t
+#include <memory>                          // std::unique_ptr
+#include "vm/internal/base/program.h"      // free_prog, program_t
 #include "vm/internal/recompile_layout.h"  // RecompileLayout, RecompileLayoutDiff
-#include "vm/internal/simul_efun.h"     // simul_efun_prepared_t
+#include "vm/internal/simul_efun.h"        // simul_efun_prepared_t
 
 struct object_t;
 struct funptr_t;
@@ -31,18 +31,22 @@ struct PreparedVariableMigration;
 // RAII owner of a freshly compiled (staging) program: never published to any
 // live object until commit. free_prog() on destruction.
 struct StagedProgram {
-  program_t *prog{nullptr};
+  program_t* prog{nullptr};
   StagedProgram() = default;
-  explicit StagedProgram(program_t *p) : prog(p) {}
+  explicit StagedProgram(program_t* p) : prog(p) {}
   ~StagedProgram() {
-    if (prog) free_prog(&prog);
+    if (prog)
+      free_prog(&prog);
   }
-  StagedProgram(const StagedProgram &) = delete;
-  StagedProgram &operator=(const StagedProgram &) = delete;
-  StagedProgram(StagedProgram &&other) noexcept : prog(other.prog) { other.prog = nullptr; }
-  StagedProgram &operator=(StagedProgram &&other) noexcept {
+  StagedProgram(const StagedProgram&) = delete;
+  StagedProgram& operator=(const StagedProgram&) = delete;
+  StagedProgram(StagedProgram&& other) noexcept : prog(other.prog) {
+    other.prog = nullptr;
+  }
+  StagedProgram& operator=(StagedProgram&& other) noexcept {
     if (this != &other) {
-      if (prog) free_prog(&prog);
+      if (prog)
+        free_prog(&prog);
       prog = other.prog;
       other.prog = nullptr;
     }
@@ -51,10 +55,10 @@ struct StagedProgram {
 };
 
 struct RecompileTarget {
-  object_t *ob{nullptr};
+  object_t* ob{nullptr};
   uint32_t old_derived_flags{0};  // exact pre-swap object state
   uint32_t new_derived_flags{0};  // computed from the staged program table
-  uint64_t old_generation{0};      // pre-swap prog_generation, restored by rollback()
+  uint64_t old_generation{0};     // pre-swap prog_generation, restored by rollback()
 };
 
 // What kind of object family this transaction reloads. Decided once by the
@@ -121,7 +125,7 @@ using RecompileCreateFailureHook = void (*)();
 
 struct RecompilePrepared {
   StagedProgram staged;
-  program_t *old_prog{nullptr};
+  program_t* old_prog{nullptr};
   RecompileLayout old_layout;
   RecompileLayout new_layout;
   // #1247 B-S3: the admission-time classification (single source of truth
@@ -132,7 +136,7 @@ struct RecompilePrepared {
   RecompileTargetKind kind{RecompileTargetKind::BlueprintFamily};
   // Non-owning link to the single scoped lifecycle context installed by the
   // public efun. Direct white-box transaction tests may leave it null.
-  RecompileExecutionContext *execution_context{nullptr};
+  RecompileExecutionContext* execution_context{nullptr};
   // White-box failure injection only. The production entry never sets this;
   // when set, run_create() invokes it after commit_swap() so exception cleanup
   // is tested at the actual fail-able transaction boundary.
@@ -154,8 +158,8 @@ struct RecompilePrepared {
 
   RecompilePrepared();
   ~RecompilePrepared();
-  RecompilePrepared(const RecompilePrepared &) = delete;
-  RecompilePrepared &operator=(const RecompilePrepared &) = delete;
+  RecompilePrepared(const RecompilePrepared&) = delete;
+  RecompilePrepared& operator=(const RecompilePrepared&) = delete;
 
   // Segment 1 (no-fail): reserve new-program refs (commit pin + one per
   // target), swap program/generation/derived-flags on every target, bump
@@ -204,7 +208,7 @@ struct RecompilePrepared {
   // accounting around this tail is the most fragile part of the
   // transaction; it lives here so both success and failure paths cannot
   // drift apart. tag distinguishes the two call sites in free_object().
-  void release_pin_and_snapshot_refs(const char *tag) noexcept;
+  void release_pin_and_snapshot_refs(const char* tag) noexcept;
   void release_funptr_transaction_pins() noexcept;
 };
 
@@ -225,11 +229,11 @@ class RecompileExecutionContext {
  public:
   RecompileExecutionContext();
   ~RecompileExecutionContext();
-  RecompileExecutionContext(const RecompileExecutionContext &) = delete;
-  RecompileExecutionContext &operator=(const RecompileExecutionContext &) = delete;
+  RecompileExecutionContext(const RecompileExecutionContext&) = delete;
+  RecompileExecutionContext& operator=(const RecompileExecutionContext&) = delete;
 
-  void attach_prepared(RecompilePrepared *prepared) noexcept;
-  void detach_prepared(RecompilePrepared *prepared) noexcept;
+  void attach_prepared(RecompilePrepared* prepared) noexcept;
+  void detach_prepared(RecompilePrepared* prepared) noexcept;
   void mark_swapped() noexcept;
   void mark_finished() noexcept;
   void mark_rolled_back() noexcept;
@@ -238,36 +242,38 @@ class RecompileExecutionContext {
   // without allocation and holds one temporary reference until the outcome
   // is known. Rollback marks every newborn Invalid permanently; success
   // promotes only still-live newborns to Live.
-  void record_funptr_birth(funptr_t *fp) noexcept;
+  void record_funptr_birth(funptr_t* fp) noexcept;
   void finalize_funptr_births(bool committed) noexcept;
-  void record_funptr_pin(funptr_t *fp) noexcept;
+  void record_funptr_pin(funptr_t* fp) noexcept;
   void release_funptr_pins() noexcept;
 
-  RecompileExecutionPhase phase() const noexcept { return phase_; }
-  bool blocks_target_lifecycle(object_t *object) const noexcept;
-  bool blocks_clone_source(object_t *prototype) const noexcept;
-  bool blocks_program_publication(program_t *program) const noexcept;
+  RecompileExecutionPhase phase() const noexcept {
+    return phase_;
+  }
+  bool blocks_target_lifecycle(object_t* object) const noexcept;
+  bool blocks_clone_source(object_t* prototype) const noexcept;
+  bool blocks_program_publication(program_t* program) const noexcept;
   bool blocks_new_compile() const noexcept;
-  bool target_is_valid(object_t *object) const noexcept;
+  bool target_is_valid(object_t* object) const noexcept;
 
  private:
-  RecompilePrepared *prepared_{nullptr};
+  RecompilePrepared* prepared_{nullptr};
   RecompileExecutionPhase phase_{RecompileExecutionPhase::Entered};
-  funptr_t *birth_head_{nullptr};
-  funptr_t *transaction_pin_head_{nullptr};
+  funptr_t* birth_head_{nullptr};
+  funptr_t* transaction_pin_head_{nullptr};
 };
 
-RecompileExecutionContext *vm_recompile_execution_context() noexcept;
-void vm_recompile_reject_lifecycle(object_t *object, const char *operation);
-void vm_recompile_reject_clone_source(object_t *prototype);
-void vm_recompile_reject_program_publication(program_t *program);
+RecompileExecutionContext* vm_recompile_execution_context() noexcept;
+void vm_recompile_reject_lifecycle(object_t* object, const char* operation);
+void vm_recompile_reject_clone_source(object_t* prototype);
+void vm_recompile_reject_program_publication(program_t* program);
 void vm_recompile_reject_new_compile();
 
 // Compile the blueprint's source file into a staging program, WITHOUT
 // touching the live object. Fails with a stable error on read/compile
 // failure. Inherits not already loaded are a prepare error (v1 never loads
 // inherits inside the transaction).
-StagedProgram compile_program_for_recompile(object_t *blueprint);
+StagedProgram compile_program_for_recompile(object_t* blueprint);
 
 // Wire the transaction's entry segment exactly like f_recompile_object:
 // pin the old program (ref++ transaction pin), decide the kind, run the
@@ -276,25 +282,25 @@ StagedProgram compile_program_for_recompile(object_t *blueprint);
 // freeze the target set. The staging program must already be assigned to
 // prepared->staged. Callers must not hand-roll this wiring (pin accounting
 // and per-kind preparation live here only).
-void start_recompile_transaction(object_t *ob, RecompileTargetKind kind,
-                                 RecompilePrepared *prepared);
+void start_recompile_transaction(object_t* ob, RecompileTargetKind kind,
+                                 RecompilePrepared* prepared);
 
 // #1247 B-S3: build the per-target PreparedVariableMigration blocks in the
 // fallible frozen segment, per the kind's lifecycle policy (allocation
 // allowed). Must be called after start_recompile_transaction() and before
 // commit_swap(). No-op when the policy never migrates.
-void prepare_variable_migrations(RecompilePrepared *prepared);
+void prepare_variable_migrations(RecompilePrepared* prepared);
 
 // Compare two layouts field by field. Returns true when identical; otherwise
 // false and first_diff names the first mismatching field.
-bool recompile_layouts_match(const RecompileLayout &a, const RecompileLayout &b,
-                             std::string *first_diff);
+bool recompile_layouts_match(const RecompileLayout& a, const RecompileLayout& b,
+                             std::string* first_diff);
 
 // Snapshot every live object still sharing blueprint->prog (the blueprint
 // itself and its clones), checking: not the current VM program, not on the
 // main control stack, no shadowing/shadowed chain, no pending
 // replace_program(). Any violation is a stable error before anything is
 // touched. The frozen set takes add_ref on every target.
-void snapshot_recompile_targets(object_t *blueprint, RecompilePrepared *prepared);
+void snapshot_recompile_targets(object_t* blueprint, RecompilePrepared* prepared);
 
 #endif /* FLUFFOS_SRC_VM_INTERNAL_RECOMPILE_H_ */

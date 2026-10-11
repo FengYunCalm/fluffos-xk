@@ -8,19 +8,19 @@ void do_tests() {
   ASSERT_EQ(0, a % -1);
 
   // CALLOUT-2: delay saturation -- huge delays must clamp, not overflow.
-  call_out( (: 1 :), 0x7fffffffffffffff);
-  call_out( (: 1 :), -5);
+  call_out((: 1 :), 0x7fffffffffffffff);
+  call_out((: 1 :), -5);
   ASSERT(1);
 
   // MAPPING-1 (compose): mapping * mapping keeps m1's entries whose value
   // equals an m2 key, with m2's value (compose_mapping join semantics);
   // mapping equality is pointer-based, so assert via sizeof/key lookup.
-  ASSERT_EQ(0, sizeof(([ ]) * ([ ])));
-  ASSERT_EQ(0, sizeof(([ "k" : 1 ]) * ([ ])));
-  mapping mm = ([ "k" : 1 ]) * ([ 1 : 2 ]);
+  ASSERT_EQ(0, sizeof(([]) * ([])));
+  ASSERT_EQ(0, sizeof(([ "k": 1 ]) * ([])));
+  mapping mm = ([ "k": 1 ]) * ([ 1: 2 ]);
   ASSERT_EQ(1, sizeof(mm));
   ASSERT_EQ(2, mm["k"]);
-  ASSERT_EQ(0, sizeof(([ "k" : 1 ]) * ([ "x" : 2 ])));
+  ASSERT_EQ(0, sizeof(([ "k": 1 ]) * ([ "x": 2 ])));
 
   // COMPRESS-1: compress/uncompress of ordinary data must round-trip and
   // must not leak or crash (f_compress returns a buffer).

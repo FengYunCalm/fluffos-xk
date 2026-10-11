@@ -40,7 +40,7 @@ void logon() {
 }
 
 void gateway_logon(mixed data) {
-  last_gateway_login = mapp(data) ? data : (["raw": data]);
+  last_gateway_login = mapp(data) ? data : ([ "raw": data ]);
 }
 
 mapping query_gateway_login() { return last_gateway_login; }
@@ -80,8 +80,7 @@ int inject_gateway_input_via_efun(string input) {
 }
 
 int query_gateway_pending_counters_via_efun() {
-  return gateway_main_queue_pending() + gateway_buffered_input_pending() +
-         gateway_command_pending();
+  return gateway_main_queue_pending() + gateway_buffered_input_pending() + gateway_command_pending();
 }
 
 int listen_gateway_via_efun() {
@@ -205,8 +204,7 @@ int submit_and_watch_generic_owner_future(int context_id, mapping payload, int t
   int future_id;
 
   submitted = owner_call_async(this_object(), "gateway_owner_future_echo", payload);
-  future_id = mapp(submitted) && submitted["success"] == 1
-    ? submitted["future_id"] : 0;
+  future_id = mapp(submitted) && submitted["success"] == 1 ? submitted["future_id"] : 0;
   last_submit_watch_future_id = future_id;
   if (future_id <= 0)
     return 0;
@@ -259,7 +257,7 @@ void configure_owner_future_cancelled_reentry(string session_id) {
 }
 
 int gateway_owner_future_cancelled(int reservation_id, int future_id,
-                                   string reason) {
+  string reason) {
   string reentry_session_id;
 
   last_owner_future_cancelled_reservation_id = reservation_id;
@@ -269,17 +267,18 @@ int gateway_owner_future_cancelled(int reservation_id, int future_id,
   reentry_session_id = owner_future_cancelled_reentry_session_id;
   owner_future_cancelled_reentry_session_id = "";
   if (reentry_session_id != "") {
-    last_owner_future_cancelled_reentry_result =
-        gateway_destroy_session(reentry_session_id);
+    last_owner_future_cancelled_reentry_result = gateway_destroy_session(reentry_session_id);
     return 1;
   }
-  last_owner_future_cancelled_release_result =
-      gateway_session_release(this_object(), reservation_id);
+  last_owner_future_cancelled_release_result = gateway_session_release(
+    this_object(),
+    reservation_id
+  );
   return 1;
 }
 
 int gateway_owner_room_output_completed(int reservation_id, string state,
-                                        int event_count, int slot_server_seq) {
+  int event_count, int slot_server_seq) {
   last_owner_room_output_reservation_id = reservation_id;
   last_owner_room_output_state = state;
   last_owner_room_output_event_count = event_count;

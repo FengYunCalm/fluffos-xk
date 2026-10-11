@@ -111,9 +111,9 @@
 #endif
 #define DECL_MODS (DECL_ACCESS | DECL_NOMASK | DECL_NOSAVE)
 
-#define DECL_MODIFY2(t, mod)                                                \
-  ((((t)&DECL_ACCESS) > ((mod)&DECL_ACCESS)) ? ((t) & ~DECL_ACCESS) | (mod) \
-                                             : (t) | ((mod) & ~DECL_ACCESS))
+#define DECL_MODIFY2(t, mod)                                                    \
+  ((((t) & DECL_ACCESS) > ((mod) & DECL_ACCESS)) ? ((t) & ~DECL_ACCESS) | (mod) \
+                                                 : (t) | ((mod) & ~DECL_ACCESS))
 
 /* only the flags that should be copied up through inheritance levels */
 #define FUNC_MASK                                                                           \
@@ -172,7 +172,7 @@ using lpc_file_info_t = int;
 static_assert(sizeof(lpc_file_info_t) == sizeof(int), "file_info words must be int-sized");
 
 struct function_t {
-  const char *funcname;
+  const char* funcname;
   lpc_type_t type;
   uint8_t num_arg;
   uint8_t min_arg;
@@ -190,27 +190,27 @@ struct function_t {
 };
 
 typedef struct {
-  const char *name;
+  const char* name;
   lpc_type_t type; /* Type of variable. See above. TYPE_ */
 } variable_t;
 
 struct inherit_t {
-  struct program_t *prog;
+  struct program_t* prog;
   unsigned short function_index_offset;
   unsigned short variable_index_offset;
   unsigned short type_mod;
 };
 
 struct lookup_entry_s {
-  struct program_t *progp;
-  struct function_t *funp;
+  struct program_t* progp;
+  struct function_t* funp;
   unsigned short function_index_offset;
   unsigned short variable_index_offset;
   unsigned short runtime_index;
 };
 
 struct program_t {
-  const char *filename; /* Name of file that defined prog */
+  const char* filename; /* Name of file that defined prog */
   unsigned short flags;
   unsigned short last_inherited;
   unsigned int ref; /* Reference count */
@@ -219,25 +219,25 @@ struct program_t {
   int extra_ref; /* Used to verify ref count */
   int extra_func_ref;
 #endif
-  char *program;            /* The binary instructions */
-  unsigned char *line_info; /* Line number information */
+  char* program;            /* The binary instructions */
+  unsigned char* line_info; /* Line number information */
   /* file_info[0] = total bytes; file_info[1] = line_info offset in words. */
-  lpc_file_info_t *file_info;
+  lpc_file_info_t* file_info;
   int line_swap_index; /* Where line number info is swapped */
-  function_t *function_table;
-  unsigned short *function_flags; /* separate for alignment reasons */
-  struct class_def_t *classes;
-  struct class_member_entry_t *class_members;
-  char **strings;                 /* All strings uses by the program */
-  char **variable_table;          /* variables defined by this program */
-  lpc_type_t *variable_types;     /* variables defined by this program */
-  inherit_t *inherit;             /* List of inherited prgms */
+  function_t* function_table;
+  unsigned short* function_flags; /* separate for alignment reasons */
+  struct class_def_t* classes;
+  struct class_member_entry_t* class_members;
+  char** strings;             /* All strings uses by the program */
+  char** variable_table;      /* variables defined by this program */
+  lpc_type_t* variable_types; /* variables defined by this program */
+  inherit_t* inherit;         /* List of inherited prgms */
   // Packed NUL-terminated paths for files this program actually included.
   // The main source file is omitted; storage lives in the program allocation.
-  char *include_names;
+  char* include_names;
   int include_names_size;
-  int total_size;                 /* Sum of all data in this struct */
-                                  /*
+  int total_size; /* Sum of all data in this struct */
+                  /*
                                    * The types of function arguments are saved where 'argument_types'
                                    * points. It can be a variable number of arguments, so allocation is
                                    * done dynamically. To know where first argument is found for function
@@ -247,9 +247,9 @@ struct program_t {
                                    * inheritance. There are several lines of code that depends on the type
                                    * length (16 bits) of 'type_start' (sorry !).
                                    */
-  lpc_type_t *argument_types;
+  lpc_type_t* argument_types;
 #define INDEX_START_NONE 65535
-  unsigned short *type_start;
+  unsigned short* type_start;
   /*
    * And now some general size information.
    */
@@ -259,7 +259,7 @@ struct program_t {
   unsigned short num_classes;
   unsigned short num_functions_defined;
   unsigned short num_strings;
-  unsigned short num_variables_total; /* total number of variables including inherited */
+  unsigned short num_variables_total;   /* total number of variables including inherited */
   unsigned short num_variables_defined; /* total number of variables defined by this program */
   unsigned short num_inherited;
 
@@ -281,11 +281,11 @@ struct program_t {
   uint64_t layout_digest_cache{0};
 };
 
-void reference_prog(program_t *, const char *);
-void free_prog(program_t **);
-void deallocate_program(program_t *);
-char *variable_name(program_t *, int);
-function_t *find_func_entry(program_t *, int);
+void reference_prog(program_t*, const char*);
+void free_prog(program_t**);
+void deallocate_program(program_t*);
+char* variable_name(program_t*, int);
+function_t* find_func_entry(program_t*, int);
 
 // #1247 B-S1: normalized layout digest -- the SOLE producer of
 // ObjectVariableBlock::layout_id. Walks the variable layout in the same
@@ -297,6 +297,6 @@ function_t *find_func_entry(program_t *, int);
 // One process must never contain two digest algorithms -- when the
 // descriptor is upgraded (B-S2), this function and the descriptor move
 // atomically.
-uint64_t program_layout_digest(const program_t *prog) noexcept;
+uint64_t program_layout_digest(const program_t* prog) noexcept;
 
 #endif

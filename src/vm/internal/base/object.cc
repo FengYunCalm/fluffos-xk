@@ -6,8 +6,8 @@
 #include <ctype.h>  // for isdigit
 #include <cstdio>   // for std::remove
 #include <limits>
-#include <math.h>   // for pow
-#include <memory>   // for std::unique_ptr
+#include <math.h>  // for pow
+#include <memory>  // for std::unique_ptr
 #include <string>
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
@@ -48,16 +48,16 @@ namespace fs = ghc::filesystem;
 #define too_deep_save_error() \
   error("Mappings and/or arrays nested too deep (%d) for save_object\n", MAX_SAVE_SVALUE_DEPTH);
 
-FLUFFOS_VM_THREAD_LOCAL object_t *previous_ob;
+FLUFFOS_VM_THREAD_LOCAL object_t* previous_ob;
 
-static int restore_array(char **str, svalue_t * /*ret*/);
-static int restore_class(char **str, svalue_t * /*ret*/);
+static int restore_array(char** str, svalue_t* /*ret*/);
+static int restore_class(char** str, svalue_t* /*ret*/);
 
 #ifdef F_SET_HIDE
 int num_hidden = 0;
 
-int valid_hide(object_t *obj) {
-  svalue_t *ret;
+int valid_hide(object_t* obj) {
+  svalue_t* ret;
 
   if (!obj) {
     return 0;
@@ -70,12 +70,12 @@ int valid_hide(object_t *obj) {
 
 FLUFFOS_VM_THREAD_LOCAL int save_svalue_depth = 0;
 FLUFFOS_VM_THREAD_LOCAL int max_depth = 0;
-FLUFFOS_VM_THREAD_LOCAL int *sizes = nullptr;
+FLUFFOS_VM_THREAD_LOCAL int* sizes = nullptr;
 
 static void reset_restore_scratch() {  // #1247-equivalent OBJ-1 (upstream reset_restore_scratch)
   save_svalue_depth = max_depth = 0;
   if (sizes) {
-    FREE((char *)sizes);
+    FREE((char*)sizes);
     sizes = nullptr;
   }
 }
@@ -96,7 +96,7 @@ static void reset_restore_scratch() {  // #1247-equivalent OBJ-1 (upstream reset
 // indexing sizes[save_svalue_depth - 1] reads off the end of (or into a
 // null) allocation. Treat that as the malformed input it is.
 // (Upstream b1fb96f3.)
-static bool get_restore_size(int *out) {
+static bool get_restore_size(int* out) {
   if (!sizes || save_svalue_depth > max_depth) {
     return false;
   }
@@ -104,10 +104,10 @@ static bool get_restore_size(int *out) {
   return true;
 }
 
-int svalue_save_size(svalue_t *v) {
+int svalue_save_size(svalue_t* v) {
   switch (v->type) {
     case T_STRING: {
-      const char *cp = v->u.string;
+      const char* cp = v->u.string;
       char c;
       int size = 0;
 
@@ -121,7 +121,7 @@ int svalue_save_size(svalue_t *v) {
     }
 
     case T_ARRAY: {
-      svalue_t *sv = v->u.arr->item;
+      svalue_t* sv = v->u.arr->item;
       int i = v->u.arr->size, size = 0;
 
       if (++save_svalue_depth > MAX_SAVE_SVALUE_DEPTH) {
@@ -136,7 +136,7 @@ int svalue_save_size(svalue_t *v) {
     }
 
     case T_CLASS: {
-      svalue_t *sv = v->u.arr->item;
+      svalue_t* sv = v->u.arr->item;
       int i = v->u.arr->size, size = 0;
 
       if (++save_svalue_depth > MAX_SAVE_SVALUE_DEPTH) {
@@ -183,11 +183,11 @@ int svalue_save_size(svalue_t *v) {
   }
 }
 
-void save_svalue(svalue_t *v, char **buf) {
+void save_svalue(svalue_t* v, char** buf) {
   switch (v->type) {
     case T_STRING: {
-      char *cp = *buf;
-      const char *str = v->u.string;
+      char* cp = *buf;
+      const char* str = v->u.string;
       char c;
 
       *cp++ = '"';
@@ -207,7 +207,7 @@ void save_svalue(svalue_t *v, char **buf) {
 
     case T_ARRAY: {
       int i = v->u.arr->size;
-      svalue_t *sv = v->u.arr->item;
+      svalue_t* sv = v->u.arr->item;
 
       *(*buf)++ = '(';
       *(*buf)++ = '{';
@@ -223,7 +223,7 @@ void save_svalue(svalue_t *v, char **buf) {
 
     case T_CLASS: {
       int i = v->u.arr->size;
-      svalue_t *sv = v->u.arr->item;
+      svalue_t* sv = v->u.arr->item;
 
       *(*buf)++ = '(';
       *(*buf)++ = '/'; /* Why yes, this *is* a kludge! */
@@ -277,8 +277,8 @@ void save_svalue(svalue_t *v, char **buf) {
   }
 }
 
-static int restore_internal_size(const char **str, int is_mapping, int depth, int nest) {
-  const char *cp = *str;
+static int restore_internal_size(const char** str, int is_mapping, int depth, int nest) {
+  const char* cp = *str;
   int size = 0;
   char c, delim, toggle = 0;
 
@@ -348,7 +348,7 @@ static int restore_internal_size(const char **str, int is_mapping, int depth, in
             while (max_depth <= depth) {
               max_depth <<= 1;
             }
-            sizes = reinterpret_cast<int *>(
+            sizes = reinterpret_cast<int*>(
                 DCALLOC(max_depth, sizeof(int), TAG_TEMPORARY, "restore_internal_size"));
           } else if (depth >= max_depth) {
             while ((max_depth <<= 1) <= depth) {
@@ -372,7 +372,7 @@ static int restore_internal_size(const char **str, int is_mapping, int depth, in
             while (max_depth <= depth) {
               max_depth <<= 1;
             }
-            sizes = reinterpret_cast<int *>(
+            sizes = reinterpret_cast<int*>(
                 DCALLOC(max_depth, sizeof(int), TAG_TEMPORARY, "restore_internal_size"));
           } else if (depth >= max_depth) {
             while ((max_depth <<= 1) <= depth) {
@@ -411,8 +411,8 @@ static int restore_internal_size(const char **str, int is_mapping, int depth, in
   return 0;
 }
 
-static int restore_size(const char **str, int is_mapping) {
-  const char *cp = *str;
+static int restore_size(const char** str, int is_mapping) {
+  const char* cp = *str;
   int size = 0;
   char c, delim, toggle = 0;
 
@@ -507,8 +507,8 @@ static int restore_size(const char **str, int is_mapping) {
   return -1;
 }
 
-static int restore_interior_string(char **val, svalue_t *sv) {
-  char *cp = *val;
+static int restore_interior_string(char** val, svalue_t* sv) {
+  char* cp = *val;
   char *start = cp, *newstr;
   char c;
   int len;
@@ -521,7 +521,7 @@ static int restore_interior_string(char **val, svalue_t *sv) {
       }
 
       case '\\': {
-        char *news = cp - 1;
+        char* news = cp - 1;
 
         if ((*news++ = *cp++)) {
           // The condition must stop on '\0' too, not just '"': an
@@ -590,8 +590,8 @@ static int restore_interior_string(char **val, svalue_t *sv) {
   return 0;
 }
 
-static int parse_numeric(char **cpp, unsigned char c, svalue_t *dest) {
-  char *cp = *cpp;
+static int parse_numeric(char** cpp, unsigned char c, svalue_t* dest) {
+  char* cp = *cpp;
   LPC_INT res_int = 0;
   LPC_FLOAT res_float = 0;
   int neg = 0;
@@ -692,7 +692,7 @@ static int parse_numeric(char **cpp, unsigned char c, svalue_t *dest) {
   }
 }
 
-static void add_map_stats(mapping_t *m, int count) {
+static void add_map_stats(mapping_t* m, int count) {
   total_mapping_nodes += count;
   total_mapping_size += count * sizeof(mapping_node_t);
 #ifdef PACKAGE_MUDLIB_STATS
@@ -701,21 +701,21 @@ static void add_map_stats(mapping_t *m, int count) {
   m->count = count;
 }
 
-static int restore_mapping(char **str, svalue_t *sv) {
+static int restore_mapping(char** str, svalue_t* sv) {
   int size, i, mask, count = 0;
   unsigned long oi;
   char c;
-  mapping_t *m;
+  mapping_t* m;
   svalue_t key = const0, value = const0;
   mapping_node_t **a, *elt, *elt2;
-  char *cp = *str;
+  char* cp = *str;
   int err;
 
   if (save_svalue_depth) {
     if (!get_restore_size(&size)) {
       return 0;
     }
-  } else if ((size = restore_size((const char **)str, 1)) < 0) {
+  } else if ((size = restore_size((const char**)str, 1)) < 0) {
     // #1247 OBJ-3: a malformed / too-deeply-nested mapping must be reported as
     // an error like restore_array/restore_class do; returning 0 here signalled
     // "success" yet left the caller's svalue uninitialized.
@@ -946,18 +946,18 @@ key_error:
   return err;
 }
 
-static int restore_class(char **str, svalue_t *ret) {
+static int restore_class(char** str, svalue_t* ret) {
   int size;
   char c;
-  svalue_t *sv;
-  char *cp = *str;
+  svalue_t* sv;
+  char* cp = *str;
   int err;
 
   if (save_svalue_depth) {
     if (!get_restore_size(&size)) {
       return ROB_CLASS_ERROR;
     }
-  } else if ((size = restore_size((const char **)str, 0)) < 0) {
+  } else if ((size = restore_size((const char**)str, 0)) < 0) {
     return ROB_CLASS_ERROR;
   }
 
@@ -971,8 +971,8 @@ static int restore_class(char **str, svalue_t *ret) {
   // Owned via RAII -- same reasoning as restore_array()'s v_owned: a
   // nested restore call below can throw and skip the goto-based `error:`
   // cleanup, leaking this class.
-  std::unique_ptr<array_t, void (*)(array_t *)> v_owned(allocate_class_by_size(size), free_class);
-  array_t *v = v_owned.get(); /* after this point we have to clean up
+  std::unique_ptr<array_t, void (*)(array_t*)> v_owned(allocate_class_by_size(size), free_class);
+  array_t* v = v_owned.get(); /* after this point we have to clean up
                                     or we'll leak */
   sv = v->item;
 
@@ -1056,18 +1056,18 @@ error:
   return err;
 }
 
-static int restore_array(char **str, svalue_t *ret) {
+static int restore_array(char** str, svalue_t* ret) {
   int size;
   char c;
-  svalue_t *sv;
-  char *cp = *str;
+  svalue_t* sv;
+  char* cp = *str;
   int err;
 
   if (save_svalue_depth) {
     if (!get_restore_size(&size)) {
       return ROB_ARRAY_ERROR;
     }
-  } else if ((size = restore_size((const char **)str, 0)) < 0) {
+  } else if ((size = restore_size((const char**)str, 0)) < 0) {
     return ROB_ARRAY_ERROR;
   }
 
@@ -1085,8 +1085,8 @@ static int restore_array(char **str, svalue_t *ret) {
   // `error:` cleanup entirely and leak this array. The destructor covers
   // every exit uniformly, so the explicit free_array() at `error:` below
   // is no longer needed either.
-  std::unique_ptr<array_t, void (*)(array_t *)> v_owned(allocate_array(size), free_array);
-  array_t *v = v_owned.get(); /* after this point we have to clean up
+  std::unique_ptr<array_t, void (*)(array_t*)> v_owned(allocate_array(size), free_array);
+  array_t* v = v_owned.get(); /* after this point we have to clean up
                                     or we'll leak */
   sv = v->item;
 
@@ -1170,8 +1170,8 @@ error:
   return err;
 }
 
-static int restore_string(char *val, svalue_t *sv) {
-  char *cp = val;
+static int restore_string(char* val, svalue_t* sv) {
+  char* cp = val;
   char *start = cp, *newstr;
   char c;
   int len;
@@ -1184,7 +1184,7 @@ static int restore_string(char *val, svalue_t *sv) {
       }
 
       case '\\': {
-        char *news = cp - 1;
+        char* news = cp - 1;
         if ((*news++ = *cp++)) {
           while ((c = *cp++) != '"' && c) {
             if (c == '\\') {
@@ -1248,7 +1248,7 @@ static int restore_string(char *val, svalue_t *sv) {
 
 /* for this case, the variable in question has been set to zero already,
    and we don't have to worry about preserving it */
-int restore_svalue(char *cp, svalue_t *v) {
+int restore_svalue(char* cp, svalue_t* v) {
   int ret;
   char c;
 
@@ -1271,9 +1271,9 @@ int restore_svalue(char *cp, svalue_t *v) {
       if (save_svalue_depth) {
         save_svalue_depth = max_depth = 0;
         if (sizes) {
-          FREE((char *)sizes);
+          FREE((char*)sizes);
         }
-        sizes = (int *)nullptr;
+        sizes = (int*)nullptr;
       }
       return ret;
 
@@ -1303,7 +1303,7 @@ int restore_svalue(char *cp, svalue_t *v) {
 
 /* for this case, we're being careful and want to leave the value alone on
    an error */
-static int safe_restore_svalue(char *cp, svalue_t *v) {
+static int safe_restore_svalue(char* cp, svalue_t* v) {
   int ret;
   svalue_t val = {};
   char c;
@@ -1331,9 +1331,9 @@ static int safe_restore_svalue(char *cp, svalue_t *v) {
       if (save_svalue_depth) {
         save_svalue_depth = max_depth = 0;
         if (sizes) {
-          FREE((char *)sizes);
+          FREE((char*)sizes);
         }
-        sizes = (int *)nullptr;
+        sizes = (int*)nullptr;
       }
       if (ret) {
         return ret;
@@ -1366,7 +1366,7 @@ static int safe_restore_svalue(char *cp, svalue_t *v) {
   return 0;
 }
 
-static int fgv_recurse(program_t *prog, int *idx, const char *name, unsigned short *type,
+static int fgv_recurse(program_t* prog, int* idx, const char* name, unsigned short* type,
                        int check_nosave) {
   int i;
   for (i = 0; i < prog->num_inherited; i++) {
@@ -1388,10 +1388,10 @@ static int fgv_recurse(program_t *prog, int *idx, const char *name, unsigned sho
   return 0;
 }
 
-int find_global_variable(program_t *prog, const char *const name, unsigned short *type,
+int find_global_variable(program_t* prog, const char* const name, unsigned short* type,
                          int check_nosave) {
   int idx = 0;
-  const char *str = findstring(name);
+  const char* str = findstring(name);
 
   if (str && fgv_recurse(prog, &idx, str, type, check_nosave)) {
     return idx;
@@ -1400,12 +1400,12 @@ int find_global_variable(program_t *prog, const char *const name, unsigned short
   return -1;
 }
 
-void restore_object_from_line(object_t *ob, char *line, int noclear) {
-  char *space;
-  svalue_t *v;
+void restore_object_from_line(object_t* ob, char* line, int noclear) {
+  char* space;
+  svalue_t* v;
   char var[100];
   int idx;
-  svalue_t *sv = obj_vars_data(&ob->variables);
+  svalue_t* sv = obj_vars_data(&ob->variables);
   int rc;
   unsigned short t;
 
@@ -1494,7 +1494,9 @@ static int save_object_recurse(program_t* prog, svalue_t** svp, int type, int sa
     return 1;
   }
   int old_size = -1;
-  std::unique_ptr<char, void (*)(char*)> new_str(nullptr, [](char* text) { FREE(text); });
+  std::unique_ptr<char, void (*)(char*)> new_str(nullptr, [](char* text) {
+    FREE(text);
+  });
   for (int i = 0; i < prog->num_variables_defined; i++) {
     if (prog->variable_types[i] & DECL_NOSAVE) {
       (*svp)++;
@@ -1534,8 +1536,8 @@ static int save_object_recurse(program_t* prog, svalue_t** svp, int type, int sa
  * If 'save_zeros' is set, 0 valued variables will be saved
  */
 
-static int save_object_recurse_str(program_t *prog, svalue_t **svp, int type, int save_zeros,
-                                   char *buf, int bufsize) {
+static int save_object_recurse_str(program_t* prog, svalue_t** svp, int type, int save_zeros,
+                                   char* buf, int bufsize) {
   int i;
   int textsize = 1;
   int tmp;
@@ -1552,9 +1554,9 @@ static int save_object_recurse_str(program_t *prog, svalue_t **svp, int type, in
     if (consumed < 0 || consumed > bufsize) {
       return 0;
     }
-    if (!(tmp = save_object_recurse_str(
-              prog->inherit[i].prog, svp, prog->inherit[i].type_mod | type, save_zeros,
-              buf + consumed, bufsize - consumed))) {
+    if (!(tmp =
+              save_object_recurse_str(prog->inherit[i].prog, svp, prog->inherit[i].type_mod | type,
+                                      save_zeros, buf + consumed, bufsize - consumed))) {
       return 0;
     }
     if (tmp > bufsize - consumed) {
@@ -1590,7 +1592,7 @@ static int save_object_recurse_str(program_t *prog, svalue_t **svp, int type, in
       if (new_str) {
         FREE(new_str);
       }
-      new_str = reinterpret_cast<char *>(DMALLOC(theSize, TAG_PERMANENT, "save_object: 2"));
+      new_str = reinterpret_cast<char*>(DMALLOC(theSize, TAG_PERMANENT, "save_object: 2"));
       oldSize = theSize;
     }
 
@@ -1600,8 +1602,8 @@ static int save_object_recurse_str(program_t *prog, svalue_t **svp, int type, in
     DEBUG_CHECK(p - new_str != theSize - 1, "Length miscalculated in save_object!");
     if (save_zeros || new_str[0] != '0' || new_str[1] != 0) { /* Armidale */
       const int remaining = bufsize - (textsize - 1);
-      const int result = snprintf(buf + textsize - 1, remaining, "%s %s\n",
-                                  prog->variable_table[i], new_str);
+      const int result =
+          snprintf(buf + textsize - 1, remaining, "%s %s\n", prog->variable_table[i], new_str);
       if (result < 0 || result >= remaining) {
         debug_perror("save_object: fprintf", nullptr);
         FREE(new_str);
@@ -1620,7 +1622,7 @@ namespace {
 const int SAVE_EXTENSION_LENGTH = strlen(SAVE_EXTENSION);
 const int SAVE_EXTENSION_GZ_LENGTH = strlen(SAVE_GZ_EXTENSION);
 
-std::string make_save_source_name(const char *program_name) {
+std::string make_save_source_name(const char* program_name) {
   std::string name(program_name);
   const auto clone_suffix = name.rfind('#');
   if (clone_suffix != std::string::npos) {
@@ -1630,8 +1632,8 @@ std::string make_save_source_name(const char *program_name) {
 }
 }  // namespace
 
-int save_object(object_t *ob, const char *file, int save_zeros) {
-  char *name;
+int save_object(object_t* ob, const char* file, int save_zeros) {
+  char* name;
   size_t len;
   FileStream f(nullptr, &fclose);
   GzipStream gzf(nullptr, &gzclose);
@@ -1662,8 +1664,9 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     len -= SAVE_EXTENSION_LENGTH;
   }
 
-  const char *extension = save_compressed ? SAVE_GZ_EXTENSION : SAVE_EXTENSION;
-  const size_t extension_length = save_compressed ? SAVE_EXTENSION_GZ_LENGTH : SAVE_EXTENSION_LENGTH;
+  const char* extension = save_compressed ? SAVE_GZ_EXTENSION : SAVE_EXTENSION;
+  const size_t extension_length =
+      save_compressed ? SAVE_EXTENSION_GZ_LENGTH : SAVE_EXTENSION_LENGTH;
   if (len > std::numeric_limits<unsigned int>::max() - extension_length) {
     return 0;
   }
@@ -1742,8 +1745,7 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     if (error_code) {
       success = 0;
       debug_message("Failed to rename /%s to /%s: Error: %d (%s)\n", tmp_name.c_str(),
-                    validated_file.c_str(),
-                    error_code.value(), error_code.message().c_str());
+                    validated_file.c_str(), error_code.value(), error_code.message().c_str());
       std::remove(tmp_name.c_str());
       debug_message("Failed to save object!\n");
     } else if (save_compressed) {
@@ -1762,9 +1764,9 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
   return success;
 }
 
-int save_object_str(object_t *ob, int save_zeros, char *saved, int size) {
+int save_object_str(object_t* ob, int save_zeros, char* saved, int size) {
   int success;
-  svalue_t *v;
+  svalue_t* v;
   if (!ob || !saved || size <= 0 || !ob->obname || !ob->prog || (ob->flags & O_DESTRUCTED)) {
     return 0;
   }
@@ -1780,7 +1782,7 @@ int save_object_str(object_t *ob, int save_zeros, char *saved, int size) {
   saved[2 + save_name.size()] = '\n';
   saved[header_size] = '\0';
 
-  char *const body = saved + header_size;
+  char* const body = saved + header_size;
   const int left = size - static_cast<int>(header_size);
   /*
    * Write the save-files to different directories, just in case
@@ -1795,7 +1797,7 @@ int save_object_str(object_t *ob, int save_zeros, char *saved, int size) {
   return success;
 }
 
-static void cns_just_count(int *idx, program_t *prog) {
+static void cns_just_count(int* idx, program_t* prog) {
   int i;
 
   for (i = 0; i < prog->num_inherited; i++) {
@@ -1804,7 +1806,7 @@ static void cns_just_count(int *idx, program_t *prog) {
   *idx += prog->num_variables_defined;
 }
 
-static void cns_recurse(object_t *ob, int *idx, program_t *prog) {
+static void cns_recurse(object_t* ob, int* idx, program_t* prog) {
   int i;
 
   for (i = 0; i < prog->num_inherited; i++) {
@@ -1823,12 +1825,12 @@ static void cns_recurse(object_t *ob, int *idx, program_t *prog) {
   *idx += prog->num_variables_defined;
 }
 
-void clear_non_statics(object_t *ob) {
+void clear_non_statics(object_t* ob) {
   int idx = 0;
   cns_recurse(ob, &idx, ob->prog);
 }
 
-void restore_object_from_buff(object_t *ob, const char *buf, int noclear) {
+void restore_object_from_buff(object_t* ob, const char* buf, int noclear) {
   std::istringstream input(buf);
   std::string line;
   while (std::getline(input, line, '\n')) {
@@ -1845,8 +1847,8 @@ void restore_object_from_buff(object_t *ob, const char *buf, int noclear) {
   }
 }
 
-int restore_object(object_t *ob, const char *file, int noclear) {
-  object_t *save = current_object;
+int restore_object(object_t* ob, const char* file, int noclear) {
+  object_t* save = current_object;
 
   if (ob->flags & O_DESTRUCTED) {
     return 0;
@@ -1953,7 +1955,7 @@ int restore_object(object_t *ob, const char *file, int noclear) {
   return 1;
 }
 
-void restore_variable(svalue_t *var, char *str) {
+void restore_variable(svalue_t* var, char* str) {
   int rc;
   rc = restore_svalue(str, var);
 
@@ -1977,9 +1979,9 @@ void restore_variable(svalue_t *var, char *str) {
   }
 }
 
-void dealloc_object(object_t *ob, const char *from) {
+void dealloc_object(object_t* ob, const char* from) {
 #ifdef DEBUG
-  object_t *prev_all = 0;
+  object_t* prev_all = 0;
 #endif
 
   debug(d_flag, "free_object: /%s.\n", ob->obname);
@@ -2034,7 +2036,7 @@ void dealloc_object(object_t *ob, const char *from) {
 
     DEBUG_CHECK1(ObjectTable::instance().find(ob->obname) == ob,
                  "Freeing object /%s but name still in name table", ob->obname);
-    FREE((char *)ob->obname);
+    FREE((char*)ob->obname);
     SETOBNAME(ob, nullptr);
   }
   // Unlink from the destruct queue if this object is still awaiting its
@@ -2048,7 +2050,7 @@ void dealloc_object(object_t *ob, const char *from) {
   if (obj_list_destruct == ob) {
     obj_list_destruct = ob->next_destruct;
   } else if (obj_list_destruct) {
-    for (object_t *q = obj_list_destruct; q->next_destruct; q = q->next_destruct) {
+    for (object_t* q = obj_list_destruct; q->next_destruct; q = q->next_destruct) {
       if (q->next_destruct == ob) {
         q->next_destruct = ob->next_destruct;
         break;
@@ -2075,10 +2077,10 @@ void dealloc_object(object_t *ob, const char *from) {
   vm_context_sync_object_store(vm_context());
 #endif
   tot_alloc_object--;
-  FREE((char *)ob);
+  FREE((char*)ob);
 }
 
-void free_object(object_t **ob, const char *const from) {
+void free_object(object_t** ob, const char* const from) {
   // note that we get a pointer to a pointer unlike MudOS where it's a pointer
   // to the object
   // this is so we can clear the variable holding the reference as that
@@ -2095,11 +2097,11 @@ void free_object(object_t **ob, const char *const from) {
   (*ob)->ref--;
 
   if ((*ob)->ref > 0) {
-    *ob = (object_t *)9;
+    *ob = (object_t*)9;
     return;
   }
   dealloc_object(*ob, from);
-  *ob = (object_t *)1;
+  *ob = (object_t*)1;
 }
 
 /*
@@ -2110,11 +2112,10 @@ void free_object(object_t **ob, const char *const from) {
  * program_layout_digest().
  */
 
-void obj_vars_init(ObjectVariableBlock *block, const program_t *prog) {
+void obj_vars_init(ObjectVariableBlock* block, const program_t* prog) {
   uint32_t count = prog ? prog->num_variables_total : 0;
   size_t size = (count > 0 ? count : 1) * sizeof(svalue_t);
-  block->data = reinterpret_cast<svalue_t *>(
-      DMALLOC(size, TAG_OBJECT_VARIABLES, "obj_vars_init"));
+  block->data = reinterpret_cast<svalue_t*>(DMALLOC(size, TAG_OBJECT_VARIABLES, "obj_vars_init"));
   block->count = count;
   for (uint32_t i = 0; i < count; i++) {
     block->data[i] = const0u;
@@ -2122,7 +2123,7 @@ void obj_vars_init(ObjectVariableBlock *block, const program_t *prog) {
   block->layout_id = program_layout_digest(prog);
 }
 
-void obj_vars_destroy(ObjectVariableBlock *block) noexcept {
+void obj_vars_destroy(ObjectVariableBlock* block) noexcept {
   if (block->data) {
     FREE(block->data);
   }
@@ -2131,14 +2132,14 @@ void obj_vars_destroy(ObjectVariableBlock *block) noexcept {
   block->layout_id = 0;
 }
 
-void obj_vars_clear(ObjectVariableBlock *block) noexcept {
+void obj_vars_clear(ObjectVariableBlock* block) noexcept {
   for (uint32_t i = 0; i < block->count; i++) {
     free_svalue(&block->data[i], "obj_vars_clear");
     block->data[i] = const0u;
   }
 }
 
-void obj_vars_move(ObjectVariableBlock *dst_empty, ObjectVariableBlock *src) noexcept {
+void obj_vars_move(ObjectVariableBlock* dst_empty, ObjectVariableBlock* src) noexcept {
   assert(dst_empty->data == nullptr);
   dst_empty->data = src->data;
   dst_empty->count = src->count;
@@ -2148,15 +2149,17 @@ void obj_vars_move(ObjectVariableBlock *dst_empty, ObjectVariableBlock *src) noe
   src->layout_id = 0;
 }
 
-void obj_vars_swap(ObjectVariableBlock *a, ObjectVariableBlock *b) noexcept {
+void obj_vars_swap(ObjectVariableBlock* a, ObjectVariableBlock* b) noexcept {
   ObjectVariableBlock tmp = *a;
   *a = *b;
   *b = tmp;
 }
 
-svalue_t *obj_vars_data(ObjectVariableBlock *block) noexcept { return block->data; }
+svalue_t* obj_vars_data(ObjectVariableBlock* block) noexcept {
+  return block->data;
+}
 
-void obj_vars_mark(const ObjectVariableBlock *block) {
+void obj_vars_mark(const ObjectVariableBlock* block) {
 #ifdef DEBUGMALLOC_EXTENSIONS
   for (uint32_t i = 0; i < block->count; i++) {
     mark_svalue(&block->data[i]);
@@ -2164,7 +2167,7 @@ void obj_vars_mark(const ObjectVariableBlock *block) {
 #endif
 }
 
-size_t obj_vars_accounted_bytes(const ObjectVariableBlock *block) noexcept {
+size_t obj_vars_accounted_bytes(const ObjectVariableBlock* block) noexcept {
   return (block->count > 0 ? block->count : 1) * sizeof(svalue_t);
 }
 
@@ -2173,13 +2176,13 @@ size_t obj_vars_accounted_bytes(const ObjectVariableBlock *block) noexcept {
  * payload is a separate allocation owned by the embedded block; the
  * object itself is a fixed-size struct.
  */
-object_t *get_empty_object(const program_t *prog) {
-  object_t *ob;
+object_t* get_empty_object(const program_t* prog) {
+  object_t* ob;
   size_t size = sizeof(object_t);
 
   tot_alloc_object++;
   tot_alloc_object_size += size;
-  ob = reinterpret_cast<object_t *>(DMALLOC(size, TAG_OBJECT, "get_empty_object"));
+  ob = reinterpret_cast<object_t*>(DMALLOC(size, TAG_OBJECT, "get_empty_object"));
   memset(ob, 0, sizeof(object_t));
   ob->ref = 1;
   obj_vars_init(&ob->variables, prog);
@@ -2190,7 +2193,7 @@ object_t *get_empty_object(const program_t *prog) {
 // #1247 B-S3: exposed so the recompile transaction can refresh next_reset
 // on Master/SimulEfun targets (call_create() does this before __INIT; the
 // transaction's split __INIT/create path must keep the same behavior).
-void set_nextreset(object_t *ob) {
+void set_nextreset(object_t* ob) {
   auto time_to_reset_secs = CONFIG_INT(__TIME_TO_RESET__);
   if (CONFIG_INT(__RC_RANDOMIZED_RESETS__)) {
     time_to_reset_secs = time_to_reset_secs / 2 + random_number(time_to_reset_secs / 2);
@@ -2199,7 +2202,7 @@ void set_nextreset(object_t *ob) {
       current_gametick() + time_to_next_gametick(std::chrono::seconds(time_to_reset_secs));
 }
 
-void reset_object(object_t *ob) {
+void reset_object(object_t* ob) {
   set_nextreset(ob);
   save_command_giver(nullptr);
   set_eval(max_eval_cost);
@@ -2211,7 +2214,7 @@ void reset_object(object_t *ob) {
   ob->flags |= O_RESET_STATE;
 }
 
-void call_create(object_t *ob, int num_arg) {
+void call_create(object_t* ob, int num_arg) {
   /* Be sure to update time first ! */
   set_nextreset(ob);
 
@@ -2226,7 +2229,7 @@ void call_create(object_t *ob, int num_arg) {
 }
 
 // #1247 B-S3: create-only primitive (no __INIT).
-void call_create_only(object_t *ob, int num_arg) {
+void call_create_only(object_t* ob, int num_arg) {
   if (ob->flags & O_DESTRUCTED) {
     pop_n_elems(num_arg);
     return;
@@ -2238,7 +2241,7 @@ void call_create_only(object_t *ob, int num_arg) {
 }
 
 #ifdef F_SET_HIDE
-int object_visible(object_t *ob) {
+int object_visible(object_t* ob) {
   if (ob->flags & O_HIDDEN) {
     if (current_object->flags & O_HIDDEN) {
       return 1;
@@ -2251,7 +2254,7 @@ int object_visible(object_t *ob) {
 }
 #endif
 
-void reload_object(object_t *obj) {
+void reload_object(object_t* obj) {
   int i;
 
   if (!obj || !obj->prog) {
@@ -2274,8 +2277,8 @@ void reload_object(object_t *obj) {
  */
 #ifndef NO_SHADOWS
   if (obj->shadowed && !obj->shadowing) {
-    object_t *ob2;
-    object_t *otmp;
+    object_t* ob2;
+    object_t* otmp;
 
     for (ob2 = obj->shadowed; ob2;) {
       otmp = ob2;
@@ -2314,8 +2317,8 @@ void reload_object(object_t *obj) {
   call_create(obj, 0);
 }
 
-void get_objects(object_t ***list, int *size, get_objectsfn_t callback, void *data) {
-  object_t *ob;
+void get_objects(object_t*** list, int* size, get_objectsfn_t callback, void* data) {
+  object_t* ob;
 #ifdef F_SET_HIDE
   int display_hidden = 0;
 
@@ -2326,17 +2329,17 @@ void get_objects(object_t ***list, int *size, get_objectsfn_t callback, void *da
       display_hidden = valid_hide(current_object);
     }
   }
-  *list = reinterpret_cast<object_t **>(
-      new_string(((tot_alloc_object - (display_hidden ? 0 : num_hidden)) * sizeof(object_t *)) - 1,
+  *list = reinterpret_cast<object_t**>(
+      new_string(((tot_alloc_object - (display_hidden ? 0 : num_hidden)) * sizeof(object_t*)) - 1,
                  "get_objects"));
 #else
-  *list = (object_t **)new_string((tot_alloc_object * sizeof(object_t *)) - 1, "get_objects");
+  *list = (object_t**)new_string((tot_alloc_object * sizeof(object_t*)) - 1, "get_objects");
 #endif
 
   if (!*list) {
     fatal("Out of memory!\n");
   }
-  push_malloced_string(reinterpret_cast<char *>(*list));
+  push_malloced_string(reinterpret_cast<char*>(*list));
 
   for (*size = 0, ob = obj_list; ob; ob = ob->next_all) {
 #ifdef F_SET_HIDE
@@ -2350,12 +2353,12 @@ void get_objects(object_t ***list, int *size, get_objectsfn_t callback, void *da
   }
 }
 
-static FLUFFOS_VM_THREAD_LOCAL object_t *command_giver_stack[CFG_MAX_CALL_DEPTH];
-FLUFFOS_VM_THREAD_LOCAL object_t **cgsp = command_giver_stack;
+static FLUFFOS_VM_THREAD_LOCAL object_t* command_giver_stack[CFG_MAX_CALL_DEPTH];
+FLUFFOS_VM_THREAD_LOCAL object_t** cgsp = command_giver_stack;
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_command_giver_stack(void) {
-  object_t **ob;
+  object_t** ob;
 
   for (ob = &command_giver_stack[0]; ob < cgsp; ob++) {
     if (*ob) {
@@ -2369,7 +2372,7 @@ void mark_command_giver_stack(void) {
 #endif
 
 /* set a new command giver, saving the old one */
-void save_command_giver(object_t *ob) {
+void save_command_giver(object_t* ob) {
   DEBUG_CHECK(cgsp == &command_giver_stack[CFG_MAX_CALL_DEPTH], "command_giver stack overflow");
   *(++cgsp) = command_giver;
 
@@ -2389,7 +2392,7 @@ void restore_command_giver(void) {
 }
 
 /* set a new command giver */
-void set_command_giver(object_t *ob) {
+void set_command_giver(object_t* ob) {
   if (command_giver) {
     free_object(&command_giver, "set_command_giver");
   }

@@ -58,13 +58,13 @@ static struct lws_http_mount mount = {
     /* .cache_reusable */ 0,
     /* .cache_revalidate */ 0,
     /* .cache_intermediaries */ 0,
-    /* .cache_no */ 0, /* 4.5.8 新增字段 */
+    /* .cache_no */ 0,                   /* 4.5.8 新增字段 */
     /* .origin_protocol */ LWSMPRO_FILE, /* files in a dir */
     /* .mountpoint_len */ 1,             /* char count */
     /* .basic_auth_login_file */ nullptr,
 };
 
-void lws_log(int severity, const char *msg) {
+void lws_log(int severity, const char* msg) {
   if (severity == LLL_ERR) {
     debug(all, "lws ERROR: %s", msg);
   } else {
@@ -72,7 +72,7 @@ void lws_log(int severity, const char *msg) {
   }
 }
 
-struct lws_context *init_websocket_context(event_base *base, port_def_t *port) {
+struct lws_context* init_websocket_context(event_base* base, port_def_t* port) {
   int logs = LLL_USER | LLL_WARN | LLL_ERR;
 
 #ifdef DEBUG
@@ -85,7 +85,7 @@ struct lws_context *init_websocket_context(event_base *base, port_def_t *port) {
   lws_set_log_level(logs, lws_log);
 
   struct lws_context_creation_info info = {0};
-  void *foreign_loops[1] = {base};
+  void* foreign_loops[1] = {base};
 
   info.foreign_loops = foreign_loops;
 
@@ -114,7 +114,7 @@ struct lws_context *init_websocket_context(event_base *base, port_def_t *port) {
     info.ssl_min_proto_version = kTlsMinimumProtocolVersion;
   }
   // info.options |= LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
-  info.user = (void *)port;
+  info.user = (void*)port;
 
   auto context = lws_create_context(&info);
 
@@ -124,7 +124,7 @@ struct lws_context *init_websocket_context(event_base *base, port_def_t *port) {
   }
 
   std::string res;
-  for (auto &p : protocols) {
+  for (auto& p : protocols) {
     if (p.name) {
       res += p.name;
       res += " ";
@@ -135,23 +135,23 @@ struct lws_context *init_websocket_context(event_base *base, port_def_t *port) {
   return context;
 }
 
-struct lws *init_user_websocket(struct lws_context *context, evutil_socket_t fd) {
+struct lws* init_user_websocket(struct lws_context* context, evutil_socket_t fd) {
   // Since lws v4.3 the context's vhost list is headed by an internal "system"
   // vhost, which carries none of our ws protocols; lws_adopt_socket() adopts
   // onto the list head, so adopt explicitly onto our own vhost instead.
   // (Upstream 8fe05a5d.)
-  auto *vhost = lws_get_vhost_by_name(context, "default");
+  auto* vhost = lws_get_vhost_by_name(context, "default");
   if (!vhost) {
     return nullptr;
   }
   return lws_adopt_socket_vhost(vhost, fd);
 }
 
-bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
+bool websocket_establish_session(struct lws* wsi, WebSocketSession* session,
                                  websocket_transport_setup_fn transport_setup) {
   lwsl_info("LWS_CALLBACK_ESTABLISHED\n");
 
-  auto *port = reinterpret_cast<port_def_t *>(lws_context_user(lws_get_context(wsi)));
+  auto* port = reinterpret_cast<port_def_t*>(lws_context_user(lws_get_context(wsi)));
   auto fd = lws_get_socket_fd(lws_get_network_wsi(wsi));
 
   sockaddr_storage address = {};
@@ -161,7 +161,7 @@ bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
     return false;
   }
 
-  auto *ip = new_user(port, fd, reinterpret_cast<sockaddr *>(&address), address_length);
+  auto* ip = new_user(port, fd, reinterpret_cast<sockaddr*>(&address), address_length);
   session->wsi = wsi;
   session->user = ip;
   session->buffer = evbuffer_new();
@@ -178,7 +178,7 @@ bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
     transport_setup(ip);
   }
 
-  auto *base = evconnlistener_get_base(port->ev_conn);
+  auto* base = evconnlistener_get_base(port->ev_conn);
   if (!schedule_user_logon(base, ip)) {
     websocket_session_teardown(wsi, &session->user, &session->buffer);
     return false;
@@ -186,7 +186,7 @@ bool websocket_establish_session(struct lws *wsi, WebSocketSession *session,
   return true;
 }
 
-bool websocket_maybe_close_after_flush(struct lws *wsi, WebSocketSession *session) {
+bool websocket_maybe_close_after_flush(struct lws* wsi, WebSocketSession* session) {
   if (!session->close_after_flush || evbuffer_get_length(session->buffer) != 0) {
     return false;
   }
@@ -202,7 +202,7 @@ bool websocket_maybe_close_after_flush(struct lws *wsi, WebSocketSession *sessio
   return true;
 }
 
-void websocket_send_text(struct lws *wsi, const char *data, size_t len) {
+void websocket_send_text(struct lws* wsi, const char* data, size_t len) {
   switch (lws_get_protocol(wsi)->id) {
     case WS_TELNET:
       ws_telnet_send(wsi, data, len);
@@ -230,7 +230,7 @@ std::string_view trim_ascii(std::string_view text) {
   return text;
 }
 
-bool parse_unsigned(std::string_view text, unsigned int *value) {
+bool parse_unsigned(std::string_view text, unsigned int* value) {
   if (text.empty()) {
     return false;
   }
@@ -243,8 +243,8 @@ bool parse_unsigned(std::string_view text, unsigned int *value) {
   return true;
 }
 
-bool parse_numeric_address(std::string_view text, int *family,
-                           std::array<unsigned char, 16> *bytes, bool *was_mapped = nullptr) {
+bool parse_numeric_address(std::string_view text, int* family, std::array<unsigned char, 16>* bytes,
+                           bool* was_mapped = nullptr) {
   text = trim_ascii(text);
   if (was_mapped) {
     *was_mapped = false;
@@ -253,13 +253,13 @@ bool parse_numeric_address(std::string_view text, int *family,
     return false;
   }
   const std::string terminated(text);
-  struct in_addr ipv4{};
+  struct in_addr ipv4 {};
   if (evutil_inet_pton(AF_INET, terminated.c_str(), &ipv4) == 1) {
     std::memcpy(bytes->data(), &ipv4, sizeof(ipv4));
     *family = AF_INET;
     return true;
   }
-  struct in6_addr ipv6{};
+  struct in6_addr ipv6 {};
   if (evutil_inet_pton(AF_INET6, terminated.c_str(), &ipv6) != 1) {
     return false;
   }
@@ -278,8 +278,8 @@ bool parse_numeric_address(std::string_view text, int *family,
   return true;
 }
 
-bool address_matches_cidr(int family, const unsigned char *address,
-                          const websocket_trusted_proxy_cidr_t &cidr) {
+bool address_matches_cidr(int family, const unsigned char* address,
+                          const websocket_trusted_proxy_cidr_t& cidr) {
   if (family != cidr.family) {
     return false;
   }
@@ -297,15 +297,15 @@ bool address_matches_cidr(int family, const unsigned char *address,
   return true;
 }
 
-bool is_trusted_proxy(const sockaddr_storage &address,
-                      const std::vector<websocket_trusted_proxy_cidr_t> &cidrs) {
+bool is_trusted_proxy(const sockaddr_storage& address,
+                      const std::vector<websocket_trusted_proxy_cidr_t>& cidrs) {
   std::array<unsigned char, 16> bytes{};
   int family = address.ss_family;
   if (family == AF_INET) {
-    const auto *ipv4 = reinterpret_cast<const sockaddr_in *>(&address);
+    const auto* ipv4 = reinterpret_cast<const sockaddr_in*>(&address);
     std::memcpy(bytes.data(), &ipv4->sin_addr, 4);
   } else if (family == AF_INET6) {
-    const auto *ipv6 = reinterpret_cast<const sockaddr_in6 *>(&address);
+    const auto* ipv6 = reinterpret_cast<const sockaddr_in6*>(&address);
     std::memcpy(bytes.data(), &ipv6->sin6_addr, 16);
     static constexpr unsigned char mapped_prefix[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
     if (std::equal(std::begin(mapped_prefix), std::end(mapped_prefix), bytes.begin())) {
@@ -317,15 +317,16 @@ bool is_trusted_proxy(const sockaddr_storage &address,
   } else {
     return false;
   }
-  return std::any_of(cidrs.begin(), cidrs.end(), [&](const auto &cidr) {
+  return std::any_of(cidrs.begin(), cidrs.end(), [&](const auto& cidr) {
     return address_matches_cidr(family, bytes.data(), cidr);
   });
 }
 
 }  // namespace
 
-bool websocket_parse_trusted_proxy_cidrs(
-    const char *value, std::vector<websocket_trusted_proxy_cidr_t> *out, std::string *error) {
+bool websocket_parse_trusted_proxy_cidrs(const char* value,
+                                         std::vector<websocket_trusted_proxy_cidr_t>* out,
+                                         std::string* error) {
   if (!out || !error) {
     return false;
   }
@@ -337,8 +338,8 @@ bool websocket_parse_trusted_proxy_cidrs(
   std::string_view remaining(value);
   while (!remaining.empty()) {
     const size_t comma = remaining.find(',');
-    const auto item = trim_ascii(
-        remaining.substr(0, comma == std::string_view::npos ? remaining.size() : comma));
+    const auto item =
+        trim_ascii(remaining.substr(0, comma == std::string_view::npos ? remaining.size() : comma));
     if (item.empty()) {
       *error = "empty CIDR entry";
       return false;
@@ -389,15 +390,15 @@ bool websocket_parse_trusted_proxy_cidrs(
   return true;
 }
 
-bool websocket_get_client_address(struct lws *wsi, const port_def_t *port,
-                                  sockaddr_storage *address, socklen_t *address_length) {
+bool websocket_get_client_address(struct lws* wsi, const port_def_t* port,
+                                  sockaddr_storage* address, socklen_t* address_length) {
   if (!wsi || !port || !address || !address_length) {
     return false;
   }
   const auto fd = lws_get_socket_fd(lws_get_network_wsi(wsi));
   *address = {};
   *address_length = sizeof(*address);
-  if (getpeername(fd, reinterpret_cast<sockaddr *>(address), address_length) != 0) {
+  if (getpeername(fd, reinterpret_cast<sockaddr*>(address), address_length) != 0) {
     return false;
   }
   if (!is_trusted_proxy(*address, port->websocket_trusted_proxy_cidrs)) {
@@ -405,9 +406,8 @@ bool websocket_get_client_address(struct lws *wsi, const port_def_t *port,
   }
 
   std::array<char, 46> header{};
-  const int first_fragment =
-      lws_hdr_copy_fragment(wsi, header.data(), static_cast<int>(header.size()),
-                            WSI_TOKEN_HTTP_X_REAL_IP, 0);
+  const int first_fragment = lws_hdr_copy_fragment(
+      wsi, header.data(), static_cast<int>(header.size()), WSI_TOKEN_HTTP_X_REAL_IP, 0);
   if (first_fragment == -1) {
     return true;
   }
@@ -421,8 +421,8 @@ bool websocket_get_client_address(struct lws *wsi, const port_def_t *port,
   if (header_length <= 0 || header_length > 45) {
     return false;
   }
-  const int copied = lws_hdr_copy(wsi, header.data(), static_cast<int>(header.size()),
-                                  WSI_TOKEN_HTTP_X_REAL_IP);
+  const int copied =
+      lws_hdr_copy(wsi, header.data(), static_cast<int>(header.size()), WSI_TOKEN_HTTP_X_REAL_IP);
   if (copied != header_length) {
     return false;
   }
@@ -433,12 +433,12 @@ bool websocket_get_client_address(struct lws *wsi, const port_def_t *port,
   }
   *address = {};
   if (family == AF_INET) {
-    auto *ipv4 = reinterpret_cast<sockaddr_in *>(address);
+    auto* ipv4 = reinterpret_cast<sockaddr_in*>(address);
     ipv4->sin_family = AF_INET;
     std::memcpy(&ipv4->sin_addr, bytes.data(), 4);
     *address_length = sizeof(*ipv4);
   } else {
-    auto *ipv6 = reinterpret_cast<sockaddr_in6 *>(address);
+    auto* ipv6 = reinterpret_cast<sockaddr_in6*>(address);
     ipv6->sin6_family = AF_INET6;
     std::memcpy(&ipv6->sin6_addr, bytes.data(), 16);
     *address_length = sizeof(*ipv6);
@@ -446,9 +446,11 @@ bool websocket_get_client_address(struct lws *wsi, const port_def_t *port,
   return true;
 }
 
-void close_websocket_context(struct lws_context *context) { lws_context_destroy(context); }
+void close_websocket_context(struct lws_context* context) {
+  lws_context_destroy(context);
+}
 
-void close_user_websocket(struct lws *wsi) {
+void close_user_websocket(struct lws* wsi) {
   if (!wsi) {
     return;
   }
@@ -456,7 +458,7 @@ void close_user_websocket(struct lws *wsi) {
   bool close_from_writable = false;
   switch (lws_get_protocol(wsi)->id) {
     case WS_TELNET: {
-      auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
+      auto pss = reinterpret_cast<WebSocketSession*>(lws_wsi_user(wsi));
       if (pss) {
         pss->close_after_flush = true;
         close_from_writable = true;
@@ -465,7 +467,7 @@ void close_user_websocket(struct lws *wsi) {
       break;
     }
     case WS_ASCII: {
-      auto pss = reinterpret_cast<WebSocketSession *>(lws_wsi_user(wsi));
+      auto pss = reinterpret_cast<WebSocketSession*>(lws_wsi_user(wsi));
       if (pss) {
         pss->close_after_flush = true;
         close_from_writable = true;
@@ -487,13 +489,13 @@ void close_user_websocket(struct lws *wsi) {
   }
 }
 
-void websocket_session_teardown(struct lws *wsi, struct interactive_t **user,
-                                struct evbuffer **buffer) {
+void websocket_session_teardown(struct lws* wsi, struct interactive_t** user,
+                                struct evbuffer** buffer) {
   if (!user || !buffer) {
     return;
   }
 
-  auto *ip = *user;
+  auto* ip = *user;
   *user = nullptr;
   if (ip) {
     if (ip->lws == wsi) {

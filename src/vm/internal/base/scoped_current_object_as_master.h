@@ -43,13 +43,15 @@ class ScopedCurrentObjectAsMaster {
       current_object = master_ob;
     }
   }
-  ~ScopedCurrentObjectAsMaster() { current_object = saved_; }
+  ~ScopedCurrentObjectAsMaster() {
+    current_object = saved_;
+  }
 
-  ScopedCurrentObjectAsMaster(const ScopedCurrentObjectAsMaster &) = delete;
-  ScopedCurrentObjectAsMaster &operator=(const ScopedCurrentObjectAsMaster &) = delete;
+  ScopedCurrentObjectAsMaster(const ScopedCurrentObjectAsMaster&) = delete;
+  ScopedCurrentObjectAsMaster& operator=(const ScopedCurrentObjectAsMaster&) = delete;
 
  private:
-  object_t *saved_;
+  object_t* saved_;
 };
 
 #endif /* SRC_VM_INTERNAL_BASE_SCOPED_CURRENT_OBJECT_AS_MASTER_H_ */

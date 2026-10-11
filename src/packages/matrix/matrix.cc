@@ -11,18 +11,18 @@
 
 static Matrix identity = {1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.};
 
-static void print_matrix(Matrix, const char *);
-static void print_array(Vector *, const char *);
-static Vector *normalize_array(Vector *);
-static Vector *cross_product(Vector *, Vector *, Vector *);
-static Vector *points_to_array(Vector *, Vector *, Vector *);
+static void print_matrix(Matrix, const char*);
+static void print_array(Vector*, const char*);
+static Vector* normalize_array(Vector*);
+static Vector* cross_product(Vector*, Vector*, Vector*);
+static Vector* points_to_array(Vector*, Vector*, Vector*);
 
 // #1247 MATRIX-1/MATRIX-2: these efuns validate and then read AND overwrite
 // matrix->item[i].u.real in place, but the spec's `float *` is only enforced
 // at compile time -- a `mixed` argument arrives unchecked, and a non-float
 // element would have its type/pointer union bits overwritten with a double.
 // Validate the array shape and every element once, before touching anything.
-static void check_transform_matrix(svalue_t *arg) {
+static void check_transform_matrix(svalue_t* arg) {
   if (arg->type != T_ARRAY || arg->u.arr->size < 16) {
     error("matrix transform requires a 16-element array.\n");
   }
@@ -33,23 +33,23 @@ static void check_transform_matrix(svalue_t *arg) {
   }
 }
 
-static array_t *matrix_arg_to_floats(svalue_t *arg, Matrix out) {
+static array_t* matrix_arg_to_floats(svalue_t* arg, Matrix out) {
   check_transform_matrix(arg);
-  auto *matrix = arg->u.arr;
+  auto* matrix = arg->u.arr;
   for (int i = 0; i < 16; i++) {
     out[i] = matrix->item[i].u.real;
   }
   return matrix;
 }
 
-static void store_matrix(array_t *matrix, const Matrix src) {
+static void store_matrix(array_t* matrix, const Matrix src) {
   for (int i = 0; i < 16; i++) {
     matrix->item[i].u.real = src[i];
   }
 }
 
 void f_id_matrix() {
-  array_t *matrix;
+  array_t* matrix;
   int i;
 
   matrix = allocate_empty_array(16);
@@ -61,7 +61,7 @@ void f_id_matrix() {
 }
 
 void f_translate() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT x, y, z;
   Matrix current_matrix;
   Matrix trans_matrix;
@@ -97,7 +97,7 @@ void f_translate() {
 }
 
 void f_scale() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT x, y, z;
   Matrix current_matrix;
   Matrix scaling_matrix;
@@ -132,7 +132,7 @@ void f_scale() {
 }
 
 void f_rotate_x() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT angle;
   Matrix current_matrix;
   Matrix rot_matrix;
@@ -158,7 +158,7 @@ void f_rotate_x() {
 }
 
 void f_rotate_y() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT angle;
   Matrix current_matrix;
   Matrix rot_matrix;
@@ -184,7 +184,7 @@ void f_rotate_y() {
 }
 
 void f_rotate_z() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT angle;
   Matrix current_matrix;
   Matrix rot_matrix;
@@ -210,7 +210,7 @@ void f_rotate_z() {
 }
 
 void f_lookat_rotate() {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT x, y, z;
   Matrix current_matrix;
   Matrix lookat_matrix;
@@ -241,7 +241,7 @@ void f_lookat_rotate() {
 
 #ifdef F_LOOKAT_ROTATE2
 void f_lookat_rotate2(void) {
-  array_t *matrix;
+  array_t* matrix;
   LPC_FLOAT ex, ey, ez, lx, ly, lz;
   Matrix current_matrix;
   Matrix lookat_matrix;
@@ -250,7 +250,7 @@ void f_lookat_rotate2(void) {
   for (j = 4; j >= 0; j--) {
     if ((sp - j)->type != T_REAL) {
       bad_arg(7 - j, F_LOOKAT_ROTATE2);
-  }
+    }
   }
   /*
    * get arguments from stack.
@@ -277,7 +277,7 @@ void f_lookat_rotate2(void) {
 #endif
 
 #ifdef DEBUG
-static void print_matrix(Matrix m, const char *label) {
+static void print_matrix(Matrix m, const char* label) {
   int i;
   int j;
 
@@ -285,17 +285,17 @@ static void print_matrix(Matrix m, const char *label) {
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       debug_message("%f\t", m[i * 4 + j]);
-  }
+    }
     debug_message("\n");
   }
 }
 
-static void print_array(Vector *v, const char *label) {
+static void print_array(Vector* v, const char* label) {
   debug_message("%s:\t%f\t%f\t%f\n", label, v->x, v->y, v->z);
 }
 #endif
 
-static Vector *normalize_array(Vector *v) {
+static Vector* normalize_array(Vector* v) {
   LPC_FLOAT xx, yy, zz, mm, m;
 
   xx = v->x * v->x;
@@ -311,14 +311,14 @@ static Vector *normalize_array(Vector *v) {
   return (v);
 }
 
-static Vector *cross_product(Vector *v, Vector *va, Vector *vb) {
+static Vector* cross_product(Vector* v, Vector* va, Vector* vb) {
   v->x = (va->y * vb->z) - (va->z * vb->y);
   v->y = (va->z * vb->x) - (va->x * vb->z);
   v->z = (va->x * vb->y) - (va->y * vb->x);
   return (v);
 }
 
-static Vector *points_to_array(Vector *v, Vector *pa, Vector *pb) {
+static Vector* points_to_array(Vector* v, Vector* pa, Vector* pb) {
   v->x = pa->x - pb->x;
   v->y = pa->y - pb->y;
   v->z = pa->z - pb->z;

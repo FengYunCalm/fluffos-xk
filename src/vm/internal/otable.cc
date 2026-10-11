@@ -13,7 +13,8 @@ ObjectTable::ObjectTable() : objects_({}), children_({}) {}
 
 // static method to return a pointer to the singleton object table.
 ObjectTable& ObjectTable::instance() {
-  if (!instance_) instance_.reset(new ObjectTable());
+  if (!instance_)
+    instance_.reset(new ObjectTable());
   return *(instance_.get());
 }
 
@@ -21,7 +22,8 @@ ObjectTable& ObjectTable::instance() {
 // the table. also will insert the key, object pointer pair in the childrens list. if the key is
 // already in the object table it fails and returns false, otherwise true.
 bool ObjectTable::insert(Key const& key, Value value) {
-  if (objects_.find(key) != objects_.end()) return false;
+  if (objects_.find(key) != objects_.end())
+    return false;
 
   objects_.insert(std::make_pair(key, value));
   auto base = basename(key);
@@ -38,14 +40,16 @@ bool ObjectTable::insert(Key const& key, Value value) {
 // the null pointer.
 ObjectTable::Value ObjectTable::find(Key const& key) {
   auto it = objects_.find(key);
-  if (it == objects_.end()) return nullptr;
+  if (it == objects_.end())
+    return nullptr;
   return it->second;
 }
 
 // return the children of key if any as a vector of object pointers(Values).
 ObjectTable::Vector ObjectTable::children(Key const& key) {
   auto it = children_.find(basename(key));
-  if (it == children_.end()) return Vector({});
+  if (it == children_.end())
+    return Vector({});
   return it->second;
 }
 
@@ -55,19 +59,22 @@ ObjectTable::Vector ObjectTable::children(Key const& key) {
 // TODO: generalize this code by removing dependency on field obname.
 bool ObjectTable::remove(Key const& key) {
   auto it1 = objects_.find(key);
-  if (it1 == objects_.end()) return false;
+  if (it1 == objects_.end())
+    return false;
   objects_.erase(it1);
   // guaranteed to exist if object exists
   auto it2 = children_.find(basename(key));
-  if (it2 == children_.end()) return false;
-  auto it3 = std::find_if(it2->second.begin(), it2->second.end(),
-                          [&key](Value v) -> bool { return v->obname == key; });
+  if (it2 == children_.end())
+    return false;
+  auto it3 = std::find_if(it2->second.begin(), it2->second.end(), [&key](Value v) -> bool {
+    return v->obname == key;
+  });
   // guaranteed to be in list if basename(key) exists in children_
   if (it3 != it2->second.end()) {
-      it2->second.erase(it3);
+    it2->second.erase(it3);
   }
   if (it2->second.empty()) {
-      children_.erase(it2);
+    children_.erase(it2);
   }
   return true;
 }
@@ -114,7 +121,8 @@ std::string basename(std::string s) {
 
   // find # in the string and delete it and all subsequent characters
   auto it2 = s.find('#');
-  if (it2 != std::string::npos) s.erase(s.begin() + it2, s.end());
+  if (it2 != std::string::npos)
+    s.erase(s.begin() + it2, s.end());
 
   // Object identity is extension-blind for both supported LPC source
   // spellings. Keep children() consistent with find_object()/load_object().

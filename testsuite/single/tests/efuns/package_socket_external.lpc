@@ -67,9 +67,11 @@ void do_tests() {
 #endif
 #ifdef __PACKAGE_EXTERNAL__
   int command = __ARCH__ == "Microsoft Windows" ? 4 : 3;
-  string *args = command == 4
-      ? ({ "/c", "echo", "external-package-boundary" })
-      : ({ "external-package-boundary" });
+  string *args = command == 4 ? ({
+    "/c",
+    "echo",
+    "external-package-boundary"
+  }) : ({ "external-package-boundary" });
   ASSERT_EQ(1, external_available);
   completion_token = "/command/tests"->begin_async();
   pending = 2;

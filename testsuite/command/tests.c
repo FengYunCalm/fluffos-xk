@@ -21,19 +21,19 @@ private void check_test_memory(string name);
 void run_next_case();
 
 private string case_key(string name) {
-  if (strlen(name) > 4 && name[<4..] == ".lpc") {
-    return name[0..<5];
+  if (strlen(name) > 4 && name[<4 ..] == ".lpc") {
+    return name[0 ..<5];
   }
-  if (strlen(name) > 2 && name[<2..] == ".c") {
-    return name[0..<3];
+  if (strlen(name) > 2 && name[<2 ..] == ".c") {
+    return name[0 ..<3];
   }
   return name;
 }
 
 private void init_scopes() {
   mapping capabilities = ([ "async": 0, "compress": 0, "db": 0, "sqlite": 0, "modern_ed": 0,
-                            "profile": 0, "sockets": 0, "trace": 0, "tls_reload": 0,
-                            "interactive": !!this_player() && interactive(this_player()) ]);
+    "profile": 0, "sockets": 0, "trace": 0, "tls_reload": 0,
+    "interactive": !!this_player() && interactive(this_player()) ]);
   string contents = read_file("/etc/test-scopes.tsv");
 
 #ifdef __PACKAGE_ASYNC__
@@ -80,8 +80,8 @@ private void init_scopes() {
     }
     fields = explode(line, "\t");
     if (sizeof(fields) != 4 || fields[3] == "" || test_scopes[fields[0]] ||
-        member_array(fields[1], ({ "runtime", "fixture", "coverage_gap" })) == -1 ||
-        (file_size(fields[0] + ".lpc") < 0 && file_size(fields[0] + ".c") < 0)) {
+      member_array(fields[1], ({ "runtime", "fixture", "coverage_gap" })) == -1 ||
+      (file_size(fields[0] + ".lpc") < 0 && file_size(fields[0] + ".c") < 0)) {
       error("Invalid or stale test-scopes.tsv row.\n");
     }
     foreach (string feature in fields[2] == "-" ? ({}) : explode(fields[2], ",")) {
@@ -141,8 +141,8 @@ int consume_expected_error(string program, string message) {
     return 1;
   }
   if (!expected_runtime_error || expected_runtime_error["seen"] ||
-      expected_runtime_error["program"] != program ||
-      expected_runtime_error["message"] != message) {
+    expected_runtime_error["program"] != program ||
+    expected_runtime_error["message"] != message) {
     return 0;
   }
   expected_runtime_error["seen"] = 1;
@@ -177,7 +177,7 @@ private void finish_run() {
 
 private void finish_if_ready() {
   if (!running || scheduling || finishing || failed ||
-      pending_index < sizeof(pending_jobs) || waiting_case) {
+    pending_index < sizeof(pending_jobs) || waiting_case) {
     return;
   }
   foreach (mapping state in values(test_states)) {
@@ -202,7 +202,7 @@ private void complete_case(string key) {
   check_test_memory(state["name"]);
   state["done"] = 1;
   write(sprintf("D> %s %s asserts=%d\n", state["kind"], state["name"],
-                state["assertions"]));
+    state["assertions"]));
   finish_if_ready();
 }
 
@@ -247,7 +247,7 @@ private void start_case(string name, string kind) {
     error("Duplicate test identity: " + name + "\n");
   }
   test_states[key] = ([ "name": name, "kind": kind, "assertions": 0,
-                        "tokens": ([]), "returned": 0, "done": 0 ]);
+    "tokens": ([]), "returned": 0, "done": 0 ]);
   executing_case = key;
   write(kind + "> " + name + "\n");
 }
@@ -268,8 +268,8 @@ private string *source_files(string dir) {
 
   // Source spelling is preserved; the extension-blind identity prefers .lpc.
   foreach (string file in sort_array(get_dir(dir + "*.c") + get_dir(dir + "*.lpc"), 1)) {
-    if (strlen(file) > 2 && file[<2..] == ".c" &&
-        file_size(dir + file[0..<3] + ".lpc") != -1) {
+    if (strlen(file) > 2 && file[<2 ..] == ".c" &&
+      file_size(dir + file[0 ..<3] + ".lpc") != -1) {
       continue;
     }
     files += ({ dir + file });
@@ -293,7 +293,7 @@ private void collect_jobs(string dir) {
     queue_job(file, "C");
   }
   foreach (string subdir in sort_array(map(filter(get_dir(dir + "*", -1),
-           (: $1[1] == -2 :)), (: $1[0] :)) - ({ ".", ".." }), 1)) {
+    (: $1[1] == -2 :)), (: $1[0] :)) - ({ ".", ".." }), 1)) {
     if (subdir == "fail" || subdir == "crasher") {
       foreach (string file in source_files(dir + subdir + "/")) {
         queue_job(file, subdir == "fail" ? "A" : "B");
@@ -356,7 +356,7 @@ void run_next_case() {
   mixed *job;
 
   while (running && !failed && !finishing && !waiting_case &&
-         pending_index < sizeof(pending_jobs)) {
+    pending_index < sizeof(pending_jobs)) {
     job = pending_jobs[pending_index++];
     if (job[1] == "fail_end") {
       cp("/log/compile", "/log/compile_fail");

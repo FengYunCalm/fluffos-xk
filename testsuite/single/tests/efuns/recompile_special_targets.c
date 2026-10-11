@@ -43,7 +43,7 @@ void do_tests_p6() {
   //    regular snapshot checks.
   mixed err = catch(recompile_object(master()));
   ASSERT2(stringp(err) && strsrch(err, "target program is executing") != -1,
-          "master reload must hit the executing guard");
+    "master reload must hit the executing guard");
   ASSERT2(strsrch(err, "unsupported") == -1, "v1 special-case rejection must be gone");
   total++;
 

@@ -28,19 +28,19 @@ namespace {
 // "trace suppressed" path instead.
 FLUFFOS_VM_THREAD_LOCAL bool dump_trace_in_progress = false;
 
-void get_trace_details(const program_t *prog, long findex, const char **fname, int *na, int *nl) {
-  function_t *cfp = &prog->function_table[findex];
+void get_trace_details(const program_t* prog, long findex, const char** fname, int* na, int* nl) {
+  function_t* cfp = &prog->function_table[findex];
 
   *fname = cfp->funcname;
   *na = cfp->num_arg;
   *nl = cfp->num_local;
 }
 
-void dump_trace_line(const char *fname, const char *pname, const char *const obname,
-                     const char *where) {
+void dump_trace_line(const char* fname, const char* pname, const char* const obname,
+                     const char* where) {
   char line[256];
-  char *end = EndOf(line);
-  char *p;
+  char* end = EndOf(line);
+  char* p;
 
   p = strput(line, end, "Object: ");
   if (obname[0] != '<' && p < end) {
@@ -64,9 +64,9 @@ void dump_trace_line(const char *fname, const char *pname, const char *const obn
 
 }  // namespace
 
-const char *dump_trace(int how) {
-  control_stack_t *p;
-  const char *ret = nullptr;
+const char* dump_trace(int how) {
+  control_stack_t* p;
+  const char* ret = nullptr;
   int num_arg = -1, num_local = -1;
 
   int i;
@@ -81,7 +81,9 @@ const char *dump_trace(int how) {
     return nullptr;
   }
   dump_trace_in_progress = true;
-  DEFER { dump_trace_in_progress = false; };
+  DEFER {
+    dump_trace_in_progress = false;
+  };
 
   if (how) {
     last_instructions();
@@ -89,10 +91,10 @@ const char *dump_trace(int how) {
 
   debug_message("--- trace ---\n");
   for (p = csp; p >= &control_stack[0]; p--) {
-    struct program_t *trace_prog;
-    struct object_t *trace_obj;
-    char *trace_pc;
-    struct svalue_t *trace_fp;
+    struct program_t* trace_prog;
+    struct object_t* trace_obj;
+    char* trace_pc;
+    struct svalue_t* trace_fp;
 
     if (p == csp) {
       trace_prog = current_prog;
@@ -105,14 +107,14 @@ const char *dump_trace(int how) {
       trace_pc = p[1].pc;
       trace_fp = p[1].fp;
     }
-    const char *trace_program_name = trace_prog ? trace_prog->filename : "<driver>";
-    const char *trace_object_name = trace_obj ? trace_obj->obname : "<driver>";
-    const char *trace_location =
+    const char* trace_program_name = trace_prog ? trace_prog->filename : "<driver>";
+    const char* trace_object_name = trace_obj ? trace_obj->obname : "<driver>";
+    const char* trace_location =
         trace_prog && trace_pc ? get_line_number(trace_pc, trace_prog) : "";
     debug_message("--- frame %td ----\n", p - &control_stack[0]);
     switch (p[0].framekind & FRAME_MASK) {
       case FRAME_FUNCTION: {
-        const char *fname;
+        const char* fname;
         if (trace_prog) {
           get_trace_details(trace_prog, p[0].fr.table_index, &fname, &num_arg, &num_local);
         } else {
@@ -177,7 +179,7 @@ const char *dump_trace(int how) {
       debug_message("]\n");
     }
     if (num_local > 0 && num_arg != -1) {
-      struct svalue_t *ptr = trace_fp + num_arg;
+      struct svalue_t* ptr = trace_fp + num_arg;
       debug_message("locals: [");
       for (i = 0; i < num_local; i++) {
         outbuffer_t outbuf;
@@ -198,16 +200,16 @@ const char *dump_trace(int how) {
   return ret;
 }
 
-array_t *get_svalue_trace() {
-  control_stack_t *p;
-  array_t *v;
-  mapping_t *m;
-  const char *file;
+array_t* get_svalue_trace() {
+  control_stack_t* p;
+  array_t* v;
+  mapping_t* m;
+  const char* file;
   int line;
-  const char *fname;
+  const char* fname;
   int num_arg, num_local = -1;
 
-  svalue_t *ptr;
+  svalue_t* ptr;
   int i;
 
   if (current_prog == nullptr) {
@@ -218,10 +220,10 @@ array_t *get_svalue_trace() {
   }
   v = allocate_empty_array((csp - &control_stack[0]) + 1);
   for (p = &control_stack[0]; p < csp; p++) {
-    const program_t *trace_prog = p[1].prog;
-    object_t *trace_obj = p[1].ob;
-    char *trace_pc = p[1].pc;
-    svalue_t *trace_fp = p[1].fp;
+    const program_t* trace_prog = p[1].prog;
+    object_t* trace_obj = p[1].ob;
+    char* trace_pc = p[1].pc;
+    svalue_t* trace_fp = p[1].fp;
     m = allocate_mapping(6);
     switch (p[0].framekind & FRAME_MASK) {
       case FRAME_FUNCTION:
@@ -287,7 +289,7 @@ array_t *get_svalue_trace() {
       num_local = -1;
     }
     if (num_arg != -1) {
-      array_t *v2;
+      array_t* v2;
 
       ptr = trace_fp;
       v2 = allocate_empty_array(num_arg);
@@ -298,7 +300,7 @@ array_t *get_svalue_trace() {
       v2->ref--;
     }
     if (num_local > 0 && num_arg != -1) {
-      array_t *v2;
+      array_t* v2;
 
       ptr = trace_fp + num_arg;
       v2 = allocate_empty_array(num_local);
@@ -357,7 +359,7 @@ array_t *get_svalue_trace() {
     add_mapping_pair(m, "line", 0);
   }
   if (num_arg > 0) {
-    array_t *v2;
+    array_t* v2;
 
     v2 = allocate_empty_array(num_arg);
     for (i = 0; i < num_arg; i++) {
@@ -367,7 +369,7 @@ array_t *get_svalue_trace() {
     v2->ref--;
   }
   if (num_local > 0 && num_arg != -1) {
-    array_t *v2;
+    array_t* v2;
 
     v2 = allocate_empty_array(num_local);
     for (i = 0; i < num_local; i++) {

@@ -11,35 +11,35 @@
 #endif
 
 void do_tests() {
-    int n, v;
+  int n, v;
 
-    // Runtime (non-constant operand) shifts.
-    n = 64;
-    ASSERT_EQ(1, 1 << n);
-    n = 100;
-    ASSERT_EQ(1 << 36, 1 << n);
-    n = -1;
-    ASSERT_EQ(1 << 63, 1 << n);
+  // Runtime (non-constant operand) shifts.
+  n = 64;
+  ASSERT_EQ(1, 1 << n);
+  n = 100;
+  ASSERT_EQ(1 << 36, 1 << n);
+  n = -1;
+  ASSERT_EQ(1 << 63, 1 << n);
 
-    n = 64;
-    v = 1 << 63;
-    ASSERT_EQ(v, v >> n);
-    n = -1;
-    ASSERT_EQ(-1, -1 >> n);
+  n = 64;
+  v = 1 << 63;
+  ASSERT_EQ(v, v >> n);
+  n = -1;
+  ASSERT_EQ(-1, -1 >> n);
 
-    // Compound assignment forms take the same masking path.
-    v = 1;
-    n = 100;
-    v <<= n;
-    ASSERT_EQ(1 << 36, v);
+  // Compound assignment forms take the same masking path.
+  v = 1;
+  n = 100;
+  v <<= n;
+  ASSERT_EQ(1 << 36, v);
 
-    v = -1;
-    n = 64;
-    v >>= n;
-    ASSERT_EQ(-1, v);
+  v = -1;
+  n = 64;
+  v >>= n;
+  ASSERT_EQ(-1, v);
 
-    // Constant-folded shifts must agree with the runtime results.
-    ASSERT_EQ(1 << 36, 1 << 100);
-    ASSERT_EQ(1 << 63, 1 << -1);
-    ASSERT_EQ(-1, -1 >> 64);
+  // Constant-folded shifts must agree with the runtime results.
+  ASSERT_EQ(1 << 36, 1 << 100);
+  ASSERT_EQ(1 << 63, 1 << -1);
+  ASSERT_EQ(-1, -1 >> 64);
 }

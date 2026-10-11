@@ -49,7 +49,7 @@ void read_command(string command) {
       break;
     case "stats":
       tell_object(this_object(), sprintf("STATS %d %d\n", sizeof(users()),
-                  "/single/u09_websocket_master"->query_net_dead()));
+        "/single/u09_websocket_master"->query_net_dead()));
       break;
     case "u11-output": {
       mixed notify_value;

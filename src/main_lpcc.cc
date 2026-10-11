@@ -28,7 +28,7 @@ void print_usage() {
             << "       lpcc --owner-audit --format=json config_file lpc_file\n";
 }
 
-int run_owner_audit_json(const char *config_file, const char *lpc_file) {
+int run_owner_audit_json(const char* config_file, const char* lpc_file) {
   std::ifstream input(lpc_file, std::ios::binary);
   if (!input) {
     std::cerr << "Fail to read LPC file " << lpc_file << ".\n";
@@ -51,7 +51,7 @@ int run_owner_audit_json(const char *config_file, const char *lpc_file) {
   output["invalid_sequence_count"] = report.invalid_sequence_count;
   output["finding_count"] = report.findings.size();
   output["rules"] = nlohmann::json::array();
-  for (const auto &rule : lpc_owner_audit_rules()) {
+  for (const auto& rule : lpc_owner_audit_rules()) {
     output["rules"].push_back({
         {"code", rule.code},
         {"category", rule.category},
@@ -61,7 +61,7 @@ int run_owner_audit_json(const char *config_file, const char *lpc_file) {
     });
   }
   output["findings"] = nlohmann::json::array();
-  for (const auto &finding : report.findings) {
+  for (const auto& finding : report.findings) {
     output["findings"].push_back({
         {"code", finding.code},
         {"category", finding.category},
@@ -82,7 +82,8 @@ int run_owner_audit_json(const char *config_file, const char *lpc_file) {
 static int lpcc_main(int argc, char** argv) {
   bool flag_batch = false;
   std::vector<const char*> batch_files;
-  if (argc == 5 && std::string(argv[1]) == "--owner-audit" && std::string(argv[2]) == "--format=json") {
+  if (argc == 5 && std::string(argv[1]) == "--owner-audit" &&
+      std::string(argv[2]) == "--format=json") {
     return run_owner_audit_json(argv[3], argv[4]);
   }
   if (argc >= 3 && std::string(argv[1]) == "--batch") {
@@ -131,7 +132,8 @@ static int lpcc_main(int argc, char** argv) {
     if (files.empty()) {
       std::string line;
       while (std::getline(std::cin, line)) {
-        if (!line.empty()) files.push_back(line);
+        if (!line.empty())
+          files.push_back(line);
       }
       // Synchronized stdio can report a read error as iostream EOF.
       if (std::cin.bad() || ferror(stdin)) {
@@ -207,7 +209,6 @@ static int lpcc_main(int argc, char** argv) {
 
   return 0;
 }
-
 
 int main(int argc, char** argv) {
   // Nothing may throw past main() (json serialization errors, an LPC

@@ -19,7 +19,9 @@ static const std::string BASE64_CHARS =
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
 
-static inline bool is_base64(BYTE c) { return (isalnum(c) || (c == '+') || (c == '/')); }
+static inline bool is_base64(BYTE c) {
+  return (isalnum(c) || (c == '+') || (c == '/'));
+}
 
 std::string base64_encode(BYTE const* buf, unsigned int bufLen) {
   std::string ret;
@@ -36,22 +38,26 @@ std::string base64_encode(BYTE const* buf, unsigned int bufLen) {
       char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
       char_array_4[3] = char_array_3[2] & 0x3f;
 
-      for (i = 0; (i < 4); i++) ret += BASE64_CHARS[char_array_4[i]];
+      for (i = 0; (i < 4); i++)
+        ret += BASE64_CHARS[char_array_4[i]];
       i = 0;
     }
   }
 
   if (i) {
-    for (j = i; j < 3; j++) char_array_3[j] = '\0';
+    for (j = i; j < 3; j++)
+      char_array_3[j] = '\0';
 
     char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
     char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
     char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
     char_array_4[3] = char_array_3[2] & 0x3f;
 
-    for (j = 0; (j < i + 1); j++) ret += BASE64_CHARS[char_array_4[j]];
+    for (j = 0; (j < i + 1); j++)
+      ret += BASE64_CHARS[char_array_4[j]];
 
-    while ((i++ < 3)) ret += '=';
+    while ((i++ < 3))
+      ret += '=';
   }
 
   return ret;
@@ -69,27 +75,32 @@ std::vector<BYTE> base64_decode(std::string const& encoded_string) {
     char_array_4[i++] = encoded_string[in];
     in++;
     if (i == 4) {
-      for (i = 0; i < 4; i++) char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
+      for (i = 0; i < 4; i++)
+        char_array_4[i] = BASE64_CHARS.find(char_array_4[i]);
 
       char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
       char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
       char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-      for (i = 0; (i < 3); i++) ret.push_back(char_array_3[i]);
+      for (i = 0; (i < 3); i++)
+        ret.push_back(char_array_3[i]);
       i = 0;
     }
   }
 
   if (i) {
-    for (j = i; j < 4; j++) char_array_4[j] = 0;
+    for (j = i; j < 4; j++)
+      char_array_4[j] = 0;
 
-    for (j = 0; j < 4; j++) char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
+    for (j = 0; j < 4; j++)
+      char_array_4[j] = BASE64_CHARS.find(char_array_4[j]);
 
     char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
     char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
     char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
 
-    for (j = 0; (j < i - 1); j++) ret.push_back(char_array_3[j]);
+    for (j = 0; (j < i - 1); j++)
+      ret.push_back(char_array_3[j]);
   }
 
   return ret;
@@ -119,25 +130,25 @@ std::string type_2_name(int type) {
 }
 
 int name_2_type(const std::string name) {
-        if (name == "string") {
-        return T_STRING;
-        } else if (name == "number") {
-        return T_NUMBER;
-        } else if (name == "float") {
-        return T_REAL;
-        } else if (name == "array") {
-        return T_ARRAY;
-        } else if (name == "class") {
-        return T_CLASS;
-        } else if (name == "mapping") {
-        return T_MAPPING;
-        } else if (name == "object") {
-        return T_OBJECT;
-        } else if (name == "buffer") {
-        return T_BUFFER;
-        } else {
-        return T_INVALID;
-        }
+  if (name == "string") {
+    return T_STRING;
+  } else if (name == "number") {
+    return T_NUMBER;
+  } else if (name == "float") {
+    return T_REAL;
+  } else if (name == "array") {
+    return T_ARRAY;
+  } else if (name == "class") {
+    return T_CLASS;
+  } else if (name == "mapping") {
+    return T_MAPPING;
+  } else if (name == "object") {
+    return T_OBJECT;
+  } else if (name == "buffer") {
+    return T_BUFFER;
+  } else {
+    return T_INVALID;
+  }
 }
 
 nlohmann::json svalue_to_json_recurse(const svalue_t* sv) {
@@ -211,7 +222,8 @@ svalue_t svalue_from_json_recurse(nlohmann::json j) {
       if (!value.is_string()) {
         throw std::runtime_error("Invalid string value: " + value.dump());
       }
-      sv.u.string = string_copy(value.get<std::string>().data(), "svalue_from_json_recurse: string");
+      sv.u.string =
+          string_copy(value.get<std::string>().data(), "svalue_from_json_recurse: string");
       sv.subtype = STRING_MALLOC;
       break;
     case T_CLASS:
@@ -315,24 +327,24 @@ OFile::OFile(const std::string& o_str) {
 }
 
 OFile::OFile(const nlohmann::json& j) {
-    program_name = j["program_name"];
-    for (const auto& v : j["variables"]) {
-      variables.emplace_back(v["name"], svalue_from_json_recurse(v["value"]));
-    }
+  program_name = j["program_name"];
+  for (const auto& v : j["variables"]) {
+    variables.emplace_back(v["name"], svalue_from_json_recurse(v["value"]));
+  }
 }
 
 std::string OFile::to_ofile() {
-    std::stringstream ss;
-    ss << program_name << "\n";
-    for (auto& v : variables) {
-      ss << v.first << " ";
-      auto size = svalue_save_size(&v.second);
-      std::string buf(size - 1, '\0');
-      auto *p = buf.data();
-      save_svalue(&v.second, &p);
-      ss << buf << "\n";
-    }
-    return ss.str();
+  std::stringstream ss;
+  ss << program_name << "\n";
+  for (auto& v : variables) {
+    ss << v.first << " ";
+    auto size = svalue_save_size(&v.second);
+    std::string buf(size - 1, '\0');
+    auto* p = buf.data();
+    save_svalue(&v.second, &p);
+    ss << buf << "\n";
+  }
+  return ss.str();
 }
 OFile::~OFile() {
   for (auto& v : variables) {

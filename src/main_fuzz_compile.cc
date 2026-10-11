@@ -50,7 +50,8 @@ namespace {
 std::vector<char> read_file(const char* path) {
   std::vector<char> data;
   FILE* f = fopen(path, "rb");
-  if (!f) return data;
+  if (!f)
+    return data;
   char buf[65536];
   size_t n;
   while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
@@ -82,10 +83,8 @@ std::string g_scratch_mud_dir;
 // object is destructed immediately (see file header). Returns false on
 // scratch I/O failure (never swallowed).
 bool compile_one(int index, const std::string& src) {
-  std::string host_path =
-      g_scratch_host_dir + "/chunk_" + std::to_string(index) + ".c";
-  std::string mud_path =
-      g_scratch_mud_dir + "/chunk_" + std::to_string(index) + ".c";
+  std::string host_path = g_scratch_host_dir + "/chunk_" + std::to_string(index) + ".c";
+  std::string mud_path = g_scratch_mud_dir + "/chunk_" + std::to_string(index) + ".c";
 
   FILE* f = fopen(host_path.c_str(), "wb");
   if (!f) {
@@ -145,7 +144,8 @@ bool run_sequence(const std::vector<char>& raw) {
       return false;
     }
     chunks++;
-    if (next == std::string_view::npos) break;
+    if (next == std::string_view::npos)
+      break;
     pos = next + kDelim.size();
   }
   return true;
@@ -162,8 +162,7 @@ int main(int argc, char** argv) {
   auto config = get_argument(0, argc, argv);
   init_main(config);
   vm_start();
-    ScopedCurrentObjectAsMaster master_scope;
-
+  ScopedCurrentObjectAsMaster master_scope;
 
 #ifdef __AFL_HAVE_MANUAL_CONTROL
   __AFL_INIT();
@@ -191,8 +190,7 @@ int main(int argc, char** argv) {
   g_scratch_mud_dir = kScratchMudPath;
   if (mkdir(g_scratch_host_dir.c_str(), 0700) != 0) {
     if (errno != EEXIST) {
-      fprintf(stderr, "fuzz_compile: cannot create scratch dir %s\n",
-              g_scratch_host_dir.c_str());
+      fprintf(stderr, "fuzz_compile: cannot create scratch dir %s\n", g_scratch_host_dir.c_str());
       return 1;
     }
   }
@@ -216,9 +214,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  fprintf(stderr,
-          "HARNESS_OK target=compile executions=%d chunks=%zu success=%d diagnostic=%d\n",
-          g_compile_executions, g_compile_chunks, g_compile_success,
-          g_compile_diagnostic);
+  fprintf(stderr, "HARNESS_OK target=compile executions=%d chunks=%zu success=%d diagnostic=%d\n",
+          g_compile_executions, g_compile_chunks, g_compile_success, g_compile_diagnostic);
   return 0;
 }

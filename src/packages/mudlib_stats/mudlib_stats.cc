@@ -19,7 +19,7 @@
 
 #ifdef F_DOMAIN_STATS
 void f_domain_stats() {
-  mapping_t *m;
+  mapping_t* m;
 
   if (st_num_arg) {
     m = get_domain_stats(sp->u.string);
@@ -45,7 +45,7 @@ void f_set_author() {
 
 #ifdef F_AUTHOR_STATS
 void f_author_stats() {
-  mapping_t *m;
+  mapping_t* m;
 
   if (st_num_arg) {
     m = get_author_stats(sp->u.string);
@@ -63,38 +63,40 @@ void f_author_stats() {
 #endif
 
 /* Support functions */
-static mudlib_stats_t *domains = nullptr;
-static mudlib_stats_t *backbone_domain = nullptr;
-static mudlib_stats_t *authors = nullptr;
-static mudlib_stats_t *master_author = nullptr;
+static mudlib_stats_t* domains = nullptr;
+static mudlib_stats_t* backbone_domain = nullptr;
+static mudlib_stats_t* authors = nullptr;
+static mudlib_stats_t* master_author = nullptr;
 
-static mudlib_stats_t *find_stat_entry(const char * /*name*/, mudlib_stats_t * /*list*/);
-static mudlib_stats_t *add_stat_entry(const char * /*str*/, mudlib_stats_t ** /*list*/);
-static void init_author_for_ob(object_t * /*ob*/);
-static bool author_for_file(const char * /*file*/, std::string * /*name*/);
-static void init_domain_for_ob(object_t * /*ob*/);
-static bool domain_for_file(const char * /*file*/, std::string * /*name*/);
-static bool stat_file_path(const char * /*file*/, std::string * /*path*/);
-static void save_stat_list(const char * /*file*/, mudlib_stats_t * /*list*/);
-static void restore_stat_list(const char * /*file*/, mudlib_stats_t ** /*list*/);
-static mapping_t *get_info(mudlib_stats_t * /*dl*/);
-static mapping_t *get_stats(const char * /*str*/, mudlib_stats_t * /*list*/);
-static mudlib_stats_t *insert_stat_entry(mudlib_stats_t * /*entry*/, mudlib_stats_t ** /*list*/);
+static mudlib_stats_t* find_stat_entry(const char* /*name*/, mudlib_stats_t* /*list*/);
+static mudlib_stats_t* add_stat_entry(const char* /*str*/, mudlib_stats_t** /*list*/);
+static void init_author_for_ob(object_t* /*ob*/);
+static bool author_for_file(const char* /*file*/, std::string* /*name*/);
+static void init_domain_for_ob(object_t* /*ob*/);
+static bool domain_for_file(const char* /*file*/, std::string* /*name*/);
+static bool stat_file_path(const char* /*file*/, std::string* /*path*/);
+static void save_stat_list(const char* /*file*/, mudlib_stats_t* /*list*/);
+static void restore_stat_list(const char* /*file*/, mudlib_stats_t** /*list*/);
+static mapping_t* get_info(mudlib_stats_t* /*dl*/);
+static mapping_t* get_stats(const char* /*str*/, mudlib_stats_t* /*list*/);
+static mudlib_stats_t* insert_stat_entry(mudlib_stats_t* /*entry*/, mudlib_stats_t** /*list*/);
 
 // VM objects and mappings can be created by owner threads while the main
 // thread continues allocating values. Keep the legacy struct layout, but make
 // the shared counters atomic through compiler builtins available in C++17.
-static int stat_load(const int *value) { return __atomic_load_n(value, __ATOMIC_RELAXED); }
+static int stat_load(const int* value) {
+  return __atomic_load_n(value, __ATOMIC_RELAXED);
+}
 
-static void stat_store(int *value, int next) {
+static void stat_store(int* value, int next) {
   __atomic_store_n(value, next, __ATOMIC_RELAXED);
 }
 
-static void stat_add(int *value, int delta) {
+static void stat_add(int* value, int delta) {
   __atomic_fetch_add(value, delta, __ATOMIC_RELAXED);
 }
 
-static void stat_decay(int *value, int numerator, int denominator) {
+static void stat_decay(int* value, int numerator, int denominator) {
   int current = stat_load(value);
   while (true) {
     const auto next = static_cast<int>(static_cast<int64_t>(current) * numerator / denominator);
@@ -107,8 +109,8 @@ static void stat_decay(int *value, int numerator, int denominator) {
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 /* debugging */
-int check_valid_stat_entry(mudlib_stats_t *se) {
-  mudlib_stats_t *tmp;
+int check_valid_stat_entry(mudlib_stats_t* se) {
+  mudlib_stats_t* tmp;
 
   tmp = domains;
   while (tmp) {
@@ -132,7 +134,7 @@ int check_valid_stat_entry(mudlib_stats_t *se) {
  * stat list manipulation
  **************************/
 
-static mudlib_stats_t *insert_stat_entry(mudlib_stats_t *entry, mudlib_stats_t **list) {
+static mudlib_stats_t* insert_stat_entry(mudlib_stats_t* entry, mudlib_stats_t** list) {
   entry->next = *list;
   *list = entry;
   return *list;
@@ -143,7 +145,7 @@ static mudlib_stats_t *insert_stat_entry(mudlib_stats_t *entry, mudlib_stats_t *
  * this uses a simple linear search.  it's a good thing that most muds
  * will have a relatively small number of domains
  */
-static mudlib_stats_t *find_stat_entry(const char *name, mudlib_stats_t *list) {
+static mudlib_stats_t* find_stat_entry(const char* name, mudlib_stats_t* list) {
   int length;
 
   length = strlen(name);
@@ -158,13 +160,13 @@ static mudlib_stats_t *find_stat_entry(const char *name, mudlib_stats_t *list) {
 /*
  * add a new domain to the domain list.  If it exists, do nothing.
  */
-static mudlib_stats_t *add_stat_entry(const char *str, mudlib_stats_t **list) {
-  mudlib_stats_t *entry;
+static mudlib_stats_t* add_stat_entry(const char* str, mudlib_stats_t** list) {
+  mudlib_stats_t* entry;
 
   if ((entry = find_stat_entry(str, *list))) {
     return entry;
   }
-  entry = reinterpret_cast<mudlib_stats_t *>(
+  entry = reinterpret_cast<mudlib_stats_t*>(
       DMALLOC(sizeof(mudlib_stats_t), TAG_MUDLIB_STATS, "add_stat_entry"));
   entry->name = make_shared_string(str);
   entry->length = strlen(str);
@@ -182,19 +184,19 @@ static mudlib_stats_t *add_stat_entry(const char *str, mudlib_stats_t **list) {
  * general stat modifying accessor functions
  **************************************/
 
-void assign_stats(statgroup_t *st, object_t *ob) {
+void assign_stats(statgroup_t* st, object_t* ob) {
   st->domain = ob->stats.domain;
   st->author = ob->stats.author;
 }
 
-void null_stats(statgroup_t *st) {
+void null_stats(statgroup_t* st) {
   if (st) {
     st->domain = nullptr;
     st->author = nullptr;
   }
 }
 
-void init_stats_for_object(object_t *ob) {
+void init_stats_for_object(object_t* ob) {
   init_domain_for_ob(ob);
   init_author_for_ob(ob);
 }
@@ -202,7 +204,7 @@ void init_stats_for_object(object_t *ob) {
 /*
  * Add moves to an existing domain.
  */
-void add_moves(statgroup_t *st, int moves) {
+void add_moves(statgroup_t* st, int moves) {
   if (st) {
     if (st->domain) {
       stat_add(&st->domain->moves, moves);
@@ -213,7 +215,7 @@ void add_moves(statgroup_t *st, int moves) {
   }
 }
 
-void add_heart_beats(statgroup_t *st, int hbs) {
+void add_heart_beats(statgroup_t* st, int hbs) {
   if (st) {
     if (st->domain) {
       stat_add(&st->domain->heart_beats, hbs);
@@ -224,7 +226,7 @@ void add_heart_beats(statgroup_t *st, int hbs) {
   }
 }
 
-void add_array_size(statgroup_t *st, int size) {
+void add_array_size(statgroup_t* st, int size) {
   if (st) {
     if (st->domain) {
       stat_add(&st->domain->size_array, size);
@@ -235,7 +237,7 @@ void add_array_size(statgroup_t *st, int size) {
   }
 }
 
-void add_errors(statgroup_t *st, int errors) {
+void add_errors(statgroup_t* st, int errors) {
   if (st) {
     if (st->domain) {
       stat_add(&st->domain->errors, errors);
@@ -246,8 +248,8 @@ void add_errors(statgroup_t *st, int errors) {
   }
 }
 
-void add_errors_for_file(const char *file, int errors) {
-  mudlib_stats_t *entry;
+void add_errors_for_file(const char* file, int errors) {
+  mudlib_stats_t* entry;
   std::string domain_name;
   std::string author_name;
 
@@ -269,7 +271,7 @@ void add_errors_for_file(const char *file, int errors) {
   }
 }
 
-void add_objects(statgroup_t *st, int objects) {
+void add_objects(statgroup_t* st, int objects) {
   if (st) {
     if (st->domain) {
       stat_add(&st->domain->objects, objects);
@@ -291,7 +293,7 @@ void mudlib_stats_decay() {
   add_gametick_event(time_to_next_gametick(std::chrono::hours(1)),
                      TickEvent::callback_type(mudlib_stats_decay));
 
-  mudlib_stats_t *dl;
+  mudlib_stats_t* dl;
   for (dl = domains; dl; dl = dl->next) {
     stat_decay(&dl->moves, 99, 100);
     stat_decay(&dl->heart_beats, 9, 10);
@@ -304,7 +306,7 @@ void mudlib_stats_decay() {
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_mudlib_stats() {
-  mudlib_stats_t *dl;
+  mudlib_stats_t* dl;
 
   for (dl = domains; dl; dl = dl->next) {
     DO_MARK(dl, TAG_MUDLIB_STATS);
@@ -321,12 +323,12 @@ void mark_mudlib_stats() {
  Author specific functions
  *************************/
 
-static void init_author_for_ob(object_t *ob) {
-  svalue_t *ret;
+static void init_author_for_ob(object_t* ob) {
+  svalue_t* ret;
 
   push_malloced_string(add_slash(ob->obname));
   ret = apply_master_ob(APPLY_AUTHOR_FILE, 1);
-  if (ret == (svalue_t *)-1) {
+  if (ret == (svalue_t*)-1) {
     ob->stats.author = master_author;
   } else if (!ret || ret->type != T_STRING) {
     ob->stats.author = nullptr;
@@ -335,14 +337,14 @@ static void init_author_for_ob(object_t *ob) {
   }
 }
 
-void set_author(const char *name) {
-  object_t *ob;
+void set_author(const char* name) {
+  object_t* ob;
 
   if (!current_object) {
     return;
   }
   ob = current_object;
-  if (master_ob == (object_t *)-1) {
+  if (master_ob == (object_t*)-1) {
     ob->stats.author = nullptr;
     return;
   }
@@ -355,8 +357,8 @@ void set_author(const char *name) {
   }
 }
 
-mudlib_stats_t *set_master_author(const char *str) {
-  mudlib_stats_t *author;
+mudlib_stats_t* set_master_author(const char* str) {
+  mudlib_stats_t* author;
 
   author = add_stat_entry(str, &authors);
   if (author) {
@@ -365,8 +367,10 @@ mudlib_stats_t *set_master_author(const char *str) {
   return author;
 }
 
-static bool author_for_file(const char *file, std::string *name) {  // #1247-equivalent MUDLIB-1..4 (std::string, no strcpy buffer)
-  svalue_t *ret;
+static bool author_for_file(
+    const char* file,
+    std::string* name) {  // #1247-equivalent MUDLIB-1..4 (std::string, no strcpy buffer)
+  svalue_t* ret;
 
   if (!file || !name) {
     return false;
@@ -374,7 +378,7 @@ static bool author_for_file(const char *file, std::string *name) {  // #1247-equ
 
   copy_and_push_string(file);
   ret = safe_apply_master_ob(APPLY_AUTHOR_FILE, 1);
-  if (ret == nullptr || ret == (svalue_t *)-1 || ret->type != T_STRING || ret->u.string == nullptr) {
+  if (ret == nullptr || ret == (svalue_t*)-1 || ret->type != T_STRING || ret->u.string == nullptr) {
     return false;
   }
   name->assign(ret->u.string);
@@ -385,9 +389,9 @@ static bool author_for_file(const char *file, std::string *name) {  // #1247-equ
  Domain specific functions
  *************************/
 
-static void init_domain_for_ob(object_t *ob) {
-  svalue_t *ret;
-  const char *domain_name;
+static void init_domain_for_ob(object_t* ob) {
+  svalue_t* ret;
+  const char* domain_name;
 
   if (!current_object
 #ifdef PACKAGE_UIDS
@@ -449,8 +453,8 @@ static void init_domain_for_ob(object_t *ob) {
   ob->stats.domain = add_stat_entry(domain_name, &domains);
 }
 
-mudlib_stats_t *set_backbone_domain(const char *str) {
-  mudlib_stats_t *dom;
+mudlib_stats_t* set_backbone_domain(const char* str) {
+  mudlib_stats_t* dom;
 
   dom = add_stat_entry(str, &domains);
   if (dom) {
@@ -463,8 +467,8 @@ mudlib_stats_t *set_backbone_domain(const char *str) {
  * Argument is a file name, which we want to get the domain of.
  * Ask the master object.
  */
-static bool domain_for_file(const char *file, std::string *name) {
-  svalue_t *ret;
+static bool domain_for_file(const char* file, std::string* name) {
+  svalue_t* ret;
 
   if (!file || !name) {
     return false;
@@ -472,7 +476,7 @@ static bool domain_for_file(const char *file, std::string *name) {
 
   share_and_push_string(file);
   ret = safe_apply_master_ob(APPLY_DOMAIN_FILE, 1);
-  if (ret == nullptr || ret == (svalue_t *)-1 || ret->type != T_STRING || ret->u.string == nullptr) {
+  if (ret == nullptr || ret == (svalue_t*)-1 || ret->type != T_STRING || ret->u.string == nullptr) {
     return false;
   }
   name->assign(ret->u.string);
@@ -484,7 +488,7 @@ static bool domain_for_file(const char *file, std::string *name) {
  ************************************/
 
 /* Keep the historical mudlib-relative path semantics without a fixed buffer. */
-static bool stat_file_path(const char *file, std::string *path) {
+static bool stat_file_path(const char* file, std::string* path) {
   if (!file || !path) {
     return false;
   }
@@ -492,7 +496,7 @@ static bool stat_file_path(const char *file, std::string *path) {
   if (strchr(file, '/')) {
     path->assign(file);
   } else {
-    const char *log_dir = CONFIG_STR(__LOG_DIR__);
+    const char* log_dir = CONFIG_STR(__LOG_DIR__);
     if (!log_dir) {
       return false;
     }
@@ -507,8 +511,8 @@ static bool stat_file_path(const char *file, std::string *path) {
   return !path->empty();
 }
 
-static void save_stat_list(const char *file, mudlib_stats_t *list) {
-  FILE *f;
+static void save_stat_list(const char* file, mudlib_stats_t* list) {
+  FILE* f;
   std::string path;
 
   if (!file) {
@@ -537,9 +541,9 @@ static void save_stat_list(const char *file, mudlib_stats_t *list) {
   }
 }
 
-static void restore_stat_list(const char *file, mudlib_stats_t **list) {
+static void restore_stat_list(const char* file, mudlib_stats_t** list) {
   std::string path;
-  mudlib_stats_t *entry;
+  mudlib_stats_t* entry;
   std::string name;
   int moves;
   int heart_beats;
@@ -566,8 +570,7 @@ static void restore_stat_list(const char *file, mudlib_stats_t **list) {
 
   const int configured_max = CONFIG_INT(__MAX_STRING_LENGTH__);
   size_t max_name_length = configured_max > 0 ? static_cast<size_t>(configured_max) : 0;
-  const size_t max_stream_length =
-      static_cast<size_t>(std::numeric_limits<std::streamsize>::max());
+  const size_t max_stream_length = static_cast<size_t>(std::numeric_limits<std::streamsize>::max());
   if (max_stream_length < 2) {
     debug_message("*Warning: stream size is too small to read stat names.\n");
     return;
@@ -618,8 +621,8 @@ void restore_stat_files() {
  * that describe the statistics for authors and domains.
  **************************************/
 
-static mapping_t *get_info(mudlib_stats_t *dl) {
-  mapping_t *ret;
+static mapping_t* get_info(mudlib_stats_t* dl) {
+  mapping_t* ret;
 
   ret = allocate_mapping(8);
   add_mapping_pair(ret, "moves", stat_load(&dl->moves));
@@ -630,9 +633,9 @@ static mapping_t *get_info(mudlib_stats_t *dl) {
   return ret;
 }
 
-static mapping_t *get_stats(const char *str, mudlib_stats_t *list) {
-  mudlib_stats_t *dl;
-  mapping_t *m;
+static mapping_t* get_stats(const char* str, mudlib_stats_t* list) {
+  mudlib_stats_t* dl;
+  mapping_t* m;
   svalue_t lv, *s;
 
   if (str) {
@@ -642,7 +645,7 @@ static mapping_t *get_stats(const char *str, mudlib_stats_t *list) {
       }
     }
     if (dl) {
-      mapping_t *tmp;
+      mapping_t* tmp;
 
       tmp = get_info(dl);
       tmp->ref--;
@@ -664,6 +667,10 @@ static mapping_t *get_stats(const char *str, mudlib_stats_t *list) {
   return m;
 }
 
-mapping_t *get_domain_stats(const char *str) { return get_stats(str, domains); }
+mapping_t* get_domain_stats(const char* str) {
+  return get_stats(str, domains);
+}
 
-mapping_t *get_author_stats(const char *str) { return get_stats(str, authors); }
+mapping_t* get_author_stats(const char* str) {
+  return get_stats(str, authors);
+}

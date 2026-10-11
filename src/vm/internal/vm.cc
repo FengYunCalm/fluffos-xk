@@ -44,7 +44,7 @@ void preload_objects() {
   push_number(0);
   auto ret = safe_apply_master_ob(APPLY_EPILOG, 1);
 
-  if ((ret == nullptr) || (ret == (svalue_t *)-1) || (ret->type != T_ARRAY)) {
+  if ((ret == nullptr) || (ret == (svalue_t*)-1) || (ret->type != T_ARRAY)) {
     return;
   }
 
@@ -110,7 +110,7 @@ void vm_start() {
     init_simul_efun(CONFIG_STR(__SIMUL_EFUN_FILE__));
     debug_message("Loading master file: %s\n", CONFIG_STR(__MASTER_FILE__));
     init_master(CONFIG_STR(__MASTER_FILE__));
-  } catch (const char *) {
+  } catch (const char*) {
     debug_message("The simul_efun (%s) and master (%s) objects must be loadable.\n",
                   CONFIG_STR(__SIMUL_EFUN_FILE__), CONFIG_STR(__MASTER_FILE__));
     debug_message("Please check log files for exact error. \n");
@@ -156,7 +156,7 @@ void clear_state() {
 /* All destructed objects are moved into a sperate linked list,
  * and deallocated after program execution.  */
 // TODO: find where they are
-extern object_t *obj_list_destruct;
+extern object_t* obj_list_destruct;
 size_t remove_destructed_objects_bounded(size_t max_count) {
   if (max_count == 0) {
     destructed_object_cleanup_last_removed.store(0, std::memory_order_relaxed);
@@ -175,7 +175,7 @@ size_t remove_destructed_objects_bounded(size_t max_count) {
      * unprocessed remainder on the queue for the next sweep (local
      * TestRemoveDestructedObjectsBoundedDrainsIncrementally pins this;
      * the whole-queue detach only ever made sense for an unbounded sweep). */
-    auto *ob = obj_list_destruct;
+    auto* ob = obj_list_destruct;
     obj_list_destruct = ob->next_destruct;
     ob->next_destruct = nullptr;
     destruct2(ob);
@@ -197,7 +197,7 @@ void remove_destructed_objects() {
 
 size_t vm_destructed_object_backlog_size() {
   size_t count = 0;
-  for (auto *ob = obj_list_destruct; ob; ob = ob->next_destruct) {
+  for (auto* ob = obj_list_destruct; ob; ob = ob->next_destruct) {
     count++;
   }
   return count;

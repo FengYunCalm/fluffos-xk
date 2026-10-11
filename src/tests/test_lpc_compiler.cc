@@ -12,13 +12,13 @@ TEST_F(DriverTest, TestInMemoryCompileFile) {
 }
 
 TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
-  auto mapping_number = [](mapping_t *map, const char *key) -> LPC_INT {
-    auto *value = find_string_in_mapping(map, key);
+  auto mapping_number = [](mapping_t* map, const char* key) -> LPC_INT {
+    auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr) << key;
     EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
     return value && value->type == T_NUMBER ? value->u.number : 0;
   };
-  object_t *probe = clone_object_for_test("single/void");
+  object_t* probe = clone_object_for_test("single/void");
   ASSERT_NE(probe, nullptr);
 
   constexpr LPC_INT kItemCount = 8;
@@ -30,8 +30,7 @@ TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
 #endif
   push_number(kItemCount);
   push_number(kIterations);
-  auto *result = safe_apply("benchmark_representative_lpc_workload", probe, 2,
-                            ORIGIN_DRIVER);
+  auto* result = safe_apply("benchmark_representative_lpc_workload", probe, 2, ORIGIN_DRIVER);
   ASSERT_NE(result, nullptr);
   ASSERT_EQ(result->type, T_MAPPING);
   ASSERT_EQ(mapping_number(result->u.map, "item_count"), kItemCount);
@@ -109,41 +108,39 @@ void do_tests() {
   )";
   std::istringstream iss(source);
   auto stream = std::make_unique<IStreamLexStream>(iss);
-  auto *prog = compile_file(std::move(stream), "test");
+  auto* prog = compile_file(std::move(stream), "test");
 
   ASSERT_NE(prog, nullptr);
   dump_prog(prog, stdout, 1 | 2);
   deallocate_program(prog);
 }
 
-
 TEST_F(DriverTest, TestLPC_FunctionInherit) {
-    // Load the inherited object first
-    error_context_t econ{};
-    save_context(&econ);
-    try {
+  // Load the inherited object first
+  error_context_t econ{};
+  save_context(&econ);
+  try {
     auto obj = find_object("/single/tests/compiler/function");
-    ASSERT_NE(obj , nullptr);
+    ASSERT_NE(obj, nullptr);
 
     auto obj2 = find_object("/single/tests/compiler/function_inherit");
-    ASSERT_NE(obj2 , nullptr);
+    ASSERT_NE(obj2, nullptr);
 
     auto obj3 = find_object("/single/tests/compiler/function_inherit_2");
-    ASSERT_NE(obj3 , nullptr);
+    ASSERT_NE(obj3, nullptr);
 
     dump_prog(obj3->prog, stdout, 1 | 2);
-    } catch (...) {
-        restore_context(&econ);
-        FAIL();
-    }
-    pop_context(&econ);
-
+  } catch (...) {
+    restore_context(&econ);
+    FAIL();
+  }
+  pop_context(&econ);
 }
 
 namespace {
 struct SimulTableSnapshot {
-  simul_entry *names = nullptr;
-  function_lookup_info_t *funcs = nullptr;
+  simul_entry* names = nullptr;
+  function_lookup_info_t* funcs = nullptr;
   int count = 0;
 };
 
@@ -154,20 +151,20 @@ SimulTableSnapshot SaveSimulTable() {
     // The production transaction frees the live arrays with FREE(). Keep
     // snapshot copies in the same allocator domain so a later test can use
     // them as live tables without crossing debugmalloc's ownership boundary.
-    s.names = static_cast<simul_entry *>(
+    s.names = static_cast<simul_entry*>(
         DMALLOC(s.count * sizeof(simul_entry), TAG_SIMULS, "test_simul_snapshot_names"));
-    s.funcs = static_cast<function_lookup_info_t *>(DMALLOC(
-        s.count * sizeof(function_lookup_info_t), TAG_SIMULS, "test_simul_snapshot_funcs"));
+    s.funcs = static_cast<function_lookup_info_t*>(
+        DMALLOC(s.count * sizeof(function_lookup_info_t), TAG_SIMULS, "test_simul_snapshot_funcs"));
     memcpy(s.names, simul_names, s.count * sizeof(simul_entry));
     memcpy(s.funcs, simuls, s.count * sizeof(function_lookup_info_t));
   }
   return s;
 }
 
-void RestoreSimulTable(const SimulTableSnapshot &s) {
+void RestoreSimulTable(const SimulTableSnapshot& s) {
   // Deactivate every currently active name (mirror of remove_simuls).
   for (int i = 0; i < num_simul_efun; i++) {
-    ident_hash_elem_t *ihe = lookup_ident(simul_names[i].name);
+    ident_hash_elem_t* ihe = lookup_ident(simul_names[i].name);
     if (ihe) {
       if (ihe->dn.simul_num != -1) {
         ihe->sem_value--;
@@ -182,7 +179,7 @@ void RestoreSimulTable(const SimulTableSnapshot &s) {
     if (!s.funcs[i].func) {
       continue;
     }
-    ident_hash_elem_t *ihe = lookup_ident(s.names[i].name);
+    ident_hash_elem_t* ihe = lookup_ident(s.names[i].name);
     if (!ihe) {
       // Same CHECK_ELEM trap as the reload path: lookup_ident() returns
       // NULL for sem_value == 0 entries, which the deactivation loop above
@@ -215,7 +212,7 @@ void RestoreSimulTable(const SimulTableSnapshot &s) {
   num_simul_efun = s.count;
 }
 
-int FindDispatchIndex(const char *name) {
+int FindDispatchIndex(const char* name) {
   for (int i = 0; i < num_simul_efun; i++) {
     if (strcmp(simul_names[i].name, name) == 0) {
       return simul_names[i].index;
@@ -224,9 +221,9 @@ int FindDispatchIndex(const char *name) {
   return -1;
 }
 
-int FindProgramIndex(program_t *prog, const char *name) {
+int FindProgramIndex(program_t* prog, const char* name) {
   for (int i = 0; i < prog->num_functions_defined + prog->last_inherited; i++) {
-    function_t *f = find_func_entry(prog, i);
+    function_t* f = find_func_entry(prog, i);
     if (strcmp(f->funcname, name) == 0) {
       return i;
     }
@@ -234,33 +231,31 @@ int FindProgramIndex(program_t *prog, const char *name) {
   return -1;
 }
 
-void RemoveTestSimulIdent(const char *name) {
-  auto *ident = lookup_perm_ident(name);
-  if (!ident || ident->sem_value != 0 ||
-      (ident->token & (IHE_RESWORD | IHE_EFUN | IHE_SIMUL))) {
+void RemoveTestSimulIdent(const char* name) {
+  auto* ident = lookup_perm_ident(name);
+  if (!ident || ident->sem_value != 0 || (ident->token & (IHE_RESWORD | IHE_EFUN | IHE_SIMUL))) {
     return;
   }
-  const char *ident_name = ident->name;
+  const char* ident_name = ident->name;
   if (remove_perm_ident(ident)) {
     free_string(ident_name);
   }
 }
 
-
 // Prints the rendered diagnostic on a golden mismatch (the raw string is
 // escaped in gtest output otherwise).
-std::string actual_rendering(const std::string &text) {
+std::string actual_rendering(const std::string& text) {
   return "\n--- actual rendering ---\n" + text + "--- end ---\n";
 }
 
-program_t *CompileSimulProg(const std::string &src) {
+program_t* CompileSimulProg(const std::string& src) {
   std::istringstream stream(src);
   return compile_file(std::make_unique<IStreamLexStream>(stream), "simul_reload_test");
 }
 
 int FindValidSimulSlot() {
   for (int i = 0; i < num_simul_efun; i++) {
-    const char *name = simul_names[i].name;
+    const char* name = simul_names[i].name;
     if (name && name[0] != '#') {
       return i;
     }
@@ -270,7 +265,7 @@ int FindValidSimulSlot() {
 
 // Locate a program variable's block slot by name (own variables first,
 // inherited variables after). Returns -1 when absent.
-int FindVariableSlot(program_t *prog, const char *name) {
+int FindVariableSlot(program_t* prog, const char* name) {
   for (int i = 0; i < prog->num_variables_total; i++) {
     if (strcmp(prog->variable_table[i], name) == 0) {
       return i;
@@ -286,8 +281,8 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
 
   const int old_count = num_simul_efun;
 
-  const char *kFoo = "simul_efun_xyz_foo";
-  const char *kBar = "simul_efun_xyz_bar";
+  const char* kFoo = "simul_efun_xyz_foo";
+  const char* kBar = "simul_efun_xyz_bar";
   ASSERT_EQ(lookup_ident(kFoo), nullptr) << "test name must not collide";
 
   // Program A: provides foo (a fresh name) -> middle insert at a sorted
@@ -295,9 +290,11 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   const int survivor_slot = FindValidSimulSlot();
   ASSERT_GE(survivor_slot, 0);
   std::string survivor = simul_names[survivor_slot].name;
-  std::string src_a = std::string("string ") + kFoo + "() { return \"a\"; }\n"
-                      "string " + survivor + "() { return \"survivor\"; }\n";
-  program_t *prog_a = CompileSimulProg(src_a);
+  std::string src_a = std::string("string ") + kFoo +
+                      "() { return \"a\"; }\n"
+                      "string " +
+                      survivor + "() { return \"survivor\"; }\n";
+  program_t* prog_a = CompileSimulProg(src_a);
 
   ASSERT_NE(prog_a, nullptr);
 
@@ -338,7 +335,7 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   // they may coincide under some allocator layouts (ASan), so assert the
   // dispatch semantics (last injected = count-1) instead of inequality.
   ASSERT_EQ(foo_idx, num_simul_efun - 1);
-  ident_hash_elem_t *ihe = lookup_ident(kFoo);
+  ident_hash_elem_t* ihe = lookup_ident(kFoo);
   ASSERT_NE(ihe, nullptr);
   ASSERT_TRUE(ihe->token & IHE_SIMUL);
   ASSERT_EQ(ihe->dn.simul_num, foo_idx);
@@ -347,7 +344,7 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   // its dispatch index, inactive; its ident must become the compile-time
   // rejection state (IHE_ORPHAN, simul_num -1).
   std::string src_b = std::string("string ") + kBar + "() { return \"b\"; }\n";
-  program_t *prog_b = CompileSimulProg(src_b);
+  program_t* prog_b = CompileSimulProg(src_b);
   ASSERT_NE(prog_b, nullptr);
   simul_efun_prepared_t prep_b;
   simul_efuns_prepare(prog_b, &prep_b);
@@ -365,7 +362,8 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   ASSERT_TRUE(ihe->token & IHE_ORPHAN);
   ASSERT_EQ(ihe->dn.simul_num, -1);
   int bar_idx = FindDispatchIndex(kBar);
-  ASSERT_EQ(bar_idx, old_count + 1) << "next cumulative index (foo took old_count, survivor updated in place)";
+  ASSERT_EQ(bar_idx, old_count + 1)
+      << "next cumulative index (foo took old_count, survivor updated in place)";
   int bar_pidx = FindProgramIndex(prog_b, kBar);
   ASSERT_GE(bar_pidx, 0);
   ASSERT_EQ(simuls[bar_idx].func, find_func_entry(prog_b, bar_pidx));
@@ -375,7 +373,7 @@ TEST_F(DriverTest, TestSimulEfunReloadAddDropReadd) {
   // existing perm-ident (dropped entries keep their ident hash element);
   // the same dispatch index must dispatch again.
   std::string src_c = std::string("string ") + kFoo + "() { return \"c\"; }\n";
-  program_t *prog_c = CompileSimulProg(src_c);
+  program_t* prog_c = CompileSimulProg(src_c);
   ASSERT_NE(prog_c, nullptr);
   simul_efun_prepared_t prep_c;
   simul_efuns_prepare(prog_c, &prep_c);
@@ -412,14 +410,14 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   // testsuite run is the text-path regression).
   std::string const bad_source = "void create() {\n  int x = ;\n}\n";
   compiler_diag::clear();
-  program_t *bad_prog = nullptr;
+  program_t* bad_prog = nullptr;
   {
     std::istringstream stream(bad_source);
     bad_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_syntax_test");
   }
   EXPECT_EQ(bad_prog, nullptr) << "a syntax error must not produce a program";
   ASSERT_GE(compiler_diag::size(), 1u);
-  const auto *diag = compiler_diag::last();
+  const auto* diag = compiler_diag::last();
   ASSERT_NE(diag, nullptr);
   EXPECT_EQ(diag->severity, compiler_diag::Severity::kError);
   ASSERT_NE(diag->message, nullptr);
@@ -433,8 +431,7 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   // ';' it could not use (the same position the traditional caret uses).
   auto const semicolon = bad_source.find(';', bad_source.find('\n') + 1);
   auto const line_start = bad_source.find('\n') + 1;
-  EXPECT_EQ(diag->snippet.position.column,
-            static_cast<int>(semicolon - line_start) + 2)
+  EXPECT_EQ(diag->snippet.position.column, static_cast<int>(semicolon - line_start) + 2)
       << "column should be the lexer position after the unexpected ';'";
   EXPECT_TRUE(diag->snippet.show_context);
   EXPECT_TRUE(diag->ranges.empty());
@@ -443,17 +440,16 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   EXPECT_EQ(compiler_diag::records_outside_scope(), 0u);
 
   // A warning keeps its severity and does not fail the compile.
-  std::string const warned_source =
-      "#pragma no_such_pragma\nvoid create() { }\n";
+  std::string const warned_source = "#pragma no_such_pragma\nvoid create() { }\n";
   compiler_diag::clear();
-  program_t *warned_prog = nullptr;
+  program_t* warned_prog = nullptr;
   {
     std::istringstream stream(warned_source);
     warned_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_warning_test");
   }
   ASSERT_NE(warned_prog, nullptr);
   ASSERT_EQ(compiler_diag::size(), 1u);
-  const compiler_diag::Diagnostic *warning = &compiler_diag::at(0);
+  const compiler_diag::Diagnostic* warning = &compiler_diag::at(0);
   EXPECT_EQ(warning->severity, compiler_diag::Severity::kWarning);
   ASSERT_NE(warning->message, nullptr);
   EXPECT_NE(std::string(warning->message).find("Unknown #pragma"), std::string::npos)
@@ -468,10 +464,9 @@ TEST_F(DriverTest, TestCompileDiagnosticsRecordPositionSeverityAndContext) {
   // that owns their strings restarts).
   {
     std::istringstream stream("void create() { }\n");
-    program_t *fresh = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_clean_test");
+    program_t* fresh = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_clean_test");
     ASSERT_NE(fresh, nullptr);
-    EXPECT_EQ(compiler_diag::size(), 0u)
-        << "a clean compile starts with no diagnostics";
+    EXPECT_EQ(compiler_diag::size(), 0u) << "a clean compile starts with no diagnostics";
     deallocate_program(fresh);
   }
 
@@ -490,26 +485,26 @@ TEST_F(DriverTest, TestCompilerDiagnosticsTreatPrecomposedPercentMessagesAsText)
   // contain '%', so the completed warning must be passed as data rather than
   // interpreted as a printf format string.
   compiler_diag::clear();
-  const char *base_path = "clone/diag_percent%base.c";
+  const char* base_path = "clone/diag_percent%base.c";
   PathCleanupGuard base_file_guard{base_path};
   std::ofstream base_file(base_path, std::ios::trunc);
   ASSERT_TRUE(base_file.good());
   base_file << "void dummy() { }\n";
   base_file.close();
   ASSERT_TRUE(base_file.good());
-  object_t *base = load_object_for_test("clone/diag_percent%base");
+  object_t* base = load_object_for_test("clone/diag_percent%base");
   ASSERT_NE(base, nullptr);
   std::istringstream stream(
       "inherit \"/clone/diag_percent%base\";\n"
       "inherit \"/clone/diag_percent%base\";\n"
       "void create() { }\n");
-  program_t *program = compile_file(std::make_unique<IStreamLexStream>(stream),
-                                     "clone/diag_percent%root");
+  program_t* program =
+      compile_file(std::make_unique<IStreamLexStream>(stream), "clone/diag_percent%root");
   ASSERT_NE(program, nullptr);
 
   bool found_percent_filename = false;
   for (size_t i = 0; i < compiler_diag::size(); i++) {
-    const auto &diagnostic = compiler_diag::at(i);
+    const auto& diagnostic = compiler_diag::at(i);
     if (diagnostic.message != nullptr &&
         std::string(diagnostic.message).find("diag_percent%base") != std::string::npos) {
       found_percent_filename = true;
@@ -539,23 +534,25 @@ TEST_F(DriverTest, TestDiagnosticRenderingGoldenStylesAndSnippets) {
 
   struct FixtureGuard {
     std::string path;
-    ~FixtureGuard() { remove(path.c_str()); }
+    ~FixtureGuard() {
+      remove(path.c_str());
+    }
   } fixture_guard{fixture_path};
   // The compiler reports files relative to the mudlib root, i.e. the path
   // write_file() sees (without the leading slash).
   std::string const source_name = fixture_path;
 
   compiler_diag::clear();
-  program_t *prog = nullptr;
+  program_t* prog = nullptr;
   {
     std::istringstream stream(fixture);
     prog = compile_file(std::make_unique<IStreamLexStream>(stream), source_name.c_str());
   }
   EXPECT_EQ(prog, nullptr);
   ASSERT_GE(compiler_diag::size(), 1u);
-  const compiler_diag::Diagnostic *first = compiler_diag::last();
+  const compiler_diag::Diagnostic* first = compiler_diag::last();
   ASSERT_NE(first, nullptr);
-  const compiler_diag::Diagnostic &diag = *first;
+  const compiler_diag::Diagnostic& diag = *first;
 
   // read_source_line(): the reported line, the first line, an empty tail line
   // and a missing file.
@@ -568,8 +565,8 @@ TEST_F(DriverTest, TestDiagnosticRenderingGoldenStylesAndSnippets) {
   EXPECT_EQ(std::string(line), "  int x = ;");
   EXPECT_FALSE(compiler_diag::read_source_line(source_name.c_str(), 5, line, sizeof(line)))
       << "the file ends after line 4's newline: no text to render";
-  EXPECT_FALSE(compiler_diag::read_source_line("log/definitely_missing_file.c", 1, line,
-                                               sizeof(line)));
+  EXPECT_FALSE(
+      compiler_diag::read_source_line("log/definitely_missing_file.c", 1, line, sizeof(line)));
   EXPECT_FALSE(compiler_diag::read_source_line(source_name.c_str(), 0, line, sizeof(line)));
 
   // Traditional style: the shape the driver prints today, rebuilt from the
@@ -602,14 +599,14 @@ TEST_F(DriverTest, TestDiagnosticRenderingGoldenStylesAndSnippets) {
       "  BAD_EXPR\n"
       "}\n";
   compiler_diag::clear();
-  program_t *macro_prog = nullptr;
+  program_t* macro_prog = nullptr;
   {
     std::istringstream stream(macro_source);
     macro_prog = compile_file(std::make_unique<IStreamLexStream>(stream), "diag_macro_test");
   }
   EXPECT_EQ(macro_prog, nullptr);
   ASSERT_GE(compiler_diag::size(), 1u);
-  const compiler_diag::Diagnostic *macro_diag = compiler_diag::last();
+  const compiler_diag::Diagnostic* macro_diag = compiler_diag::last();
   ASSERT_NE(macro_diag, nullptr);
   ASSERT_EQ(macro_diag->expansions.size(), 1u);
   EXPECT_STREQ(macro_diag->expansions[0].message, "BAD_EXPR");
@@ -632,32 +629,30 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
   // offset) instead of a wall of hand-copied strings; the exact byte shapes of
   // both styles are pinned by TestDiagnosticRenderingGoldenStylesAndSnippets.
   struct Case {
-    const char *name;
-    const char *source;
+    const char* name;
+    const char* source;
     compiler_diag::Severity severity;
-    const char *message_substring;
+    const char* message_substring;
     int line;
   };
   std::vector<Case> const cases = {
-      {"syntax_semicolon", "void create() {\n  int x = ;\n}\n",
-       compiler_diag::Severity::kError, "syntax error", 2},
-      {"missing_paren", "void create() {\n  if (1 return;\n}\n",
-       compiler_diag::Severity::kError, "syntax error", 2},
-      {"unknown_type", "void create() {\n  nosuchtype x;\n}\n",
-       compiler_diag::Severity::kError, "", 2},
-      {"bad_return", "int create() {\n  return \"text\";\n}\n",
-       compiler_diag::Severity::kError, "", 2},
-      {"bad_expression", "void create() {\n  int x = 1 +;\n}\n",
-       compiler_diag::Severity::kError, "syntax error", 2},
-      {"missing_brace", "void create() {\n  int x = 1;\n",
-       compiler_diag::Severity::kError, "", 3},
-      {"stray_brace", "void create() { }\n}\n",
-       compiler_diag::Severity::kError, "", 2},
+      {"syntax_semicolon", "void create() {\n  int x = ;\n}\n", compiler_diag::Severity::kError,
+       "syntax error", 2},
+      {"missing_paren", "void create() {\n  if (1 return;\n}\n", compiler_diag::Severity::kError,
+       "syntax error", 2},
+      {"unknown_type", "void create() {\n  nosuchtype x;\n}\n", compiler_diag::Severity::kError, "",
+       2},
+      {"bad_return", "int create() {\n  return \"text\";\n}\n", compiler_diag::Severity::kError, "",
+       2},
+      {"bad_expression", "void create() {\n  int x = 1 +;\n}\n", compiler_diag::Severity::kError,
+       "syntax error", 2},
+      {"missing_brace", "void create() {\n  int x = 1;\n", compiler_diag::Severity::kError, "", 3},
+      {"stray_brace", "void create() { }\n}\n", compiler_diag::Severity::kError, "", 2},
       {"unknown_pragma", "#pragma xk_unknown_pragma\nvoid create() { }\n",
        compiler_diag::Severity::kWarning, "Unknown #pragma", 1},
       // The unused-local warning is reported when the function ends.
-      {"unused_local", "void create() {\n  int unused = 1;\n}\n",
-       compiler_diag::Severity::kWarning, "Unused local variable", 3},
+      {"unused_local", "void create() {\n  int unused = 1;\n}\n", compiler_diag::Severity::kWarning,
+       "Unused local variable", 3},
       {"arg_count", "int helper(int a) { return a; }\nvoid create() {\n  helper();\n}\n",
        compiler_diag::Severity::kError, "Wrong number of arguments to 'helper'", 3},
       {"macro_object", "#define XK_MACRO int y = ;\nvoid create() {\n  XK_MACRO\n}\n",
@@ -665,8 +660,7 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
       {"macro_nested",
        "#define XK_INNER int z = ;\n#define XK_OUTER XK_INNER\nvoid create() {\n  XK_OUTER\n}\n",
        compiler_diag::Severity::kError, "syntax error", 4},
-      {"macro_function",
-       "#define XK_FN(a) int a = ;\nvoid create() {\n  XK_FN(w);\n}\n",
+      {"macro_function", "#define XK_FN(a) int a = ;\nvoid create() {\n  XK_FN(w);\n}\n",
        compiler_diag::Severity::kError, "syntax error", 3},
       {"macro_arity", "#define XK_ONE(a) (a)\nvoid create() {\n  XK_ONE();\n}\n",
        compiler_diag::Severity::kError, "", 3},
@@ -675,21 +669,20 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
       {"switch_overlap",
        "void create() {\n  int i = 2;\n  switch (i) { case 1..3: break; case 2..4: break; }\n}\n",
        compiler_diag::Severity::kError, "", 3},
-      {"bad_cast", "void create() {\n  string s = (string) ;\n}\n",
-       compiler_diag::Severity::kError, "syntax error", 2},
+      {"bad_cast", "void create() {\n  string s = (string) ;\n}\n", compiler_diag::Severity::kError,
+       "syntax error", 2},
       {"mapping_syntax", "void create() {\n  mapping m = ([ 1 : ]);\n}\n",
        compiler_diag::Severity::kError, "syntax error", 2},
       {"array_syntax", "void create() {\n  int *a = ({ 1 2 });\n}\n",
        compiler_diag::Severity::kError, "syntax error", 2},
-      {"double_assign", "void create() {\n  int = 3;\n}\n",
-       compiler_diag::Severity::kError, "", 2},
+      {"double_assign", "void create() {\n  int = 3;\n}\n", compiler_diag::Severity::kError, "", 2},
   };
   ASSERT_EQ(cases.size(), 20u);
 
-  auto path_for = [](const char *name) {
+  auto path_for = [](const char* name) {
     return "log/diag_golden_" + std::string(name) + ".c";
   };
-  for (auto const &test_case : cases) {
+  for (auto const& test_case : cases) {
     std::string const path = path_for(test_case.name);
     {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -699,11 +692,13 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
     }
     struct CaseGuard {
       std::string path;
-      ~CaseGuard() { remove(path.c_str()); }
+      ~CaseGuard() {
+        remove(path.c_str());
+      }
     } guard{path};
 
     compiler_diag::clear();
-    program_t *prog = nullptr;
+    program_t* prog = nullptr;
     {
       std::istringstream stream(test_case.source);
       prog = compile_file(std::make_unique<IStreamLexStream>(stream), path.c_str());
@@ -715,7 +710,7 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
         << test_case.name << ": scenario must produce a diagnostic";
     // The first record with the severity the scenario is about: an unrelated
     // warning (an unused local) must not shadow it.
-    const compiler_diag::Diagnostic *diag = nullptr;
+    const compiler_diag::Diagnostic* diag = nullptr;
     for (size_t i = 0; i < compiler_diag::size(); i++) {
       if (compiler_diag::at(i).severity == test_case.severity) {
         diag = &compiler_diag::at(i);
@@ -741,8 +736,8 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
     // The snippet must be the file's own line (the renderer reads it back from
     // disk) and the caret must sit at the recorded column in both styles.
     char line_text[compiler_diag::kMaxSnippetLineLength + 1];
-    bool const have_line = compiler_diag::read_source_line(path.c_str(), test_case.line,
-                                                           line_text, sizeof(line_text));
+    bool const have_line =
+        compiler_diag::read_source_line(path.c_str(), test_case.line, line_text, sizeof(line_text));
     auto const clang = compiler_diag::render_diagnostic(*diag, compiler_diag::RenderStyle::kClang);
     EXPECT_NE(clang.find(std::string(":") + std::to_string(test_case.line) + ":"),
               std::string::npos)
@@ -758,8 +753,7 @@ TEST_F(DriverTest, TestDiagnosticRenderingTwentyCaseGolden) {
     }
     auto const traditional =
         compiler_diag::render_diagnostic(*diag, compiler_diag::RenderStyle::kTraditional);
-    EXPECT_NE(traditional.find("line " + std::to_string(test_case.line) + ":"),
-              std::string::npos)
+    EXPECT_NE(traditional.find("line " + std::to_string(test_case.line) + ":"), std::string::npos)
         << test_case.name << ": " << traditional;
   }
 }
@@ -771,10 +765,10 @@ TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {
   ASSERT_GT(num_simul_efun, 0) << "config.test must load a simul_efun file";
   SimulTableSnapshot snap = SaveSimulTable();
 
-  const char *kFoo = "simul_efun_dropped_xyz";
+  const char* kFoo = "simul_efun_dropped_xyz";
   ASSERT_EQ(lookup_ident(kFoo), nullptr) << "test name must not collide";
 
-  program_t *prog_a = CompileSimulProg(std::string("string ") + kFoo + "() { return \"a\"; }\n");
+  program_t* prog_a = CompileSimulProg(std::string("string ") + kFoo + "() { return \"a\"; }\n");
   ASSERT_NE(prog_a, nullptr);
   simul_efun_prepared_t prep_a;
   simul_efuns_prepare(prog_a, &prep_a);
@@ -787,7 +781,7 @@ TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {
   ASSERT_EQ(simuls[foo_idx].func, find_func_entry(prog_a, foo_pidx));
 
   // The next program drops foo: its dispatch slot survives with func null.
-  program_t *prog_b = CompileSimulProg("string simul_efun_dropped_other() { return \"b\"; }\n");
+  program_t* prog_b = CompileSimulProg("string simul_efun_dropped_other() { return \"b\"; }\n");
   ASSERT_NE(prog_b, nullptr);
   simul_efun_prepared_t prep_b;
   simul_efuns_prepare(prog_b, &prep_b);
@@ -795,7 +789,7 @@ TEST_F(DriverTest, TestSimulEfunDroppedNameCallSiteErrors) {
   ASSERT_EQ(FindDispatchIndex(kFoo), foo_idx) << "dropped name keeps its index";
   ASSERT_EQ(simuls[foo_idx].func, nullptr) << "dropped name stays inactive";
 
-  auto *saved_current_object = current_object;
+  auto* saved_current_object = current_object;
   current_object = master_ob;
   error_context_t econ{};
   save_context(&econ);
@@ -832,30 +826,34 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   ASSERT_GT(num_simul_efun, 0) << "config.test must load a simul_efun file";
   SimulTableSnapshot snap = SaveSimulTable();
   const int old_count = num_simul_efun;
-  program_t *old_prog = simul_efun_ob->prog;
+  program_t* old_prog = simul_efun_ob->prog;
   ASSERT_NE(old_prog, nullptr);
   // The live tables themselves (snap holds deep copies; rollback must
   // restore the ORIGINAL pointers, not copies).
-  simul_entry *orig_names = simul_names;
-  function_lookup_info_t *orig_funcs = simuls;
+  simul_entry* orig_names = simul_names;
+  function_lookup_info_t* orig_funcs = simuls;
 
-  const char *kBad = "simul_efun_xyz_bad";
+  const char* kBad = "simul_efun_xyz_bad";
   const int survivor_slot = FindValidSimulSlot();
   ASSERT_GE(survivor_slot, 0);
   std::string survivor = simul_names[survivor_slot].name;
   ASSERT_NE(survivor, kBad);
   int surv_sem_before = 0;
-  ident_hash_elem_t *pre = find_or_add_perm_ident(survivor.c_str());
-  if (pre) surv_sem_before = pre->sem_value;
+  ident_hash_elem_t* pre = find_or_add_perm_ident(survivor.c_str());
+  if (pre)
+    surv_sem_before = pre->sem_value;
 
   // The file-level initializer calls boom() -> the implicit #global_init#
   // runs during the create phase (call___INIT) and raises -> the whole
   // transaction must roll back to the pre-swap state.
-  std::string src = std::string("string ") + kBad + "() { return \"bad\"; }\n"
-                    "string " + survivor + "() { return \"survivor2\"; }\n"
+  std::string src = std::string("string ") + kBad +
+                    "() { return \"bad\"; }\n"
+                    "string " +
+                    survivor +
+                    "() { return \"survivor2\"; }\n"
                     "int boom() { error(\"boom\"); return 0; }\n"
                     "int g = boom();\n";
-  program_t *prog = CompileSimulProg(src);
+  program_t* prog = CompileSimulProg(src);
   ASSERT_NE(prog, nullptr);
 
   // Drive the transaction through the same entry point f_recompile_object
@@ -896,7 +894,7 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   // matter what string is passed. find_or_add_perm_ident() bypasses the
   // gate (strcmp + no sem_value check) and is the only way to reach an
   // inert entry.
-  ident_hash_elem_t *ihe = find_or_add_perm_ident(kBad);
+  ident_hash_elem_t* ihe = find_or_add_perm_ident(kBad);
   ASSERT_NE(ihe, nullptr);
   ASSERT_TRUE(ihe->token & IHE_SIMUL);
   ASSERT_EQ(ihe->dn.simul_num, bad_idx);
@@ -940,8 +938,7 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
   ASSERT_EQ(prep.simuls.state, simul_efun_prepared_t::State::Finalized);
   ASSERT_EQ(simul_efun_ob->prog, old_prog);
   ASSERT_EQ(simul_efun_ob->prog_generation, old_generation);
-  ASSERT_EQ(simul_efun_ob->variables.count,
-            static_cast<uint32_t>(old_prog->num_variables_total));
+  ASSERT_EQ(simul_efun_ob->variables.count, static_cast<uint32_t>(old_prog->num_variables_total));
   ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(old_prog));
   ASSERT_EQ(old_prog->ref, old_program_ref) << "rollback must release only its transaction pin";
   ASSERT_EQ(prog->ref, new_program_ref)
@@ -955,20 +952,23 @@ TEST_F(DriverTest, TestSimulEfunReloadCreateFailureRollback) {
 TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   ASSERT_GT(num_simul_efun, 0);
   SimulTableSnapshot snap = SaveSimulTable();
-  const char *kFoo = "simul_efun_xyz_foo2";  // unique vs other reload tests
+  const char* kFoo = "simul_efun_xyz_foo2";  // unique vs other reload tests
   const int survivor_slot = FindValidSimulSlot();
   ASSERT_GE(survivor_slot, 0);
   std::string survivor = simul_names[survivor_slot].name;
   int surv_sem_before = 0;
-  ident_hash_elem_t *pre = find_or_add_perm_ident(survivor.c_str());
-  if (pre) surv_sem_before = pre->sem_value;
+  ident_hash_elem_t* pre = find_or_add_perm_ident(survivor.c_str());
+  if (pre)
+    surv_sem_before = pre->sem_value;
 
   // Reload A: adds foo (live). Reload B: drops foo (inert in the dispatch
   // table, ident in compile-time rejection state) -- the pre-transaction
   // state a later rollback must restore exactly.
-  std::string src_a = std::string("string ") + kFoo + "() { return \"a\"; }\n"
-                      "string " + survivor + "() { return \"survivorA\"; }\n";
-  program_t *prog_a = CompileSimulProg(src_a);
+  std::string src_a = std::string("string ") + kFoo +
+                      "() { return \"a\"; }\n"
+                      "string " +
+                      survivor + "() { return \"survivorA\"; }\n";
+  program_t* prog_a = CompileSimulProg(src_a);
   ASSERT_NE(prog_a, nullptr);
   simul_efun_prepared_t prep_a;
   simul_efuns_prepare(prog_a, &prep_a);
@@ -977,13 +977,13 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   ASSERT_GE(foo_idx, 0);
 
   std::string src_b = "string simul_efun_xyz_only() { return \"b\"; }\n";
-  program_t *prog_b = CompileSimulProg(src_b);
+  program_t* prog_b = CompileSimulProg(src_b);
   ASSERT_NE(prog_b, nullptr);
   simul_efun_prepared_t prep_b;
   simul_efuns_prepare(prog_b, &prep_b);
   simul_efuns_activate(&prep_b);
   ASSERT_EQ(simuls[foo_idx].func, nullptr) << "foo dropped by reload B";
-  ident_hash_elem_t *ihe = find_or_add_perm_ident(kFoo);
+  ident_hash_elem_t* ihe = find_or_add_perm_ident(kFoo);
   ASSERT_NE(ihe, nullptr);
   ASSERT_FALSE(ihe->token & IHE_SIMUL);
   ASSERT_TRUE(ihe->token & IHE_ORPHAN);
@@ -991,10 +991,11 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
 
   // Transaction C: re-adds foo, then its create phase fails. Rollback must
   // leave foo exactly as reload B left it -- NOT re-activated.
-  std::string src_c = std::string("string ") + kFoo + "() { return \"c\"; }\n"
+  std::string src_c = std::string("string ") + kFoo +
+                      "() { return \"c\"; }\n"
                       "int boom() { error(\"boom\"); return 0; }\n"
                       "int g = boom();\n";
-  program_t *prog_c = CompileSimulProg(src_c);
+  program_t* prog_c = CompileSimulProg(src_c);
   ASSERT_NE(prog_c, nullptr);
   RecompilePrepared prep_c;
   prep_c.staged = StagedProgram(prog_c);
@@ -1006,8 +1007,7 @@ TEST_F(DriverTest, TestSimulEfunReloadRollbackKeepsDroppedInert) {
   prepare_variable_migrations(&prep_c);
   ASSERT_EQ(prep_c.migrations.size(), prep_c.targets.size());
   prep_c.commit_swap();
-  ASSERT_EQ(simul_efun_ob->variables.count,
-            static_cast<uint32_t>(prog_c->num_variables_total));
+  ASSERT_EQ(simul_efun_ob->variables.count, static_cast<uint32_t>(prog_c->num_variables_total));
   ASSERT_EQ(simul_efun_ob->variables.layout_id, program_layout_digest(prog_c));
   // foo live again on the new table.
   ihe = find_or_add_perm_ident(kFoo);
@@ -1061,7 +1061,7 @@ TEST_F(DriverTest, TestSimulEfunReloadInitCreateOrder) {
   // sets probe_order to 1; create() promotes it to 2. call_create() -- the
   // exact call run_create() issues per target -- must leave it at 2, i.e.
   // __INIT strictly before create.
-  object_t *probe = load_object_for_test("single/recompile_probe");
+  object_t* probe = load_object_for_test("single/recompile_probe");
   ASSERT_NE(probe, nullptr);
   int slot = FindVariableSlot(probe->prog, "probe_order");
   ASSERT_GE(slot, 0);
@@ -1084,7 +1084,7 @@ TEST_F(DriverTest, TestSimulEfunReloadInitCreateOrder) {
 
 TEST_F(DriverTest, TestMasterReloadSuccess) {
   ASSERT_NE(master_ob, nullptr);
-  program_t *orig_prog = master_ob->prog;
+  program_t* orig_prog = master_ob->prog;
   ASSERT_NE(orig_prog, nullptr);
   orig_prog->ref++;  // pin for the restore below
 
@@ -1107,8 +1107,7 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
       << "master.c has no runtime initializers: create phase must succeed";
   prep.commit_finish();
 
-  ASSERT_EQ(master_ob->prog, prep.staged.prog)
-      << "master reload must swap in the new program";
+  ASSERT_EQ(master_ob->prog, prep.staged.prog) << "master reload must swap in the new program";
   // The apply lookup table for the new program must be ready (every master
   // apply resolves through it).
   lookup_entry_s e = apply_cache_lookup("valid_recompile_object", prep.staged.prog);
@@ -1120,13 +1119,13 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
   // Authorization apply through the standard master path hits the NEW
   // program (§1.3.2 verification point).
   push_object(master_ob);
-  svalue_t *ret = safe_apply_master_ob(APPLY_VALID_RECOMPILE_OBJECT, 1);
+  svalue_t* ret = safe_apply_master_ob(APPLY_VALID_RECOMPILE_OBJECT, 1);
   ASSERT_NE(ret, nullptr);
   ASSERT_TRUE(MASTER_APPROVED(ret));
 
   // Immediate second reload: authorization apply must resolve through the
   // program the first reload just published.
-  program_t *first_prog = prep.staged.prog;
+  program_t* first_prog = prep.staged.prog;
   {
     RecompilePrepared prep2;
     prep2.staged = compile_program_for_recompile(master_ob);
@@ -1153,9 +1152,9 @@ TEST_F(DriverTest, TestMasterReloadSuccess) {
   // Restore: point master back at the original program, transferring the
   // master object's reference from the last reload to orig_prog, then drop
   // our pin.
-  program_t *last_prog = master_ob->prog;
+  program_t* last_prog = master_ob->prog;
   master_ob->prog = orig_prog;
-  orig_prog->ref++;   // the object's reference
+  orig_prog->ref++;       // the object's reference
   free_prog(&last_prog);  // the object's reference to the last reload
   free_prog(&orig_prog);  // our pin
 }
@@ -1164,23 +1163,25 @@ TEST_F(DriverTest, TestMasterReloadPublicEntryOutsideMasterApply) {
   ASSERT_NE(master_ob, nullptr);
   struct RecompileConfigGuard {
     int saved;
-    ~RecompileConfigGuard() { CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved; }
+    ~RecompileConfigGuard() {
+      CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved;
+    }
   } config_guard{CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__)};
   CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = 1;
 
-  program_t *original_prog = master_ob->prog;
+  program_t* original_prog = master_ob->prog;
   ASSERT_NE(original_prog, nullptr);
   original_prog->ref++;
   struct MasterProgramGuard {
-    object_t *target;
-    program_t *original;
+    object_t* target;
+    program_t* original;
     ~MasterProgramGuard() {
       if (!target || (target->flags & O_DESTRUCTED) || !target->prog) {
         free_prog(&original);
         return;
       }
       if (target->prog != original) {
-        program_t *current = target->prog;
+        program_t* current = target->prog;
         target->prog = original;
         original->ref++;
         free_prog(&current);
@@ -1193,7 +1194,9 @@ TEST_F(DriverTest, TestMasterReloadPublicEntryOutsideMasterApply) {
   ASSERT_NE(probe, nullptr);
   struct ProbeGuard {
     object_t* object;
-    ~ProbeGuard() { destruct_object_for_test(object); }
+    ~ProbeGuard() {
+      destruct_object_for_test(object);
+    }
   } probe_guard{probe};
 
   auto invoke_mode = [probe](int mode) -> int {
@@ -1272,12 +1275,12 @@ TEST_F(DriverTest, TestMasterReloadPublicEntryOutsideMasterApply) {
 // executing.
 TEST_F(DriverTest, TestMasterReloadStressRounds) {
   ASSERT_NE(master_ob, nullptr);
-  program_t *orig_prog = master_ob->prog;
+  program_t* orig_prog = master_ob->prog;
   ASSERT_NE(orig_prog, nullptr);
   orig_prog->ref++;  // pin for the restore below
 
   constexpr int kRounds = 12;
-  std::vector<program_t *> published;
+  std::vector<program_t*> published;
 
   for (int round = 0; round < kRounds; round++) {
     RecompilePrepared prep;
@@ -1305,7 +1308,7 @@ TEST_F(DriverTest, TestMasterReloadStressRounds) {
     // And the master must still answer applies: the standard authorization
     // path is what every reload depends on.
     push_object(master_ob);
-    svalue_t *ret = safe_apply_master_ob(APPLY_VALID_RECOMPILE_OBJECT, 1);
+    svalue_t* ret = safe_apply_master_ob(APPLY_VALID_RECOMPILE_OBJECT, 1);
     ASSERT_NE(ret, nullptr) << "round " << round;
     ASSERT_TRUE(MASTER_APPROVED(ret)) << "round " << round;
     free_svalue(ret, "TestMasterReloadStressRounds");
@@ -1315,7 +1318,7 @@ TEST_F(DriverTest, TestMasterReloadStressRounds) {
 
   // Restore the original master program (transfers the object's reference and
   // drops our pin), exactly like the single-reload test.
-  program_t *last_prog = master_ob->prog;
+  program_t* last_prog = master_ob->prog;
   master_ob->prog = orig_prog;
   orig_prog->ref++;
   free_prog(&last_prog);
@@ -1328,7 +1331,7 @@ TEST_F(DriverTest, TestMasterReloadStressRounds) {
 // so attempts stayed 0 forever and quiescence failures were invisible).
 TEST_F(DriverTest, TestRecompileLifecycleBoundary) {
   ASSERT_EQ(vm_recompile_execution_context(), nullptr);
-  object_t *target = master_ob;
+  object_t* target = master_ob;
   ASSERT_NE(target, nullptr);
 
   RecompilePrepared prepared;
@@ -1350,8 +1353,7 @@ TEST_F(DriverTest, TestRecompileLifecycleBoundary) {
 
     context.mark_swapped();
     EXPECT_EQ(context.phase(), RecompileExecutionPhase::Swapped);
-    EXPECT_TRUE(context.blocks_new_compile())
-        << "simul dispatch activation must close compilation";
+    EXPECT_TRUE(context.blocks_new_compile()) << "simul dispatch activation must close compilation";
 
     context.mark_finished();
     EXPECT_EQ(context.phase(), RecompileExecutionPhase::Finished);
@@ -1362,7 +1364,7 @@ TEST_F(DriverTest, TestRecompileLifecycleBoundary) {
 }
 
 TEST_F(DriverTest, TestRecompileQuiesceSnapshotSerializesClaimAndTimeout) {
-  auto &coordinator = owner_runtime_coordinator();
+  auto& coordinator = owner_runtime_coordinator();
   const auto before = coordinator.snapshot();
   {
     std::lock_guard<std::mutex> lock(coordinator.mutex());
@@ -1381,7 +1383,7 @@ TEST_F(DriverTest, TestRecompileQuiesceSnapshotSerializesClaimAndTimeout) {
 }
 
 TEST_F(DriverTest, TestRecompileQuiesceCountsSuccess) {
-  auto &coordinator = owner_runtime_coordinator();
+  auto& coordinator = owner_runtime_coordinator();
   const auto before = coordinator.snapshot();
 
   auto quiesce = vm_owner_recompile_quiesce_begin(std::chrono::milliseconds(200));
@@ -1402,11 +1404,11 @@ TEST_F(DriverTest, TestRecompileQuiesceCountsSuccess) {
 // The block's count is the sole payload-length source; layout_id comes
 // exclusively from program_layout_digest().
 TEST_F(DriverTest, TestObjectVariableBlockLifecycle) {
-  const char *src =
+  const char* src =
       "int x;\n"
       "string s = \"abc\";\n"
       "void do_tests() { x = 1; }\n";
-  program_t *prog = CompileSimulProg(src);
+  program_t* prog = CompileSimulProg(src);
   ASSERT_NE(prog, nullptr);
   ASSERT_GE(prog->num_variables_total, 2);
 
@@ -1422,8 +1424,8 @@ TEST_F(DriverTest, TestObjectVariableBlockLifecycle) {
     ASSERT_EQ(b.data[i].u.number, 0) << "fresh block slots must be const0";
   }
   // layout_id differs for a genuinely different layout
-  const char *src2 = "int x;\nint y;\nstring s;\n";
-  program_t *prog2 = CompileSimulProg(src2);
+  const char* src2 = "int x;\nint y;\nstring s;\n";
+  program_t* prog2 = CompileSimulProg(src2);
   ASSERT_NE(prog2, nullptr);
   ASSERT_NE(program_layout_digest(prog2), program_layout_digest(prog))
       << "different variable layouts must not share a digest";
@@ -1437,7 +1439,7 @@ TEST_F(DriverTest, TestObjectVariableBlockLifecycle) {
   ASSERT_EQ(b.count, static_cast<uint32_t>(prog->num_variables_total));
 
   // move transfers the whole payload into an empty block
-  svalue_t *moved_data = b.data;
+  svalue_t* moved_data = b.data;
   ObjectVariableBlock dst;
   obj_vars_move(&dst, &b);
   ASSERT_EQ(dst.count, static_cast<uint32_t>(prog->num_variables_total));
@@ -1448,8 +1450,8 @@ TEST_F(DriverTest, TestObjectVariableBlockLifecycle) {
   // swap exchanges payloads wholesale
   ObjectVariableBlock other;
   obj_vars_init(&other, prog2);
-  void *dst_data = dst.data;
-  void *other_data = other.data;
+  void* dst_data = dst.data;
+  void* other_data = other.data;
   uint64_t dst_id = dst.layout_id, other_id = other.layout_id;
   obj_vars_swap(&dst, &other);
   ASSERT_EQ(dst.data, other_data);
@@ -1470,7 +1472,7 @@ TEST_F(DriverTest, TestObjectVariableBlockLifecycle) {
 // count matches the compiled program and whose layout_id equals the
 // program's digest; destructing the object releases the payload.
 TEST_F(DriverTest, TestObjectBlockMatchesLoadedProgram) {
-  object_t *ob = load_object_for_test("single/void");
+  object_t* ob = load_object_for_test("single/void");
   ASSERT_NE(ob, nullptr);
   ASSERT_EQ(ob->variables.count, static_cast<uint32_t>(ob->prog->num_variables_total));
   ASSERT_EQ(ob->variables.layout_id, program_layout_digest(ob->prog));
@@ -1483,8 +1485,8 @@ TEST_F(DriverTest, TestObjectBlockMatchesLoadedProgram) {
 // Fixtures: rp_a (1 var), rp_mid (inherits rp_a + 1 var), rp_leaf
 // (inherits rp_mid + 1 var). Layouts: mid=[a,m], leaf=[a,m,l].
 TEST_F(DriverTest, TestReplaceProgramBlockMovePrefix) {
-  object_t *a = load_object_for_test("single/tests/efuns/rp_a");
-  object_t *mid = load_object_for_test("single/tests/efuns/rp_mid");
+  object_t* a = load_object_for_test("single/tests/efuns/rp_a");
+  object_t* mid = load_object_for_test("single/tests/efuns/rp_mid");
   ASSERT_NE(a, nullptr);
   ASSERT_NE(mid, nullptr);
   ASSERT_EQ(mid->variables.count, 2u);
@@ -1495,9 +1497,9 @@ TEST_F(DriverTest, TestReplaceProgramBlockMovePrefix) {
   // the new layout is a prefix of the old).
   mid->variables.data[1].u.number = 7;
   // #1247: mirror the production allocation (replace_program.cc:222
-    // DMALLOC) -- FREE() in replace_programs() would mismatch operator new.
-    auto *entry = static_cast<replace_ob_t *>(
-        DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_replace_program"));
+  // DMALLOC) -- FREE() in replace_programs() would mismatch operator new.
+  auto* entry = static_cast<replace_ob_t*>(
+      DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_replace_program"));
   entry->ob = mid;
   entry->new_prog = a->prog;
   entry->var_offset = 0;
@@ -1516,8 +1518,8 @@ TEST_F(DriverTest, TestReplaceProgramBlockMovePrefix) {
 }
 
 TEST_F(DriverTest, TestReplaceProgramBlockMoveOffset) {
-  object_t *a = load_object_for_test("single/tests/efuns/rp_a");
-  object_t *leaf = load_object_for_test("single/tests/efuns/rp_leaf");
+  object_t* a = load_object_for_test("single/tests/efuns/rp_a");
+  object_t* leaf = load_object_for_test("single/tests/efuns/rp_leaf");
   ASSERT_NE(a, nullptr);
   ASSERT_NE(leaf, nullptr);
   ASSERT_EQ(leaf->variables.count, 3u);
@@ -1530,14 +1532,14 @@ TEST_F(DriverTest, TestReplaceProgramBlockMoveOffset) {
   leaf->variables.data[1].u.number = 11;  // m
   leaf->variables.data[2].u.number = 22;  // l
   // #1247: mirror the production allocation (replace_program.cc:222
-    // DMALLOC) -- FREE() in replace_programs() would mismatch operator new.
-    auto *entry = static_cast<replace_ob_t *>(
-        DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_replace_program"));
+  // DMALLOC) -- FREE() in replace_programs() would mismatch operator new.
+  auto* entry = static_cast<replace_ob_t*>(
+      DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_replace_program"));
   entry->ob = leaf;
   entry->new_prog = a->prog;  // placeholder, replaced below via search
   entry->var_offset = 1;
   // Need the real mid program: load rp_mid object and use its prog.
-  object_t *mid = load_object_for_test("single/tests/efuns/rp_mid");
+  object_t* mid = load_object_for_test("single/tests/efuns/rp_mid");
   ASSERT_NE(mid, nullptr);
   entry->new_prog = mid->prog;
   entry->next = obj_list_replace;
@@ -1561,12 +1563,12 @@ TEST_F(DriverTest, TestReplaceProgramBlockMoveOffset) {
 // compiled program, and two programs with the same digest must have
 // identical serializations (the B-S2 bijection gate, no whitelist).
 TEST_F(DriverTest, TestProgramLayoutDigestMatchesDescriptor) {
-  const char *src =
+  const char* src =
       "class Point { int x; int y; }\n"
       "class Point p;\n"
       "int q;\n"
       "void do_tests() { q = 1; }\n";
-  program_t *prog = CompileSimulProg(src);
+  program_t* prog = CompileSimulProg(src);
   ASSERT_NE(prog, nullptr);
 
   RecompileLayout layout = describe_recompile_layout(prog);
@@ -1576,19 +1578,19 @@ TEST_F(DriverTest, TestProgramLayoutDigestMatchesDescriptor) {
       << "digest(prog) must equal digest(canonical(describe(prog)))";
 
   // Same program compiled again must give the same digest and serialization.
-  program_t *prog2 = CompileSimulProg(src);
+  program_t* prog2 = CompileSimulProg(src);
   ASSERT_NE(prog2, nullptr);
   RecompileLayout layout2 = describe_recompile_layout(prog2);
   ASSERT_EQ(program_layout_digest(prog2), program_layout_digest(prog));
   ASSERT_EQ(canonical_layout_serialization(layout2), canonical);
 
   // Distinct layouts must not share a digest or serialization.
-  const char *src3 =
+  const char* src3 =
       "class Point { int x; }\n"
       "class Point p;\n"
       "int q;\n"
       "void do_tests() { q = 1; }\n";
-  program_t *prog3 = CompileSimulProg(src3);
+  program_t* prog3 = CompileSimulProg(src3);
   ASSERT_NE(prog3, nullptr);
   ASSERT_NE(program_layout_digest(prog3), program_layout_digest(prog))
       << "class schema change must change the digest";
@@ -1604,8 +1606,9 @@ TEST_F(DriverTest, TestProgramLayoutDigestMatchesDescriptor) {
 // same serialization. Exercises the full compiled corpus in one pass.
 TEST_F(DriverTest, TestLayoutDigestBijectionOverCorpus) {
   std::map<uint64_t, std::string> digest_to_serial;
-  for (object_t *ob = obj_list; ob; ob = ob->next_all) {
-    if (!ob->prog) continue;
+  for (object_t* ob = obj_list; ob; ob = ob->next_all) {
+    if (!ob->prog)
+      continue;
     RecompileLayout layout = describe_recompile_layout(ob->prog);
     std::string serial = canonical_layout_serialization(layout);
     uint64_t digest = program_layout_digest(ob->prog);
@@ -1658,8 +1661,9 @@ TEST_F(DriverTest, TestClassifyLayoutRules) {
 
   // Type change on a matched variable must reject.
   RecompileLayout type_new = new_l;
-  for (auto &v : type_new.variables) {
-    if (v.name_text == "v1") v.effective_decl_type = 1;
+  for (auto& v : type_new.variables) {
+    if (v.name_text == "v1")
+      v.effective_decl_type = 1;
   }
   RecompileLayoutDiff type_diff = classify_recompile_layout(old_l, type_new);
   ASSERT_TRUE(type_diff.flags & kTypeChanged);
@@ -1726,8 +1730,8 @@ TEST_F(DriverTest, TestClassifyLayoutRules) {
   RecompileLayout comb_new;
   comb_new.num_variables_total = 2;
   comb_new.variables = {
-      {0, "/p", "v2", 5, 0},   // type changed
-      {1, "/p", "v9", 0, 0},   // added
+      {0, "/p", "v2", 5, 0},  // type changed
+      {1, "/p", "v9", 0, 0},  // added
   };
   RecompileLayoutDiff comb_diff = classify_recompile_layout(old_l, comb_new);
   ASSERT_TRUE(comb_diff.flags & kAddedVariable);
@@ -1741,14 +1745,14 @@ TEST_F(DriverTest, TestClassifyLayoutRules) {
 // and adds z; matched y keeps its old value, the new z keeps its
 // initializer (InitThenMigrate policy), the removed x is gone.
 TEST_F(DriverTest, TestRecompileMigrationAddRemovePreserves) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
   ASSERT_EQ(bp->variables.count, 2u);
   ASSERT_EQ(bp->variables.data[0].u.number, 100);
   ASSERT_EQ(bp->variables.data[1].u.number, 200);
 
-  const char *v2 = "int z = 300;\nint y;\n";
-  program_t *prog2 = CompileSimulProg(v2);
+  const char* v2 = "int z = 300;\nint y;\n";
+  program_t* prog2 = CompileSimulProg(v2);
   ASSERT_NE(prog2, nullptr);
 
   RecompilePrepared prep;
@@ -1787,10 +1791,10 @@ TEST_F(DriverTest, TestRecompileMigrationAddRemovePreserves) {
 
 // #1247 B-S3: reordering keeps values by stable identity.
 TEST_F(DriverTest, TestRecompileMigrationReorder) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
-  const char *v2 = "int y;\nint x;\n";  // swapped slots
-  program_t *prog2 = CompileSimulProg(v2);
+  const char* v2 = "int y;\nint x;\n";  // swapped slots
+  program_t* prog2 = CompileSimulProg(v2);
   ASSERT_NE(prog2, nullptr);
 
   RecompilePrepared prep;
@@ -1817,11 +1821,11 @@ TEST_F(DriverTest, TestRecompileMigrationReorder) {
 // #1247 B-S3: __INIT failure during migration rolls the whole transaction
 // back: program, variable payload and values are the pre-swap state.
 TEST_F(DriverTest, TestRecompileMigrationInitFailureRollsBack) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
-  program_t *old_prog = bp->prog;
-  const char *v2 = "int z;\nint boom() { error(\"boom\"); return 0; }\nint g = boom();\n";
-  program_t *prog2 = CompileSimulProg(v2);
+  program_t* old_prog = bp->prog;
+  const char* v2 = "int z;\nint boom() { error(\"boom\"); return 0; }\nint g = boom();\n";
+  program_t* prog2 = CompileSimulProg(v2);
   ASSERT_NE(prog2, nullptr);
 
   RecompilePrepared prep;
@@ -1851,15 +1855,15 @@ TEST_F(DriverTest, TestRecompileMigrationInitFailureRollsBack) {
 // program did not define it. The commit must derive the new flag from the
 // staged apply table rather than reusing the old snapshot.
 TEST_F(DriverTest, TestRecompileDerivedFlagsUseStagedProgram) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
   ASSERT_EQ(function_exists(APPLY_CLEAN_UP, bp, 1), nullptr);
   bp->flags &= ~O_WILL_CLEAN_UP;
   const unsigned short old_flags = bp->flags;
-  program_t *old_prog = bp->prog;
+  program_t* old_prog = bp->prog;
 
-  program_t *new_prog = CompileSimulProg(
-      "int x = 100;\nint y = 200;\nvoid clean_up(int inherited) {}\n");
+  program_t* new_prog =
+      CompileSimulProg("int x = 100;\nint y = 200;\nvoid clean_up(int inherited) {}\n");
   ASSERT_NE(new_prog, nullptr);
 
   RecompilePrepared prep;
@@ -1883,15 +1887,15 @@ TEST_F(DriverTest, TestRecompileDerivedFlagsUseStagedProgram) {
 // again from the old program. A one-shot clean_up sweep may have cleared the
 // bit while the method remains present.
 TEST_F(DriverTest, TestRecompileDerivedFlagsRestoreOldSnapshot) {
-  object_t *ob = load_object_for_test("clone/clean_up_deadline");
+  object_t* ob = load_object_for_test("clone/clean_up_deadline");
   ASSERT_NE(ob, nullptr);
   ASSERT_NE(function_exists(APPLY_CLEAN_UP, ob, 1), nullptr);
   ASSERT_NE(ob->flags & O_WILL_CLEAN_UP, 0u);
   ob->flags &= ~O_WILL_CLEAN_UP;
   const unsigned short old_flags = ob->flags;
-  program_t *old_prog = ob->prog;
+  program_t* old_prog = ob->prog;
 
-  program_t *new_prog = CompileSimulProg("void create() {}\n");
+  program_t* new_prog = CompileSimulProg("void create() {}\n");
   ASSERT_NE(new_prog, nullptr);
   RecompilePrepared prep;
   prep.staged = StagedProgram(new_prog);
@@ -1914,9 +1918,9 @@ TEST_F(DriverTest, TestRecompileDerivedFlagsRestoreOldSnapshot) {
 // #1247 B-S3: exact-layout BlueprintFamily reload creates NO migration and
 // runs NO __INIT (v1 semantics preserved).
 TEST_F(DriverTest, TestRecompileCreateNonLpcExceptionRollsBack) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
-  program_t *old_prog = bp->prog;
+  program_t* old_prog = bp->prog;
   const uint64_t old_generation = bp->prog_generation;
   const unsigned short old_flags = bp->flags;
   const uint32_t old_count = bp->variables.count;
@@ -1925,7 +1929,7 @@ TEST_F(DriverTest, TestRecompileCreateNonLpcExceptionRollsBack) {
   const LPC_INT old_y = bp->variables.data[1].u.number;
   const unsigned int old_ref = old_prog->ref;
 
-  program_t *new_prog = CompileSimulProg("int x = 900;\nint y = 901;\n");
+  program_t* new_prog = CompileSimulProg("int x = 900;\nint y = 901;\n");
   ASSERT_NE(new_prog, nullptr);
   const unsigned int new_ref = new_prog->ref;
 
@@ -1973,10 +1977,10 @@ TEST_F(DriverTest, TestRecompileCreateNonLpcExceptionRollsBack) {
 }
 
 TEST_F(DriverTest, TestRecompileExactNoMigrationForBlueprint) {
-  object_t *bp = load_object_for_test("single/tests/efuns/b3_bp");
+  object_t* bp = load_object_for_test("single/tests/efuns/b3_bp");
   ASSERT_NE(bp, nullptr);
-  const char *v2 = "int x = 100;\nint y = 200;\n";  // identical layout
-  program_t *prog2 = CompileSimulProg(v2);
+  const char* v2 = "int x = 100;\nint y = 200;\n";  // identical layout
+  program_t* prog2 = CompileSimulProg(v2);
   ASSERT_NE(prog2, nullptr);
 
   RecompilePrepared prep;
@@ -2053,11 +2057,11 @@ TEST_F(DriverTest, TestTelnetZmpArgcVariants) {
   interactive_t ip{};
   ip.ob = load_object_for_test("/single/void");
   ASSERT_NE(ip.ob, nullptr);
-  const char *argv1[] = {"cmd"};
+  const char* argv1[] = {"cmd"};
   on_telnet_do_zmp(argv1, 1, &ip);
-  const char *argv2[] = {"cmd", "a"};
+  const char* argv2[] = {"cmd", "a"};
   on_telnet_do_zmp(argv2, 2, &ip);
-  const char *argv3[] = {"cmd", "a", "b"};
+  const char* argv3[] = {"cmd", "a", "b"};
   on_telnet_do_zmp(argv3, 3, &ip);
 }
 
@@ -2099,7 +2103,7 @@ struct LpccCliResult {
   std::string output;
 };
 
-LpccCliResult RunLpccCli(const std::string &args) {
+LpccCliResult RunLpccCli(const std::string& args) {
   LpccCliResult result;
   const auto build_dir = LpccTestBuildDir();
   if (build_dir.empty()) {
@@ -2112,9 +2116,9 @@ LpccCliResult RunLpccCli(const std::string &args) {
   }
   // trace_lpcc.json lands in the child's CWD; it is a gitignored artifact of
   // the documented lpcc invocation from testsuite/.
-  const std::string command = "cd '" + mudlib.string() + "' && '" + lpcc.string() + "' " + args +
-                              " 2>&1";
-  FILE *pipe = popen(command.c_str(), "r");
+  const std::string command =
+      "cd '" + mudlib.string() + "' && '" + lpcc.string() + "' " + args + " 2>&1";
+  FILE* pipe = popen(command.c_str(), "r");
   if (pipe == nullptr) {
     return result;
   }
@@ -2130,7 +2134,7 @@ LpccCliResult RunLpccCli(const std::string &args) {
 
 // T3.4: runs the interactive shell with `input` on stdin. Prompt output is
 // tty-only, so piped runs see exactly the diagnostics and command output.
-LpccCliResult RunLpcshellCli(const std::string &args, const std::string &input) {
+LpccCliResult RunLpcshellCli(const std::string& args, const std::string& input) {
   LpccCliResult result;
   const auto build_dir = LpccTestBuildDir();
   if (build_dir.empty()) {
@@ -2151,7 +2155,7 @@ LpccCliResult RunLpcshellCli(const std::string &args, const std::string &input) 
   }
   const std::string command = "cd '" + mudlib.string() + "' && '" + shell.string() + "' " + args +
                               " < '" + input_path.string() + "' 2>&1";
-  FILE *pipe = popen(command.c_str(), "r");
+  FILE* pipe = popen(command.c_str(), "r");
   if (pipe != nullptr) {
     char buffer[4096];
     while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
@@ -2282,13 +2286,12 @@ TEST_F(DriverTest, TestLpccCliArgumentMatrix) {
     GTEST_SKIP() << "lpcc is not built";
   }
 
-  for (const auto &test_case : cases) {
+  for (const auto& test_case : cases) {
     const auto result = RunLpccCli(test_case.args);
     ASSERT_NE(result.exit_code, -1)
         << "lpcc could not be spawned for args: [" << test_case.args << "]";
-    EXPECT_EQ(result.exit_code, test_case.exit_code)
-        << "args: [" << test_case.args << "]\n"
-        << result.output;
+    EXPECT_EQ(result.exit_code, test_case.exit_code) << "args: [" << test_case.args << "]\n"
+                                                     << result.output;
     if (test_case.expects_usage) {
       EXPECT_NE(result.output.find("Usage: lpcc"), std::string::npos)
           << "args: [" << test_case.args << "]\n"

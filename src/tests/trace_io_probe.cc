@@ -19,7 +19,7 @@ namespace {
 std::thread::id main_thread;
 std::atomic<bool> fail_worker_allocation{false};
 bool main_thread_reported = false;
-}
+}  // namespace
 
 extern "C" {
 void* __real__Znwm(size_t size);

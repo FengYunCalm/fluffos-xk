@@ -756,7 +756,7 @@ U10 总出口：规范、配置、编辑器说明和 CI 一致；新增代码不
 1. 对每个 vendor 核源码版本、来源 commit、许可证、实际本地补丁和内容哈希。先解决 lws 清单矛盾，再判断是否升级；不能通过单改版本字符串制造“已更新”。
 2. 对上游 vendor 差异按安全修复/平台修复/功能/构建变化分类，读取对应发行说明/官方公告。没有版本和受影响条件证据，不报告具体 CVE 已命中或已修复。
 3. 单个依赖单独升级；driver/library API、Windows、静态/动态链接、package OFF、TLS 验证、编码等受影响项定向验证。保留实际 fork 补丁，不整树覆盖。
-4. 审查 Alpine 3.18 的维护状态和当前可重建性；若需要升级固定镜像，先测试 PCRE2/ICU/OpenSSL/静态包组合，不改 registry，不部署。镜像构建需要当次授权和可用环境。
+4. 审查 Alpine 基础镜像的维护状态和当前可重建性；若需要升级固定镜像，先测试 PCRE2/ICU/OpenSSL/静态包组合，不改 registry，不部署。镜像构建需要当次授权和可用环境。
 5. docs 使用本地 VitePress 依赖和 lockfile，只按本地需要更新；不因为上游 npm commit 新就强行同步。
 6. 收窄实际可修的编译警告/sanitizer 抑制；不能删除检查换绿。Linux 本地、WSL2、Windows/macOS/Alpine 的证据分别记。固定实际 compiler/libc/ICU/OpenSSL/zlib 等版本，核静态/动态加载来源；许可证、子模块身份和构建生成器同列，不只看 manifest 的版本字符串。依赖升级后必须重建候选并重跑受影响单元，不能引用升级前证据。
 
@@ -1206,7 +1206,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **状态**：`accepted/tool-and-driver-gate; bulk-write-deferred-to-U10g`。本项验收基础设施和 formatter 工具均达到 U10d 出口；没有把 376 个待重排文件写回工作树，因此不把 U10g 的存量排版提前计入。
 - **调度修复**：`testsuite/command/tests.c` 现在按原 lexical 顺序建立 job 队列；当前 C/A/B job 未完成时不会启动下一个 job。最后一个异步 token 完成后，保存 `previous_object()`，先用 bound `disable_commands()` 清除完成用例的 callout command-giver，再以 `0.01` 秒 continuation 交还事件循环。`check_test_memory()` 在 state 的所有 token 完成后执行，而不是在异步 body 初次返回时执行。`testsuite/single/tests/efuns/set_heart_beat.c` 在销毁 stale object 后清空全局指针，避免延后到真实完成点的内存检查读取已销毁引用。没有修改生产 VM、formatter、grammar 或 driver。
 - **formatter 工具证据**：Node `v24.21.0` 的 `tools/lpc-syntax/test.mjs` 为 `186/186`，`test-format-corpus.mjs` 为 `11/11`，均零失败；`cmake --build build-organize-debug --target generate_ebnf --parallel 4` 返回 0。日志分别为 `u10d-node-selftest-final.log`、`u10d-corpus-selftest-final.log` 和 `u10d-generate-final.log`。
-- **当前工作树 corpus 边界**：只读 `bash testsuite/format.sh --check` 返回 1，但合同结果为 `total=526,written=0,wouldChange=376,unchanged=150,errors=0`；返回 1 表示尚未执行 U10g 的批量写入，不是 formatter 解析失败。原始日志为 `u10d-format-check-current.log`。隔离当前 corpus 的 `formatLPC` 预检为 `total=531,changed=376,unchanged=150,skipped=5`，所有 526 个可格式化输入均通过幂等检查，副本在 `u10d-formatted-current/`。
+- **当前工作树 corpus 边界**：只读运行 `testsuite/format.sh` 并传入 `--check` 返回 1，但合同结果为 `total=526,written=0,wouldChange=376,unchanged=150,errors=0`；返回 1 表示尚未执行 U10g 的批量写入，不是 formatter 解析失败。原始日志为 `u10d-format-check-current.log`。隔离当前 corpus 的 `formatLPC` 预检为 `total=531,changed=376,unchanged=150,skipped=5`，所有 526 个可格式化输入均通过幂等检查，副本在 `u10d-formatted-current/`。
 - **真实 driver 证据**：当前源码 raw full run `u10d-full-fixed-raw10/summary.json` 为 `selected=349,passed=349,failed=0,skipped=0,excluded=46`，二进制 SHA-256 为 `f9a921f5a83cab9964bbad6358f4907ad090a3b5a96c679acb0b5c415fdd3615`；同一二进制对当前源码的 376 个格式化变更副本运行 `u10d-full-formatted-raw2/summary.json`，结果同为 `349/349/0/0`、46 个排除。两次 driver 均返回 0、输出唯一完成记录和成功标记，且无 assertion、skip 或 sanitizer 诊断。
 - **范围结论**：U10d 的 token/语法/formatter/真实 driver 门禁已解除；不得因此宣称 testsuite 存量已统一。U10e/U10f 可按依赖图继续，U10g 仍负责按模块审阅并显式写入获准的存量文件。
 
@@ -1216,14 +1216,13 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **发现集合核对**：以 `HEAD` 的 `test_lpc.cc` 加 `test_egc.cc` 为基线，当前五个测试源的精确 `TEST`/`TEST_F` 身份均为 `503`；拆分前后 `missing=[]`、`added=[]`。Debug 的 runner 发现/执行集合为 `503/503`，没有失败或跳过。
 - **fail-first 与隔离修正**：拆分后首次全量运行暴露了跨翻译单元初始化顺序依赖：SimulEfun 测试留下临时表和永久标识符，随后 owner 内存断言失败；profile 测试还依赖此前未建立 apply-cache table。修复只限测试隔离：清理测试新增的 orphan 标识符、按生产 `TAG_SIMULS` 保存恢复表，并让 profile 用例编译独立 program 触发自己的 table build；没有改变生产实现或断言期望。
 - **配置证据**：`build-organize-debug`、`build-asan`、`build-ubsan`、`build-tsan` 分别构建 `lpc_tests`、`lpcshell`、`lpcc`。`u10e-lpc-tests-debug4`、`u10e-lpc-tests-asan`、`u10e-lpc-tests-ubsan`、`u10e-lpc-tests-tsan2` 均为 `selected=503,passed=503,failed=0,skipped=0`；TSan 构建和运行均使用 `setarch x86_64 -R`。`u10e-lpc-tests-release` 为 `502/502/0/0`，唯一少于 Debug 的 `ForeachTemporariesRestoredOnUnwind` 是 Release 条件编译排除，不是运行期跳过。
-- **出口**：结构拆分、公共 helper 单一来源、测试身份一致性和 Debug/ASan/UBSan/TSan/Release 目标验证完成。U10f 可以开始；U10g 仍不得把 `testsuite/format.sh --check` 报出的 `376` 个存量变更写回工作树。
+- **出口**：结构拆分、公共 helper 单一来源、测试身份一致性和 Debug/ASan/UBSan/TSan/Release 目标验证完成。U10f 可以开始；U10g 仍不得把 `testsuite/format.sh` 以 `--check` 报出的 `376` 个存量变更写回工作树。
 
 ### 11.24 U10f：CI 与编辑器说明接入
 
-- **状态**：`accepted/pilot-gate; full-diff-gate-deferred-to-U10g`。`.github/workflows/ci.yml` 新增 `style-and-lpc` job：checkout 使用完整历史，先核对 PR base 或 push before commit 在本地对象库中存在，再运行检查；没有全零或缺失基线时不选空范围通过。没有给 formatter 写仓库权限，也没有自动修复或联网拉取检查范围。
-- **工具门禁**：CI 安装 `clang-format-18` 后强制检查实际版本 `18.1.8`，运行 `tools/style/test-check-format.py`，再检查 U10c 已审阅的三个 native pilot。Node 通过 `.node-version` 固定 `24.21.0`，运行 `tools/lpc-syntax/test.mjs` 与 `test-format-corpus.mjs`；随后只读检查 U10d 已通过且当前不变的三个 LPC pilot，均不写源文件。
-- **本地复现**：`tools/docs/check-workflows.py --self-test` 通过；当前源码用固定 18.1.8 二进制复现 checker self-test、native pilot、Node 两项 self-test 和 LPC pilot，结果分别为 self-test 通过、native `3/3`、LPC `3/3`、Node 全部通过。`git diff --check` 通过。
-- **边界**：当前 testsuite corpus 仍有 `376` 个既有待排版文件，故本 job 暂不调用 `--all-native` 或无参数的 `testsuite/format.sh --check`，也不把 pilot 写成全库门禁。U10g 完成模块级存量整理后，必须把 native 改为明确 base-diff/全量范围检查，把 LPC 改为完整允许 corpus；在此之前 U10 总出口和全库格式通过均未宣称完成。CONTRIBUTING.md 已补充 C/C++、LPC 语言识别、手动命令和敏感文件禁用 format-on-save 说明。
+- **状态**：`accepted/full-read-only-gate`。`.github/workflows/ci.yml` 的 `style-and-lpc` job 现已切换为全量 native 与完整允许 LPC corpus 检查；checkout 使用完整历史，仍核对 PR base 或 push before commit，缺少有效基线时不选空范围通过。CI 没有 formatter 写权限，不自动修复，也不联网拉取检查范围。
+- **工具门禁**：CI 安装并强制使用 clang-format `18.1.8`，运行 `tools/style/test-check-format.py` 和 `check-format.py --all-native`；Node 通过 `.node-version` 固定 `24.21.0`，运行 `tools/lpc-syntax/test.mjs` 与 `test-format-corpus.mjs`，再只读运行 `testsuite/format.sh` 并传入 `--check`。所有步骤不写源文件。
+- **本地复现**：`tools/docs/check-workflows.py --self-test`、checker self-test、native 全量检查、Node 两项 self-test 和 LPC 全量检查均有当前工具链复现；CONTRIBUTING.md 已补充 C/C++、LPC 语言识别、手动命令和敏感文件禁用 format-on-save 说明。U10g 的完整结果和文件清单见 §11.68。
 
 ### 11.25 U11a：17 个 testsuite 覆盖缺口收口
 
@@ -1539,6 +1538,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **结构结论**：owner 状态映射已经由 `add_owner_runtime_status_fields()` 统一序列化；任务身份由 11.66 helper 统一构造；gateway wire 已由 `GatewayWireOutputFactory`、validated projection encoder 和 session FIFO writer 分层，retry 已由独立 bounded schedule/wave 状态机管理。`terminal`、`completed`、`inline_fallback`、`reservation_closed`、`notification_finalized` 表达不同生命周期维度，实测存在组合状态，不能安全压成一个 enum；公开 mapping 字段继续由这些内部状态推导。未发现可证明无消费者且可安全删除的 wrapper；owner safety checks、锁域边界和回调后复核均保留。
 - **验收**：11.63–11.66 的失败回归、status mapping、object-store lifecycle、owner-runtime smoke、gateway wire/session loopback 证据均已复核；gateway 19 个真实 transport/proxy/callback case 全执行且全通过，owner benchmark 的必要零值指标为 `normal_path_main_fallback_count=0`、`executor_context_cleanup_leaks=0`、`executor_same_owner_claim_conflicts=0`、`object_resolve_global_fallback_count=0`。本审计不改变消息顺序、序列号、deadline、队列上限、计数、TLS/代理规则或 main-required 策略。
 - **出口**：U12 不再有本地可执行但未处置的 scheduler/gateway 结构整理项；剩余限制转入 U15/U16/U17 的对应验收，不以本地 Linux 回归推断 Windows、长期容量或任意下游 mudlib。
+
+### 11.68 U10g：按模块统一存量并最终收口
+
+- **状态**：`accepted/Linux-local; downstream-runtime-external`。U10g 已完成当前仓库可执行的 C/C++ 与 LPC 存量格式统一；不把真实下游 mudlib、Windows 或长期运行环境写成已验证。
+- **C/C++ 范围**：以 `8960c6acc4856022d7b8f3e8b0b0ab8c740221b7` 为格式基线，使用 clang-format `18.1.8` 分模块处理 267 个 format-difference candidates，覆盖 compat、base/backend、packages、net、compiler、VM/owner/gateway、tests/tools。`check-format.py --all-native` 最终检查 312 个 native 文件，`src/svalue_json.cc` 作为唯一 `empty-source` 明确排除；剩余生成物、第三方、字节夹具和非 native 语言仍按 checker 分类排除，不是普通旧代码豁免。
+- **语义与回归**：265 个纯排版文件的 token 比对无差异；`src/tests/test_lpc_support.h` 和 `src/tests/test_lpc_owner.cc` 的静态源码断言因排版不再依赖空白，改为 token-aware `SourceText` 查找，属于测试支持适配，不改变 driver/runtime。Debug `lpc_tests` 全部 `509/509` 通过；`driver` 与 `lpcc` 目标串行构建成功；`git diff --check` 通过。
+- **LPC 范围**：`testsuite/format.sh` 在 `--write` 模式只接收预检发现的 373 个显式文件，预检全量发现集合为 664 个允许文件，首次写入结果 `373/373`、`errors=0`；修复数字左界与 `..` 运算符粘连后，对其中 36 个受影响文件执行第二次显式写入，唯一文件集合仍为 373 个。随后 `testsuite/format.sh` 在 `--check` 模式为 `664/664 unchanged`、`wouldChange=0`。五个既有排除项继续由 `format.sh` 固定管理：两个非法 UTF-8 字节夹具和三个 EOF/坏语法夹具；不存在的历史 EXDEV shim 排除项已从入口清除。
+- **工具验收**：LPC syntax self-test `187` 项和 corpus self-test `11` 项全部通过；新增回归覆盖数字 range 左界不会被格式化为 `0..` 的错误 token 形状。证据位于 `build-modernization-evidence/u10g/`。未运行真实下游 mudlib；CI 已从 U10f pilot 切换为全量 native 与完整 LPC read-only gate。
+- **出口边界**：U10g 不改变可见字符串、LPC token/literal/directive 内容或运行时接口；任何未来新增源文件继续由 CI 全量只读门禁检查。U10 总体仍须结合 U11、U13–U17 的未完成单元，不因本项完成而宣称整个现代化方案闭环。
 
 ## 附录 A：生产源码差异逐文件索引
 

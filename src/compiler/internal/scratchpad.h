@@ -13,10 +13,10 @@
 /*
  *  scratchpad.c
  */
-char *scratch_copy(const char *);
-char *scratch_alloc(int);
-void scratch_free(char *);
-char *scratch_join(char *, char *);
-char *scratch_realloc(char *, int);
+char* scratch_copy(const char*);
+char* scratch_alloc(int);
+void scratch_free(char*);
+char* scratch_join(char*, char*);
+char* scratch_realloc(char*, int);
 
 #endif

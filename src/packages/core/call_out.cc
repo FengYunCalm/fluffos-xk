@@ -22,13 +22,13 @@
  */
 
 // main callout map, for fastest reference
-using CalloutHandleMapType = std::unordered_map<LPC_INT, pending_call_t *>;
+using CalloutHandleMapType = std::unordered_map<LPC_INT, pending_call_t*>;
 static CalloutHandleMapType g_callout_handle_map;
 
 // Key is the pointer to the object, this provides an fast way for
 // remove_call_out() with object only, this map may contains invalidated
 // references and only get pruned during reclaim_callouts();
-using CalloutObjectMapType = std::unordered_multimap<object_t *, LPC_INT>;
+using CalloutObjectMapType = std::unordered_multimap<object_t*, LPC_INT>;
 static CalloutObjectMapType g_callout_object_handle_map;
 
 // TODO: It maybe possible to change to a per-object counter.
@@ -38,9 +38,9 @@ static CalloutObjectMapType g_callout_object_handle_map;
 // that wrong call.
 static uint64_t unique = 1;
 
-static void free_call(pending_call_t * /*cop*/);
-static void free_called_call(pending_call_t * /*cop*/);
-void remove_all_call_out(object_t * /*obj*/);
+static void free_call(pending_call_t* /*cop*/);
+static void free_called_call(pending_call_t* /*cop*/);
+void remove_all_call_out(object_t* /*obj*/);
 
 namespace {
 #ifdef DEBUGMALLOC_EXTENSIONS
@@ -85,7 +85,7 @@ LPC_INT next_callout_handle() {
   }
 }
 
-bool callout_belongs_to_object(pending_call_t *cop, object_t *ob) {
+bool callout_belongs_to_object(pending_call_t* cop, object_t* ob) {
   if (!cop || !ob) {
     return false;
   }
@@ -100,21 +100,23 @@ class ControlledLpcScope {
   ControlledLpcScope() : previous_(vm_context().owner.controlled_lpc_active) {
     vm_context().owner.controlled_lpc_active = true;
   }
-  ~ControlledLpcScope() { vm_context().owner.controlled_lpc_active = previous_; }
+  ~ControlledLpcScope() {
+    vm_context().owner.controlled_lpc_active = previous_;
+  }
 
  private:
   bool previous_;
 };
 
-const char *callout_owner_id(pending_call_t *cop) {
+const char* callout_owner_id(pending_call_t* cop) {
   return cop && cop->owner_id ? cop->owner_id : vm_owner_default_id();
 }
 
-const char *callout_task_key(pending_call_t *cop) {
+const char* callout_task_key(pending_call_t* cop) {
   return cop && cop->ob ? cop->function.s : "<function>";
 }
 
-void detach_due_callout_handle(pending_call_t *cop) {
+void detach_due_callout_handle(pending_call_t* cop) {
   if (!cop) {
     return;
   }
@@ -125,7 +127,7 @@ void detach_due_callout_handle(pending_call_t *cop) {
 #endif
 }
 
-void release_callout_tick_event(pending_call_t *cop) {
+void release_callout_tick_event(pending_call_t* cop) {
   if (!cop || !cop->tick_event) {
     return;
   }
@@ -133,7 +135,7 @@ void release_callout_tick_event(pending_call_t *cop) {
   cop->tick_event = nullptr;
 }
 
-void free_call_on_main(pending_call_t *cop, bool called) {
+void free_call_on_main(pending_call_t* cop, bool called) {
   if (!cop) {
     return;
   }
@@ -144,12 +146,12 @@ void free_call_on_main(pending_call_t *cop, bool called) {
   }
 }
 
-void free_callout_cleanup(void *context) {
-  auto *cop = static_cast<pending_call_t *>(context);
+void free_callout_cleanup(void* context) {
+  auto* cop = static_cast<pending_call_t*>(context);
   free_call_on_main(cop, cop->cleanup_called);
 }
 
-void cleanup_callout(pending_call_t *cop, bool called, bool main_required) {
+void cleanup_callout(pending_call_t* cop, bool called, bool main_required) {
   if (!cop) {
     return;
   }
@@ -166,7 +168,7 @@ void cleanup_callout(pending_call_t *cop, bool called, bool main_required) {
 /*
  * Free a call out structure.
  */
-static void free_called_call(pending_call_t *cop) {
+static void free_called_call(pending_call_t* cop) {
 #ifdef DEBUGMALLOC_EXTENSIONS
   unregister_detached_callout(cop);
 #endif
@@ -202,7 +204,7 @@ static void free_called_call(pending_call_t *cop) {
   FREE(cop);
 }
 
-static void free_call(pending_call_t *cop) {
+static void free_call(pending_call_t* cop) {
   if (cop->vs) {
     free_array(cop->vs);
   }
@@ -212,8 +214,8 @@ static void free_call(pending_call_t *cop) {
 /*
  * Setup a new call out.
  */
-LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds delay_msecs,
-                     int num_args, svalue_t *arg, bool walltime,
+LPC_INT new_call_out(object_t* ob, svalue_t* fun, std::chrono::milliseconds delay_msecs,
+                     int num_args, svalue_t* arg, bool walltime,
                      BackendEventPriority walltime_priority) {
   DBG_CALLOUT("new_call_out: /%s delay msecs %" PRId64 "\n", ob->obname, delay_msecs.count());
 
@@ -236,7 +238,7 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
     }
   }
 
-  auto *cop = reinterpret_cast<pending_call_t *>(
+  auto* cop = reinterpret_cast<pending_call_t*>(
       DCALLOC(1, sizeof(pending_call_t), TAG_CALL_OUT, "new_call_out"));
 
   cop->is_walltime = walltime;
@@ -269,9 +271,10 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
   cop->handle = next_callout_handle();
   DBG_CALLOUT("  handle: %" LPC_INT_FMTSTR_P "\n", cop->handle);
 
-  object_t *owner_ob = cop->ob ? cop->ob : fun->u.fp->hdr.owner;
-  const char *owner_id = vm_owner_id(owner_ob);
-  cop->owner_id = std::strcmp(owner_id, vm_owner_default_id()) == 0 ? nullptr : make_shared_string(owner_id);
+  object_t* owner_ob = cop->ob ? cop->ob : fun->u.fp->hdr.owner;
+  const char* owner_id = vm_owner_id(owner_ob);
+  cop->owner_id =
+      std::strcmp(owner_id, vm_owner_default_id()) == 0 ? nullptr : make_shared_string(owner_id);
   cop->owner_epoch = vm_owner_epoch(owner_ob);
   try {
     cop->cleanup_record = new VMOwnerCallbackCleanupRecord();
@@ -282,8 +285,9 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
     error("unable to reserve call_out cleanup record\n");
   }
   vm_object_store_record_callout(owner_ob, static_cast<uint64_t>(cop->handle));
-  vm_owner_record_task_trace(callout_owner_id(cop), "call_out", fun->type == T_STRING ? fun->u.string : "<function>",
-                             cop->owner_epoch, "scheduled");
+  vm_owner_record_task_trace(callout_owner_id(cop), "call_out",
+                             fun->type == T_STRING ? fun->u.string : "<function>", cop->owner_epoch,
+                             "scheduled");
 
   g_callout_handle_map.insert(std::make_pair(cop->handle, cop));
   g_callout_object_handle_map.insert(
@@ -302,10 +306,12 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
     cop->vs = nullptr;
   }
 
-  auto callback = [=] { return call_out(cop); };
+  auto callback = [=] {
+    return call_out(cop);
+  };
   if (walltime) {
-    cop->tick_event = add_walltime_event(
-        delay_msecs, TickEvent::callback_type(callback), walltime_priority);
+    cop->tick_event =
+        add_walltime_event(delay_msecs, TickEvent::callback_type(callback), walltime_priority);
   } else {
     cop->tick_event = add_gametick_event(delay_ticks, TickEvent::callback_type(callback));
   }
@@ -317,7 +323,8 @@ LPC_INT new_call_out(object_t *ob, svalue_t *fun, std::chrono::milliseconds dela
  * if it is a living object. Check for shadowing objects, which may also
  * be living objects.
  */
-static void execute_call_out(pending_call_t *cop, bool handle_detached = false, bool cleanup_main_required = false) {
+static void execute_call_out(pending_call_t* cop, bool handle_detached = false,
+                             bool cleanup_main_required = false) {
   auto callout_execution = vm_context_capture_execution();
   callout_execution.current_interactive = nullptr;
   VMExecutionScope callout_scope(vm_context(), callout_execution);
@@ -343,13 +350,14 @@ static void execute_call_out(pending_call_t *cop, bool handle_detached = false, 
 
   if (!ob || (ob->flags & O_DESTRUCTED)) {
     DBG_CALLOUT("  ob destructed, ignored.\n");
-    vm_owner_record_task_trace(cop->owner_id ? cop->owner_id : vm_owner_default_id(), "call_out", "<destructed>",
-                               cop->owner_epoch, "destructed");
+    vm_owner_record_task_trace(cop->owner_id ? cop->owner_id : vm_owner_default_id(), "call_out",
+                               "<destructed>", cop->owner_epoch, "destructed");
     cleanup_callout(cop, false, cleanup_main_required);
     return;
   }
 
-  if ((cop->owner_id && strcmp(cop->owner_id, vm_owner_id(ob)) != 0) || cop->owner_epoch != vm_owner_epoch(ob)) {
+  if ((cop->owner_id && strcmp(cop->owner_id, vm_owner_id(ob)) != 0) ||
+      cop->owner_epoch != vm_owner_epoch(ob)) {
     vm_owner_record_task_trace(cop->owner_id ? cop->owner_id : vm_owner_default_id(), "call_out",
                                cop->ob ? cop->function.s : "<function>", cop->owner_epoch, "stale");
     cleanup_callout(cop, false, cleanup_main_required);
@@ -386,8 +394,8 @@ static void execute_call_out(pending_call_t *cop, bool handle_detached = false, 
   int num_callout_args = 0;
 
   if (cop->vs) {
-    array_t *vec = cop->vs;
-    svalue_t *svp = vec->item + vec->size;
+    array_t* vec = cop->vs;
+    svalue_t* svp = vec->item + vec->size;
     num_callout_args = vec->size;
 
     while (svp-- > vec->item) {
@@ -421,11 +429,11 @@ static void execute_call_out(pending_call_t *cop, bool handle_detached = false, 
   cleanup_callout(cop, true, cleanup_main_required);
 }
 
-void call_out(pending_call_t *cop) {
+void call_out(pending_call_t* cop) {
   if (!cop) {
     return;
   }
-  auto *ob = cop->ob ? cop->ob : cop->function.f->hdr.owner;
+  auto* ob = cop->ob ? cop->ob : cop->function.f->hdr.owner;
   if (!ob || (ob->flags & O_DESTRUCTED)) {
     execute_call_out(cop);
     return;
@@ -437,21 +445,38 @@ void call_out(pending_call_t *cop) {
     detach_due_callout_handle(cop);
     release_callout_tick_event(cop);
     auto task_id = vm_owner_enqueue_executor_task(
-        ob, "call_out", task_key.c_str(), [cop] { execute_call_out(cop, true, true); },
-        [cop] { cleanup_callout(cop, false, true); });
+        ob, "call_out", task_key.c_str(),
+        [cop] {
+          execute_call_out(cop, true, true);
+        },
+        [cop] {
+          cleanup_callout(cop, false, true);
+        });
     if (task_id > 0) {
       return;
     }
-    vm_owner_enqueue_main_task(ob, "call_out", task_key.c_str(), [cop] { execute_call_out(cop, true, false); },
-                               [cop] { cleanup_callout(cop, false, false); },
-                               VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
+    vm_owner_enqueue_main_task(
+        ob, "call_out", task_key.c_str(),
+        [cop] {
+          execute_call_out(cop, true, false);
+        },
+        [cop] {
+          cleanup_callout(cop, false, false);
+        },
+        VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK);
     vm_owner_drain_main_tasks(64);
     return;
   }
 
-  vm_owner_enqueue_main_task(ob, "call_out", task_key.c_str(), [cop] { execute_call_out(cop); },
-                             [cop] { cleanup_callout(cop, false, false); },
-                             VM_OWNER_MAIN_TASK_OFF_MODE_FALLBACK);
+  vm_owner_enqueue_main_task(
+      ob, "call_out", task_key.c_str(),
+      [cop] {
+        execute_call_out(cop);
+      },
+      [cop] {
+        cleanup_callout(cop, false, false);
+      },
+      VM_OWNER_MAIN_TASK_OFF_MODE_FALLBACK);
   vm_owner_drain_main_tasks(64);
 }
 
@@ -473,7 +498,7 @@ int vm_call_out_test_support_priority(LPC_INT handle) {
   return walltime_event_priority_for_test(iter->second->tick_event);
 }
 
-static int time_left(pending_call_t *cop) {
+static int time_left(pending_call_t* cop) {
   if (cop->is_walltime) {
     return (cop->target_time - std::chrono::duration_cast<std::chrono::milliseconds>(
                                    std::chrono::high_resolution_clock::now().time_since_epoch())
@@ -490,7 +515,7 @@ static int time_left(pending_call_t *cop) {
  * The time left until execution is returned.
  * -1 is returned if no callout with this function is pending.
  */
-int remove_call_out(object_t *ob, const char *fun) {
+int remove_call_out(object_t* ob, const char* fun) {
   if (!ob) {
     return -1;
   }
@@ -505,7 +530,7 @@ int remove_call_out(object_t *ob, const char *fun) {
       iter = g_callout_object_handle_map.erase(iter);
       continue;
     }
-    auto *cop = iter_handle->second;
+    auto* cop = iter_handle->second;
 
     if (cop->ob == ob && strcmp(cop->function.s, fun) == 0) {
       auto remaining_time = time_left(cop);
@@ -522,7 +547,7 @@ int remove_call_out(object_t *ob, const char *fun) {
   return -1;
 }
 
-int remove_call_out_by_handle(object_t *ob, LPC_INT handle) {
+int remove_call_out_by_handle(object_t* ob, LPC_INT handle) {
   if (!ob) {
     return -1;
   }
@@ -537,7 +562,7 @@ int remove_call_out_by_handle(object_t *ob, LPC_INT handle) {
 
   auto iter = g_callout_handle_map.find(handle);
   if (iter != g_callout_handle_map.end()) {
-    auto *cop = iter->second;
+    auto* cop = iter->second;
     if (!callout_belongs_to_object(cop, ob)) {
       DBG_CALLOUT("  handle belongs to another object.\n");
       return -1;
@@ -554,7 +579,7 @@ int remove_call_out_by_handle(object_t *ob, LPC_INT handle) {
   return -1;
 }
 
-int find_call_out_by_handle(object_t *ob, LPC_INT handle) {
+int find_call_out_by_handle(object_t* ob, LPC_INT handle) {
   DBG_CALLOUT("find_call_out_by_handle: ob: %s, handle: %" LPC_INT_FMTSTR_P "\n", ob->obname,
               handle);
 
@@ -565,7 +590,7 @@ int find_call_out_by_handle(object_t *ob, LPC_INT handle) {
 
   auto iter = g_callout_handle_map.find(handle);
   if (iter != g_callout_handle_map.end()) {
-    auto *cop = iter->second;
+    auto* cop = iter->second;
     if (cop->handle == handle && callout_belongs_to_object(cop, ob)) {
       auto remaining_time = time_left(cop);
       DBG_CALLOUT("  found: remaining time %d.\n", remaining_time);
@@ -576,7 +601,7 @@ int find_call_out_by_handle(object_t *ob, LPC_INT handle) {
   return -1;
 }
 
-int find_call_out(object_t *ob, const char *fun) {
+int find_call_out(object_t* ob, const char* fun) {
   if (!ob) {
     return -1;
   }
@@ -591,7 +616,7 @@ int find_call_out(object_t *ob, const char *fun) {
       iter = g_callout_object_handle_map.erase(iter);
       continue;
     }
-    auto *cop = iter_handle->second;
+    auto* cop = iter_handle->second;
     if (cop->ob == ob && strcmp(cop->function.s, fun) == 0) {
       auto remaining_time = time_left(cop);
       DBG_CALLOUT("  found: remaining time %d.\n", remaining_time);
@@ -603,7 +628,7 @@ int find_call_out(object_t *ob, const char *fun) {
   return -1;
 }
 
-int print_call_out_usage(outbuffer_t *ob, int verbose) {
+int print_call_out_usage(outbuffer_t* ob, int verbose) {
   if (verbose == 1) {
     outbuf_add(ob, "Call out information:\n");
     outbuf_add(ob, "---------------------\n");
@@ -626,8 +651,8 @@ int print_call_out_usage(outbuffer_t *ob, int verbose) {
     }
   }
   return g_callout_handle_map.size() *
-             (sizeof(LPC_INT) + sizeof(pending_call_t *) + sizeof(pending_call_t)) +
-         g_callout_handle_map.size() * (sizeof(object_t *) + sizeof(LPC_INT));
+             (sizeof(LPC_INT) + sizeof(pending_call_t*) + sizeof(pending_call_t)) +
+         g_callout_handle_map.size() * (sizeof(object_t*) + sizeof(LPC_INT));
 }
 
 // only used in checkmemory
@@ -678,23 +703,23 @@ void mark_call_outs() {
  * 1: The function (string).
  * 2: The delay.
  */
-array_t *get_all_call_outs() {
+array_t* get_all_call_outs() {
   int i = 0;
-  for (auto &iter : g_callout_handle_map) {
-    auto *cop = iter.second;
-    object_t *ob = (cop->ob ? cop->ob : cop->function.f->hdr.owner);
+  for (auto& iter : g_callout_handle_map) {
+    auto* cop = iter.second;
+    object_t* ob = (cop->ob ? cop->ob : cop->function.f->hdr.owner);
     if (ob && !(ob->flags & O_DESTRUCTED)) {
       i++;
     }
   }
 
-  array_t *v = allocate_empty_array(i);
+  array_t* v = allocate_empty_array(i);
 
   i = 0;
-  for (auto &iter : g_callout_handle_map) {
-    auto *cop = iter.second;
-    array_t *vv;
-    object_t *ob;
+  for (auto& iter : g_callout_handle_map) {
+    auto* cop = iter.second;
+    array_t* vv;
+    object_t* ob;
     ob = (cop->ob ? cop->ob : cop->function.f->hdr.owner);
     if (!ob || (ob->flags & O_DESTRUCTED)) {
       continue;
@@ -737,7 +762,7 @@ array_t *get_all_call_outs() {
   return v;
 }
 
-void remove_all_call_out(object_t *obj) {
+void remove_all_call_out(object_t* obj) {
   int i = 0;
 
   auto range = g_callout_object_handle_map.equal_range(obj);
@@ -749,10 +774,12 @@ void remove_all_call_out(object_t *obj) {
       iter = g_callout_object_handle_map.erase(iter);
       continue;
     }
-    auto *cop = iter_handle->second;
+    auto* cop = iter_handle->second;
     if ((cop->ob && ((cop->ob == obj) || (cop->ob->flags & O_DESTRUCTED))) ||
-        (!(cop->ob) && (cop->function.f->hdr.owner == obj || !cop->function.f->hdr.owner ||  // #1247-equivalent CALLOUT-1 (owner NULL guard)
-                        (cop->function.f->hdr.owner->flags & O_DESTRUCTED)))) {
+        (!(cop->ob) &&
+         (cop->function.f->hdr.owner == obj ||
+          !cop->function.f->hdr.owner ||  // #1247-equivalent CALLOUT-1 (owner NULL guard)
+          (cop->function.f->hdr.owner->flags & O_DESTRUCTED)))) {
       free_call(cop);
       g_callout_handle_map.erase(iter_handle);
       iter = g_callout_object_handle_map.erase(iter);
@@ -768,7 +795,7 @@ void clear_call_outs() {
   int i = 0;
   auto iter = g_callout_handle_map.begin();
   while (iter != g_callout_handle_map.end()) {
-    auto *cop = iter->second;
+    auto* cop = iter->second;
     free_call(cop);
     iter = g_callout_handle_map.erase(iter);
     i++;
@@ -784,12 +811,12 @@ void reclaim_call_outs() {
   {
     auto iter = g_callout_handle_map.begin();
     while (iter != g_callout_handle_map.end()) {
-      auto *cop = iter->second;
+      auto* cop = iter->second;
       // #1247 CALLOUT-1: the funptr's owner may have been nulled by
       // reclaim_objects() (destructed owning object); guard before deref.
       if ((cop->ob && (cop->ob->flags & O_DESTRUCTED)) ||
-          (!cop->ob && (!cop->function.f->hdr.owner ||
-                        (cop->function.f->hdr.owner->flags & O_DESTRUCTED)))) {
+          (!cop->ob &&
+           (!cop->function.f->hdr.owner || (cop->function.f->hdr.owner->flags & O_DESTRUCTED)))) {
         free_call(cop);
         iter = g_callout_handle_map.erase(iter);
         i++;
@@ -817,8 +844,8 @@ void reclaim_call_outs() {
 
   if (CONFIG_INT(__RC_THIS_PLAYER_IN_CALL_OUT__)) {
     i = 0;
-    for (auto &iter : g_callout_handle_map) {
-      auto *cop = iter.second;
+    for (auto& iter : g_callout_handle_map) {
+      auto* cop = iter.second;
       if (cop->command_giver && (cop->command_giver->flags & O_DESTRUCTED)) {
         free_object(&cop->command_giver, "reclaim_call_outs");
         cop->command_giver = nullptr;
@@ -830,9 +857,8 @@ void reclaim_call_outs() {
 }
 
 namespace {
-inline void int_call_out(bool walltime,
-                         BackendEventPriority walltime_priority) {
-  svalue_t *arg = sp - st_num_arg + 1;
+inline void int_call_out(bool walltime, BackendEventPriority walltime_priority) {
+  svalue_t* arg = sp - st_num_arg + 1;
   int const num = st_num_arg - 2;
   LPC_INT ret;
 
@@ -907,5 +933,7 @@ void f_call_out_walltime_background() {
 #endif
 
 #ifdef F_CALL_OUT_INFO
-void f_call_out_info() { push_refed_array(get_all_call_outs()); }
+void f_call_out_info() {
+  push_refed_array(get_all_call_outs());
+}
 #endif

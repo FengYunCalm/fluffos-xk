@@ -16,4 +16,3 @@ void do_tests() {
     return i;
   })));
 }
-

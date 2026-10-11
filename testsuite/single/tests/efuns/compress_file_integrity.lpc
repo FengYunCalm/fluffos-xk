@@ -50,7 +50,7 @@ void do_tests() {
     damaged = read_buffer(source);
     ASSERT(sizeof(damaged) > 8);
     if (truncated) {
-      damaged = damaged[0..<2];
+      damaged = damaged[0 ..<2];
     } else {
       int crc_offset = sizeof(damaged) - 8;
       damaged[crc_offset] = damaged[crc_offset] ^ 64;

@@ -40,8 +40,8 @@ private void normal_cases() {
   object compiled;
   mixed failure;
 
-  foreach (string directory in ({ root + "/inc", root[1..] + "/inc",
-                                  root + "/inc/" })) {
+  foreach (string directory in ({ root + "/inc", root[1 ..] + "/inc",
+    root + "/inc/" })) {
     directories = ({ directory, ":DEFAULT:" });
     compiled = compile_source("#include <probe.h>\n", root);
     ASSERT_EQ(1, sizeof(filter(requests, (: $1 == $(directory) + "/probe.h" :))));
@@ -56,7 +56,7 @@ private void normal_cases() {
   destruct(compiled);
 
   compiled = compile_source("#include \"" + root + "/inc/probe.h\"\n", root);
-  ASSERT(member_array(root[1..] + "/inc/probe.h", requests) >= 0);
+  ASSERT(member_array(root[1 ..] + "/inc/probe.h", requests) >= 0);
   verify_includes(compiled);
   compiled = compile_source("#include \".//probe.h\"\n", root + "/inc");
   verify_includes(compiled);

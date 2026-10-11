@@ -1,10 +1,10 @@
 void do_tests() {
-  int* x = ({1, 2, 3, 4});
-  int* x_orig = ({1, 2, 3, 4});
+  int *x = ({ 1, 2, 3, 4 });
+  int *x_orig = ({ 1, 2, 3, 4 });
   int count = 0;
   string str = "abcdefg";
 
-  foreach(int i in x) {
+  foreach (int i in x) {
     count++;
   }
 
@@ -12,21 +12,21 @@ void do_tests() {
   ASSERT_EQ(x_orig, x);
 
   count = 0;
-  foreach(int ref i in x) {
+  foreach (int ref i in x) {
     i++;
     count++;
   }
 
   ASSERT_EQ(sizeof(x), count);
-  ASSERT_EQ(({2, 3, 4, 5}), x);
+  ASSERT_EQ(({ 2, 3, 4, 5 }), x);
 
   {
     mapping tmp = ([ "x": 1,
-                     "y": 2,
-                     "z": 3 ]);
+      "y": 2,
+      "z": 3 ]);
 
     count = 0;
-    foreach(string key, string val in tmp) {
+    foreach (string key, string val in tmp) {
       write(key + ":" + val + "\n");
       count++;
     }
@@ -37,7 +37,7 @@ void do_tests() {
   {
     string tmp = "";
 
-    foreach(int c in str) {
+    foreach (int c in str) {
       tmp += sprintf("%c", c);
     }
 
@@ -45,11 +45,11 @@ void do_tests() {
   }
 
   {
-    foreach(int ref c in str) {
+    foreach (int ref c in str) {
       c++;
     }
 
-    ASSERT_EQ("abcdefg", str); // not suppose to change
+    ASSERT_EQ("abcdefg", str);  // not suppose to change
   }
 
 }

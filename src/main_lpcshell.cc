@@ -44,10 +44,10 @@ namespace {
 // The interactive buffer is mirrored to this mudlib-relative path so the snippet
 // renderer can quote the offending line (it reads from disk). The name is a
 // long-standing gitignored testsuite scratch path.
-constexpr const char *kBufferFile = "tmp_eval_file.c";
+constexpr const char* kBufferFile = "tmp_eval_file.c";
 
-constexpr const char *kPrimaryPrompt = "> ";
-constexpr const char *kContinuationPrompt = ".. ";
+constexpr const char* kPrimaryPrompt = "> ";
+constexpr const char* kContinuationPrompt = ".. ";
 
 bool stdin_is_interactive() {
 #ifdef _WIN32
@@ -64,12 +64,12 @@ struct Session {
   // next evaluation starts.
   compile_arena::ScratchArena arena{false};
   compiler_diag::RenderStyle style = compiler_diag::RenderStyle::kClang;
-  const char *retained_source = nullptr;
+  const char* retained_source = nullptr;
   size_t evaluations = 0;
   size_t failed_evaluations = 0;
 
-  void retain(const std::string &source) {
-    char *copy = arena.alloc_string(source.size());
+  void retain(const std::string& source) {
+    char* copy = arena.alloc_string(source.size());
     if (copy != nullptr) {
       std::memcpy(copy, source.data(), source.size());
     }
@@ -80,7 +80,7 @@ struct Session {
 // True when the accumulated text is a complete unit: no open bracket and no
 // unfinished string or block comment. Quote characters inside comments do not
 // count, and vice versa, so a mixed buffer stays predictable.
-bool input_complete(const std::string &text) {
+bool input_complete(const std::string& text) {
   int depth = 0;
   bool in_string = false;
   bool in_char = false;
@@ -123,7 +123,7 @@ bool input_complete(const std::string &text) {
   return depth <= 0 && !in_string && !in_char && !in_block_comment;
 }
 
-void write_buffer_file(const std::string &source) {
+void write_buffer_file(const std::string& source) {
   std::ofstream out(kBufferFile, std::ios::binary | std::ios::trunc);
   if (out.good()) {
     out << source;
@@ -132,7 +132,7 @@ void write_buffer_file(const std::string &source) {
 
 // Compiles `source` (reported as `compile_name`) and renders the recorded
 // diagnostics. Returns true when nothing was reported as an error.
-bool evaluate(Session &session, const std::string &source, const std::string &compile_name,
+bool evaluate(Session& session, const std::string& source, const std::string& compile_name,
               bool mirror_to_buffer_file) {
   session.evaluations++;
   session.retain(source);
@@ -141,7 +141,7 @@ bool evaluate(Session &session, const std::string &source, const std::string &co
     write_buffer_file(source);
   }
 
-  program_t *prog = nullptr;
+  program_t* prog = nullptr;
   {
     std::istringstream stream(source);
     prog = compile_file(std::unique_ptr<LexStream>(new IStreamLexStream(stream)),
@@ -153,7 +153,7 @@ bool evaluate(Session &session, const std::string &source, const std::string &co
 
   size_t errors = 0;
   for (size_t i = 0; i < compiler_diag::size(); i++) {
-    compiler_diag::Diagnostic const &diagnostic = compiler_diag::at(i);
+    compiler_diag::Diagnostic const& diagnostic = compiler_diag::at(i);
     if (diagnostic.severity == compiler_diag::Severity::kError) {
       errors++;
     }
@@ -167,26 +167,25 @@ bool evaluate(Session &session, const std::string &source, const std::string &co
   return ok;
 }
 
-bool is_known_command(const std::string &name) {
-  return name.empty() || name == "help" || name == "quit" || name == "exit" ||
-         name == "style" || name == "diagnostics" || name == "buffer" || name == "arena" ||
-         name == "reset";
+bool is_known_command(const std::string& name) {
+  return name.empty() || name == "help" || name == "quit" || name == "exit" || name == "style" ||
+         name == "diagnostics" || name == "buffer" || name == "arena" || name == "reset";
 }
 
 // A preprocessor directive is source text, not a command: '#define' and friends
 // are written in the same shell as programs, and '#' is only a command marker
 // for the shell's own words.
-bool is_preprocessor_directive(const std::string &line) {
-  static const char *const kDirectives[] = {
-      "define", "undef",   "include", "if",    "ifdef", "ifndef", "elif",
-      "else",   "endif",   "pragma",  "echo",  "line",  "error",  "warn",
+bool is_preprocessor_directive(const std::string& line) {
+  static const char* const kDirectives[] = {
+      "define", "undef", "include", "if",   "ifdef", "ifndef", "elif",
+      "else",   "endif", "pragma",  "echo", "line",  "error",  "warn",
   };
   std::string name = line.substr(1);
   size_t const space = name.find_first_of(" \t");
   if (space != std::string::npos) {
     name = name.substr(0, space);
   }
-  for (auto const *directive : kDirectives) {
+  for (auto const* directive : kDirectives) {
     if (name == directive) {
       return true;
     }
@@ -206,16 +205,17 @@ void print_help() {
       stdout);
 }
 
-void print_arena(const Session &session) {
-  auto const &arena = session.arena;
-  printf("session arena: live=%zu bytes, cross-cycle=%zu, retained=%zu chunks, allocs=%zu,"
-         " rewinds=%zu, order-violations=%zu\n",
-         arena.bytes_live(), arena.cross_cycle_bytes(), arena.retained_chunks(),
-         arena.chunk_mallocs(), arena.binding_rewinds(), arena.binding_order_violations());
+void print_arena(const Session& session) {
+  auto const& arena = session.arena;
+  printf(
+      "session arena: live=%zu bytes, cross-cycle=%zu, retained=%zu chunks, allocs=%zu,"
+      " rewinds=%zu, order-violations=%zu\n",
+      arena.bytes_live(), arena.cross_cycle_bytes(), arena.retained_chunks(), arena.chunk_mallocs(),
+      arena.binding_rewinds(), arena.binding_order_violations());
 }
 
 // Returns false when the shell should exit.
-bool handle_command(Session &session, const std::string &command) {
+bool handle_command(Session& session, const std::string& command) {
   std::string name = command.substr(1);
   std::string argument;
   size_t const space = name.find_first_of(" \t");
@@ -244,8 +244,7 @@ bool handle_command(Session &session, const std::string &command) {
       fputs("no diagnostics recorded\n", stdout);
     }
     for (size_t i = 0; i < compiler_diag::size(); i++) {
-      fputs(compiler_diag::render_diagnostic(compiler_diag::at(i), session.style).c_str(),
-            stdout);
+      fputs(compiler_diag::render_diagnostic(compiler_diag::at(i), session.style).c_str(), stdout);
     }
   } else if (name == "buffer") {
     if (session.retained_source == nullptr) {
@@ -268,7 +267,7 @@ bool handle_command(Session &session, const std::string &command) {
   return true;
 }
 
-int run_repl(Session &session) {
+int run_repl(Session& session) {
   std::string buffer;
   // Directives are not a program on their own: they stay pending so the program
   // that uses them compiles as one unit. A blank line submits them anyway.
@@ -335,9 +334,9 @@ int run_repl(Session &session) {
   return 0;
 }
 
-int run_batch(Session &session, const std::vector<std::string> &files) {
+int run_batch(Session& session, const std::vector<std::string>& files) {
   int failures = 0;
-  for (auto const &file : files) {
+  for (auto const& file : files) {
     std::ifstream input(file, std::ios::binary);
     if (!input) {
       fprintf(stderr, "lpcshell: cannot read %s\n", file.c_str());
@@ -362,7 +361,7 @@ void print_usage() {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   if (argc < 2) {
     print_usage();
     return 1;

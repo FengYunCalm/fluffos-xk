@@ -1,5 +1,5 @@
 #pragma strict_types
 
 int probe() {
-  return replace_dollars("x", ({ }));
+  return replace_dollars("x", ({}));
 }

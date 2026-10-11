@@ -31,8 +31,8 @@
 
 #include "base/internal/tracing.h"
 #include "thirdparty/scope_guard/scope_guard.hpp"
-#include "packages/core/dns.h"                   // for init_dns_event_base.
-#include "vm/vm.h"                               // for push_constant_string, etc
+#include "packages/core/dns.h"  // for init_dns_event_base.
+#include "vm/vm.h"              // for push_constant_string, etc
 #include "vm/owner.h"
 #include "comm.h"                                // for init_user_conn
 #include "backend.h"                             // for backend();
@@ -46,7 +46,9 @@
 extern void print_all_predefines();
 
 namespace {
-inline void print_sep() { debug_message("%s\n", std::string(72, '=').c_str()); }
+inline void print_sep() {
+  debug_message("%s\n", std::string(72, '=').c_str());
+}
 
 void incrase_fd_rlimit() {
 #ifndef _WIN32
@@ -89,7 +91,7 @@ void print_rlimit() {
 #endif
 }
 
-void print_commandline(int argc, char **argv) {
+void print_commandline(int argc, char** argv) {
   debug_message("Full Command Line: ");
   for (int i = 0; i < argc; i++) {
     debug_message("%s ", argv[i]);
@@ -111,7 +113,7 @@ void print_version_and_time() {
 #ifdef HAVE_JEMALLOC
   /* Print jemalloc version */
   {
-    const char *ver;
+    const char* ver;
     size_t resultlen = sizeof(ver);
     mallctl("version", &ver, &resultlen, nullptr, 0);
     debug_message("jemalloc Version: %s\n", ver);
@@ -168,7 +170,7 @@ void attempt_shutdown(int sig) {
   static StackTrace st;
   static Printer p;
 
-  const char *msg = "Unkonwn signal!";
+  const char* msg = "Unkonwn signal!";
   switch (sig) {
     case SIGINT:
       msg = "SIGINT: Process interrupted";
@@ -196,7 +198,9 @@ void init_locale() {
   // Verify locale is UTF8, complain otherwise
   std::string current_locale = setlocale(LC_ALL, nullptr);
   std::transform(current_locale.begin(), current_locale.end(), current_locale.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char c) {
+                   return std::tolower(c);
+                 });
 #ifndef _WIN32
   if (current_locale.find(".utf-8") == std::string::npos) {
     debug_message("Your locale '%s' is not UTF8 compliant, you will likely run into issues.\n",
@@ -215,7 +219,7 @@ void init_tz() {
 }  // namespace
 
 // Return the argument at the given position, start from 0.
-std::string get_argument(unsigned int pos, int argc, char **argv) {
+std::string get_argument(unsigned int pos, int argc, char** argv) {
   int argpos = 0;
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
@@ -244,7 +248,7 @@ void init_win32() {
 #endif
 }
 
-struct event_base *init_main(std::string_view config_file) {
+struct event_base* init_main(std::string_view config_file) {
 #ifdef _WIN32
   init_win32();
 #endif
@@ -254,7 +258,7 @@ struct event_base *init_main(std::string_view config_file) {
   reset_debug_message_fp();
 
   // Make sure mudlib dir is correct.
-  auto *root = CONFIG_STR(__MUD_LIB_DIR__);
+  auto* root = CONFIG_STR(__MUD_LIB_DIR__);
   debug_message("Execution root: %s\n", root);
   if (chdir(root) == -1) {
     debug_message("Bad mudlib directory: '%s'.\n", root);
@@ -264,7 +268,7 @@ struct event_base *init_main(std::string_view config_file) {
   debug_message("Initializing internal stuff ....\n");
 
   // Initialize libevent, This should be done before executing LPC.
-  auto *base = init_backend();
+  auto* base = init_backend();
   init_dns_event_base(base);
 
   // Initialize VM layer
@@ -299,10 +303,10 @@ void setup_signal_handlers() {
 }
 
 extern "C" {
-int driver_main(int argc, char **argv);
+int driver_main(int argc, char** argv);
 }
 
-int driver_main(int argc, char **argv) {
+int driver_main(int argc, char** argv) {
   // Deterministic CLI entry for smoke/health probes (Docker PR gate, release
   // verification): prints the driver version and exits 0 without any
   // runtime init, config file, or network I/O. Side-effect-free by
@@ -361,7 +365,9 @@ int driver_main(int argc, char **argv) {
     }
   }
 
-  DEFER { Tracer::collect(); };
+  DEFER {
+    Tracer::collect();
+  };
 
   if (!trace_log.empty()) {
     debug_message("Saving tracing log to: %s\n", trace_log.c_str());
@@ -396,7 +402,7 @@ int driver_main(int argc, char **argv) {
     exit(-1);
   }
 
-  auto *base = init_main(config_file);
+  auto* base = init_main(config_file);
 
   if (MudOS_is_being_shut_down) {
     shutdownMudOS(MudOS_shutdown_exit_code);
@@ -426,14 +432,15 @@ int driver_main(int argc, char **argv) {
        */
     switch (argv[i][1]) {
       case 'f': {
-        ScopedTracer _tracer("Driver Flag: calling master::flag", EventCategory::DEFAULT,
-                             [=] { return json{std::string(argv[i] + 2)}; });
+        ScopedTracer _tracer("Driver Flag: calling master::flag", EventCategory::DEFAULT, [=] {
+          return json{std::string(argv[i] + 2)};
+        });
 
         debug_message("Calling master::flag(\"%s\")...\n", argv[i] + 2);
 
         push_constant_string(argv[i] + 2);
         auto ret = safe_apply_master_ob(APPLY_FLAG, 1);
-        if (ret == (svalue_t *)-1 || ret == nullptr || MudOS_is_being_shut_down) {
+        if (ret == (svalue_t*)-1 || ret == nullptr || MudOS_is_being_shut_down) {
           debug_message("Shutdown by master object.\n");
           return -1;
         }

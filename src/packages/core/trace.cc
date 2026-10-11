@@ -3,7 +3,9 @@
 #include "file.h"
 
 #ifdef F_DUMP_TRACE
-void f_dump_trace() { push_array(get_svalue_trace()); }
+void f_dump_trace() {
+  push_array(get_svalue_trace());
+}
 #endif
 
 #ifdef F_TRACE_START
@@ -15,7 +17,7 @@ void f_trace_start() {
     error("Invalid duration specified.");
   }
 
-  const auto *realfile = check_valid_path((sp - 1)->u.string, current_object, "trace_start", 1);
+  const auto* realfile = check_valid_path((sp - 1)->u.string, current_object, "trace_start", 1);
 
   if (!realfile) {
     error("Permission denied for trace file: %s", (sp - 1)->u.string);
@@ -27,8 +29,9 @@ void f_trace_start() {
   Tracer::start(filename.c_str());
   Tracer::setThreadName("FluffOS Main");
   // register closure.
-  add_walltime_event(std::chrono::seconds(duration_secs),
-                     TickEvent::callback_type([] { Tracer::collect(); }));
+  add_walltime_event(std::chrono::seconds(duration_secs), TickEvent::callback_type([] {
+                       Tracer::collect();
+                     }));
   pop_2_elems();
 }
 #endif

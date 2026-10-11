@@ -27,7 +27,9 @@ static funptr_t* require_handler(svalue_t* value, const char* efun) {
  */
 
 #ifdef F_PROMISE_CREATE
-void f_promise_create() { push_refed_promise(promise_alloc()); }
+void f_promise_create() {
+  push_refed_promise(promise_alloc());
+}
 #endif
 
 #ifdef F_PROMISE_RESOLVE
@@ -120,8 +122,7 @@ static void promise_then_common(int num_arg, funptr_t* on_fulfilled, funptr_t* o
   {
     LPC_INT const limit = CONFIG_INT(__RC_MAX_PENDING_DELIVERIES__);
     if (limit > 0 && (LPC_INT)pending_promise_deliveries() >= limit) {
-      error("promise_then: too many promise deliveries already pending (limit %d).\n",
-            (int)limit);
+      error("promise_then: too many promise deliveries already pending (limit %d).\n", (int)limit);
     }
   }
 
@@ -149,10 +150,8 @@ static void promise_then_common(int num_arg, funptr_t* on_fulfilled, funptr_t* o
 void f_promise_then() {
   int const num_arg = st_num_arg;
   svalue_t* parg = sp - num_arg + 1;
-  funptr_t* on_fulfilled =
-      (num_arg > 1) ? require_handler(parg + 1, "promise_then") : nullptr;
-  funptr_t* on_rejected =
-      (num_arg > 2) ? require_handler(parg + 2, "promise_then") : nullptr;
+  funptr_t* on_fulfilled = (num_arg > 1) ? require_handler(parg + 1, "promise_then") : nullptr;
+  funptr_t* on_rejected = (num_arg > 2) ? require_handler(parg + 2, "promise_then") : nullptr;
   promise_then_common(num_arg, on_fulfilled, on_rejected);
 }
 #endif

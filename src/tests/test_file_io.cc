@@ -37,10 +37,9 @@ namespace {
 constexpr const char* kStatsPaths[] = {"log/domain_stats", "log/author_stats"};
 constexpr char kTestFile[] = "u01_file_io_failure.txt";
 constexpr char kInputFile[] = "u01_file_io_input.bin";
-constexpr const char* kSavePaths[] = {"u01_file_io_failure.txt.o",
-                                     "u01_file_io_failure.txt.o.tmp",
-                                     "u01_file_io_failure.txt.o.gz",
-                                     "u01_file_io_failure.txt.o.gz.tmp"};
+constexpr const char* kSavePaths[] = {"u01_file_io_failure.txt.o", "u01_file_io_failure.txt.o.tmp",
+                                      "u01_file_io_failure.txt.o.gz",
+                                      "u01_file_io_failure.txt.o.gz.tmp"};
 thread_local std::string fixture_root;
 thread_local std::string staged_move_path;
 
@@ -267,8 +266,8 @@ int __wrap_close(int fd) {
 }
 
 int __wrap_fstat(int fd, struct stat* info) {
-  const bool selected = fd == fault.output_fd ||
-                        (fault.output_fd < 0 && fault.stream && fd == fileno(fault.stream));
+  const bool selected =
+      fd == fault.output_fd || (fault.output_fd < 0 && fault.stream && fd == fileno(fault.stream));
   if (selected && fault.point == FaultPoint::kMetadata) {
     ++fault.hits;
     errno = EIO;
@@ -671,8 +670,8 @@ class FileIoTest : public ::testing::Test {
     ScopedCurrentObjectAsMaster current;
     auto* object = load_file_state();
     ASSERT_NE(object, nullptr);
-    staged_move_path = "." + std::string(kInputFile) + ".fluffos-move." +
-                       std::to_string(getpid()) + ".0";
+    staged_move_path =
+        "." + std::string(kInputFile) + ".fluffos-move." + std::to_string(getpid()) + ".0";
     ASSERT_FALSE(std::filesystem::exists(staged_move_path));
     ASSERT_EQ(write_file(kInputFile, "move payload\n", 1), 1);
     fault = {};

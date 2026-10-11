@@ -13,8 +13,7 @@
 #include "packages/core/replace_program.h"
 #include "backward.hpp"
 
-void initialize_funp_header(funptr_t *fp, short type, object_t *owner,
-                             bool retain_owner_ref) {
+void initialize_funp_header(funptr_t* fp, short type, object_t* owner, bool retain_owner_ref) {
   fp->hdr.ref = 1;
   fp->hdr.type = type;
   fp->hdr.owner = owner;
@@ -35,11 +34,11 @@ void initialize_funp_header(funptr_t *fp, short type, object_t *owner,
   }
 }
 
-void funptr_unlink(funptr_t *fp) noexcept {
+void funptr_unlink(funptr_t* fp) noexcept {
   if (!fp || !fp->hdr.registry_linked) {
     return;
   }
-  object_t *owner = fp->hdr.owner;
+  object_t* owner = fp->hdr.owner;
   if (fp->hdr.registry_prev) {
     fp->hdr.registry_prev->hdr.registry_next = fp->hdr.registry_next;
   } else if (owner && owner->funptr_registry_head == fp) {
@@ -53,11 +52,11 @@ void funptr_unlink(funptr_t *fp) noexcept {
   fp->hdr.registry_next = nullptr;
 }
 
-void funptr_register(funptr_t *fp) noexcept {
+void funptr_register(funptr_t* fp) noexcept {
   if (!fp || fp->hdr.registry_linked) {
     return;
   }
-  object_t *owner = fp->hdr.owner;
+  object_t* owner = fp->hdr.owner;
   if (owner) {
     fp->hdr.registry_prev = nullptr;
     fp->hdr.registry_next = owner->funptr_registry_head;
@@ -68,7 +67,7 @@ void funptr_register(funptr_t *fp) noexcept {
     fp->hdr.registry_linked = true;
   }
 
-  auto *context = vm_recompile_execution_context();
+  auto* context = vm_recompile_execution_context();
   if (context && context->phase() == RecompileExecutionPhase::Swapped) {
     if (fp->hdr.state == funptr_hdr_t::lifecycle_state::Live) {
       fp->hdr.state = funptr_hdr_t::lifecycle_state::StagedBorn;
@@ -77,30 +76,30 @@ void funptr_register(funptr_t *fp) noexcept {
   }
 }
 
-void funptr_detach_owner(funptr_t *fp) noexcept {
+void funptr_detach_owner(funptr_t* fp) noexcept {
   if (!fp || !fp->hdr.owner) {
     return;
   }
   funptr_unlink(fp);
-  object_t *owner = fp->hdr.owner;
+  object_t* owner = fp->hdr.owner;
   fp->hdr.owner = nullptr;
   free_object(&owner, "reclaim_objects");
 }
 
-void funptr_detach_all_for_object(object_t *owner) noexcept {
+void funptr_detach_all_for_object(object_t* owner) noexcept {
   if (!owner) {
     return;
   }
   while (owner->funptr_registry_head) {
-    funptr_t *fp = owner->funptr_registry_head;
+    funptr_t* fp = owner->funptr_registry_head;
     funptr_unlink(fp);
     fp->hdr.owner = nullptr;
   }
 }
 
-void dealloc_funp(funptr_t *fp) {
+void dealloc_funp(funptr_t* fp) {
   funptr_unlink(fp);
-  program_t *prog = nullptr;
+  program_t* prog = nullptr;
 
   switch (fp->hdr.type) {
     case FP_LOCAL | FP_NOT_BINDABLE:
@@ -132,7 +131,7 @@ void dealloc_funp(funptr_t *fp) {
   FREE(fp);
 }
 
-void free_funp(funptr_t *fp) {
+void free_funp(funptr_t* fp) {
   fp->hdr.ref--;
   if (fp->hdr.ref > 0) {
     return;
@@ -140,13 +139,13 @@ void free_funp(funptr_t *fp) {
   dealloc_funp(fp);
 }
 
-void push_refed_funp(funptr_t *fp) {
+void push_refed_funp(funptr_t* fp) {
   STACK_INC;
   sp->type = T_FUNCTION;
   sp->u.fp = fp;
 }
 
-void push_funp(funptr_t *fp) {
+void push_funp(funptr_t* fp) {
   STACK_INC;
   sp->type = T_FUNCTION;
   sp->u.fp = fp;
@@ -160,9 +159,9 @@ void push_funp(funptr_t *fp) {
  * if we simply pushed the args from vec at this point.  (Note that the
  * old function pointers are broken in this regard)
  */
-int merge_arg_lists(int num_arg, array_t *arr, int start) {
+int merge_arg_lists(int num_arg, array_t* arr, int start) {
   int num_arr_arg = arr->size - start;
-  svalue_t *sptr;
+  svalue_t* sptr;
 
   if (num_arr_arg) {
     CHECK_STACK_OVERFLOW(num_arr_arg);
@@ -185,10 +184,10 @@ int merge_arg_lists(int num_arg, array_t *arr, int start) {
   return num_arg;
 }
 
-funptr_t *make_efun_funp(int opcode, svalue_t *args) {
-  funptr_t *fp;
+funptr_t* make_efun_funp(int opcode, svalue_t* args) {
+  funptr_t* fp;
 
-  fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_efun_funp"));
+  fp = reinterpret_cast<funptr_t*>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_efun_funp"));
   initialize_funp_header(fp, FP_EFUN, current_object);
 
   fp->f.efun.index = opcode;
@@ -204,8 +203,8 @@ funptr_t *make_efun_funp(int opcode, svalue_t *args) {
   return fp;
 }
 
-funptr_t *make_lfun_funp(int index, svalue_t *args) {
-  funptr_t *fp;
+funptr_t* make_lfun_funp(int index, svalue_t* args) {
+  funptr_t* fp;
   int newindex;
 
   if (replace_program_pending(current_object)) {
@@ -214,7 +213,7 @@ funptr_t *make_lfun_funp(int index, svalue_t *args) {
         "replace_program()\n");
   }
 
-  fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_lfun_funp"));
+  fp = reinterpret_cast<funptr_t*>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_lfun_funp"));
   initialize_funp_header(fp, FP_LOCAL | FP_NOT_BINDABLE, current_object);
 
   /* E3 P2: snapshot the creation-time program and generation. The program
@@ -241,10 +240,10 @@ funptr_t *make_lfun_funp(int index, svalue_t *args) {
   return fp;
 }
 
-funptr_t *make_simul_funp(int index, svalue_t *args) {
-  funptr_t *fp;
+funptr_t* make_simul_funp(int index, svalue_t* args) {
+  funptr_t* fp;
 
-  fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_simul_funp"));
+  fp = reinterpret_cast<funptr_t*>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_simul_funp"));
   initialize_funp_header(fp, FP_SIMUL, current_object);
 
   fp->f.simul.index = index;
@@ -260,9 +259,9 @@ funptr_t *make_simul_funp(int index, svalue_t *args) {
   return fp;
 }
 
-funptr_t *make_functional_funp(short num_arg, short num_local, short len, svalue_t *args,
+funptr_t* make_functional_funp(short num_arg, short num_local, short len, svalue_t* args,
                                int flag) {
-  funptr_t *fp;
+  funptr_t* fp;
 
   if (replace_program_pending(current_object)) {
     error(
@@ -270,7 +269,7 @@ funptr_t *make_functional_funp(short num_arg, short num_local, short len, svalue
         "replace_program()\n");
   }
 
-  fp = reinterpret_cast<funptr_t *>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_functional_funp"));
+  fp = reinterpret_cast<funptr_t*>(DMALLOC(sizeof(funptr_t), TAG_FUNP, "make_functional_funp"));
   initialize_funp_header(fp, FP_FUNCTIONAL + flag, current_object);
 
   current_prog->func_ref++;
@@ -300,8 +299,8 @@ funptr_t *make_functional_funp(short num_arg, short num_local, short len, svalue
 typedef void (*func_t)(void);
 extern func_t efun_table[];
 
-svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
-  array_t *v;
+svalue_t* call_function_pointer(funptr_t* funp, int num_arg) {
+  array_t* v;
 
   lpc_vm_profile_record_function_pointer_dispatch(funp->hdr.type == FP_EFUN);
 
@@ -387,7 +386,7 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
       }
     }
     case FP_LOCAL | FP_NOT_BINDABLE: {
-      function_t *func;
+      function_t* func;
 
       /* E3 P2: the generation check above runs before fake-frame setup, so
        * this index is never re-resolved against a swapped owner program. The
@@ -405,7 +404,7 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
        * contract of the implementation that will actually run. */
       bool local_is_async = false;
       {
-        auto *cprog = current_object->prog;
+        auto* cprog = current_object->prog;
         int roff = funp->f.local.index;
         if (cprog->function_flags[roff] & FUNC_ALIAS) {
           roff = cprog->function_flags[roff] & ~FUNC_ALIAS;
@@ -460,14 +459,14 @@ svalue_t *call_function_pointer(funptr_t *funp, int num_arg) {
   return &apply_ret_value;
 }
 
-svalue_t *safe_call_function_pointer(funptr_t *funp, int num_arg) {
-  svalue_t *ret;
+svalue_t* safe_call_function_pointer(funptr_t* funp, int num_arg) {
+  svalue_t* ret;
 
   error_context_t econ;
   save_context(&econ);
   try {
     ret = call_function_pointer(funp, num_arg);
-  } catch (const char *) {
+  } catch (const char*) {
     restore_context(&econ);
     /* condition was restored to where it was when we came in */
     pop_n_elems(num_arg);

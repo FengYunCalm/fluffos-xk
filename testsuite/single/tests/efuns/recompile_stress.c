@@ -93,8 +93,8 @@ void do_tests_p6() {
   // Terminal proof line: shows the reload round actually ran (a silently
   // skipped do_tests_p6 would leave total_recompiles at 0).
   write(sprintf("recompile_stress: %d recompiles ok, %d master targets refused while executing,"
-                " %d failures, %d workers\n",
-                total_recompiles, master_recompiles, failures, N_WORKERS));
+    " %d failures, %d workers\n",
+    total_recompiles, master_recompiles, failures, N_WORKERS));
 }
 
 void do_tests() {

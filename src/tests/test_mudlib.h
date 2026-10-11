@@ -26,11 +26,11 @@ namespace fluffos_test_mudlib {
 
 namespace fs = std::filesystem;
 
-inline std::string describe(const fs::path &path) {
+inline std::string describe(const fs::path& path) {
   return path.empty() ? std::string("<empty>") : path.string();
 }
 
-inline fs::path canonical_directory(const fs::path &path, const char *label) {
+inline fs::path canonical_directory(const fs::path& path, const char* label) {
   std::error_code error;
   if (!path.is_absolute()) {
     throw std::runtime_error(std::string("FLUFFOS_TEST_MUDLIB ") + label +
@@ -42,14 +42,14 @@ inline fs::path canonical_directory(const fs::path &path, const char *label) {
   }
   const fs::path canonical = fs::canonical(path, error);
   if (error) {
-    throw std::runtime_error(std::string("cannot canonicalize test mudlib ") +
-                             describe(path) + ": " + error.message());
+    throw std::runtime_error(std::string("cannot canonicalize test mudlib ") + describe(path) +
+                             ": " + error.message());
   }
   return canonical;
 }
 
 inline fs::path root() {
-  const char *override_path = std::getenv("FLUFFOS_TEST_MUDLIB");
+  const char* override_path = std::getenv("FLUFFOS_TEST_MUDLIB");
   const fs::path source_root = canonical_directory(fs::path(TESTSUITE_DIR), "source");
   if (override_path == nullptr) {
     return source_root;
@@ -60,15 +60,13 @@ inline fs::path root() {
 
   const fs::path candidate = canonical_directory(fs::path(override_path), "override");
   if (candidate == source_root) {
-    throw std::runtime_error(
-        "FLUFFOS_TEST_MUDLIB must not resolve to the source testsuite");
+    throw std::runtime_error("FLUFFOS_TEST_MUDLIB must not resolve to the source testsuite");
   }
 
   const fs::path marker = candidate / ".fluffos-test-sandbox";
   std::error_code error;
   if (!fs::is_regular_file(marker, error) || error) {
-    throw std::runtime_error("test mudlib is missing .fluffos-test-sandbox: " +
-                             marker.string());
+    throw std::runtime_error("test mudlib is missing .fluffos-test-sandbox: " + marker.string());
   }
   std::ifstream input(marker, std::ios::binary);
   if (!input) {
@@ -77,15 +75,17 @@ inline fs::path root() {
   const std::string contents((std::istreambuf_iterator<char>(input)),
                              std::istreambuf_iterator<char>());
   if (contents != "version=1\n") {
-    throw std::runtime_error(
-        "test mudlib marker must contain exactly version=1\\n: " + marker.string());
+    throw std::runtime_error("test mudlib marker must contain exactly version=1\\n: " +
+                             marker.string());
   }
   return candidate;
 }
 
-inline std::string root_string() { return root().string(); }
+inline std::string root_string() {
+  return root().string();
+}
 
-inline int change_directory(const fs::path &path) {
+inline int change_directory(const fs::path& path) {
 #ifdef _WIN32
   return _chdir(path.string().c_str());
 #else

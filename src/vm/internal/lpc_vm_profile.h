@@ -6,8 +6,8 @@
 
 #include "base/internal/vm_thread_local.h"
 
-inline constexpr const char *kLpcVmProfileSchemaV1 = "lpc_vm_profile_v1";
-inline constexpr const char *kLpcVmBenchSchemaV1 = "lpc_vm_bench_v1";
+inline constexpr const char* kLpcVmProfileSchemaV1 = "lpc_vm_profile_v1";
+inline constexpr const char* kLpcVmBenchSchemaV1 = "lpc_vm_bench_v1";
 
 struct LpcVmProfileSnapshot {
   uint64_t apply_cache_lookup_count{0};
@@ -36,9 +36,12 @@ void lpc_vm_profile_reset();
 void lpc_vm_profile_flush_opcode_dispatch();
 #if !FLUFFOS_OWNER_THREAD_VM
 inline void lpc_vm_profile_set_recording(bool /*enabled*/) {}
-inline bool lpc_vm_profile_recording_enabled() { return false; }
+inline bool lpc_vm_profile_recording_enabled() {
+  return false;
+}
 inline void lpc_vm_profile_record_apply_cache_lookup(bool /*hit*/) {}
-inline void lpc_vm_profile_record_apply_cache_table_build(std::size_t /*items*/, uint64_t /*elapsed_ns*/) {}
+inline void lpc_vm_profile_record_apply_cache_table_build(std::size_t /*items*/,
+                                                          uint64_t /*elapsed_ns*/) {}
 inline void lpc_vm_profile_record_apply_dispatch_cache_lookup(bool /*hit*/) {}
 inline void lpc_vm_profile_record_apply_dispatch_cache_epoch_invalidation() {}
 inline void lpc_vm_profile_record_opcode_dispatch() {}

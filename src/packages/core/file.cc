@@ -63,19 +63,19 @@ namespace fs = ghc::filesystem;
  * See the GNU General Public License for more details.
  */
 #ifndef S_ISDIR
-#define S_ISDIR(m) (((m)&S_IFMT) == S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 
 #ifndef S_ISREG
-#define S_ISREG(m) (((m)&S_IFMT) == S_IFREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
 #endif
 
 #ifndef S_ISCHR
-#define S_ISCHR(m) (((m)&S_IFMT) == S_IFCHR)
+#define S_ISCHR(m) (((m) & S_IFMT) == S_IFCHR)
 #endif
 
 #ifndef S_ISBLK
-#define S_ISBLK(m) (((m)&S_IFMT) == S_IFBLK)
+#define S_ISBLK(m) (((m) & S_IFMT) == S_IFBLK)
 #endif
 
 #ifdef _WIN32
@@ -84,31 +84,31 @@ namespace fs = ghc::filesystem;
 #define OS_mkdir(x, y) mkdir(x)
 using large_file_stat_t = struct _stat64;
 
-static int large_file_stat(const char *path, large_file_stat_t *st) {
+static int large_file_stat(const char* path, large_file_stat_t* st) {
   return _stat64(path, st);
 }
 
-static int large_file_fstat(FILE *file, large_file_stat_t *st) {
+static int large_file_fstat(FILE* file, large_file_stat_t* st) {
   return _fstat64(fileno(file), st);
 }
 #else
 #define OS_mkdir(x, y) mkdir(x, y)
 using large_file_stat_t = struct stat;
 
-static int large_file_stat(const char *path, large_file_stat_t *st) {
+static int large_file_stat(const char* path, large_file_stat_t* st) {
   return stat(path, st);
 }
 
-static int large_file_fstat(FILE *file, large_file_stat_t *st) {
+static int large_file_fstat(FILE* file, large_file_stat_t* st) {
   return fstat(fileno(file), st);
 }
 #endif
 
-static int match_string(char * /*match*/, char * /*str*/);
-static int do_move(const char *from, const char *to, int flag);
-static int pstrcmp(const void * /*p1*/, const void * /*p2*/);
+static int match_string(char* /*match*/, char* /*str*/);
+static int do_move(const char* from, const char* to, int flag);
+static int pstrcmp(const void* /*p1*/, const void* /*p2*/);
 
-static FILE *open_binary_rw_existing_or_create(const char *file) {
+static FILE* open_binary_rw_existing_or_create(const char* file) {
   int flags = O_RDWR;
 #ifdef O_BINARY
   flags |= O_BINARY;
@@ -128,14 +128,14 @@ static FILE *open_binary_rw_existing_or_create(const char *file) {
     return nullptr;
   }
 
-  FILE *fptr = fdopen(fd, "r+b");
+  FILE* fptr = fdopen(fd, "r+b");
   if (fptr == nullptr) {
     close(fd);
   }
   return fptr;
 }
 
-static int rename_no_replace(const char *from, const char *to) {
+static int rename_no_replace(const char* from, const char* to) {
 #ifdef __linux__
   if (syscall(SYS_renameat2, AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) == 0) {
     return 0;
@@ -147,8 +147,8 @@ static int rename_no_replace(const char *from, const char *to) {
   return rename(from, to);
 }
 
-static std::string cross_device_move_staging_path(const char *from, int attempt) {
-  const char *basename = strrchr(from, '/');
+static std::string cross_device_move_staging_path(const char* from, int attempt) {
+  const char* basename = strrchr(from, '/');
   std::string dir;
   if (basename != nullptr) {
     dir.assign(from, static_cast<size_t>(basename - from) + 1);
@@ -161,7 +161,7 @@ static std::string cross_device_move_staging_path(const char *from, int attempt)
          std::to_string(attempt);
 }
 
-static int copy_file_unchecked(const char *from, const char *to) {
+static int copy_file_unchecked(const char* from, const char* to) {
   std::error_code error_code;
   auto base = fs::current_path();
   fs::copy_file(base / from, base / to, fs::copy_options::overwrite_existing, error_code);
@@ -172,31 +172,31 @@ static int copy_file_unchecked(const char *from, const char *to) {
   }
   return 1;
 }
-static int parrcmp(const void * /*p1*/, const void * /*p2*/);
-static void encode_stat(svalue_t * /*vp*/, int /*flags*/, char * /*str*/, large_file_stat_t * /*st*/);
+static int parrcmp(const void* /*p1*/, const void* /*p2*/);
+static void encode_stat(svalue_t* /*vp*/, int /*flags*/, char* /*str*/, large_file_stat_t* /*st*/);
 
 enum { MAX_LINES = 50 };
 
 /*
  * These are used by qsort in get_dir().
  */
-static int pstrcmp(const void *p1, const void *p2) {
-  auto *x = (svalue_t *)p1;
-  auto *y = (svalue_t *)p2;
+static int pstrcmp(const void* p1, const void* p2) {
+  auto* x = (svalue_t*)p1;
+  auto* y = (svalue_t*)p2;
 
   return strcmp(x->u.string, y->u.string);
 }
 
-static int parrcmp(const void *p1, const void *p2) {
-  auto *x = (svalue_t *)p1;
-  auto *y = (svalue_t *)p2;
+static int parrcmp(const void* p1, const void* p2) {
+  auto* x = (svalue_t*)p1;
+  auto* y = (svalue_t*)p2;
 
   return strcmp(x->u.arr->item[0].u.string, y->u.arr->item[0].u.string);
 }
 
-static void encode_stat(svalue_t *vp, int flags, char *str, large_file_stat_t *st) {
+static void encode_stat(svalue_t* vp, int flags, char* str, large_file_stat_t* st) {
   if (flags == -1) {
-    array_t *v = allocate_empty_array(3);
+    array_t* v = allocate_empty_array(3);
 
     v->item[0].type = T_STRING;
     v->item[0].subtype = STRING_MALLOC;
@@ -238,20 +238,20 @@ static void encode_stat(svalue_t *vp, int flags, char *str, large_file_stat_t *s
  */
 /* WIN32 should be fixed to do this correctly (i.e. no ifdefs for it) */
 enum { MAX_FNAME_SIZE = 255, MAX_PATH_LEN = 1024 };
-array_t *get_dir(const char *path, int flags) {
+array_t* get_dir(const char* path, int flags) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
-  array_t *v;
+  array_t* v;
   int i, count = 0;
-  DIR *dirp;
+  DIR* dirp;
   int namelen, do_match = 0;
 
-  struct dirent *de;
+  struct dirent* de;
   large_file_stat_t st;
-  char *endtemp;
+  char* endtemp;
   char temppath[MAX_FNAME_SIZE + MAX_PATH_LEN + 2];
   char regexppath[MAX_FNAME_SIZE + MAX_PATH_LEN + 2];
-  char *p;
+  char* p;
 
   if (!path) {
     return nullptr;
@@ -371,11 +371,11 @@ array_t *get_dir(const char *path, int flags) {
   }
   closedir(dirp);
   /* Sort the names. */
-  qsort((void *)v->item, count, sizeof v->item[0], (flags == -1) ? parrcmp : pstrcmp);
+  qsort((void*)v->item, count, sizeof v->item[0], (flags == -1) ? parrcmp : pstrcmp);
   return v;
 }
 
-int remove_file(const char *path) {
+int remove_file(const char* path) {
   path = check_valid_path(path, current_object, "remove_file", 1);
 
   if (path == nullptr) {
@@ -422,7 +422,7 @@ int write_file(const char* file, const char* str, int flags) {
 /* Reads file, starting from line of "start", with maximum lines of "lines".
  * Returns a malloced_string.
  */
-char *read_file(const char *file, int start, int lines) {
+char* read_file(const char* file, int start, int lines) {
   const auto read_file_max_size = CONFIG_INT(__MAX_READ_FILE_SIZE__);
 
   if (lines < 0) {
@@ -430,7 +430,7 @@ char *read_file(const char *file, int start, int lines) {
     return nullptr;
   }
 
-  const char *real_file;
+  const char* real_file;
 
   real_file = check_valid_path(file, current_object, "read_file", 0);
   if (!real_file) {
@@ -449,12 +449,12 @@ char *read_file(const char *file, int start, int lines) {
 
     if (fs::is_empty(fs_real_file)) {
       /* zero length file */
-      char *result = new_string(0, "read_file: empty");
+      char* result = new_string(0, "read_file: empty");
       result[0] = '\0';
       return result;
     }
 
-  } catch (fs::filesystem_error &err) {
+  } catch (fs::filesystem_error& err) {
     debug(file, "read_file: filesystem error: %s (%d).\n", err.what(), err.code().value());
     return nullptr;
   }
@@ -466,13 +466,13 @@ char *read_file(const char *file, int start, int lines) {
     return nullptr;
   }
 
-  static char *the_buff = nullptr;
+  static char* the_buff = nullptr;
   if (!the_buff) {
-    the_buff = reinterpret_cast<char *>(
+    the_buff = reinterpret_cast<char*>(
         DMALLOC(2 * read_file_max_size + 1, TAG_PERMANENT, "read_file: theBuff"));
   }
 
-  int const total_bytes_read = gzread(f, (void *)the_buff, 2 * read_file_max_size);
+  int const total_bytes_read = gzread(f, (void*)the_buff, 2 * read_file_max_size);
   const int close_result = gzclose(f);
 
   if (total_bytes_read <= 0 || close_result != Z_OK) {
@@ -480,7 +480,7 @@ char *read_file(const char *file, int start, int lines) {
     return nullptr;
   }
   the_buff[total_bytes_read] = '\0';
-  const char *ptr_start = the_buff;
+  const char* ptr_start = the_buff;
 
   if (start > 1) {
     // skip forward until the "start"-th line
@@ -506,7 +506,8 @@ char *read_file(const char *file, int start, int lines) {
 
     // account for non-POSIX line endings at end of file, if not POSIX then
     // move pointer forward so decrementing doesn't clip the last character
-    if (*ptr_start != '\n') ptr_start++;
+    if (*ptr_start != '\n')
+      ptr_start++;
 
     while (start < 0 && ptr_start > the_buff) {
       ptr_start--;
@@ -528,11 +529,11 @@ char *read_file(const char *file, int start, int lines) {
     }
   }
 
-  char *ptr_end = (char *)the_buff + total_bytes_read;
+  char* ptr_end = (char*)the_buff + total_bytes_read;
 
   if (lines > 0) {
     // continue searching forward for "lines" of '\n'
-    ptr_end = (char *)ptr_start;
+    ptr_end = (char*)ptr_start;
     while (lines > 0 && ptr_end <= the_buff + total_bytes_read) {
       if (*ptr_end++ == '\n') {
         lines--;
@@ -542,7 +543,7 @@ char *read_file(const char *file, int start, int lines) {
 
   // Truncate result to read_file_max_size
   if (ptr_end > ptr_start + read_file_max_size) {
-    ptr_end = (char *)ptr_start + read_file_max_size;
+    ptr_end = (char*)ptr_start + read_file_max_size;
   }
 
   // #1247 FILE-3: the forward line search can post-increment ptr_end one past
@@ -551,7 +552,7 @@ char *read_file(const char *file, int start, int lines) {
   // the '\0' below stays inside the 2*max+1 byte buffer instead of writing
   // one past it.
   if (ptr_end > the_buff + total_bytes_read) {
-    ptr_end = (char *)the_buff + total_bytes_read;
+    ptr_end = (char*)the_buff + total_bytes_read;
   }
 
   *ptr_end = '\0';
@@ -566,12 +567,12 @@ char *read_file(const char *file, int start, int lines) {
   return string_copy(ptr_start, "read_file: result");
 }
 
-char *read_bytes(const char *file, LPC_INT start, LPC_INT len, int *rlen) {
+char* read_bytes(const char* file, LPC_INT start, LPC_INT len, int* rlen) {
   const auto max_byte_transfer = CONFIG_INT(__MAX_BYTE_TRANSFER__);
 
   large_file_stat_t st;
-  FILE *fptr;
-  char *str;
+  FILE* fptr;
+  char* str;
 
   if (len < 0) {
     return nullptr;
@@ -616,12 +617,10 @@ char *read_bytes(const char *file, LPC_INT start, LPC_INT len, int *rlen) {
     fclose(fptr);
     return nullptr;
   }
-  const auto transfer_length =
-      std::min(requested_length, file_size - offset);
+  const auto transfer_length = std::min(requested_length, file_size - offset);
 
 #ifdef _WIN32
-  const auto seek_result =
-      _fseeki64(fptr, static_cast<long long>(offset), SEEK_SET);
+  const auto seek_result = _fseeki64(fptr, static_cast<long long>(offset), SEEK_SET);
 #else
   const auto seek_result = fseeko(fptr, static_cast<off_t>(offset), SEEK_SET);
 #endif
@@ -650,11 +649,11 @@ char *read_bytes(const char *file, LPC_INT start, LPC_INT len, int *rlen) {
   return str;
 }
 
-int write_bytes(const char *file, LPC_INT start, const char *str, std::size_t theLength) {
+int write_bytes(const char* file, LPC_INT start, const char* str, std::size_t theLength) {
   const auto max_byte_transfer = CONFIG_INT(__MAX_BYTE_TRANSFER__);
 
   large_file_stat_t st;
-  FILE *fptr;
+  FILE* fptr;
 
   file = check_valid_path(file, current_object, "write_bytes", 1);
 
@@ -693,8 +692,7 @@ int write_bytes(const char *file, LPC_INT start, const char *str, std::size_t th
   constexpr auto max_seek_offset =
       static_cast<std::intmax_t>(std::numeric_limits<long long>::max());
 #else
-  constexpr auto max_seek_offset =
-      static_cast<std::intmax_t>(std::numeric_limits<off_t>::max());
+  constexpr auto max_seek_offset = static_cast<std::intmax_t>(std::numeric_limits<off_t>::max());
 #endif
   if (offset < 0 || offset > file_size || offset > max_seek_offset ||
       static_cast<std::uintmax_t>(theLength) >
@@ -723,7 +721,7 @@ int write_bytes(const char *file, LPC_INT start, const char *str, std::size_t th
   return 1;
 }
 
-LPC_INT file_size(const char *file) {
+LPC_INT file_size(const char* file) {
   large_file_stat_t st;
   LPC_INT ret;
 
@@ -752,9 +750,9 @@ LPC_INT file_size(const char *file) {
  * Otherwise, the returned path is temporarily allocated by apply(), which
  * means it will be deallocated at next apply().
  */
-const char *check_valid_path(const char *path, object_t *call_object, const char *const call_fun,
+const char* check_valid_path(const char* path, object_t* call_object, const char* const call_fun,
                              int writeflg) {
-  svalue_t *v;
+  svalue_t* v;
 
   if (!master_ob && !call_object) {
     // early startup, ignore security
@@ -778,7 +776,7 @@ const char *check_valid_path(const char *path, object_t *call_object, const char
     v = safe_apply_master_ob(APPLY_VALID_READ, 3);
   }
 
-  if (v == (svalue_t *)-1) {
+  if (v == (svalue_t*)-1) {
     v = nullptr;
   }
 
@@ -809,7 +807,7 @@ const char *check_valid_path(const char *path, object_t *call_object, const char
   return nullptr;
 }
 
-static int match_string(char *match, char *str) {
+static int match_string(char* match, char* str) {
   int i;
 
 again:
@@ -858,7 +856,7 @@ again:
    Return 0 if successful, 1 if an error occurred.  */
 
 #ifdef F_RENAME
-static int do_move(const char *from, const char *to, int flag) {
+static int do_move(const char* from, const char* to, int flag) {
   struct stat from_stats, to_stats;
 
   if (lstat(from, &from_stats) != 0) {
@@ -948,7 +946,7 @@ static int do_move(const char *from, const char *to, int flag) {
 }
 #endif
 
-void debug_perror(const char *what, const char *file) {
+void debug_perror(const char* what, const char* file) {
   if (file) {
     debug_message("System Error: %s:%s:%s\n", what, file, strerror(errno));
   } else {
@@ -972,7 +970,7 @@ void mark_file_sv() {
 #endif
 
 #ifdef F_RENAME
-int do_rename(const char *fr, const char *t, int flag) {
+int do_rename(const char* fr, const char* t, int flag) {
   if (!fr || !t) {
     return 1;
   }
@@ -987,7 +985,7 @@ int do_rename(const char *fr, const char *t, int flag) {
    * is prevent linking to a file unless the person doing the linking has
    * permission to move the file.
    */
-  const char *validated_from = check_valid_path(fr, current_object, "rename", 1);
+  const char* validated_from = check_valid_path(fr, current_object, "rename", 1);
   if (!validated_from) {
     return 1;
   }
@@ -995,7 +993,7 @@ int do_rename(const char *fr, const char *t, int flag) {
 
   assign_svalue(&from_sv, &apply_ret_value);
 
-  const char *validated_to = check_valid_path(t, current_object, "rename", 1);
+  const char* validated_to = check_valid_path(t, current_object, "rename", 1);
   if (!validated_to) {
     return 1;
   }
@@ -1026,7 +1024,7 @@ int do_rename(const char *fr, const char *t, int flag) {
 }
 #endif /* F_RENAME */
 
-int copy_file(const char *from, const char *to) {
+int copy_file(const char* from, const char* to) {
   if (!from || !to) {
     return -1;
   }
@@ -1034,14 +1032,14 @@ int copy_file(const char *from, const char *to) {
   extern FLUFFOS_VM_THREAD_LOCAL svalue_t apply_ret_value;
   struct stat from_stats, to_stats;
 
-  const char *validated_from = check_valid_path(from, current_object, "move_file", 0);
+  const char* validated_from = check_valid_path(from, current_object, "move_file", 0);
   if (!validated_from) {
     return -1;
   }
   std::string from_path(validated_from);
   assign_svalue(&from_sv, &apply_ret_value);
 
-  const char *validated_to = check_valid_path(to, current_object, "move_file", 1);
+  const char* validated_to = check_valid_path(to, current_object, "move_file", 1);
   if (!validated_to) {
     return -2;
   }
@@ -1116,7 +1114,7 @@ void f_file_size() {
 
 #ifdef F_GET_DIR
 void f_get_dir() {
-  array_t *vec;
+  array_t* vec;
 
   vec = get_dir((sp - 1)->u.string, sp->u.number);
   free_string_svalue(--sp);
@@ -1152,7 +1150,7 @@ void f_link() {
 
 #ifdef F_MKDIR
 void f_mkdir() {
-  const char *path;
+  const char* path;
 
   path = check_valid_path(sp->u.string, current_object, "mkdir", 1);
   if (!path || OS_mkdir(path, 0770) == -1) {

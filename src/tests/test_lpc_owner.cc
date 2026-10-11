@@ -57,8 +57,9 @@ TEST_F(DriverTest, TestVmOwnerMainMessageMarksAcquiredReference) {
   const auto refs_before = object->ref;
   const auto submit = [&] {
     return vm_owner_enqueue_main_task_with_payload(
-        object, "owner_message", "verify_cleanup", nullptr, nullptr,
-        [] { ADD_FAILURE() << "Message must execute the target lfun"; });
+        object, "owner_message", "verify_cleanup", nullptr, nullptr, [] {
+          ADD_FAILURE() << "Message must execute the target lfun";
+        });
   };
   ASSERT_GT(submit(), 0u);
   EXPECT_EQ(object->ref, refs_before + 1);
@@ -101,7 +102,9 @@ TEST_F(DriverTest, TestAsyncThrowingCallbackStillDrainsNestedRequest) {
 TEST_F(DriverTest, TestAsyncCallbackRejectsRecompileWhileExecuting) {
   struct RecompileConfigGuard {
     int saved;
-    ~RecompileConfigGuard() { CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved; }
+    ~RecompileConfigGuard() {
+      CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = saved;
+    }
   } config_guard{CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__)};
   CONFIG_INT(__RECOMPILE_OBJECT_ENABLED__) = 1;
   verify_async_callback_drain("start_recompile", 1);
@@ -146,8 +149,7 @@ TEST_F(DriverTest, TestAsyncPromiseFormsResolveAndRejectThroughOwnerAdmission) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
     }
-    if (tick_event_queue_size_for_test() == 0 &&
-        walltime_event_queue_size_for_test() == 0 &&
+    if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0 &&
         !backend_wakeup_pending_for_test() && promise->state == PROMISE_PENDING) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
@@ -180,8 +182,7 @@ TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
   destruct_object_for_test(object);
   ASSERT_EQ(promise->state, PROMISE_REJECTED);
   ASSERT_EQ(promise->result.type, T_STRING);
-  ASSERT_STREQ(promise->result.u.string,
-               "*async function owner was destructed while suspended");
+  ASSERT_STREQ(promise->result.u.string, "*async function owner was destructed while suspended");
   promise->handled = true;
 
   for (int pass = 0; pass < 16; pass++) {
@@ -192,8 +193,7 @@ TEST_F(DriverTest, TestAsyncAwaitDestructRejectsSuspendedFrame) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
     }
-    if (tick_event_queue_size_for_test() == 0 &&
-        walltime_event_queue_size_for_test() == 0) {
+    if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0) {
       break;
     }
   }
@@ -206,7 +206,7 @@ TEST_F(DriverTest, TestFutureFrozenMappingKeyAndValueBytesAreCounted) {
   OwnerFutureStore store;
   store.admit_pending(owner_future_store_test_record(1, 101));
 
-  mapping_t *m = allocate_mapping(4);
+  mapping_t* m = allocate_mapping(4);
   const std::string key = std::string(64, 'k');
   const std::string value = std::string(128, 'v');
   add_mapping_string(m, key.c_str(), value.c_str());
@@ -221,8 +221,7 @@ TEST_F(DriverTest, TestFutureFrozenMappingKeyAndValueBytesAreCounted) {
   auto completion = store.complete(1, "completed", "result", "", frozen);
   ASSERT_TRUE(completion.has_value());
   ASSERT_FALSE(completion->quota_rejected);
-  ASSERT_GE(store.terminal_payload_bytes(),
-            static_cast<int64_t>(key.size() + value.size()));
+  ASSERT_GE(store.terminal_payload_bytes(), static_cast<int64_t>(key.size() + value.size()));
   ASSERT_TRUE(store.take(1).consumed);
   ASSERT_EQ(store.terminal_payload_bytes(), 0);
 }
@@ -286,9 +285,9 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
     root = const0u;
     root.type = T_ARRAY;
     root.subtype = 0;
-    array_t *current = allocate_array(1);
+    array_t* current = allocate_array(1);
     for (int i = 1; i < depth; i++) {
-      array_t *next = allocate_array(1);
+      array_t* next = allocate_array(1);
       next->item[0].type = T_ARRAY;
       next->item[0].subtype = 0;
       next->item[0].u.arr = current;
@@ -338,7 +337,7 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
   ASSERT_FALSE(vm_copy_frozen_svalue(&copied, &null_mapping));
   ASSERT_FALSE(vm_frozen_value_safe(&null_mapping, 0, "frozen value", &error));
 
-  auto *cycle = allocate_array(1);
+  auto* cycle = allocate_array(1);
   cycle->item[0].type = T_ARRAY;
   cycle->item[0].subtype = 0;
   cycle->item[0].u.arr = cycle;
@@ -358,11 +357,11 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
   cycle->ref--;
   free_svalue(&cycle_source, "frozen cycle source");
 
-  auto *shared_child = allocate_array(1);
+  auto* shared_child = allocate_array(1);
   shared_child->item[0].type = T_STRING;
   shared_child->item[0].subtype = STRING_SHARED;
   shared_child->item[0].u.string = make_shared_string("dag");
-  auto *dag = allocate_array(2);
+  auto* dag = allocate_array(2);
   dag->item[0].type = T_ARRAY;
   dag->item[0].subtype = 0;
   dag->item[0].u.arr = shared_child;
@@ -379,7 +378,7 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
   free_svalue(&copied, "frozen dag copy");
   free_svalue(&dag_source, "frozen dag source");
 
-  auto *partial = allocate_array(2);
+  auto* partial = allocate_array(2);
   partial->item[0].type = T_STRING;
   partial->item[0].subtype = STRING_SHARED;
   partial->item[0].u.string = make_shared_string("partial");
@@ -395,12 +394,12 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
   ASSERT_EQ(copied.type, T_NUMBER);
   free_svalue(&partial_source, "frozen partial failure source");
 
-  auto *partial_map = allocate_mapping(1);
+  auto* partial_map = allocate_mapping(1);
   svalue_t string_key = const0u;
   string_key.type = T_STRING;
   string_key.subtype = STRING_SHARED;
   string_key.u.string = make_shared_string("partial-map");
-  auto *partial_map_slot = find_for_insert(partial_map, &string_key, 1);
+  auto* partial_map_slot = find_for_insert(partial_map, &string_key, 1);
   free_svalue(&string_key, "frozen partial mapping key");
   partial_map_slot->type = T_BUFFER;
   partial_map_slot->subtype = 0;
@@ -414,11 +413,11 @@ TEST_F(DriverTest, TestFrozenValueCopyEnforcesDepthCyclesAndFailureCleanup) {
   ASSERT_EQ(copied.type, T_NUMBER);
   free_svalue(&partial_map_source, "frozen partial mapping failure source");
 
-  auto *bad_map = allocate_mapping(1);
+  auto* bad_map = allocate_mapping(1);
   svalue_t numeric_key = const0u;
   numeric_key.type = T_NUMBER;
   numeric_key.u.number = 42;
-  auto *bad_slot = find_for_insert(bad_map, &numeric_key, 1);
+  auto* bad_slot = find_for_insert(bad_map, &numeric_key, 1);
   bad_slot->type = T_STRING;
   bad_slot->subtype = STRING_SHARED;
   bad_slot->u.string = make_shared_string("bad-key-value");
@@ -445,9 +444,9 @@ TEST_F(DriverTest, TestFutureFrozenWeightVisitorSaturatesOnDepthAndNodes) {
     svalue_t root;
     root.type = T_ARRAY;
     root.subtype = 0;
-    array_t *prev = allocate_array(1);
+    array_t* prev = allocate_array(1);
     for (int d = 1; d < depth; d++) {
-      array_t *cur = allocate_array(1);
+      array_t* cur = allocate_array(1);
       cur->item[0].type = T_ARRAY;
       cur->item[0].subtype = 0;
       cur->item[0].u.arr = prev;  // transfers the reference
@@ -476,9 +475,9 @@ TEST_F(DriverTest, TestFutureFrozenWeightVisitorSaturatesOnDepthAndNodes) {
   wide_sv.type = T_ARRAY;
   wide_sv.subtype = 0;
   constexpr int kMaps = 15000;
-  array_t *wide = allocate_array(kMaps);
+  array_t* wide = allocate_array(kMaps);
   for (int i = 0; i < kMaps; i++) {
-    mapping_t *sub = allocate_mapping(4);
+    mapping_t* sub = allocate_mapping(4);
     add_mapping_string(sub, "ka", "va");
     add_mapping_string(sub, "kb", "vb");
     add_mapping_string(sub, "kc", "vc");
@@ -524,10 +523,11 @@ TEST_F(DriverTest, TestFutureFrozenWeightVisitorSaturatesOnDepthAndNodes) {
 TEST(OwnerFutureStoreTest, PayloadBearingTerminalInOldestAgeButNotReapable) {
   OwnerFutureStore store;
   uint64_t fake_now_ns = 1'000'000'000ULL;
-  store.set_clock_for_test([&fake_now_ns]() { return fake_now_ns; });
+  store.set_clock_for_test([&fake_now_ns]() {
+    return fake_now_ns;
+  });
   store.admit_pending(owner_future_store_test_record(1, 101));
-  auto completion =
-      store.complete(1, "completed", "result", "", std::make_shared<VMFrozenValue>());
+  auto completion = store.complete(1, "completed", "result", "", std::make_shared<VMFrozenValue>());
   ASSERT_TRUE(completion.has_value());
   fake_now_ns += OwnerFutureStore::kTerminalTtlNs + 1;
   ASSERT_GE(store.oldest_terminal_age_ns(), OwnerFutureStore::kTerminalTtlNs);
@@ -539,7 +539,7 @@ TEST(OwnerFutureStoreTest, PayloadBearingTerminalInOldestAgeButNotReapable) {
 
 TEST_F(DriverTest, TestArraySetOperationsDistinguishExtremeIntegers) {
   const auto make_number_array = [](std::initializer_list<LPC_INT> values) {
-    auto *array = allocate_empty_array(static_cast<int>(values.size()));
+    auto* array = allocate_empty_array(static_cast<int>(values.size()));
     int index = 0;
     for (const LPC_INT value : values) {
       array->item[index] = const0u;
@@ -548,26 +548,26 @@ TEST_F(DriverTest, TestArraySetOperationsDistinguishExtremeIntegers) {
     return array;
   };
 
-  auto *difference = subtract_array(
-      make_number_array({std::numeric_limits<LPC_INT>::min()}), make_number_array({0}));
+  auto* difference = subtract_array(make_number_array({std::numeric_limits<LPC_INT>::min()}),
+                                    make_number_array({0}));
   ASSERT_EQ(difference->size, 1);
   ASSERT_EQ(difference->item[0].type, T_NUMBER);
   ASSERT_EQ(difference->item[0].u.number, std::numeric_limits<LPC_INT>::min());
   free_array(difference);
 
-  auto *intersection = intersect_array(
-      make_number_array({0}), make_number_array({std::numeric_limits<LPC_INT>::min()}));
+  auto* intersection = intersect_array(make_number_array({0}),
+                                       make_number_array({std::numeric_limits<LPC_INT>::min()}));
   ASSERT_EQ(intersection, &the_null_array);
 
-  auto *array_union = union_array(
-      make_number_array({0}), make_number_array({std::numeric_limits<LPC_INT>::min()}));
+  auto* array_union =
+      union_array(make_number_array({0}), make_number_array({std::numeric_limits<LPC_INT>::min()}));
   ASSERT_EQ(array_union->size, 2);
   bool found_zero = false;
   bool found_min = false;
   for (int index = 0; index < array_union->size; ++index) {
     found_zero = found_zero || array_union->item[index].u.number == 0;
-    found_min = found_min ||
-                array_union->item[index].u.number == std::numeric_limits<LPC_INT>::min();
+    found_min =
+        found_min || array_union->item[index].u.number == std::numeric_limits<LPC_INT>::min();
   }
   ASSERT_TRUE(found_zero);
   ASSERT_TRUE(found_min);
@@ -588,7 +588,7 @@ TEST_F(DriverTest, TestLpcModernProfilePragmasAndAuditRules) {
   ASSERT_STREQ(kLpcModernProfileSchemaV1, "lpc_modern_profile_v1");
   ASSERT_STREQ(kLpcOwnerAuditSchemaV1, "lpcc_owner_audit_v1");
 
-  const auto &rules = lpc_owner_audit_rules();
+  const auto& rules = lpc_owner_audit_rules();
   ASSERT_EQ(rules.size(), 4);
   ASSERT_STREQ(rules[0].code, "cross_owner_mutable_write");
   ASSERT_STREQ(rules[1].code, "bare_object_payload");
@@ -635,7 +635,7 @@ TEST_F(DriverTest, TestCompileFileAcceptsGbkSourceEncodingPragma) {
 
   std::istringstream stream_source(source);
   auto stream = std::make_unique<IStreamLexStream>(stream_source);
-  auto *compiled = compile_file(std::move(stream), "gbk_source_encoding_test");
+  auto* compiled = compile_file(std::move(stream), "gbk_source_encoding_test");
 
   ASSERT_NE(compiled, nullptr);
   bool found_utf8_literal = false;
@@ -657,7 +657,7 @@ TEST_F(DriverTest, TestLpcVmProfileRecordsApplyCacheLookups) {
   lpc_vm_profile_reset();
   std::istringstream source("void dummy() {}\n");
   auto stream = std::make_unique<IStreamLexStream>(source);
-  program_t *prog = compile_file(std::move(stream), "lpc_vm_profile_apply_cache_test");
+  program_t* prog = compile_file(std::move(stream), "lpc_vm_profile_apply_cache_test");
   ASSERT_NE(prog, nullptr);
 
   auto hit = apply_cache_lookup("dummy", prog);
@@ -763,73 +763,56 @@ TEST_F(DriverTest, TestLpcVmProfileRecordingIsThreadLocal) {
 }
 
 namespace {
-std::string read_source_file_for_test(const char* path);
+SourceText read_source_file_for_test(const char* path);
 }
 
 TEST_F(DriverTest, TestOwnerFuturePendingCountUsesTransitionCounter) {
-  const auto header =
-      read_source_file_for_test("../src/vm/internal/owner_future_store.h");
-  const auto source =
-      read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
-  const auto count_start =
-      source.find("int64_t OwnerFutureStore::pending_count()");
-  const auto count_end =
-      source.find("int64_t OwnerFutureStore::size()", count_start);
+  const auto header = read_source_file_for_test("../src/vm/internal/owner_future_store.h");
+  const auto source = read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
+  const auto count_start = source.find("int64_t OwnerFutureStore::pending_count()");
+  const auto count_end = source.find("int64_t OwnerFutureStore::size()", count_start);
 
   ASSERT_NE(count_start, std::string::npos);
   ASSERT_NE(count_end, std::string::npos);
   const auto count_body = source.substr(count_start, count_end - count_start);
   EXPECT_NE(header.find("std::atomic<int64_t> pending_"), std::string::npos);
-  EXPECT_NE(count_body.find("pending_.load(std::memory_order_relaxed)"),
-            std::string::npos);
+  EXPECT_NE(count_body.find("pending_.load(std::memory_order_relaxed)"), std::string::npos);
   EXPECT_EQ(count_body.find("for ("), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerFutureCountChainUsesFixedWidthTypes) {
-  const auto header =
-      read_source_file_for_test("../src/vm/internal/owner_future_store.h");
-  const auto source =
-      read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
+  const auto header = read_source_file_for_test("../src/vm/internal/owner_future_store.h");
+  const auto source = read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
   const auto owner = read_source_file_for_test("../src/vm/internal/owner.cc");
 
   EXPECT_NE(header.find("int64_t pending_count() const;"), std::string::npos);
   EXPECT_EQ(header.find("long pending_count() const;"), std::string::npos);
   EXPECT_NE(header.find("int64_t size() const;"), std::string::npos);
   EXPECT_EQ(header.find("long size() const;"), std::string::npos);
-  EXPECT_NE(header.find("std::atomic<int64_t> pending_{0};"),
-            std::string::npos);
+  EXPECT_NE(header.find("std::atomic<int64_t> pending_{0};"), std::string::npos);
   EXPECT_EQ(header.find("std::atomic<long> pending_{0};"), std::string::npos);
 
-  EXPECT_NE(source.find("int64_t OwnerFutureStore::pending_count() const"),
-            std::string::npos);
-  EXPECT_NE(source.find("int64_t OwnerFutureStore::size() const"),
-            std::string::npos);
-  EXPECT_NE(source.find("static_cast<int64_t>(futures_.size())"),
-            std::string::npos);
-  EXPECT_EQ(source.find("static_cast<long>(futures_.size())"),
-            std::string::npos);
+  EXPECT_NE(source.find("int64_t OwnerFutureStore::pending_count() const"), std::string::npos);
+  EXPECT_NE(source.find("int64_t OwnerFutureStore::size() const"), std::string::npos);
+  EXPECT_NE(source.find("static_cast<int64_t>(futures_.size())"), std::string::npos);
+  EXPECT_EQ(source.find("static_cast<long>(futures_.size())"), std::string::npos);
 
-  EXPECT_NE(owner.find("int64_t owner_pending_future_count()"),
-            std::string::npos);
-  EXPECT_EQ(owner.find("long owner_pending_future_count()"),
-            std::string::npos);
+  EXPECT_NE(owner.find("int64_t owner_pending_future_count()"), std::string::npos);
+  EXPECT_EQ(owner.find("long owner_pending_future_count()"), std::string::npos);
   EXPECT_NE(owner.find("int64_t pending_futures{0};"), std::string::npos);
   EXPECT_EQ(owner.find("long pending_futures{0};"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerFutureStoreResolvesTargetsAfterTerminalLockScope) {
-  const auto source =
-      read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
-  auto assert_resolved_after_unlock = [&](const char* start_marker,
-                                          const char* end_marker,
+  const auto source = read_source_file_for_test("../src/vm/internal/owner_future_store.cc");
+  auto assert_resolved_after_unlock = [&](const char* start_marker, const char* end_marker,
                                           const char* resolution) {
     const auto start = source.find(start_marker);
     const auto end = source.find(end_marker, start);
     ASSERT_NE(start, std::string::npos) << start_marker;
     ASSERT_NE(end, std::string::npos) << end_marker;
     const auto body = source.substr(start, end - start);
-    const auto lock_pos =
-        body.find("std::unique_lock<std::mutex> lock(mutex_);");
+    const auto lock_pos = body.find("std::unique_lock<std::mutex> lock(mutex_);");
     const auto unlock_pos = body.find("lock.unlock();", lock_pos);
     const auto resolution_pos = body.find(resolution);
     ASSERT_NE(lock_pos, std::string::npos) << start_marker;
@@ -851,13 +834,11 @@ TEST_F(DriverTest, TestOwnerFutureStoreResolvesTargetsAfterTerminalLockScope) {
       "std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_string_for_task(",
       "OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(",
       "completion.target_status = target_status(completion.record);");
-  assert_resolved_after_unlock(
-      "OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(",
-      "int64_t OwnerFutureStore::pending_count()",
-      "result.target_status = target_status(result.record);");
+  assert_resolved_after_unlock("OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(",
+                               "int64_t OwnerFutureStore::pending_count()",
+                               "result.target_status = target_status(result.record);");
 
-  const auto helper_start = source.find(
-      "OwnerFutureCompletion OwnerFutureStore::complete_record(");
+  const auto helper_start = source.find("OwnerFutureCompletion OwnerFutureStore::complete_record(");
   ASSERT_NE(helper_start, std::string::npos);
   const auto helper_body = source.substr(helper_start);
   EXPECT_EQ(helper_body.find("target_status(record)"), std::string::npos);
@@ -866,8 +847,7 @@ TEST_F(DriverTest, TestOwnerFutureStoreResolvesTargetsAfterTerminalLockScope) {
 TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   const auto gateway_status_source =
       read_source_file_for_test("../src/packages/gateway/gateway.cc");
-  ASSERT_NE(gateway_status_source.find(
-                "gateway_receive_enqueue_to_dispatch_total_us"),
+  ASSERT_NE(gateway_status_source.find("gateway_receive_enqueue_to_dispatch_total_us"),
             std::string::npos);
   auto mapping_number = [](mapping_t* map, const char* key) -> long {
     svalue_t* value = find_string_in_mapping(map, key);
@@ -893,82 +873,37 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_EQ(mapping_number(status, "gateway_event_priority_levels"), 2);
   ASSERT_EQ(mapping_number(status, "gateway_normal_event_priority"), 0);
   ASSERT_EQ(mapping_number(status, "gateway_io_event_priority"), 0);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_background_dispatch_max_interval_us"),
-            2000);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_background_dispatch_max_callbacks"),
-            8);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_background_dispatch_min_priority"),
-            1);
+  ASSERT_EQ(mapping_number(status, "gateway_background_dispatch_max_interval_us"), 2000);
+  ASSERT_EQ(mapping_number(status, "gateway_background_dispatch_max_callbacks"), 8);
+  ASSERT_EQ(mapping_number(status, "gateway_background_dispatch_min_priority"), 1);
   ASSERT_EQ(mapping_number(status, "gateway_backend_tick_slice_budget"), 64);
-  ASSERT_EQ(mapping_number(status, "gateway_backend_tick_slice_wall_budget_us"),
-            4000);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_backend_tick_continuation_delay_us"),
-            1000);
-  ASSERT_EQ(mapping_number(status, "gateway_backend_owner_main_slice_budget"),
-            64);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_backend_owner_main_slice_wall_budget_us"),
-            8000);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_backend_owner_main_continuation_delay_us"),
-            1000);
+  ASSERT_EQ(mapping_number(status, "gateway_backend_tick_slice_wall_budget_us"), 4000);
+  ASSERT_EQ(mapping_number(status, "gateway_backend_tick_continuation_delay_us"), 1000);
+  ASSERT_EQ(mapping_number(status, "gateway_backend_owner_main_slice_budget"), 64);
+  ASSERT_EQ(mapping_number(status, "gateway_backend_owner_main_slice_wall_budget_us"), 8000);
+  ASSERT_EQ(mapping_number(status, "gateway_backend_owner_main_continuation_delay_us"), 1000);
   ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_runs"), 0);
-  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_callbacks_total"),
-            0);
-  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_callbacks_max"),
-            0);
-  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_budget_yields"),
-            0);
-  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_wall_yields"),
-            0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_tick_continuations_scheduled"),
-            0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_tick_continuations_executed"),
-            0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_callbacks_total"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_callbacks_max"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_budget_yields"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_slice_wall_yields"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_continuations_scheduled"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_tick_continuations_executed"), 0);
   ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_slice_runs"), 0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_owner_main_slice_tasks_total"),
-            0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_owner_main_slice_tasks_max"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_backend_owner_main_slice_task_budget_yields"),
-            0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_owner_main_slice_wall_yields"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_backend_owner_main_tasks_exceeding_wall_budget"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_backend_owner_main_continuations_scheduled"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_backend_owner_main_continuations_executed"),
-            0);
-  ASSERT_GE(mapping_number(
-                status, "gateway_backend_owner_main_continuation_pending"),
-            0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_slice_tasks_total"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_slice_tasks_max"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_slice_task_budget_yields"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_slice_wall_yields"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_tasks_exceeding_wall_budget"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_continuations_scheduled"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_continuations_executed"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_backend_owner_main_continuation_pending"), 0);
   ASSERT_EQ(mapping_number(status, "session_fifo_contract_ready"), 1);
   ASSERT_GE(mapping_number(status, "session_fifo_depth"), 0);
   ASSERT_GE(mapping_number(status, "session_fifo_pending_reservations"), 0);
   ASSERT_GE(mapping_number(status, "session_fifo_wire_bytes"), 0);
-  ASSERT_GE(mapping_number(status, "session_fifo_wire_limit_bytes"),
-            64 * 1024);
-  ASSERT_GE(mapping_number(status,
-                           "session_fifo_wire_aggregate_limit_bytes"),
-            64 * 1024);
+  ASSERT_GE(mapping_number(status, "session_fifo_wire_limit_bytes"), 64 * 1024);
+  ASSERT_GE(mapping_number(status, "session_fifo_wire_aggregate_limit_bytes"), 64 * 1024);
   ASSERT_GE(mapping_number(status, "session_fifo_wire_detached_bytes"), 0);
   ASSERT_GE(mapping_number(status, "session_fifo_wire_bytes_rejected"), 0);
   ASSERT_GE(mapping_number(status, "session_fifo_enqueued"), 0);
@@ -978,23 +913,13 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_data_frames_applied"), 0);
   ASSERT_GE(mapping_number(status, "gateway_data_frames_rejected"), 0);
   ASSERT_GE(mapping_number(status, "gateway_json_frames_rejected"), 0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_read_dispatch_frame_length_rejected"),
-            0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_read_dispatch_buffer_limit_rejected"),
-            0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_read_dispatch_native_bytes_deferred"),
-            0);
+  ASSERT_GE(mapping_number(status, "gateway_read_dispatch_frame_length_rejected"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_read_dispatch_buffer_limit_rejected"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_read_dispatch_native_bytes_deferred"), 0);
   ASSERT_GE(mapping_number(status, "gateway_read_buffer_limit_bytes"), 1028);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_raw_write_backpressure_rejected"),
-            0);
-  ASSERT_GE(mapping_number(status, "gateway_write_buffer_limit_bytes"),
-            64 * 1024);
-  ASSERT_EQ(mapping_number(status, "gateway_packet_size_hard_limit_bytes"),
-            16 * 1024 * 1024);
+  ASSERT_GE(mapping_number(status, "gateway_raw_write_backpressure_rejected"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_write_buffer_limit_bytes"), 64 * 1024);
+  ASSERT_EQ(mapping_number(status, "gateway_packet_size_hard_limit_bytes"), 16 * 1024 * 1024);
   ASSERT_GE(mapping_number(status, "gateway_stale_master_frames_rejected"), 0);
   ASSERT_GE(mapping_number(status, "gateway_sessions_detached_total"), 0);
   ASSERT_GE(mapping_number(status, "gateway_session_rebind_attempts"), 0);
@@ -1031,17 +956,9 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_enqueued"), 0);
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_flushed"), 0);
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_rejected"), 0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_output_fifo_wire_bytes_rejected"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_output_fifo_aggregate_wire_bytes_rejected"),
-            0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_output_fifo_rebucket_wire_bytes_dropped"),
-            0);
+  ASSERT_GE(mapping_number(status, "gateway_output_fifo_wire_bytes_rejected"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_output_fifo_aggregate_wire_bytes_rejected"), 0);
+  ASSERT_GE(mapping_number(status, "gateway_output_fifo_rebucket_wire_bytes_dropped"), 0);
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_reserved"), 0);
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_filled"), 0);
   ASSERT_GE(mapping_number(status, "gateway_output_fifo_released"), 0);
@@ -1095,23 +1012,19 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
       ASSERT_GE(mapping_number(status, field.c_str()), 0);
     }
   }
-  for (const auto *prefix : {
+  for (const auto* prefix : {
            "gateway_room_output_projection_worker_thread_cpu",
            "gateway_room_output_projection_inline_thread_cpu",
        }) {
-    for (const auto *suffix : {"_samples", "_total_us", "_avg_us", "_max_us"}) {
+    for (const auto* suffix : {"_samples", "_total_us", "_avg_us", "_max_us"}) {
       const auto field = std::string(prefix) + suffix;
       ASSERT_NE(find_string_in_mapping(status, field.c_str()), nullptr) << field;
       ASSERT_GE(mapping_number(status, field.c_str()), 0);
     }
   }
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_room_output_projection_worker_thread_cpu_unavailable"),
+  ASSERT_GE(mapping_number(status, "gateway_room_output_projection_worker_thread_cpu_unavailable"),
             0);
-  ASSERT_GE(mapping_number(
-                status,
-                "gateway_room_output_projection_inline_thread_cpu_unavailable"),
+  ASSERT_GE(mapping_number(status, "gateway_room_output_projection_inline_thread_cpu_unavailable"),
             0);
   ASSERT_GE(mapping_number(status, "gateway_room_output_projection_submitted"), 0);
   ASSERT_GE(mapping_number(status, "gateway_room_output_projection_completed"), 0);
@@ -1147,8 +1060,7 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_remaining_avg"), 0);
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_remaining_max"), 0);
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_main_task_wall_max_us"), 0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_main_drain_deferred_main_tasks_exceeding_wall_budget"),
+  ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_main_tasks_exceeding_wall_budget"),
             0);
   ASSERT_EQ(mapping_number(status, "gateway_read_batch_drain_task_budget"), 32);
   ASSERT_EQ(mapping_number(status, "gateway_read_batch_drain_wall_budget_us"), 12000);
@@ -1157,9 +1069,7 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_read_batch_drain_tasks_max"), 0);
   ASSERT_GE(mapping_number(status, "gateway_read_batch_drain_backlog_rescheduled"), 0);
   ASSERT_GE(mapping_number(status, "gateway_read_batch_drain_main_task_wall_max_us"), 0);
-  ASSERT_GE(mapping_number(status,
-                           "gateway_read_batch_drain_main_tasks_exceeding_wall_budget"),
-            0);
+  ASSERT_GE(mapping_number(status, "gateway_read_batch_drain_main_tasks_exceeding_wall_budget"), 0);
   ASSERT_EQ(mapping_number(status, "gateway_read_dispatch_budget"), 1);
   ASSERT_GE(mapping_number(status, "gateway_read_dispatch_runs"), 0);
   ASSERT_GE(mapping_number(status, "gateway_read_dispatch_frames_total"), 0);
@@ -1180,9 +1090,7 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_wait_total_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_wait_avg_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_main_drain_deferred_wait_max_us"), 0);
-  ASSERT_EQ(mapping_number(status,
-                           "gateway_main_drain_deferred_wait_timer_queue_only"),
-            1);
+  ASSERT_EQ(mapping_number(status, "gateway_main_drain_deferred_wait_timer_queue_only"), 1);
   ASSERT_GE(mapping_number(status, "gateway_receive_decode_samples"), 0);
   ASSERT_GE(mapping_number(status, "gateway_receive_decode_avg_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_receive_decode_max_us"), 0);
@@ -1190,8 +1098,7 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   ASSERT_GE(mapping_number(status, "gateway_receive_payload_copy_avg_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_receive_payload_copy_max_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_receive_enqueue_to_dispatch_samples"), 0);
-  ASSERT_NE(find_string_in_mapping(status,
-                                   "gateway_receive_enqueue_to_dispatch_total_us"),
+  ASSERT_NE(find_string_in_mapping(status, "gateway_receive_enqueue_to_dispatch_total_us"),
             nullptr);
   ASSERT_GE(mapping_number(status, "gateway_receive_enqueue_to_dispatch_total_us"), 0);
   ASSERT_GE(mapping_number(status, "gateway_receive_enqueue_to_dispatch_avg_us"), 0);
@@ -1229,41 +1136,39 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
 
 TEST_F(DriverTest, TestGatewayStatusDerivesRoomProjectionThreadCpuAverages) {
   struct AtomicCounterRestore {
-    std::atomic<uint64_t> &counter;
+    std::atomic<uint64_t>& counter;
     uint64_t original;
     ~AtomicCounterRestore() {
       counter.store(original, std::memory_order_relaxed);
     }
   };
 
-  auto &worker_total =
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total;
-  auto &worker_samples =
+  auto& worker_total = g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total;
+  auto& worker_samples =
       g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples;
-  auto &inline_total =
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total;
-  auto &inline_samples =
+  auto& inline_total = g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total;
+  auto& inline_samples =
       g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples;
-  AtomicCounterRestore worker_total_restore{
-      worker_total, worker_total.load(std::memory_order_relaxed)};
-  AtomicCounterRestore worker_samples_restore{
-      worker_samples, worker_samples.load(std::memory_order_relaxed)};
-  AtomicCounterRestore inline_total_restore{
-      inline_total, inline_total.load(std::memory_order_relaxed)};
-  AtomicCounterRestore inline_samples_restore{
-      inline_samples, inline_samples.load(std::memory_order_relaxed)};
+  AtomicCounterRestore worker_total_restore{worker_total,
+                                            worker_total.load(std::memory_order_relaxed)};
+  AtomicCounterRestore worker_samples_restore{worker_samples,
+                                              worker_samples.load(std::memory_order_relaxed)};
+  AtomicCounterRestore inline_total_restore{inline_total,
+                                            inline_total.load(std::memory_order_relaxed)};
+  AtomicCounterRestore inline_samples_restore{inline_samples,
+                                              inline_samples.load(std::memory_order_relaxed)};
 
   worker_total.store(12000, std::memory_order_relaxed);
   worker_samples.store(3, std::memory_order_relaxed);
   inline_total.store(25000, std::memory_order_relaxed);
   inline_samples.store(5, std::memory_order_relaxed);
 
-  auto *status = gateway_status_internal();
+  auto* status = gateway_status_internal();
   ASSERT_NE(status, nullptr);
-  auto *worker_avg = find_string_in_mapping(
-      status, "gateway_room_output_projection_worker_thread_cpu_avg_us");
-  auto *inline_avg = find_string_in_mapping(
-      status, "gateway_room_output_projection_inline_thread_cpu_avg_us");
+  auto* worker_avg =
+      find_string_in_mapping(status, "gateway_room_output_projection_worker_thread_cpu_avg_us");
+  auto* inline_avg =
+      find_string_in_mapping(status, "gateway_room_output_projection_inline_thread_cpu_avg_us");
   ASSERT_NE(worker_avg, &const0u);
   ASSERT_NE(inline_avg, &const0u);
   ASSERT_EQ(worker_avg->type, T_NUMBER);
@@ -1292,16 +1197,18 @@ TEST_F(DriverTest, TestGatewayOutputReservationBlocksAndPreservesFifo) {
   auto blocked_fills_before =
       g_gateway_runtime_counters.output_fifo_head_blocked_fills.load(std::memory_order_relaxed);
   auto blocked_predecessors_before =
-      g_gateway_runtime_counters.output_fifo_head_blocked_predecessors_total.load(std::memory_order_relaxed);
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &session, second_reservation_id, "second", 6, writer),
+      g_gateway_runtime_counters.output_fifo_head_blocked_predecessors_total.load(
+          std::memory_order_relaxed);
+  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(&session, second_reservation_id,
+                                                             "second", 6, writer),
             1);
   ASSERT_EQ(session.output_fifo.size(), 2u);
   ASSERT_FALSE(session.output_fifo.front().ready);
   ASSERT_TRUE(session.output_fifo.back().ready);
   ASSERT_TRUE(writes.empty());
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_head_blocked_fills.load(std::memory_order_relaxed),
-            blocked_fills_before + 1);
+  ASSERT_EQ(
+      g_gateway_runtime_counters.output_fifo_head_blocked_fills.load(std::memory_order_relaxed),
+      blocked_fills_before + 1);
   ASSERT_EQ(g_gateway_runtime_counters.output_fifo_head_blocked_predecessors_total.load(
                 std::memory_order_relaxed),
             blocked_predecessors_before + 1);
@@ -1309,8 +1216,8 @@ TEST_F(DriverTest, TestGatewayOutputReservationBlocksAndPreservesFifo) {
                 std::memory_order_relaxed),
             1u);
 
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &session, first_reservation_id, "first", 5, writer),
+  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(&session, first_reservation_id,
+                                                             "first", 5, writer),
             1);
   ASSERT_EQ(writes.size(), 2u);
   const auto first_wire = nlohmann::json::parse(writes[0]);
@@ -1325,7 +1232,9 @@ TEST_F(DriverTest, TestGatewayOutputReservationBlocksAndPreservesFifo) {
 }
 
 TEST_F(DriverTest, TestGatewayPendingReservationDetectsReadySuccessor) {
-  auto writer = [](int, const char*, size_t) -> int { return 1; };
+  auto writer = [](int, const char*, size_t) -> int {
+    return 1;
+  };
 
   GatewaySession session;
   session.session_id = "ready-successor-session";
@@ -1335,24 +1244,23 @@ TEST_F(DriverTest, TestGatewayPendingReservationDetectsReadySuccessor) {
   ASSERT_GT(first_reservation_id, 0u);
   ASSERT_GT(second_reservation_id, 0u);
 
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      nullptr, first_reservation_id));
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      &session, 0));
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      &session, second_reservation_id + 1));
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      &session, first_reservation_id));
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      &session, second_reservation_id));
+  ASSERT_FALSE(
+      gateway_session_pending_reservation_has_ready_successor(nullptr, first_reservation_id));
+  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(&session, 0));
+  ASSERT_FALSE(
+      gateway_session_pending_reservation_has_ready_successor(&session, second_reservation_id + 1));
+  ASSERT_FALSE(
+      gateway_session_pending_reservation_has_ready_successor(&session, first_reservation_id));
+  ASSERT_FALSE(
+      gateway_session_pending_reservation_has_ready_successor(&session, second_reservation_id));
 
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &session, second_reservation_id, "second", 6, writer),
+  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(&session, second_reservation_id,
+                                                             "second", 6, writer),
             1);
-  ASSERT_TRUE(gateway_session_pending_reservation_has_ready_successor(
-      &session, first_reservation_id));
-  ASSERT_FALSE(gateway_session_pending_reservation_has_ready_successor(
-      &session, second_reservation_id));
+  ASSERT_TRUE(
+      gateway_session_pending_reservation_has_ready_successor(&session, first_reservation_id));
+  ASSERT_FALSE(
+      gateway_session_pending_reservation_has_ready_successor(&session, second_reservation_id));
 }
 
 TEST_F(DriverTest, TestGatewayOutputReservationTimeoutReleaseUnblocksFollowingOutput) {
@@ -1368,8 +1276,8 @@ TEST_F(DriverTest, TestGatewayOutputReservationTimeoutReleaseUnblocksFollowingOu
   session.master_fd = 88;
   auto reservation_id = gateway_reserve_session_output(&session);
   ASSERT_GT(reservation_id, 0u);
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &session, "after-release", sizeof("after-release") - 1),
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&session, "after-release",
+                                                    sizeof("after-release") - 1),
             1);
   ASSERT_EQ(gateway_release_session_output_with_writer(&session, reservation_id, writer), 1);
   ASSERT_EQ(gateway_release_session_output(&session, reservation_id), 0);
@@ -1388,15 +1296,11 @@ TEST_F(DriverTest, TestGatewayOrdinaryOutputQueuesExactWireEnvelope) {
   session.master_fd = -1;
   const std::string frame{"ordinary\0frame", 14};
 
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &session, frame.data(), frame.size()),
-            1);
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&session, frame.data(), frame.size()), 1);
   ASSERT_EQ(session.output_fifo.size(), 1u);
   ASSERT_TRUE(session.output_fifo.front().ready);
-  const auto wire = nlohmann::json::parse(
-      session.output_fifo.front().wire_bytes);
-  ASSERT_EQ(session.output_fifo_wire_bytes,
-            session.output_fifo.front().wire_bytes.size());
+  const auto wire = nlohmann::json::parse(session.output_fifo.front().wire_bytes);
+  ASSERT_EQ(session.output_fifo_wire_bytes, session.output_fifo.front().wire_bytes.size());
   ASSERT_EQ(wire["type"], "output");
   ASSERT_EQ(wire["cid"], "ordinary-session");
   ASSERT_EQ(wire["data"].get<std::string>(), frame);
@@ -1405,12 +1309,14 @@ TEST_F(DriverTest, TestGatewayOrdinaryOutputQueuesExactWireEnvelope) {
 TEST_F(DriverTest, TestGatewayMasterOutputBufferRejectsSlowPeerBeforeUnboundedGrowth) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } packet_size_guard;
 
   g_gateway_max_packet_size = 1024;
   constexpr int master_fd = 1708;
-  bufferevent *pair[2] = {nullptr, nullptr};
+  bufferevent* pair[2] = {nullptr, nullptr};
   ASSERT_EQ(bufferevent_pair_new(g_event_base, BEV_OPT_CLOSE_ON_FREE, pair), 0);
   ASSERT_NE(pair[0], nullptr);
   ASSERT_NE(pair[1], nullptr);
@@ -1418,30 +1324,24 @@ TEST_F(DriverTest, TestGatewayMasterOutputBufferRejectsSlowPeerBeforeUnboundedGr
 
   const auto output_limit = gateway_write_buffer_limit_for_test();
   const auto rejected_before =
-      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(std::memory_order_relaxed);
   const std::string payload(128, 'x');
   size_t accepted = 0;
   while (gateway_send_raw_to_fd(master_fd, payload.data(), payload.size())) {
     accepted++;
-    ASSERT_LE(evbuffer_get_length(bufferevent_get_output(pair[0])),
-              output_limit);
+    ASSERT_LE(evbuffer_get_length(bufferevent_get_output(pair[0])), output_limit);
   }
 
   ASSERT_GT(accepted, 0u);
   ASSERT_LT(evbuffer_get_length(bufferevent_get_output(pair[0])),
             output_limit + payload.size() + sizeof(uint32_t));
   ASSERT_EQ(
-      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(
-          std::memory_order_relaxed),
+      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(std::memory_order_relaxed),
       rejected_before + 1);
   ASSERT_EQ(gateway_send_raw_to_fd(master_fd, nullptr, payload.size()), 0);
-  ASSERT_EQ(gateway_send_raw_to_fd(master_fd, payload.data(),
-                                   g_gateway_max_packet_size + 1),
-            0);
+  ASSERT_EQ(gateway_send_raw_to_fd(master_fd, payload.data(), g_gateway_max_packet_size + 1), 0);
   ASSERT_EQ(
-      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(
-          std::memory_order_relaxed),
+      g_gateway_runtime_counters.raw_write_backpressure_rejected.load(std::memory_order_relaxed),
       rejected_before + 1);
 
   gateway_remove_master_for_test(master_fd);
@@ -1452,11 +1352,13 @@ TEST_F(DriverTest, TestGatewayMasterOutputBufferRejectsSlowPeerBeforeUnboundedGr
 TEST_F(DriverTest, TestGatewayWireFactoryRejectsOversizeBeforeFifoMutation) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } guard;
   static std::vector<std::string> writes;
   writes.clear();
-  auto writer = [](int, const char *data, size_t len) -> int {
+  auto writer = [](int, const char* data, size_t len) -> int {
     writes.emplace_back(data, len);
     return 1;
   };
@@ -1466,8 +1368,8 @@ TEST_F(DriverTest, TestGatewayWireFactoryRejectsOversizeBeforeFifoMutation) {
   GatewaySession ordinary;
   ordinary.session_id = "oversize-ordinary";
   ordinary.master_fd = -1;
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &ordinary, oversized_payload.data(), oversized_payload.size()),
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&ordinary, oversized_payload.data(),
+                                                    oversized_payload.size()),
             0);
   ASSERT_TRUE(ordinary.output_fifo.empty());
 
@@ -1476,10 +1378,10 @@ TEST_F(DriverTest, TestGatewayWireFactoryRejectsOversizeBeforeFifoMutation) {
   reserved.master_fd = 77;
   const auto reservation_id = gateway_reserve_session_output(&reserved);
   ASSERT_GT(reservation_id, 0u);
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &reserved, reservation_id, oversized_payload.data(),
-                oversized_payload.size(), writer),
-            0);
+  ASSERT_EQ(
+      gateway_fill_session_protocol_output_with_writer(
+          &reserved, reservation_id, oversized_payload.data(), oversized_payload.size(), writer),
+      0);
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(reserved.output_fifo.size(), 1u);
   ASSERT_EQ(reserved.output_fifo.front().reservation_id, reservation_id);
@@ -1487,22 +1389,19 @@ TEST_F(DriverTest, TestGatewayWireFactoryRejectsOversizeBeforeFifoMutation) {
   ASSERT_TRUE(reserved.output_fifo.front().wire_bytes.empty());
 }
 
-TEST_F(DriverTest,
-       TestGatewaySessionFifoWireByteLimitRejectsWithoutQueueMutation) {
+TEST_F(DriverTest, TestGatewaySessionFifoWireByteLimitRejectsWithoutQueueMutation) {
   const auto rejected_before =
-      g_gateway_runtime_counters.output_fifo_wire_bytes_rejected.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_wire_bytes_rejected.load(std::memory_order_relaxed);
 
   GatewaySession ordinary;
   ordinary.session_id = "wire-byte-limit-ordinary";
   ordinary.master_fd = -1;
-  const auto ordinary_wire = gateway_encode_output_envelope_for_test(
-      ordinary.session_id, "first", 5);
+  const auto ordinary_wire =
+      gateway_encode_output_envelope_for_test(ordinary.session_id, "first", 5);
   ordinary.output_fifo_max_wire_bytes = ordinary_wire.size();
   ASSERT_EQ(gateway_enqueue_session_protocol_output(&ordinary, "first", 5), 1);
   ASSERT_EQ(ordinary.output_fifo_wire_bytes, ordinary_wire.size());
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(&ordinary, "second", 6),
-            0);
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&ordinary, "second", 6), 0);
   ASSERT_EQ(ordinary.output_fifo.size(), 1u);
   ASSERT_EQ(ordinary.output_fifo_wire_bytes, ordinary_wire.size());
   ASSERT_EQ(ordinary.output_fifo_wire_bytes_rejected, 1u);
@@ -1510,19 +1409,19 @@ TEST_F(DriverTest,
   GatewaySession reserved;
   reserved.session_id = "wire-byte-limit-reserved";
   reserved.master_fd = -1;
-  const auto retained_wire = gateway_encode_output_envelope_for_test(
-      reserved.session_id, "retained", 8);
+  const auto retained_wire =
+      gateway_encode_output_envelope_for_test(reserved.session_id, "retained", 8);
   reserved.output_fifo_max_wire_bytes = retained_wire.size();
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &reserved, "retained", 8),
-            1);
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&reserved, "retained", 8), 1);
   const auto reservation_id = gateway_reserve_session_output(&reserved);
   ASSERT_GT(reservation_id, 0u);
   reserved.master_fd = 77;
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &reserved, reservation_id, "blocked", 7,
-                [](int, const char *, size_t) -> int { return 1; }),
-            0);
+  ASSERT_EQ(
+      gateway_fill_session_protocol_output_with_writer(&reserved, reservation_id, "blocked", 7,
+                                                       [](int, const char*, size_t) -> int {
+                                                         return 1;
+                                                       }),
+      0);
   ASSERT_EQ(reserved.output_fifo.size(), 2u);
   ASSERT_TRUE(reserved.output_fifo.front().ready);
   ASSERT_FALSE(reserved.output_fifo.back().ready);
@@ -1530,22 +1429,22 @@ TEST_F(DriverTest,
   ASSERT_EQ(reserved.output_fifo_wire_bytes, retained_wire.size());
   ASSERT_EQ(reserved.output_fifo_wire_bytes_rejected, 1u);
   ASSERT_EQ(
-      g_gateway_runtime_counters.output_fifo_wire_bytes_rejected.load(
-          std::memory_order_relaxed),
+      g_gateway_runtime_counters.output_fifo_wire_bytes_rejected.load(std::memory_order_relaxed),
       rejected_before + 2);
 }
 
-TEST_F(DriverTest,
-       TestGatewayFlushDropsReadyWireMadeOversizeByLimitReduction) {
+TEST_F(DriverTest, TestGatewayFlushDropsReadyWireMadeOversizeByLimitReduction) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } guard;
   static std::vector<size_t> attempted_lengths;
   static std::vector<std::string> writes;
   attempted_lengths.clear();
   writes.clear();
-  auto writer = [](int fd, const char *data, size_t len) -> int {
+  auto writer = [](int fd, const char* data, size_t len) -> int {
     EXPECT_EQ(fd, 77);
     attempted_lengths.push_back(len);
     if (len > g_gateway_max_packet_size) {
@@ -1560,29 +1459,24 @@ TEST_F(DriverTest,
   session.master_fd = -1;
   g_gateway_max_packet_size = 4096;
   const std::string oversized_payload(2048, 'x');
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &session, oversized_payload.data(), oversized_payload.size()),
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&session, oversized_payload.data(),
+                                                    oversized_payload.size()),
             1);
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &session, "successor", sizeof("successor") - 1),
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&session, "successor", sizeof("successor") - 1),
             1);
   ASSERT_EQ(session.output_fifo.size(), 2u);
   ASSERT_TRUE(session.output_fifo.front().ready);
   ASSERT_EQ(session.output_fifo.front().reservation_id, 0u);
   ASSERT_GT(session.output_fifo.front().wire_bytes.size(), 1024u);
   ASSERT_LT(session.output_fifo.back().wire_bytes.size(), 1024u);
-  ASSERT_EQ(session.output_fifo_wire_bytes,
-            session.output_fifo.front().wire_bytes.size() +
-                session.output_fifo.back().wire_bytes.size());
+  ASSERT_EQ(session.output_fifo_wire_bytes, session.output_fifo.front().wire_bytes.size() +
+                                                session.output_fifo.back().wire_bytes.size());
   const auto oversize_dropped_before =
-      g_gateway_runtime_counters.output_fifo_oversize_dropped.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_oversize_dropped.load(std::memory_order_relaxed);
   const auto released_before =
-      g_gateway_runtime_counters.output_fifo_released.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_released.load(std::memory_order_relaxed);
   const auto writer_failures_before =
-      g_gateway_runtime_counters.output_fifo_writer_failures.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed);
 
   g_gateway_max_packet_size = 1024;
   session.master_fd = 77;
@@ -1595,28 +1489,26 @@ TEST_F(DriverTest,
   ASSERT_EQ(successor["type"], "output");
   ASSERT_EQ(successor["cid"], session.session_id);
   ASSERT_EQ(successor["data"], "successor");
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_oversize_dropped.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_oversize_dropped.load(std::memory_order_relaxed),
             oversize_dropped_before + 1);
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_released.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_released.load(std::memory_order_relaxed),
             released_before);
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed),
             writer_failures_before);
 }
 
-TEST_F(DriverTest,
-       TestGatewayFlushClassifiesReadyReservationOversizeExactlyOnce) {
+TEST_F(DriverTest, TestGatewayFlushClassifiesReadyReservationOversizeExactlyOnce) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } guard;
   static std::vector<size_t> attempted_lengths;
   static std::vector<std::string> writes;
   attempted_lengths.clear();
   writes.clear();
-  auto writer = [](int fd, const char *data, size_t len) -> int {
+  auto writer = [](int fd, const char* data, size_t len) -> int {
     EXPECT_EQ(fd, 78);
     attempted_lengths.push_back(len);
     if (len > g_gateway_max_packet_size) {
@@ -1633,30 +1525,25 @@ TEST_F(DriverTest,
   const auto reservation_id = gateway_reserve_session_output(&session);
   ASSERT_GT(reservation_id, 0u);
   const std::string oversized_payload(2048, 'y');
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &session, reservation_id, oversized_payload.data(),
-                oversized_payload.size(), writer),
-            1);
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &session, "successor", sizeof("successor") - 1),
+  ASSERT_EQ(
+      gateway_fill_session_protocol_output_with_writer(
+          &session, reservation_id, oversized_payload.data(), oversized_payload.size(), writer),
+      1);
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&session, "successor", sizeof("successor") - 1),
             1);
   ASSERT_EQ(session.output_fifo.size(), 2u);
   ASSERT_TRUE(session.output_fifo.front().ready);
   ASSERT_EQ(session.output_fifo.front().reservation_id, reservation_id);
   ASSERT_GT(session.output_fifo.front().wire_bytes.size(), 1024u);
   ASSERT_LT(session.output_fifo.back().wire_bytes.size(), 1024u);
-  ASSERT_EQ(session.output_fifo_wire_bytes,
-            session.output_fifo.front().wire_bytes.size() +
-                session.output_fifo.back().wire_bytes.size());
+  ASSERT_EQ(session.output_fifo_wire_bytes, session.output_fifo.front().wire_bytes.size() +
+                                                session.output_fifo.back().wire_bytes.size());
   const auto oversize_dropped_before =
-      g_gateway_runtime_counters.output_fifo_oversize_dropped.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_oversize_dropped.load(std::memory_order_relaxed);
   const auto released_before =
-      g_gateway_runtime_counters.output_fifo_released.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_released.load(std::memory_order_relaxed);
   const auto writer_failures_before =
-      g_gateway_runtime_counters.output_fifo_writer_failures.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed);
 
   g_gateway_max_packet_size = 1024;
   session.master_fd = 78;
@@ -1669,14 +1556,11 @@ TEST_F(DriverTest,
   ASSERT_EQ(successor["type"], "output");
   ASSERT_EQ(successor["cid"], session.session_id);
   ASSERT_EQ(successor["data"], "successor");
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_oversize_dropped.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_oversize_dropped.load(std::memory_order_relaxed),
             oversize_dropped_before + 1);
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_released.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_released.load(std::memory_order_relaxed),
             released_before);
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed),
             writer_failures_before);
 }
 
@@ -1685,14 +1569,14 @@ TEST_F(DriverTest, TestGatewayWireReadyQueueRejectsMalformedSouthboundJson) {
   session.session_id = "wire-ready-session";
   session.master_fd = -1;
 
-  ASSERT_EQ(gateway_enqueue_session_wire_json_for_test(
-                &session,
-                R"({"type":"output","cid":"wire-ready-session","data":"\u001bXKMSGE{}"})"),
-            1);
+  ASSERT_EQ(
+      gateway_enqueue_session_wire_json_for_test(
+          &session, R"({"type":"output","cid":"wire-ready-session","data":"\u001bXKMSGE{}"})"),
+      1);
   ASSERT_EQ(session.output_fifo.size(), 1u);
   const auto valid_wire = session.output_fifo.front().wire_bytes;
 
-  for (const auto &invalid : {
+  for (const auto& invalid : {
            R"({"cid":"wire-ready-session","data":"frame"})",
            R"({"type":"sys","cid":"wire-ready-session","data":"frame"})",
            R"({"type":"output","cid":"other-session","data":"frame"})",
@@ -1701,8 +1585,7 @@ TEST_F(DriverTest, TestGatewayWireReadyQueueRejectsMalformedSouthboundJson) {
            R"({"type":"output","cid":"wire-ready-session","data":"frame","extra":1})",
            R"(["output","wire-ready-session","frame"])",
        }) {
-    EXPECT_EQ(gateway_enqueue_session_wire_json_for_test(&session, invalid), 0)
-        << invalid;
+    EXPECT_EQ(gateway_enqueue_session_wire_json_for_test(&session, invalid), 0) << invalid;
     EXPECT_EQ(session.output_fifo.size(), 1u) << invalid;
     EXPECT_EQ(session.output_fifo.front().wire_bytes, valid_wire) << invalid;
   }
@@ -1711,12 +1594,12 @@ TEST_F(DriverTest, TestGatewayWireReadyQueueRejectsMalformedSouthboundJson) {
 TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsUnboundRecipientsAtomically) {
   static std::vector<std::string> writes;
   writes.clear();
-  auto writer = [](int, const char *data, size_t len) -> int {
+  auto writer = [](int, const char* data, size_t len) -> int {
     writes.emplace_back(data, len);
     return 1;
   };
 
-  const auto assert_rejected = [&](const std::vector<std::string> &wire_json) {
+  const auto assert_rejected = [&](const std::vector<std::string>& wire_json) {
     GatewaySession first;
     GatewaySession second;
     first.session_id = "projected-first";
@@ -1729,8 +1612,8 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsUnboundRecipientsAtomical
     ASSERT_GT(second_id, 0u);
     writes.clear();
 
-    EXPECT_FALSE(gateway_fill_projected_wires_for_test(
-        {&first, &second}, {first_id, second_id}, wire_json, writer));
+    EXPECT_FALSE(gateway_fill_projected_wires_for_test({&first, &second}, {first_id, second_id},
+                                                       wire_json, writer));
     EXPECT_TRUE(writes.empty());
     ASSERT_EQ(first.output_fifo.size(), 1u);
     ASSERT_EQ(second.output_fifo.size(), 1u);
@@ -1738,10 +1621,10 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsUnboundRecipientsAtomical
     EXPECT_FALSE(second.output_fifo.front().ready);
   };
 
-  const auto first_wire = gateway_encode_output_envelope_for_test(
-      "projected-first", "first-frame", 11);
-  const auto second_wire = gateway_encode_output_envelope_for_test(
-      "projected-second", "second-frame", 12);
+  const auto first_wire =
+      gateway_encode_output_envelope_for_test("projected-first", "first-frame", 11);
+  const auto second_wire =
+      gateway_encode_output_envelope_for_test("projected-second", "second-frame", 12);
   assert_rejected({"not-json", second_wire});
   assert_rejected({second_wire, second_wire});
   assert_rejected({second_wire, first_wire});
@@ -1755,8 +1638,8 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsUnboundRecipientsAtomical
   const auto first_id = gateway_reserve_session_output(&first);
   const auto second_id = gateway_reserve_session_output(&second);
   writes.clear();
-  ASSERT_TRUE(gateway_fill_projected_wires_for_test(
-      {&first, &second}, {first_id, second_id}, {first_wire, second_wire}, writer));
+  ASSERT_TRUE(gateway_fill_projected_wires_for_test({&first, &second}, {first_id, second_id},
+                                                    {first_wire, second_wire}, writer));
   ASSERT_EQ(writes.size(), 2u);
   EXPECT_EQ(nlohmann::json::parse(writes[0])["cid"], "projected-first");
   EXPECT_EQ(nlohmann::json::parse(writes[1])["cid"], "projected-second");
@@ -1765,11 +1648,13 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsUnboundRecipientsAtomical
 TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsOversizeAtomically) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } guard;
   static std::vector<std::string> writes;
   writes.clear();
-  auto writer = [](int, const char *data, size_t len) -> int {
+  auto writer = [](int, const char* data, size_t len) -> int {
     writes.emplace_back(data, len);
     return 1;
   };
@@ -1785,17 +1670,15 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsOversizeAtomically) {
   const auto second_id = gateway_reserve_session_output(&second);
   ASSERT_GT(first_id, 0u);
   ASSERT_GT(second_id, 0u);
-  const auto first_wire = gateway_encode_output_envelope_for_test(
-      first.session_id, "ok", 2);
+  const auto first_wire = gateway_encode_output_envelope_for_test(first.session_id, "ok", 2);
   const std::string oversized_payload(256, 'y');
   const auto second_wire = gateway_encode_output_envelope_for_test(
       second.session_id, oversized_payload.data(), oversized_payload.size());
   ASSERT_LT(first_wire.size(), g_gateway_max_packet_size);
   ASSERT_GT(second_wire.size(), g_gateway_max_packet_size);
 
-  ASSERT_FALSE(gateway_fill_projected_wires_for_test(
-      {&first, &second}, {first_id, second_id}, {first_wire, second_wire},
-      writer));
+  ASSERT_FALSE(gateway_fill_projected_wires_for_test({&first, &second}, {first_id, second_id},
+                                                     {first_wire, second_wire}, writer));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(first.output_fifo.size(), 1u);
   ASSERT_EQ(second.output_fifo.size(), 1u);
@@ -1805,11 +1688,10 @@ TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsOversizeAtomically) {
   ASSERT_TRUE(second.output_fifo.front().wire_bytes.empty());
 }
 
-TEST_F(DriverTest,
-       TestGatewayProjectedWireBatchRejectsWireByteLimitAtomically) {
+TEST_F(DriverTest, TestGatewayProjectedWireBatchRejectsWireByteLimitAtomically) {
   static std::vector<std::string> writes;
   writes.clear();
-  auto writer = [](int, const char *data, size_t len) -> int {
+  auto writer = [](int, const char* data, size_t len) -> int {
     writes.emplace_back(data, len);
     return 1;
   };
@@ -1820,25 +1702,20 @@ TEST_F(DriverTest,
   second.session_id = "projected-byte-second";
   first.master_fd = -1;
   second.master_fd = 82;
-  const auto retained_wire = gateway_encode_output_envelope_for_test(
-      first.session_id, "retained", 8);
+  const auto retained_wire =
+      gateway_encode_output_envelope_for_test(first.session_id, "retained", 8);
   first.output_fifo_max_wire_bytes = retained_wire.size();
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &first, "retained", 8),
-            1);
+  ASSERT_EQ(gateway_enqueue_session_protocol_output(&first, "retained", 8), 1);
   const auto first_id = gateway_reserve_session_output(&first);
   const auto second_id = gateway_reserve_session_output(&second);
   ASSERT_GT(first_id, 0u);
   ASSERT_GT(second_id, 0u);
   first.master_fd = 81;
-  const auto first_wire = gateway_encode_output_envelope_for_test(
-      first.session_id, "first", 5);
-  const auto second_wire = gateway_encode_output_envelope_for_test(
-      second.session_id, "second", 6);
+  const auto first_wire = gateway_encode_output_envelope_for_test(first.session_id, "first", 5);
+  const auto second_wire = gateway_encode_output_envelope_for_test(second.session_id, "second", 6);
 
-  ASSERT_FALSE(gateway_fill_projected_wires_for_test(
-      {&first, &second}, {first_id, second_id}, {first_wire, second_wire},
-      writer));
+  ASSERT_FALSE(gateway_fill_projected_wires_for_test({&first, &second}, {first_id, second_id},
+                                                     {first_wire, second_wire}, writer));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(first.output_fifo.size(), 2u);
   ASSERT_TRUE(first.output_fifo.front().ready);
@@ -1852,35 +1729,30 @@ TEST_F(DriverTest,
 }
 
 TEST_F(DriverTest, TestGatewaySessionSendKeepsHistoricalMixedPayloadSemantics) {
-  const auto assert_payload = [](const std::string &payload_json,
-                                 const nlohmann::json &expected) {
+  const auto assert_payload = [](const std::string& payload_json, const nlohmann::json& expected) {
     GatewaySession session;
     session.session_id = "mixed-session";
     session.master_fd = -1;
-    ASSERT_EQ(gateway_enqueue_session_payload_json_for_test(
-                  &session, payload_json),
-              1);
+    ASSERT_EQ(gateway_enqueue_session_payload_json_for_test(&session, payload_json), 1);
     ASSERT_EQ(session.output_fifo.size(), 1u);
-    EXPECT_EQ(nlohmann::json::parse(session.output_fifo.front().wire_bytes),
-              expected);
+    EXPECT_EQ(nlohmann::json::parse(session.output_fifo.front().wire_bytes), expected);
   };
 
   assert_payload("7", {{"type", "output"}, {"cid", "mixed-session"}, {"data", 7}});
-  assert_payload(R"([1,"two"])",
-                 {{"type", "output"},
-                  {"cid", "mixed-session"},
-                  {"data", nlohmann::json::array({1, "two"})}});
+  assert_payload(
+      R"([1,"two"])",
+      {{"type", "output"}, {"cid", "mixed-session"}, {"data", nlohmann::json::array({1, "two"})}});
   assert_payload(R"({"type":"custom","data":{"answer":42}})",
-                 {{"type", "custom"},
-                  {"cid", "mixed-session"},
-                  {"data", {{"answer", 42}}}});
+                 {{"type", "custom"}, {"cid", "mixed-session"}, {"data", {{"answer", 42}}}});
 }
 
 TEST_F(DriverTest, TestGatewayWriterFailureRetainsOneReadyFrameForExactRetry) {
   static std::vector<std::string> writes;
   writes.clear();
-  auto failing_writer = [](int, const char *, size_t) -> int { return 0; };
-  auto succeeding_writer = [](int, const char *data, size_t len) -> int {
+  auto failing_writer = [](int, const char*, size_t) -> int {
+    return 0;
+  };
+  auto succeeding_writer = [](int, const char* data, size_t len) -> int {
     writes.emplace_back(data, len);
     return 1;
   };
@@ -1891,27 +1763,20 @@ TEST_F(DriverTest, TestGatewayWriterFailureRetainsOneReadyFrameForExactRetry) {
   const auto reservation_id = gateway_reserve_session_output(&session);
   ASSERT_GT(reservation_id, 0u);
   const auto failures_before =
-      g_gateway_runtime_counters.output_fifo_writer_failures.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed);
 
-  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(
-                &session, reservation_id, "retry-frame", 11, failing_writer),
+  ASSERT_EQ(gateway_fill_session_protocol_output_with_writer(&session, reservation_id,
+                                                             "retry-frame", 11, failing_writer),
             1);
   ASSERT_EQ(session.output_fifo.size(), 1u);
   ASSERT_TRUE(session.output_fifo.front().ready);
   ASSERT_EQ(session.output_fifo.front().reservation_id, reservation_id);
-  ASSERT_EQ(session.output_fifo_wire_bytes,
-            session.output_fifo.front().wire_bytes.size());
-  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(session.output_fifo_wire_bytes, session.output_fifo.front().wire_bytes.size());
+  ASSERT_EQ(g_gateway_runtime_counters.output_fifo_writer_failures.load(std::memory_order_relaxed),
             failures_before + 1);
 
-  ASSERT_EQ(gateway_flush_session_output_fifo_with_writer(
-                &session, succeeding_writer),
-            1);
-  ASSERT_EQ(gateway_flush_session_output_fifo_with_writer(
-                &session, succeeding_writer),
-            0);
+  ASSERT_EQ(gateway_flush_session_output_fifo_with_writer(&session, succeeding_writer), 1);
+  ASSERT_EQ(gateway_flush_session_output_fifo_with_writer(&session, succeeding_writer), 0);
   ASSERT_TRUE(session.output_fifo.empty());
   ASSERT_EQ(session.output_fifo_wire_bytes, 0u);
   ASSERT_EQ(writes.size(), 1u);
@@ -1947,8 +1812,7 @@ TEST_F(DriverTest, TestGatewayBatchReservationReusesOnlyPendingTailSlots) {
   ASSERT_GT(first_id, 0u);
 
   GatewaySessionBatchReservationResult result;
-  ASSERT_TRUE(gateway_reserve_session_outputs(
-      {&first, &second}, {first_id, 0}, &result));
+  ASSERT_TRUE(gateway_reserve_session_outputs({&first, &second}, {first_id, 0}, &result));
   ASSERT_EQ(result.reservation_ids.size(), 2u);
   ASSERT_EQ(result.reused, (std::vector<bool>{true, false}));
   ASSERT_EQ(result.reservation_ids[0], first_id);
@@ -1956,12 +1820,11 @@ TEST_F(DriverTest, TestGatewayBatchReservationReusesOnlyPendingTailSlots) {
   ASSERT_EQ(first.output_fifo.size(), 1u);
   ASSERT_EQ(second.output_fifo.size(), 1u);
 
-  ASSERT_EQ(gateway_enqueue_session_protocol_output(
-                &first, "after-pending", sizeof("after-pending") - 1),
-            1);
+  ASSERT_EQ(
+      gateway_enqueue_session_protocol_output(&first, "after-pending", sizeof("after-pending") - 1),
+      1);
   GatewaySessionBatchReservationResult after_intervening;
-  ASSERT_TRUE(gateway_reserve_session_outputs(
-      {&first}, {first_id}, &after_intervening));
+  ASSERT_TRUE(gateway_reserve_session_outputs({&first}, {first_id}, &after_intervening));
   ASSERT_FALSE(after_intervening.reused[0]);
   ASSERT_NE(after_intervening.reservation_ids[0], first_id);
   ASSERT_EQ(first.output_fifo.size(), 3u);
@@ -1977,8 +1840,7 @@ TEST_F(DriverTest, TestGatewayBatchReservationPrevalidatesAllSessions) {
   ASSERT_GT(first_id, 0u);
 
   GatewaySessionBatchReservationResult result;
-  ASSERT_FALSE(gateway_reserve_session_outputs(
-      {&first, &full}, {first_id, 0}, &result));
+  ASSERT_FALSE(gateway_reserve_session_outputs({&first, &full}, {first_id, 0}, &result));
   ASSERT_TRUE(result.reservation_ids.empty());
   ASSERT_TRUE(result.reused.empty());
   ASSERT_EQ(first.output_fifo.size(), 1u);
@@ -1992,8 +1854,7 @@ TEST_F(DriverTest, TestGatewayBatchReservationRejectsDuplicateSessions) {
   session.master_fd = 97;
 
   GatewaySessionBatchReservationResult result;
-  ASSERT_FALSE(gateway_reserve_session_outputs(
-      {&session, &session}, {0, 0}, &result));
+  ASSERT_FALSE(gateway_reserve_session_outputs({&session, &session}, {0, 0}, &result));
   ASSERT_TRUE(result.reservation_ids.empty());
   ASSERT_TRUE(result.reused.empty());
   ASSERT_TRUE(session.output_fifo.empty());
@@ -2011,7 +1872,7 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchAppendsMultipleProducerWav
   ASSERT_GT(first_id, 0u);
   ASSERT_GT(second_id, 0u);
 
-  const std::vector<GatewaySession *> sessions{&first, &second};
+  const std::vector<GatewaySession*> sessions{&first, &second};
   const std::vector<uint64_t> reservation_ids{first_id, second_id};
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
       sessions, reservation_ids, {101, 201}, {102, 202}, {3, 4}, {1001, 2001},
@@ -2045,12 +1906,12 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchAppendsMultipleProducerWav
 
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
-  ASSERT_EQ(gateway_fill_pending_message_event_batch_with_writer(
-                &first, first_id, "player-one", 7, writer),
+  ASSERT_EQ(gateway_fill_pending_message_event_batch_with_writer(&first, first_id, "player-one", 7,
+                                                                 writer),
             1);
   ASSERT_EQ(writes.size(), 1u);
   const auto first_wire = nlohmann::json::parse(writes[0]);
@@ -2063,20 +1924,18 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchAppendsMultipleProducerWav
   ASSERT_LT(first_frame.find("first"), first_frame.find("second"));
   ASSERT_TRUE(first.output_fifo.empty());
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
-  ASSERT_EQ(gateway_fill_pending_message_event_batch_with_writer(
-                &second, second_id, "player-two", 8, writer),
+  ASSERT_EQ(gateway_fill_pending_message_event_batch_with_writer(&second, second_id, "player-two",
+                                                                 8, writer),
             1);
   ASSERT_EQ(writes.size(), 2u);
   const auto second_wire = nlohmann::json::parse(writes[1]);
   ASSERT_EQ(second_wire["type"], "output");
   ASSERT_EQ(second_wire["cid"], "session-two");
   ASSERT_EQ(second_wire["data"].get<std::string>().substr(0, 7), "\x1bXKBACH");
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_hits.load(),
-      cache_hits_after_append);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_misses.load(),
-      cache_misses_after_append);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_hits.load(),
+            cache_hits_after_append);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_misses.load(),
+            cache_misses_after_append);
 }
 
 TEST_F(DriverTest, TestGatewayPendingMessageEventBatchFillsRecipientSliceNatively) {
@@ -2097,36 +1956,33 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchFillsRecipientSliceNativel
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"slice\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&first, &second}, {first_id, second_id}, {101, 201}, {102, 202},
-      {3, 4}, {1001, 2001}, stable, "player", 123456, 128));
+      {&first, &second}, {first_id, second_id}, {101, 201}, {102, 202}, {3, 4}, {1001, 2001},
+      stable, "player", 123456, 128));
 
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
   GatewayPendingMessageEventBatchFillResult result;
 
   ASSERT_FALSE(gateway_fill_pending_message_event_batches_with_writer(
-      {&first, &second}, {first_id, second_id}, {"player-one", ""}, {7, 8},
-      writer, &result));
+      {&first, &second}, {first_id, second_id}, {"player-one", ""}, {7, 8}, writer, &result));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 1u);
   ASSERT_EQ(gateway_pending_message_event_count(&second, second_id), 1u);
 
   const auto inline_cpu_samples_before =
-      g_gateway_runtime_counters
-          .room_output_projection_inline_thread_cpu_samples.load(
-              std::memory_order_relaxed);
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples.load(
+          std::memory_order_relaxed);
   const auto inline_cpu_unavailable_before =
-      g_gateway_runtime_counters
-          .room_output_projection_inline_thread_cpu_unavailable.load(
-              std::memory_order_relaxed);
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_unavailable.load(
+          std::memory_order_relaxed);
 
   ASSERT_TRUE(gateway_fill_pending_message_event_batches_with_writer(
-      {&first, &second}, {first_id, second_id}, {"player-one", "player-two"},
-      {7, 8}, writer, &result));
+      {&first, &second}, {first_id, second_id}, {"player-one", "player-two"}, {7, 8}, writer,
+      &result));
   ASSERT_EQ(result.filled, (std::vector<bool>{true, true}));
   ASSERT_EQ(result.event_counts, (std::vector<LPC_INT>{1, 1}));
   ASSERT_EQ(result.text_length_totals, (std::vector<LPC_INT>{0, 0}));
@@ -2138,21 +1994,16 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchFillsRecipientSliceNativel
   ASSERT_EQ(first_wire["cid"], "session-one");
   ASSERT_EQ(second_wire["type"], "output");
   ASSERT_EQ(second_wire["cid"], "session-two");
-  ASSERT_NE(first_wire["data"].get<std::string>().find("player-one"),
-            std::string::npos);
-  ASSERT_NE(second_wire["data"].get<std::string>().find("player-two"),
-            std::string::npos);
+  ASSERT_NE(first_wire["data"].get<std::string>().find("player-one"), std::string::npos);
+  ASSERT_NE(second_wire["data"].get<std::string>().find("player-two"), std::string::npos);
   const auto inline_cpu_samples_after =
-      g_gateway_runtime_counters
-          .room_output_projection_inline_thread_cpu_samples.load(
-              std::memory_order_relaxed);
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples.load(
+          std::memory_order_relaxed);
   const auto inline_cpu_unavailable_after =
-      g_gateway_runtime_counters
-          .room_output_projection_inline_thread_cpu_unavailable.load(
-              std::memory_order_relaxed);
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_unavailable.load(
+          std::memory_order_relaxed);
   ASSERT_EQ((inline_cpu_samples_after - inline_cpu_samples_before) +
-                (inline_cpu_unavailable_after -
-                 inline_cpu_unavailable_before),
+                (inline_cpu_unavailable_after - inline_cpu_unavailable_before),
             2u);
   ASSERT_TRUE(first.output_fifo.empty());
   ASSERT_TRUE(second.output_fifo.empty());
@@ -2177,25 +2028,24 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventSnapshotProjectsByteEquivalentF
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"second-owner-event\\tend\","
       "\"payload\":{}}";
-  ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {reservation_id}, {901}, {902}, {11}, {7001},
-      first_stable, "player", 123456, 128));
-  ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {reservation_id}, {901}, {904}, {12}, {7002},
-      second_stable, "player", 123457, 128));
+  ASSERT_TRUE(gateway_append_preencoded_message_event_wave({&session}, {reservation_id}, {901},
+                                                           {902}, {11}, {7001}, first_stable,
+                                                           "player", 123456, 128));
+  ASSERT_TRUE(gateway_append_preencoded_message_event_wave({&session}, {reservation_id}, {901},
+                                                           {904}, {12}, {7002}, second_stable,
+                                                           "player", 123457, 128));
 
   GatewayPendingMessageEventProjectionSnapshot snapshot;
   GatewayPendingMessageEventProjectionColumns columns;
   ASSERT_TRUE(gateway_snapshot_pending_message_event_batch(
-      &session, reservation_id, "player-\"owner\\scope", 13, &snapshot,
-      &columns));
+      &session, reservation_id, "player-\"owner\\scope", 13, &snapshot, &columns));
   ASSERT_EQ(snapshot.wave_table.size(), 2u);
   ASSERT_EQ(snapshot.event_wave_indices, (std::vector<size_t>{0, 1}));
-  ASSERT_EQ(snapshot.wave_table[0]->message_template.stable_members.find(
-                "first-owner-event") != std::string::npos,
+  ASSERT_EQ(snapshot.wave_table[0]->message_template.stable_members.find("first-owner-event") !=
+                std::string::npos,
             true);
-  ASSERT_EQ(snapshot.wave_table[1]->message_template.stable_members.find(
-                "second-owner-event") != std::string::npos,
+  ASSERT_EQ(snapshot.wave_table[1]->message_template.stable_members.find("second-owner-event") !=
+                std::string::npos,
             true);
   ASSERT_EQ(columns.session_id, "owner-\"projection\\session");
   ASSERT_EQ(columns.scope_id, "player-\"owner\\scope");
@@ -2207,13 +2057,10 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventSnapshotProjectsByteEquivalentF
   ASSERT_EQ(columns.slot_sent_at, 123456);
 
   std::string owner_projected;
-  ASSERT_TRUE(gateway_encode_pending_message_event_projection(
-      snapshot, columns, &owner_projected));
-  const auto inline_inner =
-      gateway_encode_preencoded_message_event_batch_for_test(
-          {first_stable, second_stable}, {"player", "player"},
-          "player-\"owner\\scope", {7001, 7002}, {902, 904}, {11, 12},
-          {123456, 123457}, 901, 13, 123456);
+  ASSERT_TRUE(gateway_encode_pending_message_event_projection(snapshot, columns, &owner_projected));
+  const auto inline_inner = gateway_encode_preencoded_message_event_batch_for_test(
+      {first_stable, second_stable}, {"player", "player"}, "player-\"owner\\scope", {7001, 7002},
+      {902, 904}, {11, 12}, {123456, 123457}, 901, 13, 123456);
   ASSERT_FALSE(inline_inner.empty());
   const auto inline_projected = gateway_encode_output_envelope_for_test(
       session.session_id, inline_inner.data(), inline_inner.size());
@@ -2226,11 +2073,10 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventSnapshotProjectsByteEquivalentF
   ASSERT_FALSE(session.output_fifo.front().ready);
 }
 
-TEST_F(DriverTest,
-       TestGatewayLocalProjectionSkipsFullValidationWhileUntrustedWireKeepsIt) {
+TEST_F(DriverTest, TestGatewayLocalProjectionSkipsFullValidationWhileUntrustedWireKeepsIt) {
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
@@ -2245,9 +2091,8 @@ TEST_F(DriverTest,
       "\"priority\":\"low\",\"reliability\":\"important\","
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"local-projection\",\"payload\":{}}";
-  ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&local}, {local_id}, {101}, {102}, {3}, {1001}, stable, "player",
-      123456, 128));
+  ASSERT_TRUE(gateway_append_preencoded_message_event_wave({&local}, {local_id}, {101}, {102}, {3},
+                                                           {1001}, stable, "player", 123456, 128));
 
   gateway_reset_projected_wire_full_validation_count_for_test();
   GatewayPendingMessageEventBatchFillResult result;
@@ -2261,18 +2106,18 @@ TEST_F(DriverTest,
   untrusted.master_fd = 121;
   const auto valid_id = gateway_reserve_session_output(&untrusted);
   ASSERT_GT(valid_id, 0u);
-  const auto valid_wire = gateway_encode_output_envelope_for_test(
-      untrusted.session_id, "validated", 9);
-  ASSERT_TRUE(gateway_fill_projected_wires_for_test(
-      {&untrusted}, {valid_id}, {valid_wire}, writer));
+  const auto valid_wire =
+      gateway_encode_output_envelope_for_test(untrusted.session_id, "validated", 9);
+  ASSERT_TRUE(
+      gateway_fill_projected_wires_for_test({&untrusted}, {valid_id}, {valid_wire}, writer));
   EXPECT_EQ(gateway_projected_wire_full_validation_count_for_test(), 1u);
 
   const auto invalid_id = gateway_reserve_session_output(&untrusted);
   ASSERT_GT(invalid_id, 0u);
-  const auto wrong_session_wire = gateway_encode_output_envelope_for_test(
-      "wrong-session", "rejected", 8);
-  ASSERT_FALSE(gateway_fill_projected_wires_for_test(
-      {&untrusted}, {invalid_id}, {wrong_session_wire}, writer));
+  const auto wrong_session_wire =
+      gateway_encode_output_envelope_for_test("wrong-session", "rejected", 8);
+  ASSERT_FALSE(gateway_fill_projected_wires_for_test({&untrusted}, {invalid_id},
+                                                     {wrong_session_wire}, writer));
   EXPECT_EQ(gateway_projected_wire_full_validation_count_for_test(), 2u);
   ASSERT_EQ(untrusted.output_fifo.size(), 1u);
   EXPECT_FALSE(untrusted.output_fifo.front().ready);
@@ -2296,20 +2141,20 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchPreencodesEveryWireBeforeF
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"atomic-wire\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&first, &invalid}, {first_id, invalid_id}, {101, 201}, {102, 202},
-      {3, 4}, {1001, 2001}, stable, "player", 123456, 128));
+      {&first, &invalid}, {first_id, invalid_id}, {101, 201}, {102, 202}, {3, 4}, {1001, 2001},
+      stable, "player", 123456, 128));
 
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
   GatewayPendingMessageEventBatchFillResult result;
 
   ASSERT_FALSE(gateway_fill_pending_message_event_batches_with_writer(
-      {&first, &invalid}, {first_id, invalid_id}, {"player-one", "player-two"},
-      {7, 8}, writer, &result));
+      {&first, &invalid}, {first_id, invalid_id}, {"player-one", "player-two"}, {7, 8}, writer,
+      &result));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 1u);
   ASSERT_EQ(gateway_pending_message_event_count(&invalid, invalid_id), 1u);
@@ -2337,34 +2182,28 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchFillsTwoSlotsForSameSessio
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"second-slot\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {first_id}, {501}, {502}, {7}, {5001}, first_stable,
-      "player", 123456, 128));
+      {&session}, {first_id}, {501}, {502}, {7}, {5001}, first_stable, "player", 123456, 128));
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {second_id}, {503}, {504}, {7}, {5002}, second_stable,
-      "player", 123457, 128));
+      {&session}, {second_id}, {503}, {504}, {7}, {5002}, second_stable, "player", 123457, 128));
 
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
   GatewayPendingMessageEventBatchFillResult result;
   ASSERT_TRUE(gateway_fill_pending_message_event_batches_with_writer(
-      {&session, &session}, {second_id, first_id},
-      {"player-one", "player-one"}, {9, 9}, writer, &result));
+      {&session, &session}, {second_id, first_id}, {"player-one", "player-one"}, {9, 9}, writer,
+      &result));
   ASSERT_EQ(result.filled, (std::vector<bool>{true, true}));
   ASSERT_EQ(writes.size(), 2u);
   const auto first_wire = nlohmann::json::parse(writes[0]);
   const auto second_wire = nlohmann::json::parse(writes[1]);
-  const auto expected_first_frame =
-      gateway_encode_preencoded_message_event_batch_for_test(
-          {first_stable}, {"player"}, "player-one", {5001}, {502}, {7},
-          {123456}, 501, 9, 123456);
-  const auto expected_second_frame =
-      gateway_encode_preencoded_message_event_batch_for_test(
-          {second_stable}, {"player"}, "player-one", {5002}, {504}, {7},
-          {123457}, 503, 9, 123457);
+  const auto expected_first_frame = gateway_encode_preencoded_message_event_batch_for_test(
+      {first_stable}, {"player"}, "player-one", {5001}, {502}, {7}, {123456}, 501, 9, 123456);
+  const auto expected_second_frame = gateway_encode_preencoded_message_event_batch_for_test(
+      {second_stable}, {"player"}, "player-one", {5002}, {504}, {7}, {123457}, 503, 9, 123457);
   ASSERT_EQ(first_wire["type"], "output");
   ASSERT_EQ(first_wire["cid"], "same-session");
   ASSERT_EQ(first_wire["data"].get<std::string>(), expected_first_frame);
@@ -2389,30 +2228,28 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchSameSessionFailureWritesNo
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"atomic-slot\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {first_id}, {601}, {602}, {8}, {6001}, stable, "player",
-      123456, 128));
+      {&session}, {first_id}, {601}, {602}, {8}, {6001}, stable, "player", 123456, 128));
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {second_id}, {603}, {604}, {8}, {6002}, stable, "player",
-      123457, 128));
+      {&session}, {second_id}, {603}, {604}, {8}, {6002}, stable, "player", 123457, 128));
 
   static std::vector<std::string> writes;
   writes.clear();
-  const auto writer = [](int, const char *data, size_t len) {
+  const auto writer = [](int, const char* data, size_t len) {
     writes.emplace_back(data, len);
     return 1;
   };
   const std::string invalid_scope("invalid-\xc3\x28", 10);
   GatewayPendingMessageEventBatchFillResult result;
   ASSERT_FALSE(gateway_fill_pending_message_event_batches_with_writer(
-      {&session, &session}, {first_id, first_id},
-      {"player-one", "player-one"}, {10, 10}, writer, &result));
+      {&session, &session}, {first_id, first_id}, {"player-one", "player-one"}, {10, 10}, writer,
+      &result));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(gateway_pending_message_event_count(&session, first_id), 1u);
   ASSERT_EQ(gateway_pending_message_event_count(&session, second_id), 1u);
 
   ASSERT_FALSE(gateway_fill_pending_message_event_batches_with_writer(
-      {&session, &session}, {first_id, second_id},
-      {"player-one", invalid_scope}, {10, 10}, writer, &result));
+      {&session, &session}, {first_id, second_id}, {"player-one", invalid_scope}, {10, 10}, writer,
+      &result));
   ASSERT_TRUE(writes.empty());
   ASSERT_EQ(gateway_pending_message_event_count(&session, first_id), 1u);
   ASSERT_EQ(gateway_pending_message_event_count(&session, second_id), 1u);
@@ -2420,8 +2257,7 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchSameSessionFailureWritesNo
   ASSERT_FALSE(session.output_fifo[1].ready);
 }
 
-TEST_F(DriverTest,
-       TestGatewayPendingMessageEventBatchStagesWholeWaveBeforeFirstWrite) {
+TEST_F(DriverTest, TestGatewayPendingMessageEventBatchStagesWholeWaveBeforeFirstWrite) {
   GatewaySession first;
   GatewaySession second;
   first.session_id = "session-one";
@@ -2439,10 +2275,10 @@ TEST_F(DriverTest,
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"partial\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&first, &second}, {first_id, second_id}, {301, 401}, {302, 402},
-      {5, 6}, {3001, 4001}, stable, "player", 123456, 128));
+      {&first, &second}, {first_id, second_id}, {301, 401}, {302, 402}, {5, 6}, {3001, 4001},
+      stable, "player", 123456, 128));
 
-  static GatewaySession *session_to_release = nullptr;
+  static GatewaySession* session_to_release = nullptr;
   static uint64_t reservation_to_release = 0;
   static bool release_on_first_write = false;
   static int release_result = -1;
@@ -2452,20 +2288,19 @@ TEST_F(DriverTest,
   release_on_first_write = true;
   release_result = -1;
   writes = 0;
-  const auto writer = [](int, const char *, size_t) {
+  const auto writer = [](int, const char*, size_t) {
     ++writes;
     if (release_on_first_write) {
       release_on_first_write = false;
-      release_result = gateway_release_session_output(
-          session_to_release, reservation_to_release);
+      release_result = gateway_release_session_output(session_to_release, reservation_to_release);
     }
     return 1;
   };
   GatewayPendingMessageEventBatchFillResult result;
 
   ASSERT_TRUE(gateway_fill_pending_message_event_batches_with_writer(
-      {&first, &second}, {first_id, second_id}, {"player-one", "player-two"},
-      {9, 10}, writer, &result));
+      {&first, &second}, {first_id, second_id}, {"player-one", "player-two"}, {9, 10}, writer,
+      &result));
   ASSERT_EQ(result.filled, (std::vector<bool>{true, true}));
   ASSERT_EQ(result.event_counts, (std::vector<LPC_INT>{1, 1}));
   ASSERT_EQ(result.slot_server_seqs, (std::vector<LPC_INT>{301, 401}));
@@ -2486,17 +2321,14 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchRejectsWaveAtomically) {
   ASSERT_GT(second_id, 0u);
 
   ASSERT_FALSE(gateway_append_preencoded_message_event_wave(
-      {&first, &second}, {first_id, second_id + 1}, {101, 201}, {102, 202},
-      {3, 4}, {1001, 2001},
-      "{\"schema_version\":1,\"text\":\"valid\"}", "player", 123456,
-      128));
+      {&first, &second}, {first_id, second_id + 1}, {101, 201}, {102, 202}, {3, 4}, {1001, 2001},
+      "{\"schema_version\":1,\"text\":\"valid\"}", "player", 123456, 128));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
   ASSERT_EQ(gateway_pending_message_event_count(&second, second_id), 0u);
 
   ASSERT_FALSE(gateway_append_preencoded_message_event_wave(
-      {&first, &second}, {first_id, second_id}, {101, 201}, {102, 202}, {3, 4},
-      {1001, 2001}, "{\"schema_version\":1,\"text\":", "player", 123456,
-      128));
+      {&first, &second}, {first_id, second_id}, {101, 201}, {102, 202}, {3, 4}, {1001, 2001},
+      "{\"schema_version\":1,\"text\":", "player", 123456, 128));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
   ASSERT_EQ(gateway_pending_message_event_count(&second, second_id), 0u);
 }
@@ -2512,15 +2344,14 @@ TEST_F(DriverTest, TestGatewayPendingMessageEventBatchHonorsLimitAndRelease) {
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"limited\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&session}, {reservation_id}, {101}, {102}, {3}, {1001}, stable, "player",
-      123456, 1));
+      {&session}, {reservation_id}, {101}, {102}, {3}, {1001}, stable, "player", 123456, 1));
   ASSERT_FALSE(gateway_append_preencoded_message_event_wave(
-      {&session}, {reservation_id}, {103}, {104}, {3}, {1001}, stable, "player",
-      123457, 1));
+      {&session}, {reservation_id}, {103}, {104}, {3}, {1001}, stable, "player", 123457, 1));
   ASSERT_EQ(gateway_pending_message_event_count(&session, reservation_id), 1u);
-  ASSERT_EQ(gateway_release_session_output_with_writer(
-                &session, reservation_id,
-                [](int, const char *, size_t) -> int { return 1; }),
+  ASSERT_EQ(gateway_release_session_output_with_writer(&session, reservation_id,
+                                                       [](int, const char*, size_t) -> int {
+                                                         return 1;
+                                                       }),
             1);
   ASSERT_EQ(gateway_pending_message_event_count(&session, reservation_id), 0u);
   ASSERT_TRUE(session.output_fifo.empty());
@@ -2541,30 +2372,26 @@ TEST_F(DriverTest, TestGatewayReserveAndAppendWaveRollsBackOnlyNewWork) {
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"wave\",\"payload\":{}}";
   ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&reused_session}, {existing_id}, {101}, {102}, {3}, {1001}, stable,
-      "player", 123456, 128));
+      {&reused_session}, {existing_id}, {101}, {102}, {3}, {1001}, stable, "player", 123456, 128));
 
   GatewaySessionBatchReservationResult result;
   ASSERT_TRUE(gateway_reserve_and_append_preencoded_message_event_wave(
-      {&reused_session, &new_session}, {existing_id, 0}, 103,
-      {3, 4}, {1002, 2001}, stable, "player", 123457, 128,
-      &result));
+      {&reused_session, &new_session}, {existing_id, 0}, 103, {3, 4}, {1002, 2001}, stable,
+      "player", 123457, 128, &result));
   ASSERT_EQ(result.reused, (std::vector<bool>{true, false}));
   ASSERT_GT(result.wave_id, 0u);
   ASSERT_EQ(gateway_pending_message_event_count(&reused_session, existing_id), 2u);
   ASSERT_EQ(new_session.output_fifo.size(), 1u);
-  ASSERT_EQ(reused_session.output_fifo.front()
-                .pending_message_batch->events.back().server_seq,
+  ASSERT_EQ(reused_session.output_fifo.front().pending_message_batch->events.back().server_seq,
             104);
-  ASSERT_EQ(new_session.output_fifo.front().pending_message_batch->slot_server_seq,
-            105);
-  ASSERT_EQ(new_session.output_fifo.front()
-                .pending_message_batch->events.front().server_seq,
-            106);
+  ASSERT_EQ(new_session.output_fifo.front().pending_message_batch->slot_server_seq, 105);
+  ASSERT_EQ(new_session.output_fifo.front().pending_message_batch->events.front().server_seq, 106);
 
   ASSERT_TRUE(gateway_rollback_preencoded_message_event_wave_with_writer(
-      {&reused_session, &new_session}, result.reservation_ids, result.reused,
-      result.wave_id, [](int, const char *, size_t) -> int { return 1; }));
+      {&reused_session, &new_session}, result.reservation_ids, result.reused, result.wave_id,
+      [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_EQ(gateway_pending_message_event_count(&reused_session, existing_id), 1u);
   ASSERT_TRUE(new_session.output_fifo.empty());
 
@@ -2572,7 +2399,7 @@ TEST_F(DriverTest, TestGatewayReserveAndAppendWaveRollsBackOnlyNewWork) {
   writes.clear();
   ASSERT_EQ(gateway_fill_pending_message_event_batch_with_writer(
                 &reused_session, existing_id, "player-one", 7,
-                [](int, const char *data, size_t len) {
+                [](int, const char* data, size_t len) {
                   writes.emplace_back(data, len);
                   return 1;
                 }),
@@ -2600,44 +2427,44 @@ TEST_F(DriverTest, TestGatewayWaveRollbackRejectsWrongIdentityAtomically) {
       "\"priority\":\"low\",\"reliability\":\"important\","
       "\"display_mode\":\"instant\",\"ttl_ms\":30000,"
       "\"collapse_key\":\"\",\"text\":\"identity\",\"payload\":{}}";
-  ASSERT_TRUE(gateway_append_preencoded_message_event_wave(
-      {&first}, {first_id}, {101}, {102}, {3}, {1001}, stable, "player",
-      123456, 128));
+  ASSERT_TRUE(gateway_append_preencoded_message_event_wave({&first}, {first_id}, {101}, {102}, {3},
+                                                           {1001}, stable, "player", 123456, 128));
 
   GatewaySessionBatchReservationResult result;
   ASSERT_TRUE(gateway_reserve_and_append_preencoded_message_event_wave(
-      {&first, &second}, {first_id, 0}, 103, {3, 4},
-      {1002, 2001}, stable, "player", 123457, 128, &result));
+      {&first, &second}, {first_id, 0}, 103, {3, 4}, {1002, 2001}, stable, "player", 123457, 128,
+      &result));
   ASSERT_EQ(result.reused, (std::vector<bool>{true, false}));
 
   ASSERT_FALSE(gateway_rollback_preencoded_message_event_wave_with_writer(
       {&first, &second}, result.reservation_ids, {true, true}, result.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
+      [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 2u);
-  ASSERT_EQ(gateway_pending_message_event_count(
-                &second, result.reservation_ids[1]),
-            1u);
+  ASSERT_EQ(gateway_pending_message_event_count(&second, result.reservation_ids[1]), 1u);
 
   ASSERT_FALSE(gateway_rollback_preencoded_message_event_wave_with_writer(
-      {&first, &second}, result.reservation_ids, result.reused,
-      result.wave_id + 1,
-      [](int, const char *, size_t) -> int { return 1; }));
+      {&first, &second}, result.reservation_ids, result.reused, result.wave_id + 1,
+      [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 2u);
-  ASSERT_EQ(gateway_pending_message_event_count(
-                &second, result.reservation_ids[1]),
-            1u);
+  ASSERT_EQ(gateway_pending_message_event_count(&second, result.reservation_ids[1]), 1u);
 
   ASSERT_FALSE(gateway_rollback_preencoded_message_event_wave_with_writer(
       {&first, &first}, {first_id, first_id}, {true, true}, result.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
+      [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 2u);
-  ASSERT_EQ(gateway_pending_message_event_count(
-                &second, result.reservation_ids[1]),
-            1u);
+  ASSERT_EQ(gateway_pending_message_event_count(&second, result.reservation_ids[1]), 1u);
 
   ASSERT_TRUE(gateway_rollback_preencoded_message_event_wave_with_writer(
       {&first, &second}, result.reservation_ids, result.reused, result.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
+      [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 1u);
   ASSERT_TRUE(second.output_fifo.empty());
 }
@@ -2658,8 +2485,8 @@ TEST_F(DriverTest, TestGatewayReserveAndAppendWaveFailuresLeaveNoNewSlots) {
   GatewaySessionBatchReservationResult result;
 
   ASSERT_FALSE(gateway_reserve_and_append_preencoded_message_event_wave(
-      {&first, &full}, {first_id, 0}, 101, {3, 4},
-      {1001, 2001}, stable, "player", 123456, 128, &result));
+      {&first, &full}, {first_id, 0}, 101, {3, 4}, {1001, 2001}, stable, "player", 123456, 128,
+      &result));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
   ASSERT_EQ(first.output_fifo.size(), 1u);
   ASSERT_TRUE(full.output_fifo.empty());
@@ -2670,8 +2497,8 @@ TEST_F(DriverTest, TestGatewayReserveAndAppendWaveFailuresLeaveNoNewSlots) {
   result.reused = {true};
   result.wave_id = 999;
   ASSERT_FALSE(gateway_reserve_and_append_preencoded_message_event_wave(
-      {&first}, {first_id}, std::numeric_limits<LPC_INT>::max(), {3}, {1001},
-      stable, "player", 123456, 128, &result));
+      {&first}, {first_id}, std::numeric_limits<LPC_INT>::max(), {3}, {1001}, stable, "player",
+      123456, 128, &result));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
   ASSERT_EQ(first.output_fifo.size(), 1u);
   ASSERT_TRUE(result.reservation_ids.empty());
@@ -2682,9 +2509,8 @@ TEST_F(DriverTest, TestGatewayReserveAndAppendWaveFailuresLeaveNoNewSlots) {
   result.reused = {true};
   result.wave_id = 999;
   ASSERT_FALSE(gateway_reserve_and_append_preencoded_message_event_wave(
-      {&first}, {first_id}, 101, {3}, {1001},
-      "{\"schema_version\":1,\"text\":", "player", 123456, 128,
-      &result));
+      {&first}, {first_id}, 101, {3}, {1001}, "{\"schema_version\":1,\"text\":", "player", 123456,
+      128, &result));
   ASSERT_EQ(gateway_pending_message_event_count(&first, first_id), 0u);
   ASSERT_EQ(first.output_fifo.size(), 1u);
   ASSERT_TRUE(result.reservation_ids.empty());
@@ -2706,12 +2532,10 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveReturnsOnlySparseBookkeeping) {
   GatewaySessionCompactMessageEventWaveResult first_wave;
 
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&first, &second}, 101, {3, 4}, {1001, 2001}, stable, "player",
-      123456, 2, 7, &first_wave));
+      {&first, &second}, 101, {3, 4}, {1001, 2001}, stable, "player", 123456, 2, 7, &first_wave));
   ASSERT_EQ(first_wave.created_indices, (std::vector<size_t>{0, 1}));
   ASSERT_EQ(first_wave.created_reservation_ids.size(), 2u);
-  ASSERT_EQ(first_wave.created_slot_server_seqs,
-            (std::vector<LPC_INT>{101, 103}));
+  ASSERT_EQ(first_wave.created_slot_server_seqs, (std::vector<LPC_INT>{101, 103}));
   ASSERT_TRUE(first_wave.full_indices.empty());
   ASSERT_EQ(first_wave.reused_count, 0u);
   ASSERT_GT(first_wave.wave_id, 0u);
@@ -2720,15 +2544,14 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveReturnsOnlySparseBookkeeping) {
   // has committed the sparse registration result.
   GatewaySessionCompactMessageEventWaveResult uncommitted_wave;
   ASSERT_FALSE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&first, &second}, 105, {3, 4}, {1002, 2002}, stable, "player",
-      123457, 2, 7, &uncommitted_wave));
-  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave(
-      {&first, &second}, first_wave.wave_id));
+      {&first, &second}, 105, {3, 4}, {1002, 2002}, stable, "player", 123457, 2, 7,
+      &uncommitted_wave));
+  ASSERT_TRUE(
+      gateway_commit_compact_preencoded_message_event_wave({&first, &second}, first_wave.wave_id));
 
   GatewaySessionCompactMessageEventWaveResult reused_wave;
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&first, &second}, 105, {3, 4}, {1002, 2002}, stable, "player",
-      123457, 2, 11, &reused_wave));
+      {&first, &second}, 105, {3, 4}, {1002, 2002}, stable, "player", 123457, 2, 11, &reused_wave));
   ASSERT_TRUE(reused_wave.created_indices.empty());
   ASSERT_TRUE(reused_wave.created_reservation_ids.empty());
   ASSERT_TRUE(reused_wave.created_slot_server_seqs.empty());
@@ -2745,8 +2568,9 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveReturnsOnlySparseBookkeeping) {
   ASSERT_GE(status.last_append_at_ns, status.created_at_ns);
 
   ASSERT_TRUE(gateway_rollback_compact_preencoded_message_event_wave_with_writer(
-      {&first, &second}, reused_wave.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
+      {&first, &second}, reused_wave.wave_id, [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_TRUE(gateway_pending_message_event_batch_status(
       &first, first_wave.created_reservation_ids[0], &status));
   ASSERT_EQ(status.event_count, 1u);
@@ -2756,8 +2580,7 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveReturnsOnlySparseBookkeeping) {
   ASSERT_EQ(second.output_fifo.size(), 1u);
 }
 
-TEST_F(DriverTest,
-       TestGatewayPendingMessageEventBatchFillReturnsAuthoritativeTotals) {
+TEST_F(DriverTest, TestGatewayPendingMessageEventBatchFillReturnsAuthoritativeTotals) {
   GatewaySession session;
   session.session_id = "native-fill-totals";
   session.master_fd = 115;
@@ -2768,24 +2591,24 @@ TEST_F(DriverTest,
       "\"collapse_key\":\"\",\"text\":\"totals\",\"payload\":{}}";
   GatewaySessionCompactMessageEventWaveResult first_wave;
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&session}, 101, {3}, {1001}, stable, "player", 123456, 128, 7,
-      &first_wave));
-  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave(
-      {&session}, first_wave.wave_id));
+      {&session}, 101, {3}, {1001}, stable, "player", 123456, 128, 7, &first_wave));
+  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave({&session}, first_wave.wave_id));
 
   GatewaySessionCompactMessageEventWaveResult second_wave;
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&session}, 103, {3}, {1002}, stable, "player", 123457, 128, 11,
-      &second_wave));
+      {&session}, 103, {3}, {1002}, stable, "player", 123457, 128, 11, &second_wave));
   ASSERT_TRUE(second_wave.created_indices.empty());
   ASSERT_EQ(second_wave.reused_count, 1u);
-  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave(
-      {&session}, second_wave.wave_id));
+  ASSERT_TRUE(
+      gateway_commit_compact_preencoded_message_event_wave({&session}, second_wave.wave_id));
 
   GatewayPendingMessageEventBatchFillResult result;
   ASSERT_TRUE(gateway_fill_pending_message_event_batches_with_writer(
-      {&session}, {first_wave.created_reservation_ids[0]}, {"player-one"},
-      {9}, [](int, const char *, size_t) -> int { return 1; }, &result));
+      {&session}, {first_wave.created_reservation_ids[0]}, {"player-one"}, {9},
+      [](int, const char*, size_t) -> int {
+        return 1;
+      },
+      &result));
   ASSERT_EQ(result.filled, (std::vector<bool>{true}));
   ASSERT_EQ(result.event_counts, (std::vector<LPC_INT>{2}));
   ASSERT_EQ(result.text_length_totals, (std::vector<LPC_INT>{18}));
@@ -2808,23 +2631,23 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveRollsBackUncommittedCreatedSlots) {
   GatewaySessionCompactMessageEventWaveResult wave;
 
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&first, &second}, 201, {7, 8}, {3001, 4001}, stable, "player",
-      223456, 128, 7, &wave));
+      {&first, &second}, 201, {7, 8}, {3001, 4001}, stable, "player", 223456, 128, 7, &wave));
   ASSERT_EQ(wave.created_indices, (std::vector<size_t>{0, 1}));
   ASSERT_EQ(wave.reused_count, 0u);
 
   GatewayPendingMessageEventBatchStatus status;
-  ASSERT_TRUE(gateway_pending_message_event_batch_status(
-      &first, wave.created_reservation_ids[0], &status));
+  ASSERT_TRUE(
+      gateway_pending_message_event_batch_status(&first, wave.created_reservation_ids[0], &status));
   ASSERT_FALSE(status.registered);
   ASSERT_EQ(status.event_count, 1u);
   ASSERT_TRUE(gateway_rollback_compact_preencoded_message_event_wave_with_writer(
-      {&first, &second}, wave.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
+      {&first, &second}, wave.wave_id, [](int, const char*, size_t) -> int {
+        return 1;
+      }));
   ASSERT_TRUE(first.output_fifo.empty());
   ASSERT_TRUE(second.output_fifo.empty());
-  ASSERT_FALSE(gateway_pending_message_event_batch_status(
-      &first, wave.created_reservation_ids[0], &status));
+  ASSERT_FALSE(
+      gateway_pending_message_event_batch_status(&first, wave.created_reservation_ids[0], &status));
   ASSERT_EQ(status.event_count, 0u);
   ASSERT_FALSE(status.registered);
 }
@@ -2843,39 +2666,38 @@ TEST_F(DriverTest, TestGatewayCompactRoomWaveMixedRollbackIsAtomic) {
       "\"collapse_key\":\"\",\"text\":\"mixed\",\"payload\":{}}";
   GatewaySessionCompactMessageEventWaveResult base;
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&reused}, 301, {9}, {5001}, stable, "player", 323456, 2, 5,
-      &base));
-  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave(
-      {&reused}, base.wave_id));
+      {&reused}, 301, {9}, {5001}, stable, "player", 323456, 2, 5, &base));
+  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave({&reused}, base.wave_id));
 
   GatewaySessionCompactMessageEventWaveResult mixed;
   ASSERT_TRUE(gateway_reserve_and_append_compact_preencoded_message_event_wave(
-      {&reused, &created}, 303, {9, 10}, {5002, 6001}, stable, "player",
-      323457, 2, 6, &mixed));
+      {&reused, &created}, 303, {9, 10}, {5002, 6001}, stable, "player", 323457, 2, 6, &mixed));
   ASSERT_EQ(mixed.created_indices, (std::vector<size_t>{1}));
   ASSERT_EQ(mixed.created_slot_server_seqs, (std::vector<LPC_INT>{305}));
   ASSERT_EQ(mixed.full_indices, (std::vector<size_t>{0}));
   ASSERT_EQ(mixed.reused_count, 1u);
 
   GatewayPendingMessageEventBatchStatus status;
-  ASSERT_FALSE(gateway_commit_compact_preencoded_message_event_wave(
-      {&reused, &created}, mixed.wave_id + 1));
+  ASSERT_FALSE(
+      gateway_commit_compact_preencoded_message_event_wave({&reused, &created}, mixed.wave_id + 1));
   ASSERT_FALSE(gateway_rollback_compact_preencoded_message_event_wave_with_writer(
-      {&reused, &created}, mixed.wave_id + 1,
-      [](int, const char *, size_t) -> int { return 1; }));
-  ASSERT_TRUE(gateway_pending_message_event_batch_status(
-      &reused, base.created_reservation_ids[0], &status));
+      {&reused, &created}, mixed.wave_id + 1, [](int, const char*, size_t) -> int {
+        return 1;
+      }));
+  ASSERT_TRUE(gateway_pending_message_event_batch_status(&reused, base.created_reservation_ids[0],
+                                                         &status));
   ASSERT_EQ(status.event_count, 2u);
   ASSERT_EQ(status.text_length_total, 11u);
   ASSERT_EQ(created.output_fifo.size(), 1u);
 
-  ASSERT_TRUE(gateway_commit_compact_preencoded_message_event_wave(
-      {&reused, &created}, mixed.wave_id));
+  ASSERT_TRUE(
+      gateway_commit_compact_preencoded_message_event_wave({&reused, &created}, mixed.wave_id));
   ASSERT_TRUE(gateway_rollback_compact_preencoded_message_event_wave_with_writer(
-      {&reused, &created}, mixed.wave_id,
-      [](int, const char *, size_t) -> int { return 1; }));
-  ASSERT_TRUE(gateway_pending_message_event_batch_status(
-      &reused, base.created_reservation_ids[0], &status));
+      {&reused, &created}, mixed.wave_id, [](int, const char*, size_t) -> int {
+        return 1;
+      }));
+  ASSERT_TRUE(gateway_pending_message_event_batch_status(&reused, base.created_reservation_ids[0],
+                                                         &status));
   ASSERT_EQ(status.event_count, 1u);
   ASSERT_EQ(status.text_length_total, 5u);
   ASSERT_TRUE(status.registered);
@@ -2890,51 +2712,41 @@ TEST_F(DriverTest, TestGatewayPreencodedChatBatchBuilderKeepsStableAndDynamicBou
       "{\"content\":\"第二条\",\"direction\":\"incoming\"}",
   };
   const auto frame = gateway_encode_preencoded_chat_batch_for_test(
-      stable_children, 7, 101, 123456,
-      "{\"meta\":{\"server_seq\":100,\"stream\":\"message\"}}");
+      stable_children, 7, 101, 123456, "{\"meta\":{\"server_seq\":100,\"stream\":\"message\"}}");
 
-  ASSERT_EQ(
-      frame,
-      "\x1bXKBACH{\"messages\":[{\"type\":\"CHAT\",\"payload\":{\"content\":\"first\","
-      "\"direction\":\"incoming\",\"meta\":{\"stream\":\"message\",\"server_seq\":101,"
-      "\"sent_at\":123456,\"priority\":\"normal\",\"epoch\":7,"
-      "\"reliability\":\"important\"}}},{\"type\":\"CHAT\",\"payload\":{"
-      "\"content\":\"第二条\",\"direction\":\"incoming\",\"meta\":{\"stream\":\"message\","
-      "\"server_seq\":102,\"sent_at\":123456,\"priority\":\"normal\",\"epoch\":7,"
-      "\"reliability\":\"important\"}}}],\"meta\":{\"server_seq\":100,"
-      "\"stream\":\"message\"}}\x1b\n");
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  {"[]"}, 7, 101, 123456, "{\"meta\":{}}")
+  ASSERT_EQ(frame,
+            "\x1bXKBACH{\"messages\":[{\"type\":\"CHAT\",\"payload\":{\"content\":\"first\","
+            "\"direction\":\"incoming\",\"meta\":{\"stream\":\"message\",\"server_seq\":101,"
+            "\"sent_at\":123456,\"priority\":\"normal\",\"epoch\":7,"
+            "\"reliability\":\"important\"}}},{\"type\":\"CHAT\",\"payload\":{"
+            "\"content\":\"第二条\",\"direction\":\"incoming\",\"meta\":{\"stream\":\"message\","
+            "\"server_seq\":102,\"sent_at\":123456,\"priority\":\"normal\",\"epoch\":7,"
+            "\"reliability\":\"important\"}}}],\"meta\":{\"server_seq\":100,"
+            "\"stream\":\"message\"}}\x1b\n");
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test({"[]"}, 7, 101, 123456, "{\"meta\":{}}")
+                  .empty());
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(stable_children, -1, 101, 123456,
+                                                            "{\"meta\":{}}")
                   .empty());
   ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, -1, 101, 123456, "{\"meta\":{}}")
+                  stable_children, 7, std::numeric_limits<LPC_INT>::max(), 123456, "{\"meta\":{}}")
                   .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, 7, std::numeric_limits<LPC_INT>::max(),
-                  123456, "{\"meta\":{}}")
+  ASSERT_TRUE(
+      gateway_encode_preencoded_chat_batch_for_test(stable_children, 7, 101, 123456, "[]").empty());
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test({"{\"content\":\"bad\",}"}, 7, 101,
+                                                            123456, "{\"meta\":{}}")
                   .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, 7, 101, 123456, "[]")
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test({"{\"content\":\"bad\",\"meta\":{}}"},
+                                                            7, 101, 123456, "{\"meta\":{}}")
                   .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  {"{\"content\":\"bad\",}"}, 7, 101, 123456,
-                  "{\"meta\":{}}")
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(stable_children, 7, 101, 123456,
+                                                            "{\"messages\":[]}")
                   .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  {"{\"content\":\"bad\",\"meta\":{}}"}, 7, 101,
-                  123456, "{\"meta\":{}}")
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(stable_children, 7, 101, 123456,
+                                                            "{\"meta\":\"bad\"}")
                   .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, 7, 101, 123456,
-                  "{\"messages\":[]}")
-                  .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, 7, 101, 123456,
-                  "{\"meta\":\"bad\"}")
-                  .empty());
-  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(
-                  stable_children, 7, 101, 123456,
-                  "{\"meta\":{},\"extra\":1}")
+  ASSERT_TRUE(gateway_encode_preencoded_chat_batch_for_test(stable_children, 7, 101, 123456,
+                                                            "{\"meta\":{},\"extra\":1}")
                   .empty());
 }
 
@@ -2953,40 +2765,41 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventBatchBuilderKeepsEnvelopeAnd
       "\"payload\":{\"kind\":\"combat\"}}",
   };
   const auto frame = gateway_encode_preencoded_message_event_batch_for_test(
-      stable_children, {"player", "player"}, "observer-7", {11, 12},
-      {201, 202}, {7, 8}, {1000, 1001}, 200, 0, 999);
+      stable_children, {"player", "player"}, "observer-7", {11, 12}, {201, 202}, {7, 8},
+      {1000, 1001}, 200, 0, 999);
 
   ASSERT_GE(frame.size(), 8u);
   ASSERT_EQ(frame.substr(0, 7), "\x1bXKBACH");
   ASSERT_EQ(frame.substr(frame.size() - 2), "\x1b\n");
-  const auto payload = nlohmann::json::parse(
-      frame.substr(7, frame.size() - 9));
-  ASSERT_EQ(payload["meta"],
-            (nlohmann::json{{"server_seq", 200}, {"stream", "system"},
-                            {"epoch", 0}, {"reliability", "important"},
-                            {"priority", "normal"}, {"sent_at", 999}}));
+  const auto payload = nlohmann::json::parse(frame.substr(7, frame.size() - 9));
+  ASSERT_EQ(payload["meta"], (nlohmann::json{{"server_seq", 200},
+                                             {"stream", "system"},
+                                             {"epoch", 0},
+                                             {"reliability", "important"},
+                                             {"priority", "normal"},
+                                             {"sent_at", 999}}));
   ASSERT_EQ(payload["messages"].size(), 2u);
 
-  const auto &first = payload["messages"][0];
+  const auto& first = payload["messages"][0];
   ASSERT_EQ(first["type"], "MSGE");
   ASSERT_EQ(first["payload"]["id"], "msg_1000_11");
   ASSERT_EQ(first["payload"]["seq"], 11);
-  ASSERT_EQ(first["payload"]["scope"],
-            (nlohmann::json{{"type", "player"}, {"id", "observer-7"}}));
+  ASSERT_EQ(first["payload"]["scope"], (nlohmann::json{{"type", "player"}, {"id", "observer-7"}}));
   ASSERT_EQ(first["payload"]["causation_id"], "cmd_11");
   ASSERT_EQ(first["payload"]["correlation_id"], "txn_11");
   ASSERT_EQ(first["payload"]["timestamp"], 1000);
   ASSERT_EQ(first["payload"]["text"], "first");
-  ASSERT_EQ(first["payload"]["meta"],
-            (nlohmann::json{{"server_seq", 201}, {"stream", "message"},
-                            {"epoch", 7}, {"reliability", "important"},
-                            {"priority", "normal"}, {"sent_at", 1000},
-                            {"ttl_ms", 30000}}));
+  ASSERT_EQ(first["payload"]["meta"], (nlohmann::json{{"server_seq", 201},
+                                                      {"stream", "message"},
+                                                      {"epoch", 7},
+                                                      {"reliability", "important"},
+                                                      {"priority", "normal"},
+                                                      {"sent_at", 1000},
+                                                      {"ttl_ms", 30000}}));
 
-  const auto &second = payload["messages"][1]["payload"];
+  const auto& second = payload["messages"][1]["payload"];
   ASSERT_EQ(second["id"], "fixed-id");
-  ASSERT_EQ(second["scope"],
-            (nlohmann::json{{"type", "room"}, {"id", "room-1"}}));
+  ASSERT_EQ(second["scope"], (nlohmann::json{{"type", "room"}, {"id", "room-1"}}));
   ASSERT_EQ(second["causation_id"], "fixed-cause");
   ASSERT_EQ(second["correlation_id"], "fixed-correlation");
   ASSERT_EQ(second["meta"]["server_seq"], 202);
@@ -3005,12 +2818,10 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventSingletonUsesReservedOuterSe
       "\"text\":\"only\",\"payload\":{}}",
   };
   const auto frame = gateway_encode_preencoded_message_event_batch_for_test(
-      stable_children, {"player"}, "observer-8", {13}, {301}, {9},
-      {2000}, 300, 0, 1999);
+      stable_children, {"player"}, "observer-8", {13}, {301}, {9}, {2000}, 300, 0, 1999);
 
   ASSERT_EQ(frame.substr(0, 7), "\x1bXKMSGE");
-  const auto payload = nlohmann::json::parse(
-      frame.substr(7, frame.size() - 9));
+  const auto payload = nlohmann::json::parse(frame.substr(7, frame.size() - 9));
   ASSERT_EQ(payload["seq"], 13);
   ASSERT_EQ(payload["meta"]["server_seq"], 300);
   ASSERT_EQ(payload["meta"]["epoch"], 9);
@@ -3023,28 +2834,23 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventBuilderRejectsMalformedOrDyn
       "\"priority\":\"normal\",\"reliability\":\"important\","
       "\"display_mode\":\"paced\",\"ttl_ms\":30000,\"collapse_key\":\"\","
       "\"text\":\"only\",\"payload\":{}}";
-  const auto encode = [&](const std::vector<std::string> &stable,
-                          const std::vector<std::string> &scope_types,
-                          const std::vector<LPC_INT> &message_seqs) {
+  const auto encode = [&](const std::vector<std::string>& stable,
+                          const std::vector<std::string>& scope_types,
+                          const std::vector<LPC_INT>& message_seqs) {
     return gateway_encode_preencoded_message_event_batch_for_test(
-        stable, scope_types, "observer-9", message_seqs, {401}, {10},
-        {3000}, 400, 0, 2999);
+        stable, scope_types, "observer-9", message_seqs, {401}, {10}, {3000}, 400, 0, 2999);
   };
 
   ASSERT_TRUE(encode({"[]"}, {"player"}, {14}).empty());
   ASSERT_TRUE(encode({valid}, {}, {14}).empty());
   ASSERT_TRUE(encode({valid}, {"player"}, {}).empty());
-  ASSERT_TRUE(encode({valid.substr(0, valid.size() - 1) +
-                      ",\"seq\":999}"},
-                     {"player"}, {14})
-                  .empty());
-  ASSERT_TRUE(encode({valid.substr(0, valid.size() - 1) +
-                      ",\"meta\":{\"server_seq\":999}}"},
+  ASSERT_TRUE(
+      encode({valid.substr(0, valid.size() - 1) + ",\"seq\":999}"}, {"player"}, {14}).empty());
+  ASSERT_TRUE(encode({valid.substr(0, valid.size() - 1) + ",\"meta\":{\"server_seq\":999}}"},
                      {"player"}, {14})
                   .empty());
   ASSERT_TRUE(gateway_encode_preencoded_message_event_batch_for_test(
-                  {valid}, {"player"}, "observer-9", {14}, {401}, {10},
-                  {3000}, 0, 0, 2999)
+                  {valid}, {"player"}, "observer-9", {14}, {401}, {10}, {3000}, 0, 0, 2999)
                   .empty());
 }
 
@@ -3056,36 +2862,27 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateCacheKeepsDynamicMet
       "\"text\":\"shared room fact\",\"payload\":{}}";
 
   gateway_clear_message_event_template_cache_for_test();
-  const auto hits_before =
-      g_gateway_runtime_counters.message_event_template_cache_hits.load();
-  const auto misses_before =
-      g_gateway_runtime_counters.message_event_template_cache_misses.load();
+  const auto hits_before = g_gateway_runtime_counters.message_event_template_cache_hits.load();
+  const auto misses_before = g_gateway_runtime_counters.message_event_template_cache_misses.load();
 
   const auto first_frame = gateway_encode_preencoded_message_event_batch_for_test(
-      {stable}, {"player"}, "observer-a", {11}, {201}, {7}, {1000},
-      200, 0, 999);
+      {stable}, {"player"}, "observer-a", {11}, {201}, {7}, {1000}, 200, 0, 999);
   const auto second_frame = gateway_encode_preencoded_message_event_batch_for_test(
-      {stable}, {"player"}, "observer-b", {12}, {301}, {8}, {2000},
-      300, 0, 1999);
+      {stable}, {"player"}, "observer-b", {12}, {301}, {8}, {2000}, 300, 0, 1999);
 
   ASSERT_FALSE(first_frame.empty());
   ASSERT_FALSE(second_frame.empty());
-  const auto first = nlohmann::json::parse(
-      first_frame.substr(7, first_frame.size() - 9));
-  const auto second = nlohmann::json::parse(
-      second_frame.substr(7, second_frame.size() - 9));
+  const auto first = nlohmann::json::parse(first_frame.substr(7, first_frame.size() - 9));
+  const auto second = nlohmann::json::parse(second_frame.substr(7, second_frame.size() - 9));
   ASSERT_EQ(first["scope"]["id"], "observer-a");
   ASSERT_EQ(first["seq"], 11);
   ASSERT_EQ(first["meta"]["server_seq"], 200);
   ASSERT_EQ(second["scope"]["id"], "observer-b");
   ASSERT_EQ(second["seq"], 12);
   ASSERT_EQ(second["meta"]["server_seq"], 300);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_misses.load(),
-      misses_before + 1);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_hits.load(),
-      hits_before + 1);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_misses.load(),
+            misses_before + 1);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_hits.load(), hits_before + 1);
 }
 
 TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateEscapesDynamicScope) {
@@ -3099,18 +2896,17 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateEscapesDynamicScope)
 
   gateway_clear_message_event_template_cache_for_test();
   const auto frame = gateway_encode_preencoded_message_event_batch_for_test(
-      {stable}, {scope_type}, scope_id, {15}, {501}, {11}, {4000},
-      500, 0, 3999);
+      {stable}, {scope_type}, scope_id, {15}, {501}, {11}, {4000}, 500, 0, 3999);
 
   ASSERT_FALSE(frame.empty());
-  const auto payload = nlohmann::json::parse(
-      frame.substr(7, frame.size() - 9));
+  const auto payload = nlohmann::json::parse(frame.substr(7, frame.size() - 9));
   ASSERT_EQ(payload["scope"]["type"], scope_type);
   ASSERT_EQ(payload["scope"]["id"], scope_id);
   ASSERT_EQ(payload["text"], "shared room fact");
 }
 
-TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateCacheRejectsInvalidAndBypassesOversizedInput) {
+TEST_F(DriverTest,
+       TestGatewayPreencodedMessageEventTemplateCacheRejectsInvalidAndBypassesOversizedInput) {
   const std::string stable_prefix =
       "{\"schema_version\":1,\"channel\":\"main\",\"intent\":\"append\","
       "\"priority\":\"normal\",\"reliability\":\"important\","
@@ -3118,35 +2914,27 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateCacheRejectsInvalidA
       "\"text\":\"";
   const std::string stable_suffix = "\",\"payload\":{}}";
   const std::string invalid = stable_prefix + "invalid\"} ";
-  const std::string oversized =
-      stable_prefix + std::string(70 * 1024, 'x') + stable_suffix;
+  const std::string oversized = stable_prefix + std::string(70 * 1024, 'x') + stable_suffix;
 
   gateway_clear_message_event_template_cache_for_test();
-  const auto hits_before =
-      g_gateway_runtime_counters.message_event_template_cache_hits.load();
-  const auto misses_before =
-      g_gateway_runtime_counters.message_event_template_cache_misses.load();
+  const auto hits_before = g_gateway_runtime_counters.message_event_template_cache_hits.load();
+  const auto misses_before = g_gateway_runtime_counters.message_event_template_cache_misses.load();
   const auto bypasses_before =
       g_gateway_runtime_counters.message_event_template_cache_bypasses.load();
-  const auto encode = [](const std::string &stable) {
+  const auto encode = [](const std::string& stable) {
     return gateway_encode_preencoded_message_event_batch_for_test(
-        {stable}, {"player"}, "observer-cache", {14}, {401}, {10},
-        {3000}, 400, 0, 2999);
+        {stable}, {"player"}, "observer-cache", {14}, {401}, {10}, {3000}, 400, 0, 2999);
   };
 
   ASSERT_TRUE(encode(invalid).empty());
   ASSERT_TRUE(encode(invalid).empty());
   ASSERT_FALSE(encode(oversized).empty());
   ASSERT_FALSE(encode(oversized).empty());
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_hits.load(),
-      hits_before);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_misses.load(),
-      misses_before + 2);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_bypasses.load(),
-      bypasses_before + 2);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_hits.load(), hits_before);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_misses.load(),
+            misses_before + 2);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_bypasses.load(),
+            bypasses_before + 2);
 }
 
 TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateCacheEvictsAtBound) {
@@ -3165,25 +2953,21 @@ TEST_F(DriverTest, TestGatewayPreencodedMessageEventTemplateCacheEvictsAtBound) 
   gateway_clear_message_event_template_cache_for_test();
   const auto evictions_before =
       g_gateway_runtime_counters.message_event_template_cache_evictions.load();
-  for (const auto &stable : stable_events) {
-    ASSERT_FALSE(gateway_encode_preencoded_message_event_batch_for_test(
-                     {stable}, {"player"}, "observer-bound", {16}, {601},
-                     {12}, {5000}, 600, 0, 4999)
-                     .empty());
+  for (const auto& stable : stable_events) {
+    ASSERT_FALSE(
+        gateway_encode_preencoded_message_event_batch_for_test(
+            {stable}, {"player"}, "observer-bound", {16}, {601}, {12}, {5000}, 600, 0, 4999)
+            .empty());
   }
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_evictions.load(),
-      evictions_before + 256);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_evictions.load(),
+            evictions_before + 256);
 
-  const auto hits_before =
-      g_gateway_runtime_counters.message_event_template_cache_hits.load();
+  const auto hits_before = g_gateway_runtime_counters.message_event_template_cache_hits.load();
   ASSERT_FALSE(gateway_encode_preencoded_message_event_batch_for_test(
-                   {stable_events.back()}, {"player"}, "observer-bound", {17},
-                   {602}, {12}, {5001}, 601, 0, 5000)
+                   {stable_events.back()}, {"player"}, "observer-bound", {17}, {602}, {12}, {5001},
+                   601, 0, 5000)
                    .empty());
-  ASSERT_EQ(
-      g_gateway_runtime_counters.message_event_template_cache_hits.load(),
-      hits_before + 1);
+  ASSERT_EQ(g_gateway_runtime_counters.message_event_template_cache_hits.load(), hits_before + 1);
 }
 
 TEST_F(DriverTest, TestGatewayReceiveDoesNotDrainMainTasksInsideReadCallback) {
@@ -3200,12 +2984,9 @@ TEST_F(DriverTest, TestGatewayReceiveDoesNotDrainMainTasksInsideReadCallback) {
   ASSERT_NE(apply_source.find("vm_owner_enqueue_main_task"), std::string::npos);
   ASSERT_NE(event_base_pos, std::string::npos);
   ASSERT_NE(fallback_pos, std::string::npos);
-  const auto event_base_source =
-      apply_source.substr(event_base_pos, fallback_pos - event_base_pos);
-  ASSERT_EQ(event_base_source.find("gateway_drain_owner_main_tasks_later"),
-            std::string::npos);
-  ASSERT_EQ(event_base_source.find("gateway_drain_owner_main_tasks_now"),
-            std::string::npos);
+  const auto event_base_source = apply_source.substr(event_base_pos, fallback_pos - event_base_pos);
+  ASSERT_EQ(event_base_source.find("gateway_drain_owner_main_tasks_later"), std::string::npos);
+  ASSERT_EQ(event_base_source.find("gateway_drain_owner_main_tasks_now"), std::string::npos);
   ASSERT_EQ(apply_source.find("vm_owner_executor_available"), std::string::npos);
 }
 
@@ -3218,41 +2999,35 @@ TEST_F(DriverTest, TestGatewayReadBatchDrainsAdmittedTasksBeforeDeferredRemainde
   ASSERT_NE(helper_pos, std::string::npos);
   ASSERT_NE(helper_end, std::string::npos);
   const auto helper_source = source.substr(helper_pos, helper_end - helper_pos);
-  ASSERT_NE(helper_source.find("gateway_drain_owner_main_tasks_with_budget("),
-            std::string::npos);
-  ASSERT_NE(helper_source.find("kGatewayReadBatchMainDrainBudget"),
-            std::string::npos);
-  ASSERT_NE(helper_source.find("kGatewayReadBatchMainDrainWallBudget"),
-            std::string::npos);
-  ASSERT_NE(helper_source.find("drain_result.remaining_main_tasks > 0"),
-            std::string::npos);
-  ASSERT_NE(helper_source.find("gateway_drain_owner_main_tasks_later()"),
-            std::string::npos);
-  ASSERT_NE(source.find(
-                "kGatewayDeferredMainDrainContinuationDelay = std::chrono::milliseconds(1)"),
-            std::string::npos);
+  ASSERT_NE(helper_source.find("gateway_drain_owner_main_tasks_with_budget("), std::string::npos);
+  ASSERT_NE(helper_source.find("kGatewayReadBatchMainDrainBudget"), std::string::npos);
+  ASSERT_NE(helper_source.find("kGatewayReadBatchMainDrainWallBudget"), std::string::npos);
+  ASSERT_NE(helper_source.find("drain_result.remaining_main_tasks > 0"), std::string::npos);
+  ASSERT_NE(helper_source.find("gateway_drain_owner_main_tasks_later()"), std::string::npos);
+  ASSERT_NE(
+      source.find("kGatewayDeferredMainDrainContinuationDelay = std::chrono::milliseconds(1)"),
+      std::string::npos);
   ASSERT_NE(source.find("gateway_deferred_main_drain_wall_budget(backlog_before)"),
             std::string::npos);
   ASSERT_NE(source.find("kGatewayDeferredMainDrainBaseWallBudget = std::chrono::milliseconds(8)"),
             std::string::npos);
-  ASSERT_NE(source.find("kGatewayDeferredMainDrainBacklogWallBudget = std::chrono::milliseconds(8)"),
-            std::string::npos);
-  ASSERT_NE(source.find("kGatewayDeferredMainDrainBacklogThreshold = 64"),
-            std::string::npos);
-  ASSERT_NE(source.find("kGatewayDeferredMainDrainWaitTimerQueueOnly = 1"),
-            std::string::npos);
+  ASSERT_NE(
+      source.find("kGatewayDeferredMainDrainBacklogWallBudget = std::chrono::milliseconds(8)"),
+      std::string::npos);
+  ASSERT_NE(source.find("kGatewayDeferredMainDrainBacklogThreshold = 64"), std::string::npos);
+  ASSERT_NE(source.find("kGatewayDeferredMainDrainWaitTimerQueueOnly = 1"), std::string::npos);
 
   const auto deferred_pos = source.find("void gateway_drain_owner_main_tasks_later()");
-  const auto deferred_end = source.find("\nvoid gateway_service_admitted_receive_tasks", deferred_pos);
+  const auto deferred_end =
+      source.find("\nvoid gateway_service_admitted_receive_tasks", deferred_pos);
   ASSERT_NE(deferred_pos, std::string::npos);
   ASSERT_NE(deferred_end, std::string::npos);
   const auto deferred_source = source.substr(deferred_pos, deferred_end - deferred_pos);
   ASSERT_NE(deferred_source.find("add_walltime_event("), std::string::npos);
-  ASSERT_NE(deferred_source.find("kGatewayDeferredMainDrainContinuationDelay"),
-            std::string::npos);
-  ASSERT_NE(deferred_source.find("BackendEventPriority::kGateway"),
-            std::string::npos);
-  const auto callback_started = deferred_source.find("auto callback_started_at = gateway_now_ns();");
+  ASSERT_NE(deferred_source.find("kGatewayDeferredMainDrainContinuationDelay"), std::string::npos);
+  ASSERT_NE(deferred_source.find("BackendEventPriority::kGateway"), std::string::npos);
+  const auto callback_started =
+      deferred_source.find("auto callback_started_at = gateway_now_ns();");
   const auto drain_call = deferred_source.find("gateway_drain_owner_main_tasks_with_budget(");
   const auto wait_sample = deferred_source.find("callback_started_at - scheduled_at");
   ASSERT_NE(callback_started, std::string::npos);
@@ -3260,32 +3035,31 @@ TEST_F(DriverTest, TestGatewayReadBatchDrainsAdmittedTasksBeforeDeferredRemainde
   ASSERT_NE(wait_sample, std::string::npos);
   ASSERT_LT(callback_started, drain_call);
   ASSERT_LT(drain_call, wait_sample);
-  ASSERT_EQ(deferred_source.find("gateway_now_ns() - scheduled_at"),
-            std::string::npos);
+  ASSERT_EQ(deferred_source.find("gateway_now_ns() - scheduled_at"), std::string::npos);
 
   const auto schedule_pos = source.find("void gateway_schedule_buffered_read(int fd) {");
   const auto readcb_pos = source.find("void gateway_readcb", schedule_pos);
   ASSERT_NE(schedule_pos, std::string::npos);
   ASSERT_NE(readcb_pos, std::string::npos);
   const auto schedule_source = source.substr(schedule_pos, readcb_pos - schedule_pos);
-  const auto continuation_dispatch = schedule_source.find(
-      "gateway_dispatch_buffered_frames(scheduled_master,");
-  const auto continuation_service = schedule_source.find(
-      "gateway_service_admitted_receive_tasks();", continuation_dispatch);
+  const auto continuation_dispatch =
+      schedule_source.find("gateway_dispatch_buffered_frames(scheduled_master,");
+  const auto continuation_service =
+      schedule_source.find("gateway_service_admitted_receive_tasks();", continuation_dispatch);
   ASSERT_NE(continuation_dispatch, std::string::npos);
   ASSERT_NE(continuation_service, std::string::npos);
 
   const auto listener_pos = source.find("\nvoid gateway_listener_cb", readcb_pos);
   ASSERT_NE(listener_pos, std::string::npos);
   const auto readcb_source = source.substr(readcb_pos, listener_pos - readcb_pos);
-  const auto read_dispatch = readcb_source.find(
-      "gateway_dispatch_buffered_frames(master, kGatewayReadFrameBudget)");
-  const auto read_service = readcb_source.find(
-      "gateway_service_admitted_receive_tasks();", read_dispatch);
+  const auto read_dispatch =
+      readcb_source.find("gateway_dispatch_buffered_frames(master, kGatewayReadFrameBudget)");
+  const auto read_service =
+      readcb_source.find("gateway_service_admitted_receive_tasks();", read_dispatch);
   ASSERT_NE(read_dispatch, std::string::npos);
   ASSERT_NE(read_service, std::string::npos);
 
-  for (const auto *field : {
+  for (const auto* field : {
            "read_batch_drain_runs",
            "read_batch_drain_tasks_total",
            "read_batch_drain_tasks_max",
@@ -3319,10 +3093,8 @@ TEST_F(DriverTest, TestGatewayReadBatchDrainsAdmittedTasksBeforeDeferredRemainde
 }
 
 TEST_F(DriverTest, TestGatewayCommandPendingCountUsesAtomicSessionLifecycle) {
-  const auto source =
-      read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
-  const auto count_pos =
-      source.find("LPC_INT gateway_session_command_pending_count()");
+  const auto source = read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
+  const auto count_pos = source.find("LPC_INT gateway_session_command_pending_count()");
   const auto count_end = source.find("\nuint64_t gateway_session_fifo_enqueued_total", count_pos);
   const auto unbind_pos = source.find("void gateway_unbind_session_object");
   const auto unbind_end = source.find("\nvoid gateway_cleanup_master_sessions", unbind_pos);
@@ -3337,26 +3109,20 @@ TEST_F(DriverTest, TestGatewayCommandPendingCountUsesAtomicSessionLifecycle) {
             std::string::npos);
   ASSERT_NE(source.find("void gateway_release_command_task_pending(GatewaySession *sess)"),
             std::string::npos);
-  ASSERT_NE(source.find("g_gateway_command_input_pending_sessions.fetch_add("),
-            std::string::npos);
-  ASSERT_NE(source.find("g_gateway_command_task_pending_sessions.fetch_add("),
-            std::string::npos);
+  ASSERT_NE(source.find("g_gateway_command_input_pending_sessions.fetch_add("), std::string::npos);
+  ASSERT_NE(source.find("g_gateway_command_task_pending_sessions.fetch_add("), std::string::npos);
   ASSERT_NE(count_pos, std::string::npos);
   ASSERT_NE(count_end, std::string::npos);
   const auto count_source = source.substr(count_pos, count_end - count_pos);
-  ASSERT_NE(count_source.find("gateway_session_command_input_pending_count()"),
-            std::string::npos);
-  ASSERT_NE(count_source.find("gateway_session_command_task_pending_count()"),
-            std::string::npos);
+  ASSERT_NE(count_source.find("gateway_session_command_input_pending_count()"), std::string::npos);
+  ASSERT_NE(count_source.find("gateway_session_command_task_pending_count()"), std::string::npos);
   ASSERT_EQ(count_source.find("g_gateway_sessions"), std::string::npos);
 
   ASSERT_NE(unbind_pos, std::string::npos);
   ASSERT_NE(unbind_end, std::string::npos);
   const auto unbind_source = source.substr(unbind_pos, unbind_end - unbind_pos);
-  ASSERT_NE(unbind_source.find("gateway_release_command_input_pending(sess);"),
-            std::string::npos);
-  ASSERT_NE(unbind_source.find("gateway_release_command_task_pending(sess);"),
-            std::string::npos);
+  ASSERT_NE(unbind_source.find("gateway_release_command_input_pending(sess);"), std::string::npos);
+  ASSERT_NE(unbind_source.find("gateway_release_command_task_pending(sess);"), std::string::npos);
   ASSERT_LT(unbind_source.find("gateway_release_command_task_pending(sess);"),
             unbind_source.find("g_gateway_sessions.erase(session_id);"));
 
@@ -3372,14 +3138,12 @@ TEST_F(DriverTest, TestGatewayCommandPendingCountUsesAtomicSessionLifecycle) {
 }
 
 TEST_F(DriverTest, TestGatewayLivePressureCountsUseLpcIntegerWidth) {
-  const auto header =
-      read_source_file_for_test("../src/packages/gateway/gateway.h");
-  const auto source =
-      read_source_file_for_test("../src/packages/gateway/gateway.cc");
+  const auto header = read_source_file_for_test("../src/packages/gateway/gateway.h");
+  const auto source = read_source_file_for_test("../src/packages/gateway/gateway.cc");
   const auto session_source =
       read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
 
-  for (const auto *signature : {
+  for (const auto* signature : {
            "LPC_INT gateway_session_command_input_pending_count();",
            "LPC_INT gateway_session_command_task_pending_count();",
            "LPC_INT gateway_session_command_pending_count();",
@@ -3389,23 +3153,18 @@ TEST_F(DriverTest, TestGatewayLivePressureCountsUseLpcIntegerWidth) {
        }) {
     EXPECT_NE(header.find(signature), std::string::npos) << signature;
   }
-  EXPECT_EQ(header.find("long gateway_session_command_input_pending_count();"),
-            std::string::npos);
-  EXPECT_EQ(header.find("long gateway_read_dispatch_pending_count();"),
-            std::string::npos);
-  EXPECT_EQ(header.find("long gateway_command_pressure_count();"),
-            std::string::npos);
+  EXPECT_EQ(header.find("long gateway_session_command_input_pending_count();"), std::string::npos);
+  EXPECT_EQ(header.find("long gateway_read_dispatch_pending_count();"), std::string::npos);
+  EXPECT_EQ(header.find("long gateway_command_pressure_count();"), std::string::npos);
 
-  EXPECT_NE(session_source.find(
-                "std::atomic<LPC_INT> g_gateway_command_input_pending_sessions{0}"),
+  EXPECT_NE(session_source.find("std::atomic<LPC_INT> g_gateway_command_input_pending_sessions{0}"),
             std::string::npos);
-  EXPECT_NE(session_source.find(
-                "std::atomic<LPC_INT> g_gateway_command_task_pending_sessions{0}"),
+  EXPECT_NE(session_source.find("std::atomic<LPC_INT> g_gateway_command_task_pending_sessions{0}"),
             std::string::npos);
-  EXPECT_NE(session_source.find(
-                "void gateway_decrement_pending_counter(std::atomic<LPC_INT> &counter)"),
-            std::string::npos);
-  for (const auto *signature : {
+  EXPECT_NE(
+      session_source.find("void gateway_decrement_pending_counter(std::atomic<LPC_INT> &counter)"),
+      std::string::npos);
+  for (const auto* signature : {
            "LPC_INT gateway_session_command_input_pending_count()",
            "LPC_INT gateway_session_command_task_pending_count()",
            "LPC_INT gateway_session_command_pending_count()",
@@ -3414,26 +3173,19 @@ TEST_F(DriverTest, TestGatewayLivePressureCountsUseLpcIntegerWidth) {
   }
   EXPECT_EQ(session_source.find("std::atomic<long> g_gateway_command_input_pending_sessions"),
             std::string::npos);
-  EXPECT_EQ(session_source.find("long gateway_session_command_pending_count()"),
-            std::string::npos);
+  EXPECT_EQ(session_source.find("long gateway_session_command_pending_count()"), std::string::npos);
 
   EXPECT_NE(source.find("std::atomic<LPC_INT> g_gateway_read_dispatch_pending_masters{0}"),
             std::string::npos);
-  EXPECT_NE(source.find("LPC_INT gateway_main_queue_read_paused_count()"),
-            std::string::npos);
-  EXPECT_NE(source.find("LPC_INT gateway_read_dispatch_pending_count()"),
-            std::string::npos);
-  EXPECT_NE(source.find("LPC_INT gateway_buffered_input_pending_count()"),
-            std::string::npos);
-  EXPECT_NE(source.find("LPC_INT gateway_command_pressure_count()"),
-            std::string::npos);
+  EXPECT_NE(source.find("LPC_INT gateway_main_queue_read_paused_count()"), std::string::npos);
+  EXPECT_NE(source.find("LPC_INT gateway_read_dispatch_pending_count()"), std::string::npos);
+  EXPECT_NE(source.find("LPC_INT gateway_buffered_input_pending_count()"), std::string::npos);
+  EXPECT_NE(source.find("LPC_INT gateway_command_pressure_count()"), std::string::npos);
   EXPECT_NE(source.find("LPC_INT pending = 0;"), std::string::npos);
   EXPECT_EQ(source.find("std::atomic<long> g_gateway_read_dispatch_pending_masters"),
             std::string::npos);
-  EXPECT_EQ(source.find("long gateway_buffered_input_pending_count()"),
-            std::string::npos);
-  EXPECT_EQ(source.find("long gateway_command_pressure_count()"),
-            std::string::npos);
+  EXPECT_EQ(source.find("long gateway_buffered_input_pending_count()"), std::string::npos);
+  EXPECT_EQ(source.find("long gateway_command_pressure_count()"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestGatewayReadDispatchPressureIsTransitionCountedAndUnderflowSafe) {
@@ -3473,14 +3225,13 @@ TEST_F(DriverTest, TestGatewayStatusSnapshotDefersPastCurrentReadDispatch) {
   ASSERT_NE(status_branch, std::string::npos);
   ASSERT_NE(status_branch_end, std::string::npos);
   const auto status_source = source.substr(status_branch, status_branch_end - status_branch);
-  ASSERT_NE(status_source.find("gateway_schedule_status_response(fd, msg)"),
-            std::string::npos);
+  ASSERT_NE(status_source.find("gateway_schedule_status_response(fd, msg)"), std::string::npos);
   ASSERT_EQ(status_source.find("gateway_status_to_json(&status)"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestGatewayStatusWireIncludesMudlibRuntimeExtension) {
   constexpr int master_fd = 993;
-  bufferevent *pair[2] = {nullptr, nullptr};
+  bufferevent* pair[2] = {nullptr, nullptr};
 
   ASSERT_EQ(bufferevent_pair_new(g_event_base, BEV_OPT_CLOSE_ON_FREE, pair), 0);
   ASSERT_NE(pair[0], nullptr);
@@ -3490,30 +3241,27 @@ TEST_F(DriverTest, TestGatewayStatusWireIncludesMudlibRuntimeExtension) {
   ASSERT_NE(gateway_register_master_for_test(master_fd, pair[0]), nullptr);
 
   ASSERT_TRUE(gateway_dispatch_message_for_test(
-      master_fd,
-      R"({"type":"sys","action":"status","ts":1700000000123456})"));
+      master_fd, R"({"type":"sys","action":"status","ts":1700000000123456})"));
 
-  auto *input = bufferevent_get_input(pair[1]);
+  auto* input = bufferevent_get_input(pair[1]);
   ASSERT_NE(input, nullptr);
-  for (int attempt = 0; attempt < 16 && evbuffer_get_length(input) == 0;
-       ++attempt) {
+  for (int attempt = 0; attempt < 16 && evbuffer_get_length(input) == 0; ++attempt) {
     event_base_loop(g_event_base, EVLOOP_ONCE | EVLOOP_NONBLOCK);
   }
   const auto framed_size = evbuffer_get_length(input);
   ASSERT_GT(framed_size, sizeof(uint32_t));
   std::string framed(framed_size, '\0');
-  ASSERT_EQ(evbuffer_copyout(input, framed.data(), framed.size()),
-            static_cast<int>(framed.size()));
+  ASSERT_EQ(evbuffer_copyout(input, framed.data(), framed.size()), static_cast<int>(framed.size()));
   uint32_t network_length = 0;
   memcpy(&network_length, framed.data(), sizeof(network_length));
   const auto payload_length = ntohl(network_length);
   ASSERT_EQ(payload_length, framed.size() - sizeof(network_length));
-  const auto response = nlohmann::json::parse(
-      framed.substr(sizeof(network_length), payload_length));
+  const auto response =
+      nlohmann::json::parse(framed.substr(sizeof(network_length), payload_length));
   ASSERT_EQ(response.at("type"), "sys");
   ASSERT_EQ(response.at("action"), "status");
   ASSERT_EQ(response.at("ts"), 1700000000123456);
-  const auto &data = response.at("data");
+  const auto& data = response.at("data");
   ASSERT_EQ(data.at("client_sync_pending_entries"), 37);
   ASSERT_EQ(data.at("client_sync_chat_pending"), 31);
   ASSERT_EQ(data.at("client_sync_chat_fanout_pending_targets"), 23);
@@ -3547,7 +3295,7 @@ TEST_F(DriverTest, TestGatewayBufferedInputPressureRequiresACompleteFrame) {
   ASSERT_TRUE(gateway_master_has_buffered_input_for_test(&master));
 
   GatewayMaster native_master;
-  bufferevent *pair[2] = {nullptr, nullptr};
+  bufferevent* pair[2] = {nullptr, nullptr};
   ASSERT_EQ(bufferevent_pair_new(g_event_base, BEV_OPT_CLOSE_ON_FREE, pair), 0);
   ASSERT_NE(pair[0], nullptr);
   ASSERT_NE(pair[1], nullptr);
@@ -3556,12 +3304,10 @@ TEST_F(DriverTest, TestGatewayBufferedInputPressureRequiresACompleteFrame) {
   native_master.bev = pair[0];
   ASSERT_EQ(bufferevent_enable(pair[0], EV_READ), 0);
   ASSERT_EQ(bufferevent_enable(pair[1], EV_WRITE), 0);
-  auto *native_input = bufferevent_get_input(pair[0]);
+  auto* native_input = bufferevent_get_input(pair[0]);
   ASSERT_NE(native_input, nullptr);
   const auto pump_until = [&](size_t expected) {
-    for (int attempt = 0;
-         attempt < 8 && evbuffer_get_length(native_input) < expected;
-         ++attempt) {
+    for (int attempt = 0; attempt < 8 && evbuffer_get_length(native_input) < expected; ++attempt) {
       event_base_loop(g_event_base, EVLOOP_ONCE | EVLOOP_NONBLOCK);
     }
     ASSERT_EQ(evbuffer_get_length(native_input), expected);
@@ -3592,14 +3338,11 @@ TEST_F(DriverTest, TestGatewayMainQueueReadAdmissionUsesComposedHighLowWaterBack
             std::string::npos);
   ASSERT_NE(source.find("constexpr long kGatewayMainQueueReadLowWatermark = 16"),
             std::string::npos);
-  const auto admission_assert_pos = source.find(
-      "static_assert(kGatewayReadFrameBudget <=");
+  const auto admission_assert_pos = source.find("static_assert(kGatewayReadFrameBudget <=");
   ASSERT_NE(admission_assert_pos, std::string::npos);
-  ASSERT_NE(source.find("kGatewayMainQueueReadHighWatermark -",
-                        admission_assert_pos),
+  ASSERT_NE(source.find("kGatewayMainQueueReadHighWatermark -", admission_assert_pos),
             std::string::npos);
-  ASSERT_NE(source.find("kGatewayMainQueueReadLowWatermark);",
-                        admission_assert_pos),
+  ASSERT_NE(source.find("kGatewayMainQueueReadLowWatermark);", admission_assert_pos),
             std::string::npos);
   ASSERT_NE(header.find("GATEWAY_READ_PAUSE_BUFFERED_BACKLOG"), std::string::npos);
   ASSERT_NE(header.find("GATEWAY_READ_PAUSE_MAIN_QUEUE"), std::string::npos);
@@ -3610,19 +3353,17 @@ TEST_F(DriverTest, TestGatewayMainQueueReadAdmissionUsesComposedHighLowWaterBack
   ASSERT_NE(dispatch_pos, std::string::npos);
   ASSERT_NE(dispatch_end, std::string::npos);
   const auto dispatch_source = source.substr(dispatch_pos, dispatch_end - dispatch_pos);
-  ASSERT_NE(dispatch_source.find("gateway_main_queue_admission_budget(budget)"),
-            std::string::npos);
+  ASSERT_NE(dispatch_source.find("gateway_main_queue_admission_budget(budget)"), std::string::npos);
   ASSERT_NE(dispatch_source.find("gateway_pause_all_reads_for_main_queue_pressure()"),
             std::string::npos);
 
   const auto deferred_pos = source.find("void gateway_drain_owner_main_tasks_later");
-  const auto deferred_end = source.find("\nvoid gateway_service_admitted_receive_tasks",
-                                        deferred_pos);
+  const auto deferred_end =
+      source.find("\nvoid gateway_service_admitted_receive_tasks", deferred_pos);
   ASSERT_NE(deferred_pos, std::string::npos);
   ASSERT_NE(deferred_end, std::string::npos);
   const auto deferred_source = source.substr(deferred_pos, deferred_end - deferred_pos);
-  ASSERT_NE(deferred_source.find(
-                "gateway_resume_main_queue_reads_if_below_low_watermark();"),
+  ASSERT_NE(deferred_source.find("gateway_resume_main_queue_reads_if_below_low_watermark();"),
             std::string::npos);
 
   const auto service_pos = source.find("void gateway_service_admitted_receive_tasks");
@@ -3630,52 +3371,44 @@ TEST_F(DriverTest, TestGatewayMainQueueReadAdmissionUsesComposedHighLowWaterBack
   ASSERT_NE(service_pos, std::string::npos);
   ASSERT_NE(service_end, std::string::npos);
   const auto service_source = source.substr(service_pos, service_end - service_pos);
-  ASSERT_NE(service_source.find(
-                "gateway_resume_main_queue_reads_if_below_low_watermark();"),
+  ASSERT_NE(service_source.find("gateway_resume_main_queue_reads_if_below_low_watermark();"),
             std::string::npos);
 
   ASSERT_NE(source.find("int64_t gateway_main_queue_pending_count()"), std::string::npos);
   ASSERT_EQ(source.find("long gateway_main_queue_pending_count()"), std::string::npos);
   ASSERT_NE(header.find("int64_t gateway_main_queue_pending_count();"), std::string::npos);
   ASSERT_EQ(header.find("long gateway_main_queue_pending_count();"), std::string::npos);
-  ASSERT_NE(source.find(
-                "std::chrono::nanoseconds gateway_deferred_main_drain_wall_budget(int64_t backlog)"),
-            std::string::npos);
+  ASSERT_NE(
+      source.find(
+          "std::chrono::nanoseconds gateway_deferred_main_drain_wall_budget(int64_t backlog)"),
+      std::string::npos);
   ASSERT_EQ(source.find("gateway_deferred_main_drain_wall_budget(long backlog)"),
             std::string::npos);
   ASSERT_NE(source.find("std::max<int64_t>(0, vm_owner_main_queue_total_depth())"),
             std::string::npos);
   ASSERT_NE(source.find("std::max<int64_t>(0, drain_result.remaining_main_tasks)"),
             std::string::npos);
-  ASSERT_EQ(source.find("std::max<long>(0, vm_owner_main_queue_total_depth())"),
-            std::string::npos);
-  ASSERT_EQ(source.find("std::max<long>(0, drain_result.remaining_main_tasks)"),
-            std::string::npos);
+  ASSERT_EQ(source.find("std::max<long>(0, vm_owner_main_queue_total_depth())"), std::string::npos);
+  ASSERT_EQ(source.find("std::max<long>(0, drain_result.remaining_main_tasks)"), std::string::npos);
   ASSERT_NE(spec.find("int gateway_main_queue_pending();"), std::string::npos);
-  ASSERT_NE(source.find("LPC_INT gateway_buffered_input_pending_count()"),
-            std::string::npos);
-  ASSERT_NE(spec.find("int gateway_buffered_input_pending();"),
-            std::string::npos);
-  ASSERT_NE(source.find("bufferevent_get_input(master->bev)"),
-            std::string::npos);
+  ASSERT_NE(source.find("LPC_INT gateway_buffered_input_pending_count()"), std::string::npos);
+  ASSERT_NE(spec.find("int gateway_buffered_input_pending();"), std::string::npos);
+  ASSERT_NE(source.find("bufferevent_get_input(master->bev)"), std::string::npos);
   ASSERT_NE(source.find("evbuffer_copyout("), std::string::npos);
   ASSERT_NE(source.find("static_cast<ev_ssize_t>"), std::string::npos);
   const auto efun_pos = source.find("void f_gateway_main_queue_pending()");
   const auto efun_end = source.find("\nvoid f_gateway_status()", efun_pos);
   ASSERT_NE(efun_pos, std::string::npos);
   ASSERT_NE(efun_end, std::string::npos);
-  ASSERT_NE(source.substr(efun_pos, efun_end - efun_pos)
-                .find("gateway_main_queue_pending_count()"),
+  ASSERT_NE(source.substr(efun_pos, efun_end - efun_pos).find("gateway_main_queue_pending_count()"),
             std::string::npos);
 
   const auto buffered_efun_pos = source.find("void f_gateway_buffered_input_pending()");
   ASSERT_NE(buffered_efun_pos, std::string::npos);
-  ASSERT_NE(source.substr(buffered_efun_pos)
-                .find("gateway_buffered_input_pending_count()"),
+  ASSERT_NE(source.substr(buffered_efun_pos).find("gateway_buffered_input_pending_count()"),
             std::string::npos);
 
-  const auto pressure_pos =
-      source.find("LPC_INT gateway_command_pressure_count()");
+  const auto pressure_pos = source.find("LPC_INT gateway_command_pressure_count()");
   const auto pressure_end = source.find("\nint64_t gateway_main_queue_pending_count", pressure_pos);
   ASSERT_NE(pressure_pos, std::string::npos);
   ASSERT_NE(pressure_end, std::string::npos);
@@ -3689,8 +3422,9 @@ TEST_F(DriverTest, TestGatewayReadCallbackYieldsAfterEveryCompleteFrame) {
   const auto header = read_source_file_for_test("../src/packages/gateway/gateway.h");
 
   ASSERT_NE(source.find("constexpr int kGatewayReadFrameBudget = 1"), std::string::npos);
-  ASSERT_NE(source.find("constexpr auto kGatewayReadContinuationDelay = std::chrono::milliseconds(1)"),
-            std::string::npos);
+  ASSERT_NE(
+      source.find("constexpr auto kGatewayReadContinuationDelay = std::chrono::milliseconds(1)"),
+      std::string::npos);
   ASSERT_NE(header.find("bool read_dispatch_scheduled{false}"), std::string::npos);
   ASSERT_NE(header.find("bool read_dispatch_input_paused{false}"), std::string::npos);
   ASSERT_NE(source.find("gateway_dispatch_buffered_frames(master, kGatewayReadFrameBudget)"),
@@ -3707,12 +3441,9 @@ TEST_F(DriverTest, TestGatewayReadCallbackYieldsAfterEveryCompleteFrame) {
   ASSERT_NE(schedule_source.find("gateway_resume_buffered_read(scheduled_master);"),
             std::string::npos);
   ASSERT_NE(schedule_source.find("add_walltime_event("), std::string::npos);
-  ASSERT_NE(schedule_source.find("kGatewayReadContinuationDelay"),
-            std::string::npos);
-  ASSERT_EQ(schedule_source.find("std::chrono::milliseconds(0)"),
-            std::string::npos);
-  ASSERT_NE(schedule_source.find("BackendEventPriority::kGateway"),
-            std::string::npos);
+  ASSERT_NE(schedule_source.find("kGatewayReadContinuationDelay"), std::string::npos);
+  ASSERT_EQ(schedule_source.find("std::chrono::milliseconds(0)"), std::string::npos);
+  ASSERT_NE(schedule_source.find("BackendEventPriority::kGateway"), std::string::npos);
   ASSERT_NE(source.find("void gateway_pause_buffered_read"), std::string::npos);
   ASSERT_NE(source.find("bufferevent_disable(master->bev, EV_READ)"), std::string::npos);
   ASSERT_NE(source.find("void gateway_resume_buffered_read"), std::string::npos);
@@ -3738,7 +3469,7 @@ TEST_F(DriverTest, TestGatewayBufferedReadParserUsesCursorInsteadOfPerFrameFront
 TEST_F(DriverTest, TestGatewayBufferedReadParserHonorsFrameBudgetAndOrder) {
   GatewayMaster master;
   master.fd = -1;
-  const auto append_frame = [&master](const std::string &payload) {
+  const auto append_frame = [&master](const std::string& payload) {
     const auto size = static_cast<uint32_t>(payload.size());
     master.read_buffer.push_back(static_cast<char>((size >> 24) & 0xff));
     master.read_buffer.push_back(static_cast<char>((size >> 16) & 0xff));
@@ -3768,7 +3499,7 @@ TEST_F(DriverTest, TestGatewayBufferedReadParserHonorsFrameBudgetAndOrder) {
 }
 
 TEST_F(DriverTest, TestGatewayBufferedReadParserPreservesPartialFramesAndChargesBadJson) {
-  const auto frame_for = [](const std::string &payload) {
+  const auto frame_for = [](const std::string& payload) {
     const auto size = static_cast<uint32_t>(payload.size());
     std::string frame;
     frame.push_back(static_cast<char>((size >> 24) & 0xff));
@@ -3782,8 +3513,8 @@ TEST_F(DriverTest, TestGatewayBufferedReadParserPreservesPartialFramesAndCharges
   GatewayMaster master;
   master.fd = -1;
   const auto complete_tail = frame_for(R"({"type":"hello"})");
-  master.read_buffer = frame_for(R"({"type":"hello"})") + frame_for("{") +
-                       complete_tail.substr(0, 7);
+  master.read_buffer =
+      frame_for(R"({"type":"hello"})") + frame_for("{") + complete_tail.substr(0, 7);
 
   ASSERT_EQ(gateway_dispatch_buffered_frames_for_test(&master, 2), 2);
   ASSERT_EQ(master.messages_received, 1u);
@@ -3803,30 +3534,31 @@ TEST_F(DriverTest, TestGatewayBufferedReadParserPreservesPartialFramesAndCharges
 TEST_F(DriverTest, TestGatewayBufferedReadParserRejectsConfiguredOversizeFrame) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } packet_size_guard;
 
   g_gateway_max_packet_size = 1024;
   GatewayMaster master;
   master.fd = -1;
-  const auto rejected_before =
-      g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
-          std::memory_order_relaxed);
+  const auto rejected_before = g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
+      std::memory_order_relaxed);
   const uint32_t network_length = htonl(1025);
-  master.read_buffer.assign(
-      reinterpret_cast<const char *>(&network_length), sizeof(network_length));
+  master.read_buffer.assign(reinterpret_cast<const char*>(&network_length), sizeof(network_length));
 
   ASSERT_EQ(gateway_dispatch_buffered_frames_for_test(&master, 2), -1);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
-          std::memory_order_relaxed),
-      rejected_before + 1);
+  ASSERT_EQ(g_gateway_runtime_counters.read_dispatch_frame_length_rejected.load(
+                std::memory_order_relaxed),
+            rejected_before + 1);
 }
 
 TEST_F(DriverTest, TestGatewayReadBufferRejectsAggregateOverflowBeforeCopy) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } packet_size_guard;
 
   g_gateway_max_packet_size = 1024;
@@ -3834,30 +3566,29 @@ TEST_F(DriverTest, TestGatewayReadBufferRejectsAggregateOverflowBeforeCopy) {
   ASSERT_EQ(limit, 1024u + sizeof(uint32_t));
   GatewayMaster master;
   const std::string bounded(limit, 'x');
-  const auto rejected_before =
-      g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
-          std::memory_order_relaxed);
+  const auto rejected_before = g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
+      std::memory_order_relaxed);
 
-  ASSERT_TRUE(gateway_append_read_bytes_for_test(
-      &master, bounded.data(), bounded.size()));
+  ASSERT_TRUE(gateway_append_read_bytes_for_test(&master, bounded.data(), bounded.size()));
   ASSERT_EQ(master.read_buffer.size(), limit);
   ASSERT_FALSE(gateway_append_read_bytes_for_test(&master, "x", 1));
   ASSERT_EQ(master.read_buffer.size(), limit);
-  ASSERT_EQ(
-      g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
-          std::memory_order_relaxed),
-      rejected_before + 1);
+  ASSERT_EQ(g_gateway_runtime_counters.read_dispatch_buffer_limit_rejected.load(
+                std::memory_order_relaxed),
+            rejected_before + 1);
 }
 
 TEST_F(DriverTest, TestGatewayMasterReadWatermarkMatchesBoundedAggregateBuffer) {
   struct PacketSizeGuard {
     size_t original{g_gateway_max_packet_size};
-    ~PacketSizeGuard() { g_gateway_max_packet_size = original; }
+    ~PacketSizeGuard() {
+      g_gateway_max_packet_size = original;
+    }
   } packet_size_guard;
 
   g_gateway_max_packet_size = 2048;
   constexpr int master_fd = 1707;
-  bufferevent *pair[2] = {nullptr, nullptr};
+  bufferevent* pair[2] = {nullptr, nullptr};
   ASSERT_EQ(bufferevent_pair_new(g_event_base, BEV_OPT_CLOSE_ON_FREE, pair), 0);
   ASSERT_NE(pair[0], nullptr);
   ASSERT_NE(pair[1], nullptr);
@@ -3865,8 +3596,7 @@ TEST_F(DriverTest, TestGatewayMasterReadWatermarkMatchesBoundedAggregateBuffer) 
   size_t lowmark = 0;
   size_t highmark = 0;
 
-  ASSERT_EQ(bufferevent_getwatermark(pair[0], EV_READ, &lowmark, &highmark),
-            0);
+  ASSERT_EQ(bufferevent_getwatermark(pair[0], EV_READ, &lowmark, &highmark), 0);
   ASSERT_EQ(lowmark, 0u);
   ASSERT_EQ(highmark, gateway_read_buffer_limit_for_test());
 
@@ -3907,8 +3637,7 @@ TEST_F(DriverTest, TestGatewayMasterListenerEnablesTcpNoDelayAndGatewayPriority)
   ASSERT_NE(source.find("setsockopt(fd, IPPROTO_TCP, TCP_NODELAY"), std::string::npos);
   ASSERT_NE(listener_source.find("gateway_enable_master_tcp_nodelay(fd)"), std::string::npos);
   ASSERT_NE(listener_source.find("bufferevent_priority_set("), std::string::npos);
-  ASSERT_NE(listener_source.find("BackendEventPriority::kGateway"),
-            std::string::npos);
+  ASSERT_NE(listener_source.find("BackendEventPriority::kGateway"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestGatewayListenerDescriptorsCloseOnExec) {
@@ -3925,11 +3654,9 @@ TEST_F(DriverTest, TestGatewayListenerDescriptorsCloseOnExec) {
 TEST_F(DriverTest, TestGatewayRejectsExternalBindWithoutAuthenticatedTransport) {
   ASSERT_FALSE(gateway_external_bind_allowed_for_test());
   const auto rejected_before =
-      g_gateway_runtime_counters.external_bind_rejected.load(
-          std::memory_order_relaxed);
+      g_gateway_runtime_counters.external_bind_rejected.load(std::memory_order_relaxed);
   ASSERT_EQ(gateway_listen_internal(65535, 1), 0);
-  ASSERT_EQ(g_gateway_runtime_counters.external_bind_rejected.load(
-                std::memory_order_relaxed),
+  ASSERT_EQ(g_gateway_runtime_counters.external_bind_rejected.load(std::memory_order_relaxed),
             rejected_before + 1);
 }
 
@@ -4023,20 +3750,22 @@ TEST_F(DriverTest, TestCleanUpDeadlineSweepAppliesAndRevertsToOneShot) {
   // queue on the way out.
   clear_tick_events();
   struct TickQueueGuard {
-    ~TickQueueGuard() { clear_tick_events(); }
+    ~TickQueueGuard() {
+      clear_tick_events();
+    }
   } tick_queue_guard;
 
   ASSERT_GT(CONFIG_INT(__TIME_TO_CLEAN_UP__), 0) << "sweep requires a clean_up interval";
 
   current_object = master_ob;
-  auto *ob = load_object_for_test("clone/clean_up_deadline");
+  auto* ob = load_object_for_test("clone/clean_up_deadline");
   ASSERT_NE(ob, nullptr);
   ASSERT_TRUE(ob->flags & O_WILL_CLEAN_UP)
       << "an object that defines clean_up() is queried by the sweep";
   // Control: an object whose deadline has not passed yet must survive the
   // same sweep (a future deadline is not "due" and the idle-time rule does
   // not apply to a freshly loaded object).
-  auto *future = load_object_for_test("clone/clean_up_deadline");
+  auto* future = load_object_for_test("clone/clean_up_deadline");
   ASSERT_NE(future, nullptr);
   future->next_cleanup = current_gametick() + 1000;
 
@@ -4064,8 +3793,8 @@ TEST_F(DriverTest, TestMoveObjectDestructDuringReset) {
   CONFIG_INT(__RC_NO_RESETS__) = 0;
 
   current_object = master_ob;
-  object_t *dest = nullptr;
-  object_t *item = nullptr;
+  object_t* dest = nullptr;
+  object_t* item = nullptr;
 
   error_context_t econ{};
   save_context(&econ);
@@ -4268,9 +3997,7 @@ TEST_F(DriverTest, TestSocketAcceptMarksAcceptedDescriptorCloseOnExec) {
   auto* listener = lpc_socks_get(guard.listener);
   sockaddr_storage address{};
   socklen_t address_length = sizeof(address);
-  ASSERT_EQ(getsockname(listener->fd, reinterpret_cast<sockaddr*>(&address),
-                        &address_length),
-            0);
+  ASSERT_EQ(getsockname(listener->fd, reinterpret_cast<sockaddr*>(&address), &address_length), 0);
 
   guard.client = socket(address.ss_family, SOCK_STREAM, 0);
   ASSERT_GE(guard.client, 0);
@@ -4420,8 +4147,7 @@ TEST_F(DriverTest, TestExternalPromiseHandleAndStart) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
         ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
       }
-      if (tick_event_queue_size_for_test() == 0 &&
-          walltime_event_queue_size_for_test() == 0 &&
+      if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0 &&
           promise->state == PROMISE_PENDING) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
       }
@@ -4600,7 +4326,8 @@ TEST_F(DriverTest, TestGatewayLoginRunsThroughOwnerMainQueue) {
   copy_and_push_string("/clone/gateway_login_example");
   safe_apply("set_test_login_ob", master_ob, 1, ORIGIN_DRIVER);
   ASSERT_TRUE(gateway_dispatch_message_for_test(
-      -1, R"({"type":"login","cid":"gw-test-login-main-queue","data":{"ip":"127.0.0.1","port":6040}})"));
+      -1,
+      R"({"type":"login","cid":"gw-test-login-main-queue","data":{"ip":"127.0.0.1","port":6040}})"));
 
   auto* sess = gateway_find_session(session_id);
   ASSERT_NE(sess, nullptr);
@@ -4618,7 +4345,8 @@ TEST_F(DriverTest, TestGatewayLoginMainQueueDropsStaleMaster) {
   copy_and_push_string("/clone/gateway_login_example");
   safe_apply("set_test_login_ob", master_ob, 1, ORIGIN_DRIVER);
   ASSERT_TRUE(gateway_dispatch_message_for_test(
-      4040, R"({"type":"login","cid":"gw-test-login-stale-master","data":{"ip":"127.0.0.1","port":6040}})"));
+      4040,
+      R"({"type":"login","cid":"gw-test-login-stale-master","data":{"ip":"127.0.0.1","port":6040}})"));
 
   ASSERT_EQ(gateway_find_session(session_id), nullptr);
   ASSERT_EQ(vm_owner_drain_main_tasks(1), 0);
@@ -4683,7 +4411,7 @@ TEST_F(DriverTest, TestSimulEfunUsesFullSourceNameBuffer) {
 }
 
 TEST_F(DriverTest, TestSaveObjectStringRejectsInvalidDestinationBeforeWriting) {
-  auto *object = load_object_for_test("single/void");
+  auto* object = load_object_for_test("single/void");
   ASSERT_NE(object, nullptr);
 
   char destination[32];
@@ -4703,25 +4431,27 @@ TEST_F(DriverTest, TestSaveObjectStringRecursionAccountsForConsumedPrefix) {
 }
 
 TEST_F(DriverTest, TestSaveObjectStringPreservesHeaderAndRejectsShortHeader) {
-  auto *object = load_object_for_test("std/json");
+  auto* object = load_object_for_test("std/json");
   ASSERT_NE(object, nullptr);
 
   std::vector<char> destination(256, 'S');
-  ASSERT_EQ(save_object_str(object, 0, destination.data(), static_cast<int>(destination.size() - 1)), 1);
+  ASSERT_EQ(
+      save_object_str(object, 0, destination.data(), static_cast<int>(destination.size() - 1)), 1);
   const std::string serialized(destination.data());
   ASSERT_EQ(serialized.compare(0, std::strlen("#/std/json.c\n"), "#/std/json.c\n"), 0);
 
   const auto header_size = serialized.find('\n') + 1;
   ASSERT_GT(header_size, 0U);
   std::vector<char> exact_header_destination(header_size + 1, 'S');
-  ASSERT_EQ(save_object_str(object, 0, exact_header_destination.data(),
-                            static_cast<int>(header_size)),
-            1);
+  ASSERT_EQ(
+      save_object_str(object, 0, exact_header_destination.data(), static_cast<int>(header_size)),
+      1);
   ASSERT_EQ(std::string(exact_header_destination.data(), header_size),
             serialized.substr(0, header_size));
   ASSERT_EQ(exact_header_destination[header_size], '\0');
   std::vector<char> short_destination(header_size + 1, 'S');
-  ASSERT_EQ(save_object_str(object, 0, short_destination.data(), static_cast<int>(header_size - 1)), 0);
+  ASSERT_EQ(save_object_str(object, 0, short_destination.data(), static_cast<int>(header_size - 1)),
+            0);
   ASSERT_EQ(short_destination[0], 'S');
 
   destruct_object_for_test(object);
@@ -4734,7 +4464,8 @@ TEST_F(DriverTest, TestSaveObjectPathAvoidsFixedBuffers) {
 
   ASSERT_NE(save_object_pos, std::string::npos);
   ASSERT_NE(save_object_str_pos, std::string::npos);
-  const auto save_object_source = source.substr(save_object_pos, save_object_str_pos - save_object_pos);
+  const auto save_object_source =
+      source.substr(save_object_pos, save_object_str_pos - save_object_pos);
 
   ASSERT_NE(save_object_source.find("len >= 2 && file[len - 2]"), std::string::npos);
   ASSERT_NE(save_object_source.find("const std::string tmp_name"), std::string::npos);
@@ -4802,12 +4533,10 @@ TEST_F(DriverTest, TestPerformanceWallClockUsesRawMonotonicSource) {
   const auto helper_pos = port_source.find("get_current_performance_wall_time_ns");
   const auto efun_pos = time_source.find("void f_performance_wall_time_ns()");
 
-  ASSERT_NE(port_header.find("int64_t get_current_performance_wall_time_ns();"),
-            std::string::npos);
+  ASSERT_NE(port_header.find("int64_t get_current_performance_wall_time_ns();"), std::string::npos);
   ASSERT_NE(helper_pos, std::string::npos);
   ASSERT_NE(port_source.find("CLOCK_MONOTONIC_RAW", helper_pos), std::string::npos);
-  ASSERT_NE(port_source.find("clock_gettime(CLOCK_MONOTONIC_RAW", helper_pos),
-            std::string::npos);
+  ASSERT_NE(port_source.find("clock_gettime(CLOCK_MONOTONIC_RAW", helper_pos), std::string::npos);
   ASSERT_NE(port_source.find("QueryPerformanceCounter", helper_pos), std::string::npos);
   ASSERT_NE(spec_source.find("int performance_wall_time_ns();"), std::string::npos);
   ASSERT_NE(efun_pos, std::string::npos);
@@ -4847,8 +4576,7 @@ TEST_F(DriverTest, TestPerformanceWallClockContainsCurrentThreadCpuInterval) {
   ASSERT_GT(accumulator, 0u);
   ASSERT_GE(cpu_after - cpu_before, kTargetCpuNs);
   ASSERT_GE(wall_after, wall_before);
-  ASSERT_GE(wall_after - wall_before + kCpuClockQuantizationAllowanceNs,
-            cpu_after - cpu_before);
+  ASSERT_GE(wall_after - wall_before + kCpuClockQuantizationAllowanceNs, cpu_after - cpu_before);
 }
 
 TEST_F(DriverTest, TestThreadCpuClockUsesDedicatedPerThreadSources) {
@@ -4888,39 +4616,34 @@ TEST_F(DriverTest, TestOwnerAsyncLpcAndCompletionExposeWorkerThreadCpuCounters) 
       read_source_file_for_test("../src/vm/internal/owner_runtime_metrics.h");
 
   ASSERT_NE(owner_source.find("get_current_thread_cpu_time_ns()"), std::string::npos);
-  ASSERT_NE(metrics_source.find("owner_async_lpc_execute_thread_cpu_ns_total"),
-            std::string::npos);
+  ASSERT_NE(metrics_source.find("owner_async_lpc_execute_thread_cpu_ns_total"), std::string::npos);
   ASSERT_NE(metrics_source.find("owner_async_lpc_execute_thread_cpu_unavailable"),
             std::string::npos);
   ASSERT_NE(metrics_source.find("owner_async_result_completion_thread_cpu_ns_total"),
             std::string::npos);
   ASSERT_NE(metrics_source.find("owner_async_result_completion_thread_cpu_unavailable"),
             std::string::npos);
-  ASSERT_NE(owner_source.find("owner_async_lpc_execute_thread_cpu_total_us"),
-            std::string::npos);
+  ASSERT_NE(owner_source.find("owner_async_lpc_execute_thread_cpu_total_us"), std::string::npos);
   ASSERT_NE(owner_source.find("owner_async_result_completion_thread_cpu_total_us"),
             std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerRuntimeMetricMappingsUseLpcIntegerWidth) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto status_start =
-      owner_source.find("void add_owner_runtime_v2_status_fields(");
+  const auto status_start = owner_source.find("void add_owner_runtime_v2_status_fields(");
   const auto status_end = owner_source.find(
       "std::shared_ptr<VMFrozenValue> frozen_compute_result_mapping", status_start);
 
   ASSERT_NE(status_start, std::string::npos);
   ASSERT_NE(status_end, std::string::npos);
   ASSERT_GT(status_end, status_start);
-  const auto status_body =
-      owner_source.substr(status_start, status_end - status_start);
+  const auto status_body = owner_source.substr(status_start, status_end - status_start);
   ASSERT_EQ(status_body.find("static_cast<long>"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerStatusMappingsUseLpcIntegerWidth) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  auto assert_status_uses_lpc_width = [&](const char* start_marker,
-                                          const char* end_marker) {
+  auto assert_status_uses_lpc_width = [&](const char* start_marker, const char* end_marker) {
     const auto start = owner_source.find(start_marker);
     const auto end = owner_source.find(end_marker, start);
 
@@ -4928,30 +4651,22 @@ TEST_F(DriverTest, TestOwnerStatusMappingsUseLpcIntegerWidth) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = owner_source.substr(start, end - start);
-    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos)
-        << start_marker;
-    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos)
-        << start_marker;
+    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos) << start_marker;
+    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos) << start_marker;
   };
 
-  assert_status_uses_lpc_width(
-      "mapping_t *vm_owner_thread_status()",
-      "mapping_t *vm_owner_runtime_status()");
-  assert_status_uses_lpc_width(
-      "mapping_t *vm_owner_runtime_status()",
-      "#ifdef DEBUGMALLOC_EXTENSIONS");
+  assert_status_uses_lpc_width("mapping_t *vm_owner_thread_status()",
+                               "mapping_t *vm_owner_runtime_status()");
+  assert_status_uses_lpc_width("mapping_t *vm_owner_runtime_status()",
+                               "#ifdef DEBUGMALLOC_EXTENSIONS");
 }
 
 TEST_F(DriverTest, TestOwnerStatusSerializationUsesSharedFieldBuilder) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto helper_start = owner_source.find(
-      "void add_owner_runtime_status_fields(");
-  const auto thread_start = owner_source.find(
-      "mapping_t *vm_owner_thread_status()");
-  const auto runtime_start = owner_source.find(
-      "mapping_t *vm_owner_runtime_status()");
-  const auto debugmalloc_start = owner_source.find(
-      "#ifdef DEBUGMALLOC_EXTENSIONS", runtime_start);
+  const auto helper_start = owner_source.find("void add_owner_runtime_status_fields(");
+  const auto thread_start = owner_source.find("mapping_t *vm_owner_thread_status()");
+  const auto runtime_start = owner_source.find("mapping_t *vm_owner_runtime_status()");
+  const auto debugmalloc_start = owner_source.find("#ifdef DEBUGMALLOC_EXTENSIONS", runtime_start);
 
   ASSERT_NE(helper_start, std::string::npos);
   ASSERT_NE(thread_start, std::string::npos);
@@ -4965,16 +4680,11 @@ TEST_F(DriverTest, TestOwnerStatusSerializationUsesSharedFieldBuilder) {
   const auto thread_body = owner_source.substr(thread_start, runtime_start - thread_start);
   const auto runtime_body = owner_source.substr(runtime_start, debugmalloc_start - runtime_start);
 
-  EXPECT_NE(helper_body.find("add_mapping_pair(map, \"queue_depth\""),
-            std::string::npos);
-  EXPECT_EQ(thread_body.find("add_mapping_pair(map, \"queue_depth\""),
-            std::string::npos);
-  EXPECT_EQ(runtime_body.find("add_mapping_pair(map, \"queue_depth\""),
-            std::string::npos);
-  EXPECT_NE(thread_body.find("add_owner_runtime_status_fields(map, status);"),
-            std::string::npos);
-  EXPECT_NE(runtime_body.find("add_owner_runtime_status_fields(map, status);"),
-            std::string::npos);
+  EXPECT_NE(helper_body.find("add_mapping_pair(map, \"queue_depth\""), std::string::npos);
+  EXPECT_EQ(thread_body.find("add_mapping_pair(map, \"queue_depth\""), std::string::npos);
+  EXPECT_EQ(runtime_body.find("add_mapping_pair(map, \"queue_depth\""), std::string::npos);
+  EXPECT_NE(thread_body.find("add_owner_runtime_status_fields(map, status);"), std::string::npos);
+  EXPECT_NE(runtime_body.find("add_owner_runtime_status_fields(map, status);"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerTaskConstructionUsesSharedIdentityInitializer) {
@@ -4987,8 +4697,7 @@ TEST_F(DriverTest, TestOwnerTaskConstructionUsesSharedIdentityInitializer) {
   }
   EXPECT_EQ(initializer_count, 13u);
 
-  const std::string direct_task_id_init =
-      "task.task_id = next_mailbox_task_id.fetch_add";
+  const std::string direct_task_id_init = "task.task_id = next_mailbox_task_id.fetch_add";
   const auto direct_init = owner_source.find(direct_task_id_init);
   ASSERT_NE(direct_init, std::string::npos);
   EXPECT_EQ(owner_source.find(direct_task_id_init, direct_init + direct_task_id_init.size()),
@@ -4996,16 +4705,12 @@ TEST_F(DriverTest, TestOwnerTaskConstructionUsesSharedIdentityInitializer) {
 }
 
 TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
-  const auto gateway_source =
-      read_source_file_for_test("../src/packages/gateway/gateway.cc");
+  const auto gateway_source = read_source_file_for_test("../src/packages/gateway/gateway.cc");
   const auto helper_name = gateway_source.find("gateway_avg_us(");
-  const auto helper_start = gateway_source.rfind('\n', helper_name);
-  const auto helper_end =
-      gateway_source.find("void gateway_record_main_drain(", helper_name);
-  const auto status_start =
-      gateway_source.find("mapping_t *gateway_status_internal()");
-  const auto status_end =
-      gateway_source.find("void f_is_gateway_user()", status_start);
+  const auto helper_start = gateway_source.rfind("LPC_INT", helper_name);
+  const auto helper_end = gateway_source.find("void gateway_record_main_drain(", helper_name);
+  const auto status_start = gateway_source.find("mapping_t *gateway_status_internal()");
+  const auto status_end = gateway_source.find("void f_is_gateway_user()", status_start);
 
   ASSERT_NE(helper_name, std::string::npos);
   ASSERT_NE(helper_start, std::string::npos);
@@ -5014,10 +4719,8 @@ TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
   ASSERT_NE(status_start, std::string::npos);
   ASSERT_NE(status_end, std::string::npos);
   ASSERT_GT(status_end, status_start);
-  const auto helper_body =
-      gateway_source.substr(helper_start + 1, helper_end - helper_start - 1);
-  const auto status_body =
-      gateway_source.substr(status_start, status_end - status_start);
+  const auto helper_body = gateway_source.substr(helper_start, helper_end - helper_start);
+  const auto status_body = gateway_source.substr(status_start, status_end - status_start);
   EXPECT_EQ(helper_body.find("static_cast<long>"), std::string::npos);
   EXPECT_EQ(helper_body.find("long gateway_"), std::string::npos);
   EXPECT_NE(helper_body.find("LPC_INT gateway_avg_us"), std::string::npos);
@@ -5026,10 +4729,8 @@ TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
 }
 
 TEST_F(DriverTest, TestVmWorkerMappingCountersUseLpcIntegerWidth) {
-  const auto worker_source =
-      read_source_file_for_test("../src/packages/core/vm_worker.cc");
-  auto assert_mapping_uses_lpc_width = [&](const char* start_marker,
-                                           const char* end_marker) {
+  const auto worker_source = read_source_file_for_test("../src/packages/core/vm_worker.cc");
+  auto assert_mapping_uses_lpc_width = [&](const char* start_marker, const char* end_marker) {
     const auto start = worker_source.find(start_marker);
     const auto end = worker_source.find(end_marker, start);
 
@@ -5037,26 +4738,19 @@ TEST_F(DriverTest, TestVmWorkerMappingCountersUseLpcIntegerWidth) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = worker_source.substr(start, end - start);
-    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos)
-        << start_marker;
-    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos)
-        << start_marker;
+    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos) << start_marker;
+    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos) << start_marker;
   };
 
-  assert_mapping_uses_lpc_width(
-      "mapping_t *worker_bench_response(mapping_t *options)",
-      "mapping_t *worker_actor_bench_response(mapping_t *options)");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *worker_status_response()",
-      "mapping_t *worker_submit_response(");
-  assert_mapping_uses_lpc_width(
-      "void f_vm_worker_bench()",
-      "#ifdef F_VM_WORKER_TASK");
+  assert_mapping_uses_lpc_width("mapping_t *worker_bench_response(mapping_t *options)",
+                                "mapping_t *worker_actor_bench_response(mapping_t *options)");
+  assert_mapping_uses_lpc_width("mapping_t *worker_status_response()",
+                                "mapping_t *worker_submit_response(");
+  assert_mapping_uses_lpc_width("void f_vm_worker_bench()", "#ifdef F_VM_WORKER_TASK");
 }
 
 TEST_F(DriverTest, TestGatewaySessionCountMappingsUseLpcIntegerWidth) {
-  const auto gateway_header =
-      read_source_file_for_test("../src/packages/gateway/gateway.h");
+  const auto gateway_header = read_source_file_for_test("../src/packages/gateway/gateway.h");
   const auto session_source =
       read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
   const char* count_functions[] = {
@@ -5071,33 +4765,25 @@ TEST_F(DriverTest, TestGatewaySessionCountMappingsUseLpcIntegerWidth) {
   };
 
   for (const auto* function_name : count_functions) {
-    const auto long_signature =
-        std::string("long ") + function_name + "(";
-    const auto lpc_signature =
-        std::string("LPC_INT ") + function_name + "(";
-    EXPECT_EQ(gateway_header.find(long_signature), std::string::npos)
-        << function_name;
-    EXPECT_NE(gateway_header.find(lpc_signature), std::string::npos)
-        << function_name;
-    EXPECT_EQ(session_source.find(long_signature), std::string::npos)
-        << function_name;
-    EXPECT_NE(session_source.find(lpc_signature), std::string::npos)
-        << function_name;
+    const auto long_signature = std::string("long ") + function_name + "(";
+    const auto lpc_signature = std::string("LPC_INT ") + function_name + "(";
+    EXPECT_EQ(gateway_header.find(long_signature), std::string::npos) << function_name;
+    EXPECT_NE(gateway_header.find(lpc_signature), std::string::npos) << function_name;
+    EXPECT_EQ(session_source.find(long_signature), std::string::npos) << function_name;
+    EXPECT_NE(session_source.find(lpc_signature), std::string::npos) << function_name;
   }
 
-  const auto projection_start = session_source.find(
-      "gateway_room_output_projection_pending_count()");
-  const auto projection_end = session_source.find(
-      "GatewaySession *gateway_find_session(", projection_start);
-  const auto watch_start =
-      session_source.find("gateway_session_future_watch_count()");
-  const auto watch_end = session_source.find(
-      "uint64_t gateway_session_fifo_enqueued_total()", watch_start);
-  const auto quiesce_start = session_source.find(
-      "mapping_t *gateway_owner_output_quiesce(const char *reason)");
-  const auto quiesce_end = session_source.find(
-      "int gateway_fill_session_protocol_output_with_writer(",
-      quiesce_start);
+  const auto projection_start =
+      session_source.find("gateway_room_output_projection_pending_count()");
+  const auto projection_end =
+      session_source.find("GatewaySession *gateway_find_session(", projection_start);
+  const auto watch_start = session_source.find("gateway_session_future_watch_count()");
+  const auto watch_end =
+      session_source.find("uint64_t gateway_session_fifo_enqueued_total()", watch_start);
+  const auto quiesce_start =
+      session_source.find("mapping_t *gateway_owner_output_quiesce(const char *reason)");
+  const auto quiesce_end =
+      session_source.find("int gateway_fill_session_protocol_output_with_writer(", quiesce_start);
 
   ASSERT_NE(projection_start, std::string::npos);
   ASSERT_NE(projection_end, std::string::npos);
@@ -5109,33 +4795,26 @@ TEST_F(DriverTest, TestGatewaySessionCountMappingsUseLpcIntegerWidth) {
   ASSERT_NE(quiesce_end, std::string::npos);
   ASSERT_GT(quiesce_end, quiesce_start);
 
-  const auto projection_body = session_source.substr(
-      projection_start, projection_end - projection_start);
-  const auto watch_body =
-      session_source.substr(watch_start, watch_end - watch_start);
-  const auto quiesce_body =
-      session_source.substr(quiesce_start, quiesce_end - quiesce_start);
+  const auto projection_body =
+      session_source.substr(projection_start, projection_end - projection_start);
+  const auto watch_body = session_source.substr(watch_start, watch_end - watch_start);
+  const auto quiesce_body = session_source.substr(quiesce_start, quiesce_end - quiesce_start);
   EXPECT_EQ(projection_body.find("static_cast<long>"), std::string::npos);
-  EXPECT_EQ(projection_body.find("numeric_limits<long>"),
-            std::string::npos);
+  EXPECT_EQ(projection_body.find("numeric_limits<long>"), std::string::npos);
   EXPECT_EQ(watch_body.find("static_cast<long>"), std::string::npos);
   EXPECT_EQ(quiesce_body.find("static_cast<long>"), std::string::npos);
-  EXPECT_EQ(quiesce_body.find("numeric_limits<long>"),
-            std::string::npos);
+  EXPECT_EQ(quiesce_body.find("numeric_limits<long>"), std::string::npos);
   EXPECT_EQ(quiesce_body.find("std::max<long>"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestGatewaySessionInfoMappingsUseLpcIntegerWidth) {
   const auto session_source =
       read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
-  const auto payload_start = session_source.find(
-      "svalue_t gateway_command_task_payload(");
-  const auto payload_end = session_source.find(
-      "void cleanup_temp_gateway_interactive(", payload_start);
-  const auto info_start =
-      session_source.find("void f_gateway_session_info()");
-  const auto info_end =
-      session_source.find("void f_gateway_inject_input()", info_start);
+  const auto payload_start = session_source.find("svalue_t gateway_command_task_payload(");
+  const auto payload_end =
+      session_source.find("void cleanup_temp_gateway_interactive(", payload_start);
+  const auto info_start = session_source.find("void f_gateway_session_info()");
+  const auto info_end = session_source.find("void f_gateway_inject_input()", info_start);
 
   ASSERT_NE(payload_start, std::string::npos);
   ASSERT_NE(payload_end, std::string::npos);
@@ -5143,26 +4822,19 @@ TEST_F(DriverTest, TestGatewaySessionInfoMappingsUseLpcIntegerWidth) {
   ASSERT_NE(info_start, std::string::npos);
   ASSERT_NE(info_end, std::string::npos);
   ASSERT_GT(info_end, info_start);
-  const auto payload_body =
-      session_source.substr(payload_start, payload_end - payload_start);
-  const auto info_body =
-      session_source.substr(info_start, info_end - info_start);
+  const auto payload_body = session_source.substr(payload_start, payload_end - payload_start);
+  const auto info_body = session_source.substr(info_start, info_end - info_start);
   EXPECT_EQ(payload_body.find("static_cast<long>"), std::string::npos);
-  EXPECT_NE(payload_body.find("static_cast<LPC_INT>"),
-            std::string::npos);
+  EXPECT_NE(payload_body.find("static_cast<LPC_INT>"), std::string::npos);
   EXPECT_EQ(info_body.find("static_cast<long>"), std::string::npos);
   EXPECT_NE(info_body.find("static_cast<LPC_INT>"), std::string::npos);
-  EXPECT_EQ(info_body.find("long pending_reservations"),
-            std::string::npos);
-  EXPECT_NE(info_body.find("LPC_INT pending_reservations"),
-            std::string::npos);
+  EXPECT_EQ(info_body.find("long pending_reservations"), std::string::npos);
+  EXPECT_NE(info_body.find("LPC_INT pending_reservations"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestObjectStoreShardMappingsUseLpcIntegerWidth) {
-  const auto object_store_source =
-      read_source_file_for_test("../src/vm/internal/object_store.cc");
-  auto assert_mapping_uses_lpc_width = [&](const char* start_marker,
-                                           const char* end_marker) {
+  const auto object_store_source = read_source_file_for_test("../src/vm/internal/object_store.cc");
+  auto assert_mapping_uses_lpc_width = [&](const char* start_marker, const char* end_marker) {
     const auto start = object_store_source.find(start_marker);
     const auto end = object_store_source.find(end_marker, start);
 
@@ -5170,100 +4842,71 @@ TEST_F(DriverTest, TestObjectStoreShardMappingsUseLpcIntegerWidth) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = object_store_source.substr(start, end - start);
-    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos)
-        << start_marker;
-    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos)
-        << start_marker;
+    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos) << start_marker;
+    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos) << start_marker;
   };
 
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_object_shard_contract_mapping(",
-      "void append_migration_trace_locked(");
-  assert_mapping_uses_lpc_width(
-      "execution_runnable_tasks(",
-      "mapping_t *status_record_mapping(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *status_record_mapping(",
-      "mapping_t *execution_shard_mapping(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *execution_shard_mapping(",
-      "mapping_t *shard_mapping(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *shard_mapping(",
-      "}  // namespace");
-  EXPECT_EQ(object_store_source.find("long execution_runnable_tasks("),
-            std::string::npos);
-  EXPECT_NE(object_store_source.find("LPC_INT execution_runnable_tasks("),
-            std::string::npos);
+  assert_mapping_uses_lpc_width("mapping_t *vm_object_shard_contract_mapping(",
+                                "void append_migration_trace_locked(");
+  assert_mapping_uses_lpc_width("execution_runnable_tasks(", "mapping_t *status_record_mapping(");
+  assert_mapping_uses_lpc_width("mapping_t *status_record_mapping(",
+                                "mapping_t *execution_shard_mapping(");
+  assert_mapping_uses_lpc_width("mapping_t *execution_shard_mapping(", "mapping_t *shard_mapping(");
+  assert_mapping_uses_lpc_width("mapping_t *shard_mapping(", "}  // namespace");
+  EXPECT_EQ(object_store_source.find("long execution_runnable_tasks("), std::string::npos);
+  EXPECT_NE(object_store_source.find("LPC_INT execution_runnable_tasks("), std::string::npos);
 }
 
 TEST_F(DriverTest, TestObjectStoreGlobalStatusMappingUsesLpcIntegerWidth) {
-  const auto object_store_source =
-      read_source_file_for_test("../src/vm/internal/object_store.cc");
-  const auto status_start =
-      object_store_source.find("mapping_t *vm_object_store_status()");
-  const auto status_end = object_store_source.find(
-      "mapping_t *vm_object_store_owner_status(", status_start);
+  const auto object_store_source = read_source_file_for_test("../src/vm/internal/object_store.cc");
+  const auto status_start = object_store_source.find("mapping_t *vm_object_store_status()");
+  const auto status_end =
+      object_store_source.find("mapping_t *vm_object_store_owner_status(", status_start);
 
   ASSERT_NE(status_start, std::string::npos);
   ASSERT_NE(status_end, std::string::npos);
   ASSERT_GT(status_end, status_start);
-  const auto status_body =
-      object_store_source.substr(status_start, status_end - status_start);
+  const auto status_body = object_store_source.substr(status_start, status_end - status_start);
   EXPECT_EQ(status_body.find("static_cast<long>"), std::string::npos);
-  EXPECT_NE(status_body.find("static_cast<LPC_INT>"),
-            std::string::npos);
+  EXPECT_NE(status_body.find("static_cast<LPC_INT>"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerSchedulerCountsUseFixedIntegerWidth) {
-  const auto scheduler_header = read_source_file_for_test(
-      "../src/vm/internal/owner_scheduler_state.h");
-  const auto scheduler_source = read_source_file_for_test(
-      "../src/vm/internal/owner_scheduler_state.cc");
-  const auto trace_header = read_source_file_for_test(
-      "../src/vm/internal/owner_trace_store.h");
+  const auto scheduler_header =
+      read_source_file_for_test("../src/vm/internal/owner_scheduler_state.h");
+  const auto scheduler_source =
+      read_source_file_for_test("../src/vm/internal/owner_scheduler_state.cc");
+  const auto trace_header = read_source_file_for_test("../src/vm/internal/owner_trace_store.h");
   const auto owner_header = read_source_file_for_test("../src/vm/owner.h");
-  const auto owner_source = read_source_file_for_test(
-      "../src/vm/internal/owner.cc");
+  const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
 
   EXPECT_EQ(scheduler_header.find("long "), std::string::npos);
-  EXPECT_NE(scheduler_header.find("int64_t mailbox_depth("),
-            std::string::npos);
-  EXPECT_EQ(scheduler_source.find("static_cast<long>"),
-            std::string::npos);
-  EXPECT_EQ(scheduler_source.find("long OwnerSchedulerState::"),
-            std::string::npos);
-  EXPECT_NE(scheduler_source.find("int64_t OwnerSchedulerState::"),
-            std::string::npos);
+  EXPECT_NE(scheduler_header.find("int64_t mailbox_depth("), std::string::npos);
+  EXPECT_EQ(scheduler_source.find("static_cast<long>"), std::string::npos);
+  EXPECT_EQ(scheduler_source.find("long OwnerSchedulerState::"), std::string::npos);
+  EXPECT_NE(scheduler_source.find("int64_t OwnerSchedulerState::"), std::string::npos);
 
   const auto trace_start = trace_header.find("struct OwnerExecutorTrace {");
-  const auto trace_end = trace_header.find(
-      "template <typename Trace>", trace_start);
+  const auto trace_end = trace_header.find("template <typename Trace>", trace_start);
   ASSERT_NE(trace_start, std::string::npos);
   ASSERT_NE(trace_end, std::string::npos);
   ASSERT_GT(trace_end, trace_start);
-  const auto trace_body =
-      trace_header.substr(trace_start, trace_end - trace_start);
+  const auto trace_body = trace_header.substr(trace_start, trace_end - trace_start);
   EXPECT_EQ(trace_body.find("long "), std::string::npos);
   EXPECT_NE(trace_body.find("int64_t backlog"), std::string::npos);
 
-  const auto drain_result_start =
-      owner_header.find("struct VMOwnerMainDrainResult {");
-  const auto drain_result_end = owner_header.find(
-      "using VMOwnerFutureTerminalNotifier", drain_result_start);
+  const auto drain_result_start = owner_header.find("struct VMOwnerMainDrainResult {");
+  const auto drain_result_end =
+      owner_header.find("using VMOwnerFutureTerminalNotifier", drain_result_start);
   ASSERT_NE(drain_result_start, std::string::npos);
   ASSERT_NE(drain_result_end, std::string::npos);
   ASSERT_GT(drain_result_end, drain_result_start);
-  const auto drain_result_body = owner_header.substr(
-      drain_result_start, drain_result_end - drain_result_start);
-  EXPECT_EQ(drain_result_body.find("long remaining_"),
-            std::string::npos);
-  EXPECT_NE(drain_result_body.find("int64_t remaining_main_tasks"),
-            std::string::npos);
-  EXPECT_EQ(owner_header.find("long vm_owner_main_queue_total_depth()"),
-            std::string::npos);
-  EXPECT_NE(owner_header.find("int64_t vm_owner_main_queue_total_depth()"),
-            std::string::npos);
+  const auto drain_result_body =
+      owner_header.substr(drain_result_start, drain_result_end - drain_result_start);
+  EXPECT_EQ(drain_result_body.find("long remaining_"), std::string::npos);
+  EXPECT_NE(drain_result_body.find("int64_t remaining_main_tasks"), std::string::npos);
+  EXPECT_EQ(owner_header.find("long vm_owner_main_queue_total_depth()"), std::string::npos);
+  EXPECT_NE(owner_header.find("int64_t vm_owner_main_queue_total_depth()"), std::string::npos);
 
   const char* scheduler_count_functions[] = {
       "owner_mailbox_depth",
@@ -5278,36 +4921,28 @@ TEST_F(DriverTest, TestOwnerSchedulerCountsUseFixedIntegerWidth) {
       "owner_main_runnable_owner_count",
   };
   for (const auto* function_name : scheduler_count_functions) {
-    EXPECT_EQ(owner_source.find(std::string("long ") + function_name + "("),
-              std::string::npos)
+    EXPECT_EQ(owner_source.find(std::string("long ") + function_name + "("), std::string::npos)
         << function_name;
-    EXPECT_NE(owner_source.find(std::string("int64_t ") + function_name + "("),
-              std::string::npos)
+    EXPECT_NE(owner_source.find(std::string("int64_t ") + function_name + "("), std::string::npos)
         << function_name;
   }
-  EXPECT_EQ(owner_source.find("long vm_owner_main_queue_total_depth()"),
-            std::string::npos);
-  EXPECT_NE(owner_source.find("int64_t vm_owner_main_queue_total_depth()"),
-            std::string::npos);
+  EXPECT_EQ(owner_source.find("long vm_owner_main_queue_total_depth()"), std::string::npos);
+  EXPECT_NE(owner_source.find("int64_t vm_owner_main_queue_total_depth()"), std::string::npos);
 
-  const auto drain_start = owner_source.find(
-      "VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(");
-  const auto drain_end = owner_source.find(
-      "int vm_owner_drain_main_tasks(int limit)", drain_start);
+  const auto drain_start =
+      owner_source.find("VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(");
+  const auto drain_end = owner_source.find("int vm_owner_drain_main_tasks(int limit)", drain_start);
   ASSERT_NE(drain_start, std::string::npos);
   ASSERT_NE(drain_end, std::string::npos);
   ASSERT_GT(drain_end, drain_start);
-  const auto drain_body =
-      owner_source.substr(drain_start, drain_end - drain_start);
+  const auto drain_body = owner_source.substr(drain_start, drain_end - drain_start);
   EXPECT_EQ(drain_body.find("static_cast<long>"), std::string::npos);
-  EXPECT_NE(drain_body.find("static_cast<int64_t>"),
-            std::string::npos);
+  EXPECT_NE(drain_body.find("static_cast<int64_t>"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerDiagnosticMappingsUseLpcIntegerWidth) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  auto assert_mapping_uses_lpc_width = [&](const char* start_marker,
-                                           const char* end_marker) {
+  auto assert_mapping_uses_lpc_width = [&](const char* start_marker, const char* end_marker) {
     const auto start = owner_source.find(start_marker);
     const auto end = owner_source.find(end_marker, start);
 
@@ -5315,65 +4950,46 @@ TEST_F(DriverTest, TestOwnerDiagnosticMappingsUseLpcIntegerWidth) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = owner_source.substr(start, end - start);
-    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos)
-        << start_marker;
-    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos)
-        << start_marker;
+    EXPECT_EQ(body.find("static_cast<long>"), std::string::npos) << start_marker;
+    EXPECT_NE(body.find("static_cast<LPC_INT>"), std::string::npos) << start_marker;
   };
 
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_status(object_t *object)",
-      "mapping_t *vm_owner_guard(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_drain_mailbox(",
-      "mapping_t *vm_owner_purge_mailbox(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_purge_mailbox(",
-      "mapping_t *vm_owner_schedule(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_schedule(",
-      "mapping_t *vm_owner_mailbox_status(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_mailbox_status(",
-      "mapping_t *vm_owner_task_trace(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_task_trace(",
-      "mapping_t *vm_owner_executor_trace(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_executor_trace(",
-      "mapping_t *vm_owner_access_trace(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_access_trace(",
-      "mapping_t *submit_owner_message(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_message_trace(",
-      "mapping_t *vm_owner_future_poll(");
-  assert_mapping_uses_lpc_width(
-      "mapping_t *vm_owner_commit_trace(",
-      "void vm_owner_thread_start(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_status(object_t *object)",
+                                "mapping_t *vm_owner_guard(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_drain_mailbox(",
+                                "mapping_t *vm_owner_purge_mailbox(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_purge_mailbox(",
+                                "mapping_t *vm_owner_schedule(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_schedule(",
+                                "mapping_t *vm_owner_mailbox_status(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_mailbox_status(",
+                                "mapping_t *vm_owner_task_trace(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_task_trace(",
+                                "mapping_t *vm_owner_executor_trace(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_executor_trace(",
+                                "mapping_t *vm_owner_access_trace(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_access_trace(",
+                                "mapping_t *submit_owner_message(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_message_trace(",
+                                "mapping_t *vm_owner_future_poll(");
+  assert_mapping_uses_lpc_width("mapping_t *vm_owner_commit_trace(", "void vm_owner_thread_start(");
 
-  const auto context_start =
-      owner_source.find("mapping_t *vm_context_contract_mapping()");
-  const auto context_end = owner_source.find(
-      "mapping_t *owner_executor_boundary_contract_mapping()", context_start);
+  const auto context_start = owner_source.find("mapping_t *vm_context_contract_mapping()");
+  const auto context_end =
+      owner_source.find("mapping_t *owner_executor_boundary_contract_mapping()", context_start);
   ASSERT_NE(context_start, std::string::npos);
   ASSERT_NE(context_end, std::string::npos);
   ASSERT_GT(context_end, context_start);
-  const auto context_body =
-      owner_source.substr(context_start, context_end - context_start);
-  EXPECT_EQ(context_body.find(
-                "static_cast<long>(vm_context_object_store_sync_rejections())"),
+  const auto context_body = owner_source.substr(context_start, context_end - context_start);
+  EXPECT_EQ(context_body.find("static_cast<long>(vm_context_object_store_sync_rejections())"),
             std::string::npos);
-  EXPECT_NE(context_body.find(
-                "static_cast<LPC_INT>(vm_context_object_store_sync_rejections())"),
+  EXPECT_NE(context_body.find("static_cast<LPC_INT>(vm_context_object_store_sync_rejections())"),
             std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerTraceAppendMetadataUsesStoreLockBoundary) {
-  const auto trace_source =
-      read_source_file_for_test("../src/vm/internal/owner_trace_store.cc");
-  auto assert_ordered_markers = [&](const char* start_marker,
-                                    const char* end_marker,
+  const auto trace_source = read_source_file_for_test("../src/vm/internal/owner_trace_store.cc");
+  auto assert_ordered_markers = [&](const char* start_marker, const char* end_marker,
                                     std::initializer_list<const char*> markers) {
     const auto start = trace_source.find(start_marker);
     const auto end = trace_source.find(end_marker, start);
@@ -5391,66 +5007,43 @@ TEST_F(DriverTest, TestOwnerTraceAppendMetadataUsesStoreLockBoundary) {
   };
 
   assert_ordered_markers(
-      "uint64_t OwnerTraceStore::append_task(",
-      "uint64_t OwnerTraceStore::append_executor(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "next_task_trace_id_.fetch_add(",
-       "if (trace.sequence == 0)",
-       "task_traces_.push_back(",
-       "total_task_traced_.fetch_add("});
+      "uint64_t OwnerTraceStore::append_task(", "uint64_t OwnerTraceStore::append_executor(",
+      {"std::lock_guard<std::mutex> lock(mutex_);", "next_task_trace_id_.fetch_add(",
+       "if (trace.sequence == 0)", "task_traces_.push_back(", "total_task_traced_.fetch_add("});
+  assert_ordered_markers("uint64_t OwnerTraceStore::append_executor(",
+                         "uint64_t OwnerTraceStore::append_access(",
+                         {"std::lock_guard<std::mutex> lock(mutex_);",
+                          "next_executor_trace_id_.fetch_add(", "trace.sequence = trace.trace_id;",
+                          "executor_traces_.push_back(", "total_executor_traced_.fetch_add("});
+  assert_ordered_markers("uint64_t OwnerTraceStore::append_access(",
+                         "void OwnerTraceStore::append_message(",
+                         {"std::lock_guard<std::mutex> lock(mutex_);",
+                          "next_access_trace_id_.fetch_add(", "total_access_traced_.load(",
+                          "access_traces_.push_back(", "total_access_traced_.fetch_add("});
   assert_ordered_markers(
-      "uint64_t OwnerTraceStore::append_executor(",
-      "uint64_t OwnerTraceStore::append_access(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "next_executor_trace_id_.fetch_add(",
-       "trace.sequence = trace.trace_id;",
-       "executor_traces_.push_back(",
-       "total_executor_traced_.fetch_add("});
-  assert_ordered_markers(
-      "uint64_t OwnerTraceStore::append_access(",
-      "void OwnerTraceStore::append_message(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "next_access_trace_id_.fetch_add(",
-       "total_access_traced_.load(",
-       "access_traces_.push_back(",
-       "total_access_traced_.fetch_add("});
-  assert_ordered_markers(
-      "void OwnerTraceStore::append_message(",
-      "OwnerCommitTrace OwnerTraceStore::append_commit(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "total_message_traced_.load(",
-       "message_traces_.push_back(",
-       "total_message_traced_.fetch_add("});
-  assert_ordered_markers(
-      "OwnerCommitTrace OwnerTraceStore::append_commit(",
-      "uint64_t OwnerTraceStore::append_commit_observed(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "next_commit_trace_id_.fetch_add(",
-       "total_commit_traced_.load(",
-       "commit_traces_.push_back(",
-       "total_commit_traced_.fetch_add("});
-  assert_ordered_markers(
-      "uint64_t OwnerTraceStore::append_commit_observed(",
-      "uint64_t OwnerTraceStore::next_message_id(",
-      {"std::lock_guard<std::mutex> lock(mutex_);",
-       "next_commit_trace_id_.fetch_add(",
-       "total_commit_traced_.load(",
-       "commit_traces_.push_back(",
-       "total_commit_traced_.fetch_add("});
+      "void OwnerTraceStore::append_message(", "OwnerCommitTrace OwnerTraceStore::append_commit(",
+      {"std::lock_guard<std::mutex> lock(mutex_);", "total_message_traced_.load(",
+       "message_traces_.push_back(", "total_message_traced_.fetch_add("});
+  assert_ordered_markers("OwnerCommitTrace OwnerTraceStore::append_commit(",
+                         "uint64_t OwnerTraceStore::append_commit_observed(",
+                         {"std::lock_guard<std::mutex> lock(mutex_);",
+                          "next_commit_trace_id_.fetch_add(", "total_commit_traced_.load(",
+                          "commit_traces_.push_back(", "total_commit_traced_.fetch_add("});
+  assert_ordered_markers("uint64_t OwnerTraceStore::append_commit_observed(",
+                         "uint64_t OwnerTraceStore::next_message_id(",
+                         {"std::lock_guard<std::mutex> lock(mutex_);",
+                          "next_commit_trace_id_.fetch_add(", "total_commit_traced_.load(",
+                          "commit_traces_.push_back(", "total_commit_traced_.fetch_add("});
 
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto record_start = owner_source.find(
-      "uint64_t vm_owner_record_task_trace(");
-  const auto record_end = owner_source.find(
-      "void record_owner_main_queue_fallback(", record_start);
+  const auto record_start = owner_source.find("uint64_t vm_owner_record_task_trace(");
+  const auto record_end = owner_source.find("void record_owner_main_queue_fallback(", record_start);
   ASSERT_NE(record_start, std::string::npos);
   ASSERT_NE(record_end, std::string::npos);
   ASSERT_GT(record_end, record_start);
-  const auto record_body =
-      owner_source.substr(record_start, record_end - record_start);
+  const auto record_body = owner_source.substr(record_start, record_end - record_start);
   EXPECT_EQ(record_body.find("total_task_traced()"), std::string::npos);
-  EXPECT_NE(record_body.find("append_owner_task_trace(0, 0,"),
-            std::string::npos);
+  EXPECT_NE(record_body.find("append_owner_task_trace(0, 0,"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerMessageSubmissionLimitsCoordinatorLockToRegistrationAndEnqueue) {
@@ -5462,8 +5055,7 @@ TEST_F(DriverTest, TestOwnerMessageSubmissionLimitsCoordinatorLockToRegistration
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto lock_pos =
-      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+  const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
   ASSERT_NE(lock_pos, std::string::npos);
   const auto lock_scope_start = body.rfind('{', lock_pos);
   ASSERT_NE(lock_scope_start, std::string::npos);
@@ -5485,93 +5077,39 @@ TEST_F(DriverTest, TestOwnerMessageSubmissionLimitsCoordinatorLockToRegistration
   ASSERT_NE(lock_scope_end, std::string::npos);
 
   const auto before_lock = body.substr(0, lock_scope_start);
-  const auto locked_body =
-      body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
+  const auto locked_body = body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
   const auto after_lock = body.substr(lock_scope_end);
 
-  EXPECT_NE(before_lock.find("vm_object_store_record_message("),
-            std::string::npos);
-  EXPECT_NE(before_lock.find("vm_object_handle_resolve_status("),
-            std::string::npos);
-  EXPECT_NE(locked_body.find("owner_future_store.admit_pending("),
-            std::string::npos);
-  EXPECT_NE(locked_body.find("owner_trace_store.append_message("),
-            std::string::npos);
-  EXPECT_NE(locked_body.find("enqueue_owner_task_locked("),
-            std::string::npos);
+  EXPECT_NE(before_lock.find("vm_object_store_record_message("), std::string::npos);
+  EXPECT_NE(before_lock.find("vm_object_handle_resolve_status("), std::string::npos);
+  EXPECT_NE(locked_body.find("owner_future_store.admit_pending("), std::string::npos);
+  EXPECT_NE(locked_body.find("owner_trace_store.append_message("), std::string::npos);
+  EXPECT_NE(locked_body.find("enqueue_owner_task_locked("), std::string::npos);
   for (const char* external_store_work : {
            "vm_object_store_record_message(",
            "vm_object_store_remove_message(",
            "complete_owner_future_for_task_locked(",
            "vm_object_handle_resolve_status(",
        }) {
-    EXPECT_EQ(locked_body.find(external_store_work), std::string::npos)
-        << external_store_work;
+    EXPECT_EQ(locked_body.find(external_store_work), std::string::npos) << external_store_work;
   }
-  EXPECT_NE(after_lock.find("vm_object_store_remove_message("),
-            std::string::npos);
-  EXPECT_NE(after_lock.find("complete_owner_future_for_task_locked("),
-            std::string::npos);
+  EXPECT_NE(after_lock.find("vm_object_store_remove_message("), std::string::npos);
+  EXPECT_NE(after_lock.find("complete_owner_future_for_task_locked("), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerQueueTraceRecordsQueuedAfterSuccessfulAdmissionOnly) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
   const auto helper_start = owner_source.find("bool enqueue_owner_task_locked(");
-  const auto helper_end = owner_source.find("void finish_active_main_owner_task(",
-                                            helper_start);
+  const auto helper_end = owner_source.find("void finish_active_main_owner_task(", helper_start);
 
   ASSERT_NE(helper_start, std::string::npos);
   ASSERT_NE(helper_end, std::string::npos);
   ASSERT_GT(helper_end, helper_start);
-  const auto helper_body =
-      owner_source.substr(helper_start, helper_end - helper_start);
-  EXPECT_NE(helper_body.find("append_owner_task_trace(task, \"queued\");"),
-            std::string::npos);
+  const auto helper_body = owner_source.substr(helper_start, helper_end - helper_start);
+  EXPECT_NE(helper_body.find("append_owner_task_trace(task, \"queued\");"), std::string::npos);
 
-  auto expect_helper_is_single_queued_trace_writer =
-      [&](const char *start_marker, const char *end_marker) {
-        const auto start = owner_source.find(start_marker);
-        const auto end = owner_source.find(end_marker, start);
-
-        ASSERT_NE(start, std::string::npos) << start_marker;
-        ASSERT_NE(end, std::string::npos) << end_marker;
-        ASSERT_GT(end, start) << start_marker;
-        const auto body = owner_source.substr(start, end - start);
-        EXPECT_NE(body.find("enqueue_owner_task_locked("), std::string::npos)
-            << start_marker;
-        EXPECT_EQ(body.find("append_owner_task_trace(task, \"queued\");"),
-                  std::string::npos)
-            << start_marker;
-      };
-
-  expect_helper_is_single_queued_trace_writer(
-      "uint64_t vm_owner_enqueue_task_epoch(",
-      "uint64_t vm_owner_enqueue_command_frame_restore(");
-  expect_helper_is_single_queued_trace_writer(
-      "uint64_t vm_owner_enqueue_command_frame_restore(",
-      "bool vm_owner_executor_available()");
-  expect_helper_is_single_queued_trace_writer(
-      "uint64_t vm_owner_enqueue_test_main_required_message(",
-      "mapping_t *vm_owner_lpc_probe(");
-  expect_helper_is_single_queued_trace_writer(
-      "mapping_t *vm_owner_lpc_probe(",
-      "mapping_t *vm_owner_lpc_canary(");
-  expect_helper_is_single_queued_trace_writer(
-      "mapping_t *vm_owner_lpc_canary(",
-      "mapping_t *vm_owner_lpc_task(");
-  expect_helper_is_single_queued_trace_writer(
-      "mapping_t *vm_owner_lpc_task(",
-      "mapping_t *vm_owner_ordinary_lpc_task(");
-  expect_helper_is_single_queued_trace_writer(
-      "mapping_t *vm_owner_ordinary_lpc_task(",
-      "uint64_t vm_owner_record_task_trace(");
-}
-
-TEST_F(DriverTest, TestOwnerRejectedSubmissionsCompleteAfterCoordinatorUnlock) {
-  const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  auto assert_completion_after_lock = [&](const char* start_marker,
-                                           const char* end_marker,
-                                           const char* completion_guard) {
+  auto expect_helper_is_single_queued_trace_writer = [&](const char* start_marker,
+                                                         const char* end_marker) {
     const auto start = owner_source.find(start_marker);
     const auto end = owner_source.find(end_marker, start);
 
@@ -5579,8 +5117,39 @@ TEST_F(DriverTest, TestOwnerRejectedSubmissionsCompleteAfterCoordinatorUnlock) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = owner_source.substr(start, end - start);
-    const auto lock_pos =
-        body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+    EXPECT_NE(body.find("enqueue_owner_task_locked("), std::string::npos) << start_marker;
+    EXPECT_EQ(body.find("append_owner_task_trace(task, \"queued\");"), std::string::npos)
+        << start_marker;
+  };
+
+  expect_helper_is_single_queued_trace_writer("uint64_t vm_owner_enqueue_task_epoch(",
+                                              "uint64_t vm_owner_enqueue_command_frame_restore(");
+  expect_helper_is_single_queued_trace_writer("uint64_t vm_owner_enqueue_command_frame_restore(",
+                                              "bool vm_owner_executor_available()");
+  expect_helper_is_single_queued_trace_writer(
+      "uint64_t vm_owner_enqueue_test_main_required_message(", "mapping_t *vm_owner_lpc_probe(");
+  expect_helper_is_single_queued_trace_writer("mapping_t *vm_owner_lpc_probe(",
+                                              "mapping_t *vm_owner_lpc_canary(");
+  expect_helper_is_single_queued_trace_writer("mapping_t *vm_owner_lpc_canary(",
+                                              "mapping_t *vm_owner_lpc_task(");
+  expect_helper_is_single_queued_trace_writer("mapping_t *vm_owner_lpc_task(",
+                                              "mapping_t *vm_owner_ordinary_lpc_task(");
+  expect_helper_is_single_queued_trace_writer("mapping_t *vm_owner_ordinary_lpc_task(",
+                                              "uint64_t vm_owner_record_task_trace(");
+}
+
+TEST_F(DriverTest, TestOwnerRejectedSubmissionsCompleteAfterCoordinatorUnlock) {
+  const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
+  auto assert_completion_after_lock = [&](const char* start_marker, const char* end_marker,
+                                          const char* completion_guard) {
+    const auto start = owner_source.find(start_marker);
+    const auto end = owner_source.find(end_marker, start);
+
+    ASSERT_NE(start, std::string::npos) << start_marker;
+    ASSERT_NE(end, std::string::npos) << end_marker;
+    ASSERT_GT(end, start) << start_marker;
+    const auto body = owner_source.substr(start, end - start);
+    const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
     ASSERT_NE(lock_pos, std::string::npos) << start_marker;
     const auto lock_scope_start = body.rfind('{', lock_pos);
     ASSERT_NE(lock_scope_start, std::string::npos) << start_marker;
@@ -5601,50 +5170,39 @@ TEST_F(DriverTest, TestOwnerRejectedSubmissionsCompleteAfterCoordinatorUnlock) {
     }
     ASSERT_NE(lock_scope_end, std::string::npos) << start_marker;
 
-    const auto locked_body =
-        body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
+    const auto locked_body = body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
     const auto after_lock = body.substr(lock_scope_end);
-    EXPECT_NE(locked_body.find("owner_future_store.admit_pending("),
-              std::string::npos)
+    EXPECT_NE(locked_body.find("owner_future_store.admit_pending("), std::string::npos)
         << start_marker;
-    EXPECT_NE(locked_body.find("enqueue_owner_task_locked("),
-              std::string::npos)
-        << start_marker;
-    EXPECT_EQ(locked_body.find("complete_owner_future_for_task_locked("),
-              std::string::npos)
+    EXPECT_NE(locked_body.find("enqueue_owner_task_locked("), std::string::npos) << start_marker;
+    EXPECT_EQ(locked_body.find("complete_owner_future_for_task_locked("), std::string::npos)
         << start_marker;
     const auto guard_pos = after_lock.find(completion_guard);
-    const auto completion_pos =
-        after_lock.find("complete_owner_future_for_task_locked(");
+    const auto completion_pos = after_lock.find("complete_owner_future_for_task_locked(");
     ASSERT_NE(guard_pos, std::string::npos) << start_marker;
     ASSERT_NE(completion_pos, std::string::npos) << start_marker;
     EXPECT_LT(guard_pos, completion_pos) << start_marker;
   };
 
-  assert_completion_after_lock(
-      "VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(",
-      "uint64_t vm_owner_enqueue_executor_callback_cleanup(",
-      "if (future_registered && !queued)");
-  assert_completion_after_lock(
-      "mapping_t *vm_owner_lpc_task(",
-      "mapping_t *vm_owner_ordinary_lpc_task(", "if (!queued)");
-  assert_completion_after_lock(
-      "mapping_t *vm_owner_ordinary_lpc_task(",
-      "uint64_t vm_owner_record_task_trace(", "if (!queued)");
+  assert_completion_after_lock("VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(",
+                               "uint64_t vm_owner_enqueue_executor_callback_cleanup(",
+                               "if (future_registered && !queued)");
+  assert_completion_after_lock("mapping_t *vm_owner_lpc_task(",
+                               "mapping_t *vm_owner_ordinary_lpc_task(", "if (!queued)");
+  assert_completion_after_lock("mapping_t *vm_owner_ordinary_lpc_task(",
+                               "uint64_t vm_owner_record_task_trace(", "if (!queued)");
 }
 
 TEST_F(DriverTest, TestOwnerComputeResultBackpressureCompletesAfterCoordinatorUnlock) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto start = owner_source.find(
-      "uint64_t vm_owner_enqueue_compute_result_fields(");
+  const auto start = owner_source.find("uint64_t vm_owner_enqueue_compute_result_fields(");
   const auto end = owner_source.find("mapping_t *vm_owner_message_trace(", start);
 
   ASSERT_NE(start, std::string::npos);
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto lock_pos =
-      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+  const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
   ASSERT_NE(lock_pos, std::string::npos);
   const auto lock_scope_start = body.rfind('{', lock_pos);
   ASSERT_NE(lock_scope_start, std::string::npos);
@@ -5665,16 +5223,12 @@ TEST_F(DriverTest, TestOwnerComputeResultBackpressureCompletesAfterCoordinatorUn
   }
   ASSERT_NE(lock_scope_end, std::string::npos);
 
-  const auto locked_body =
-      body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
+  const auto locked_body = body.substr(lock_scope_start, lock_scope_end - lock_scope_start);
   const auto after_lock = body.substr(lock_scope_end);
-  EXPECT_NE(locked_body.find("enqueue_owner_task_locked("),
-            std::string::npos);
-  EXPECT_EQ(locked_body.find("complete_owner_future_for_task_locked("),
-            std::string::npos);
+  EXPECT_NE(locked_body.find("enqueue_owner_task_locked("), std::string::npos);
+  EXPECT_EQ(locked_body.find("complete_owner_future_for_task_locked("), std::string::npos);
   const auto guard_pos = after_lock.find("if (!queued)");
-  const auto completion_pos =
-      after_lock.find("complete_owner_future_for_task_locked(");
+  const auto completion_pos = after_lock.find("complete_owner_future_for_task_locked(");
   ASSERT_NE(guard_pos, std::string::npos);
   ASSERT_NE(completion_pos, std::string::npos);
   EXPECT_LT(guard_pos, completion_pos);
@@ -5683,8 +5237,7 @@ TEST_F(DriverTest, TestOwnerComputeResultBackpressureCompletesAfterCoordinatorUn
 TEST_F(DriverTest, TestOwnerTerminalCompletionPathsAvoidCoordinatorLock) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
   auto assert_function_has_no_coordinator_lock =
-      [&](const char* start_marker, const char* end_marker,
-          const char* completion_call) {
+      [&](const char* start_marker, const char* end_marker, const char* completion_call) {
         const auto start = owner_source.find(start_marker);
         const auto end = owner_source.find(end_marker, start);
 
@@ -5692,43 +5245,34 @@ TEST_F(DriverTest, TestOwnerTerminalCompletionPathsAvoidCoordinatorLock) {
         ASSERT_NE(end, std::string::npos) << end_marker;
         ASSERT_GT(end, start) << start_marker;
         const auto body = owner_source.substr(start, end - start);
-        EXPECT_NE(body.find(completion_call), std::string::npos)
-            << start_marker;
-        EXPECT_EQ(body.find("owner_runtime_mutex"), std::string::npos)
-            << start_marker;
+        EXPECT_NE(body.find(completion_call), std::string::npos) << start_marker;
+        EXPECT_EQ(body.find("owner_runtime_mutex"), std::string::npos) << start_marker;
       };
 
-  assert_function_has_no_coordinator_lock(
-      "void dispatch_owner_message_in_current_context(",
-      "void complete_owner_compute_result_task_locked(",
-      "complete_owner_message_task_locked(task);");
+  assert_function_has_no_coordinator_lock("void dispatch_owner_message_in_current_context(",
+                                          "void complete_owner_compute_result_task_locked(",
+                                          "complete_owner_message_task_locked(task);");
   assert_function_has_no_coordinator_lock(
       "  void complete_owner_message_task(const OwnerMailboxTask &task) {",
-      "  void complete_owner_compute_result_task(",
-      "complete_owner_message_task_locked(task);");
+      "  void complete_owner_compute_result_task(", "complete_owner_message_task_locked(task);");
   assert_function_has_no_coordinator_lock(
       "  void complete_owner_compute_result_task(const OwnerMailboxTask &task) {",
       "  void run_task(OwnerMailboxTask &task) {",
       "complete_owner_compute_result_task_locked(task);");
 
-  const auto drain_start =
-      owner_source.find("mapping_t *vm_owner_drain_mailbox(");
-  const auto drain_end =
-      owner_source.find("mapping_t *vm_owner_purge_mailbox(", drain_start);
+  const auto drain_start = owner_source.find("mapping_t *vm_owner_drain_mailbox(");
+  const auto drain_end = owner_source.find("mapping_t *vm_owner_purge_mailbox(", drain_start);
   ASSERT_NE(drain_start, std::string::npos);
   ASSERT_NE(drain_end, std::string::npos);
   ASSERT_GT(drain_end, drain_start);
-  const auto drain_body =
-      owner_source.substr(drain_start, drain_end - drain_start);
-  const auto compute_start = drain_body.find(
-      "} else if (task.task_type == \"compute_result\") {");
-  const auto compute_end = drain_body.find(
-      "} else if (task.task_type == \"lpc_task\") {", compute_start);
+  const auto drain_body = owner_source.substr(drain_start, drain_end - drain_start);
+  const auto compute_start = drain_body.find("} else if (task.task_type == \"compute_result\") {");
+  const auto compute_end =
+      drain_body.find("} else if (task.task_type == \"lpc_task\") {", compute_start);
   ASSERT_NE(compute_start, std::string::npos);
   ASSERT_NE(compute_end, std::string::npos);
   ASSERT_GT(compute_end, compute_start);
-  const auto compute_branch =
-      drain_body.substr(compute_start, compute_end - compute_start);
+  const auto compute_branch = drain_body.substr(compute_start, compute_end - compute_start);
   EXPECT_NE(compute_branch.find("complete_owner_compute_result_task_locked(task);"),
             std::string::npos);
   EXPECT_EQ(compute_branch.find("owner_runtime_mutex"), std::string::npos);
@@ -5740,7 +5284,7 @@ TEST_F(DriverTest, TestOwnerStatusMappingsBuildAfterRuntimeSnapshotLockScope) {
             std::string::npos);
 
   auto assert_mapping_builds_after_snapshot = [&](const char* start_marker,
-                                                   const char* end_marker) {
+                                                  const char* end_marker) {
     const auto start = owner_source.find(start_marker);
     const auto end = owner_source.find(end_marker, start);
 
@@ -5748,8 +5292,7 @@ TEST_F(DriverTest, TestOwnerStatusMappingsBuildAfterRuntimeSnapshotLockScope) {
     ASSERT_NE(end, std::string::npos) << end_marker;
     ASSERT_GT(end, start) << start_marker;
     const auto body = owner_source.substr(start, end - start);
-    const auto lock_pos =
-        body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+    const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
     const auto snapshot_pos = body.find("owner_status_snapshot_locked();");
     const auto lock_scope_end = body.find("\n  }\n", snapshot_pos);
     const auto mapping_pos = body.find("allocate_mapping", lock_scope_end);
@@ -5785,12 +5328,10 @@ TEST_F(DriverTest, TestOwnerStatusMappingsBuildAfterRuntimeSnapshotLockScope) {
     }
   };
 
-  assert_mapping_builds_after_snapshot(
-      "mapping_t *vm_owner_thread_status()",
-      "mapping_t *vm_owner_runtime_status()");
-  assert_mapping_builds_after_snapshot(
-      "mapping_t *vm_owner_runtime_status()",
-      "#ifdef DEBUGMALLOC_EXTENSIONS");
+  assert_mapping_builds_after_snapshot("mapping_t *vm_owner_thread_status()",
+                                       "mapping_t *vm_owner_runtime_status()");
+  assert_mapping_builds_after_snapshot("mapping_t *vm_owner_runtime_status()",
+                                       "#ifdef DEBUGMALLOC_EXTENSIONS");
 }
 
 TEST_F(DriverTest, TestOwnerDebugReferenceMarkUsesCoordinatorLockBoundary) {
@@ -5802,10 +5343,8 @@ TEST_F(DriverTest, TestOwnerDebugReferenceMarkUsesCoordinatorLockBoundary) {
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto lock_pos =
-      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
-  const auto scheduler_pos =
-      body.find("owner_scheduler_state.mark_debug_refs(seen);");
+  const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+  const auto scheduler_pos = body.find("owner_scheduler_state.mark_debug_refs(seen);");
   const auto lock_scope_end = body.find("\n  }\n", scheduler_pos);
   const auto trace_pos = body.find("owner_trace_store.mark_debug_refs(seen);");
   const auto future_pos = body.find("owner_future_store.mark_debug_refs(seen);");
@@ -5830,8 +5369,7 @@ TEST_F(DriverTest, TestOwnerMainQueueDepthGetterUsesRuntimeLock) {
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto lock_pos =
-      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+  const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
   const auto read_pos = body.find("return owner_main_queue_total_depth();");
 
   ASSERT_NE(lock_pos, std::string::npos);
@@ -5848,10 +5386,9 @@ TEST_F(DriverTest, TestOwnerDrainMailboxSnapshotsRemainingDepthUnderRuntimeLock)
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto snapshot_pos =
-      body.find("remaining = owner_mailbox_depth(normalized_owner_id);");
-  const auto lock_pos = body.rfind(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);", snapshot_pos);
+  const auto snapshot_pos = body.find("remaining = owner_mailbox_depth(normalized_owner_id);");
+  const auto lock_pos =
+      body.rfind("std::lock_guard<std::mutex> lock(owner_runtime_mutex);", snapshot_pos);
   const auto lock_scope_end = body.find("\n  }\n", snapshot_pos);
   const auto mapping_pos = body.find("auto *map = allocate_mapping", snapshot_pos);
 
@@ -5865,8 +5402,7 @@ TEST_F(DriverTest, TestOwnerDrainMailboxSnapshotsRemainingDepthUnderRuntimeLock)
   const auto mapping_body = body.substr(mapping_pos);
   EXPECT_NE(mapping_body.find("add_mapping_pair(map, \"remaining\", remaining);"),
             std::string::npos);
-  EXPECT_EQ(mapping_body.find("owner_mailbox_depth(normalized_owner_id)"),
-            std::string::npos);
+  EXPECT_EQ(mapping_body.find("owner_mailbox_depth(normalized_owner_id)"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerDrainProcessesDetachedTasksAfterRuntimeUnlock) {
@@ -5878,20 +5414,16 @@ TEST_F(DriverTest, TestOwnerDrainProcessesDetachedTasksAfterRuntimeUnlock) {
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto tasks_pos =
-      body.find("std::vector<OwnerMailboxTask> drained_tasks;");
-  const auto lock_pos = body.find(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
-  const auto detach_pos = body.find(
-      "drained_tasks = owner_scheduler_state.drain_owner_mailbox(", lock_pos);
+  const auto tasks_pos = body.find("std::vector<OwnerMailboxTask> drained_tasks;");
+  const auto lock_pos =
+      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
+  const auto detach_pos =
+      body.find("drained_tasks = owner_scheduler_state.drain_owner_mailbox(", lock_pos);
   const auto lock_scope_end = body.find("\n  }\n", detach_pos);
-  const auto trace_pos =
-      body.find("append_owner_task_trace(task, \"drained\");", detach_pos);
-  const auto record_pos =
-      body.find("record_owner_mailbox_task_drained(task);", detach_pos);
+  const auto trace_pos = body.find("append_owner_task_trace(task, \"drained\");", detach_pos);
+  const auto record_pos = body.find("record_owner_mailbox_task_drained(task);", detach_pos);
   const auto total_pos = body.find(
-      "total_drained.fetch_add(drained_tasks.size(), std::memory_order_relaxed);",
-      detach_pos);
+      "total_drained.fetch_add(drained_tasks.size(), std::memory_order_relaxed);", detach_pos);
   const auto array_pos = body.find("auto *tasks = allocate_array", detach_pos);
 
   ASSERT_NE(tasks_pos, std::string::npos);
@@ -5910,36 +5442,27 @@ TEST_F(DriverTest, TestOwnerDrainProcessesDetachedTasksAfterRuntimeUnlock) {
   EXPECT_LT(total_pos, array_pos);
 }
 
-TEST_F(DriverTest,
-       TestOwnerQueuedFutureCancellationProcessesRemovedTaskAfterRuntimeUnlock) {
+TEST_F(DriverTest, TestOwnerQueuedFutureCancellationProcessesRemovedTaskAfterRuntimeUnlock) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto start =
-      owner_source.find("mapping_t *vm_owner_future_cancel_queued_task(");
-  const auto end =
-      owner_source.find("mapping_t *vm_owner_future_timeout(", start);
+  const auto start = owner_source.find("mapping_t *vm_owner_future_cancel_queued_task(");
+  const auto end = owner_source.find("mapping_t *vm_owner_future_timeout(", start);
 
   ASSERT_NE(start, std::string::npos);
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto terminal_pos =
-      body.find("mark_owner_future_failed_terminal(");
-  const auto lock_pos = body.find(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
-  const auto detach_pos =
-      body.find("owner_scheduler_state.remove_owner_task(", lock_pos);
+  const auto terminal_pos = body.find("mark_owner_future_failed_terminal(");
+  const auto lock_pos = body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);");
+  const auto detach_pos = body.find("owner_scheduler_state.remove_owner_task(", lock_pos);
   const auto lock_scope_end = body.find("\n    }\n", detach_pos);
-  const auto kind_pos =
-      body.find("queued_task_kind = removed.task_kind;", detach_pos);
+  const auto kind_pos = body.find("queued_task_kind = removed.task_kind;", detach_pos);
   const auto trace_pos = body.find("append_owner_task_trace(", detach_pos);
-  const auto record_pos =
-      body.find("record_owner_mailbox_task_drained(removed);", detach_pos);
-  const auto total_pos = body.find(
-      "total_drained.fetch_add(1, std::memory_order_relaxed);", detach_pos);
-  const auto cleanup_pos = body.find(
-      "schedule_owner_executor_callback_cleanup_on_main(removed);", detach_pos);
-  const auto release_pos =
-      body.find("release_owner_task_target(&removed);", detach_pos);
+  const auto record_pos = body.find("record_owner_mailbox_task_drained(removed);", detach_pos);
+  const auto total_pos =
+      body.find("total_drained.fetch_add(1, std::memory_order_relaxed);", detach_pos);
+  const auto cleanup_pos =
+      body.find("schedule_owner_executor_callback_cleanup_on_main(removed);", detach_pos);
+  const auto release_pos = body.find("release_owner_task_target(&removed);", detach_pos);
 
   ASSERT_NE(terminal_pos, std::string::npos);
   ASSERT_NE(lock_pos, std::string::npos);
@@ -5977,17 +5500,14 @@ TEST_F(DriverTest, TestOwnerPurgeProcessesDetachedTasksAfterRuntimeUnlock) {
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto tasks_pos =
-      body.find("std::vector<OwnerMailboxTask> purged_tasks;");
-  const auto lock_pos = body.find(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
-  const auto detach_pos = body.find(
-      "purged_tasks = owner_scheduler_state.remove_owner_mailbox(", lock_pos);
+  const auto tasks_pos = body.find("std::vector<OwnerMailboxTask> purged_tasks;");
+  const auto lock_pos =
+      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
+  const auto detach_pos =
+      body.find("purged_tasks = owner_scheduler_state.remove_owner_mailbox(", lock_pos);
   const auto lock_scope_end = body.find("\n  }\n", detach_pos);
-  const auto terminal_pos =
-      body.find("complete_owner_future_for_task_locked(", lock_scope_end);
-  const auto release_pos =
-      body.find("release_owner_task_target(&task);", lock_scope_end);
+  const auto terminal_pos = body.find("complete_owner_future_for_task_locked(", lock_scope_end);
+  const auto release_pos = body.find("release_owner_task_target(&task);", lock_scope_end);
   const auto mapping_pos = body.find("auto *map = allocate_mapping", lock_scope_end);
 
   ASSERT_NE(tasks_pos, std::string::npos);
@@ -6004,8 +5524,7 @@ TEST_F(DriverTest, TestOwnerPurgeProcessesDetachedTasksAfterRuntimeUnlock) {
   EXPECT_LT(lock_scope_end, mapping_pos);
   EXPECT_NE(body.find("schedule_owner_executor_callback_cleanup_on_main(task);"),
             std::string::npos);
-  EXPECT_EQ(body.find("enqueue_owner_executor_callback_cleanup_locked(task);"),
-            std::string::npos);
+  EXPECT_EQ(body.find("enqueue_owner_executor_callback_cleanup_locked(task);"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestOwnerScheduleProcessesDetachedTasksAfterRuntimeUnlock) {
@@ -6017,18 +5536,14 @@ TEST_F(DriverTest, TestOwnerScheduleProcessesDetachedTasksAfterRuntimeUnlock) {
   ASSERT_NE(end, std::string::npos);
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
-  const auto tasks_pos =
-      body.find("std::vector<OwnerMailboxTask> scheduled_tasks;");
-  const auto lock_pos = body.find(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
-  const auto detach_pos =
-      body.find("pop_next_schedulable_task(&task, false)", lock_pos);
+  const auto tasks_pos = body.find("std::vector<OwnerMailboxTask> scheduled_tasks;");
+  const auto lock_pos =
+      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);", tasks_pos);
+  const auto detach_pos = body.find("pop_next_schedulable_task(&task, false)", lock_pos);
   const auto lock_scope_end = body.find("\n  }\n", detach_pos);
   const auto array_pos = body.find("auto *tasks = allocate_array", lock_scope_end);
-  const auto process_pos =
-      body.find("for (auto &task : scheduled_tasks)", lock_scope_end);
-  const auto release_pos =
-      body.find("release_owner_task_target(&task);", lock_scope_end);
+  const auto process_pos = body.find("for (auto &task : scheduled_tasks)", lock_scope_end);
+  const auto release_pos = body.find("release_owner_task_target(&task);", lock_scope_end);
 
   ASSERT_NE(tasks_pos, std::string::npos);
   ASSERT_NE(lock_pos, std::string::npos);
@@ -6044,76 +5559,67 @@ TEST_F(DriverTest, TestOwnerScheduleProcessesDetachedTasksAfterRuntimeUnlock) {
   EXPECT_LT(lock_scope_end, release_pos);
   EXPECT_NE(body.find("schedule_owner_executor_callback_cleanup_on_main(task);"),
             std::string::npos);
-  EXPECT_EQ(body.find("enqueue_owner_executor_callback_cleanup_locked(task);"),
-            std::string::npos);
+  EXPECT_EQ(body.find("enqueue_owner_executor_callback_cleanup_locked(task);"), std::string::npos);
 }
 
-TEST_F(DriverTest,
-       TestOwnerMainDrainAppendsDetachedTaskTracesAfterRuntimeUnlock) {
+TEST_F(DriverTest, TestOwnerMainDrainAppendsDetachedTaskTracesAfterRuntimeUnlock) {
   const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
-  auto expect_no_trace_under_runtime_lock =
-      [&](const char *start_marker, const char *end_marker) {
-        const auto start = owner_source.find(start_marker);
-        const auto end = owner_source.find(end_marker, start);
+  auto expect_no_trace_under_runtime_lock = [&](const char* start_marker, const char* end_marker) {
+    const auto start = owner_source.find(start_marker);
+    const auto end = owner_source.find(end_marker, start);
 
-        ASSERT_NE(start, std::string::npos) << start_marker;
-        ASSERT_NE(end, std::string::npos) << end_marker;
-        ASSERT_GT(end, start) << start_marker;
-        const auto body = owner_source.substr(start, end - start);
-        ASSERT_NE(body.find("append_owner_task_trace("), std::string::npos)
-            << start_marker;
+    ASSERT_NE(start, std::string::npos) << start_marker;
+    ASSERT_NE(end, std::string::npos) << end_marker;
+    ASSERT_GT(end, start) << start_marker;
+    const auto body = owner_source.substr(start, end - start);
+    ASSERT_NE(body.find("append_owner_task_trace("), std::string::npos) << start_marker;
 
-        constexpr const char *lock_marker =
-            "std::lock_guard<std::mutex> lock(owner_runtime_mutex);";
-        size_t search_pos = 0;
-        int lock_count = 0;
-        while (true) {
-          const auto lock_pos = body.find(lock_marker, search_pos);
-          if (lock_pos == std::string::npos) {
+    constexpr const char* lock_marker = "std::lock_guard<std::mutex> lock(owner_runtime_mutex);";
+    size_t search_pos = 0;
+    int lock_count = 0;
+    while (true) {
+      const auto lock_pos = body.find(lock_marker, search_pos);
+      if (lock_pos == std::string::npos) {
+        break;
+      }
+      std::vector<size_t> open_scopes;
+      for (size_t i = 0; i < lock_pos; ++i) {
+        if (body[i] == '{') {
+          open_scopes.push_back(i);
+        } else if (body[i] == '}') {
+          ASSERT_FALSE(open_scopes.empty()) << start_marker;
+          open_scopes.pop_back();
+        }
+      }
+      ASSERT_FALSE(open_scopes.empty()) << start_marker;
+      const auto lock_scope_start = open_scopes.back();
+
+      size_t depth = 0;
+      size_t lock_scope_end = std::string::npos;
+      for (size_t i = lock_scope_start; i < body.size(); ++i) {
+        if (body[i] == '{') {
+          ++depth;
+        } else if (body[i] == '}') {
+          ASSERT_GT(depth, 0u) << start_marker;
+          --depth;
+          if (depth == 0) {
+            lock_scope_end = i + 1;
             break;
           }
-          std::vector<size_t> open_scopes;
-          for (size_t i = 0; i < lock_pos; ++i) {
-            if (body[i] == '{') {
-              open_scopes.push_back(i);
-            } else if (body[i] == '}') {
-              ASSERT_FALSE(open_scopes.empty()) << start_marker;
-              open_scopes.pop_back();
-            }
-          }
-          ASSERT_FALSE(open_scopes.empty()) << start_marker;
-          const auto lock_scope_start = open_scopes.back();
-
-          size_t depth = 0;
-          size_t lock_scope_end = std::string::npos;
-          for (size_t i = lock_scope_start; i < body.size(); ++i) {
-            if (body[i] == '{') {
-              ++depth;
-            } else if (body[i] == '}') {
-              ASSERT_GT(depth, 0u) << start_marker;
-              --depth;
-              if (depth == 0) {
-                lock_scope_end = i + 1;
-                break;
-              }
-            }
-          }
-          ASSERT_NE(lock_scope_end, std::string::npos) << start_marker;
-          ASSERT_GT(lock_scope_end, lock_pos) << start_marker;
-          const auto locked_body = body.substr(
-              lock_pos, lock_scope_end - lock_pos);
-          EXPECT_EQ(locked_body.find("append_owner_task_trace("),
-                    std::string::npos)
-              << start_marker;
-          search_pos = lock_pos + 1;
-          ++lock_count;
         }
-        EXPECT_GT(lock_count, 0) << start_marker;
-      };
+      }
+      ASSERT_NE(lock_scope_end, std::string::npos) << start_marker;
+      ASSERT_GT(lock_scope_end, lock_pos) << start_marker;
+      const auto locked_body = body.substr(lock_pos, lock_scope_end - lock_pos);
+      EXPECT_EQ(locked_body.find("append_owner_task_trace("), std::string::npos) << start_marker;
+      search_pos = lock_pos + 1;
+      ++lock_count;
+    }
+    EXPECT_GT(lock_count, 0) << start_marker;
+  };
 
-  expect_no_trace_under_runtime_lock(
-      "int drain_owner_executor_callback_cleanups(",
-      "void record_owner_mailbox_task_drained(");
+  expect_no_trace_under_runtime_lock("int drain_owner_executor_callback_cleanups(",
+                                     "void record_owner_mailbox_task_drained(");
   expect_no_trace_under_runtime_lock(
       "VMOwnerMainDrainResult vm_owner_drain_main_tasks_with_budget(",
       "int vm_owner_drain_main_tasks(");
@@ -6129,8 +5635,8 @@ TEST_F(DriverTest, TestOwnerMailboxStatusBuildsMappingAfterRuntimeUnlock) {
   ASSERT_GT(end, start);
   const auto body = owner_source.substr(start, end - start);
   const auto snapshot_pos = body.find("int64_t owner_queue_depth;");
-  const auto lock_pos = body.find(
-      "std::lock_guard<std::mutex> lock(owner_runtime_mutex);", snapshot_pos);
+  const auto lock_pos =
+      body.find("std::lock_guard<std::mutex> lock(owner_runtime_mutex);", snapshot_pos);
   const auto lock_scope_end = body.find("\n  }\n", lock_pos);
   const auto mapping_pos = body.find("auto *map = allocate_mapping", lock_scope_end);
 
@@ -6153,8 +5659,7 @@ TEST_F(DriverTest, TestOwnerMailboxStatusBuildsMappingAfterRuntimeUnlock) {
            "owner_mailbox_active_owners()",
            "owner_scheduler_state.active_main_owner_count()",
        }) {
-    EXPECT_EQ(mapping_body.find(protected_read), std::string::npos)
-        << protected_read;
+    EXPECT_EQ(mapping_body.find(protected_read), std::string::npos) << protected_read;
   }
 }
 
@@ -6164,8 +5669,7 @@ TEST_F(DriverTest, TestGatewayFutureCompletionExposesMainThreadCpuCounter) {
       read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
   const auto gateway_status = read_source_file_for_test("../src/packages/gateway/gateway.cc");
 
-  ASSERT_NE(gateway_source.find("get_current_thread_cpu_time_ns()"),
-            std::string::npos);
+  ASSERT_NE(gateway_source.find("get_current_thread_cpu_time_ns()"), std::string::npos);
   ASSERT_NE(gateway_header.find("future_watch_main_completion_thread_cpu_ns_total"),
             std::string::npos);
   ASSERT_NE(gateway_header.find("future_watch_main_completion_thread_cpu_unavailable"),
@@ -6182,47 +5686,33 @@ TEST_F(DriverTest, TestGatewayRoomProjectionExposesDedicatedThreadCpuCounters) {
       read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
   const auto gateway_status = read_source_file_for_test("../src/packages/gateway/gateway.cc");
 
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_worker_thread_cpu_ns_total"),
+  ASSERT_NE(gateway_header.find("room_output_projection_worker_thread_cpu_ns_total"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_worker_thread_cpu_ns_max"),
+  ASSERT_NE(gateway_header.find("room_output_projection_worker_thread_cpu_ns_max"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_worker_thread_cpu_samples"),
+  ASSERT_NE(gateway_header.find("room_output_projection_worker_thread_cpu_samples"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_worker_thread_cpu_unavailable"),
+  ASSERT_NE(gateway_header.find("room_output_projection_worker_thread_cpu_unavailable"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_inline_thread_cpu_ns_total"),
+  ASSERT_NE(gateway_header.find("room_output_projection_inline_thread_cpu_ns_total"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_inline_thread_cpu_ns_max"),
+  ASSERT_NE(gateway_header.find("room_output_projection_inline_thread_cpu_ns_max"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_inline_thread_cpu_samples"),
+  ASSERT_NE(gateway_header.find("room_output_projection_inline_thread_cpu_samples"),
             std::string::npos);
-  ASSERT_NE(gateway_header.find(
-                "room_output_projection_inline_thread_cpu_unavailable"),
+  ASSERT_NE(gateway_header.find("room_output_projection_inline_thread_cpu_unavailable"),
             std::string::npos);
-  ASSERT_NE(gateway_source.find(
-                "worker_cpu_started_ns = get_current_thread_cpu_time_ns()"),
+  ASSERT_NE(gateway_source.find("worker_cpu_started_ns = get_current_thread_cpu_time_ns()"),
             std::string::npos);
-  ASSERT_NE(gateway_source.find(
-                "cpu_started_ns = get_current_thread_cpu_time_ns()"),
+  ASSERT_NE(gateway_source.find("cpu_started_ns = get_current_thread_cpu_time_ns()"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find(
-                "gateway_room_output_projection_worker_thread_cpu"),
+  ASSERT_NE(gateway_status.find("gateway_room_output_projection_worker_thread_cpu"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find(
-                "gateway_room_output_projection_worker_thread_cpu_unavailable"),
+  ASSERT_NE(gateway_status.find("gateway_room_output_projection_worker_thread_cpu_unavailable"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find(
-                "gateway_room_output_projection_inline_thread_cpu"),
+  ASSERT_NE(gateway_status.find("gateway_room_output_projection_inline_thread_cpu"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find(
-                "gateway_room_output_projection_inline_thread_cpu_unavailable"),
+  ASSERT_NE(gateway_status.find("gateway_room_output_projection_inline_thread_cpu_unavailable"),
             std::string::npos);
 }
 
@@ -6240,20 +5730,17 @@ TEST_F(DriverTest, TestGatewayReceiveApplyExposesMainThreadCpuCounter) {
   ASSERT_NE(gateway_source.find("gateway_record_thread_cpu("), std::string::npos);
   ASSERT_NE(gateway_status.find("gateway_receive_apply_total_us"), std::string::npos);
   ASSERT_NE(gateway_status.find("gateway_receive_apply_thread_cpu_total_us"), std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_receive_apply_thread_cpu_unavailable"),
-            std::string::npos);
+  ASSERT_NE(gateway_status.find("gateway_receive_apply_thread_cpu_unavailable"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestGatewayReceiveApplyUsesPerformanceWallClock) {
   const auto gateway_source = read_source_file_for_test("../src/packages/gateway/gateway.cc");
-  const auto apply_pos = gateway_source.find(
-      "auto apply_started_at = get_current_performance_wall_time_ns()");
+  const auto apply_pos =
+      gateway_source.find("auto apply_started_at = get_current_performance_wall_time_ns()");
 
   ASSERT_NE(apply_pos, std::string::npos);
-  ASSERT_NE(gateway_source.find("gateway_record_performance_wall(", apply_pos),
-            std::string::npos);
-  ASSERT_NE(gateway_source.find("std::chrono::steady_clock::now()"),
-            std::string::npos);
+  ASSERT_NE(gateway_source.find("gateway_record_performance_wall(", apply_pos), std::string::npos);
+  ASSERT_NE(gateway_source.find("std::chrono::steady_clock::now()"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestSaveSvalueDepthIsThreadLocal) {
@@ -6284,20 +5771,25 @@ TEST_F(DriverTest, TestStringIndexHandlesConcurrentEgcIterators) {
   for (int t = 0; t < 8; t++) {
     workers.emplace_back([&] {
       for (int i = 0; i < 2000; i++) {
-        if (u8_egc_index_as_single_codepoint(ascii, 6, 2) != 'c') failures++;
-        if (u8_egc_index_as_single_codepoint(utf8, 4, 0) != 0x4E2D) failures++;
-        if (u8_egc_index_as_single_codepoint(utf8, 4, 9) != -2) failures++;
+        if (u8_egc_index_as_single_codepoint(ascii, 6, 2) != 'c')
+          failures++;
+        if (u8_egc_index_as_single_codepoint(utf8, 4, 0) != 0x4E2D)
+          failures++;
+        if (u8_egc_index_as_single_codepoint(utf8, 4, 9) != -2)
+          failures++;
       }
     });
   }
 
-  for (auto& worker : workers) worker.join();
+  for (auto& worker : workers)
+    worker.join();
   ASSERT_EQ(failures.load(), 0);
 }
 
 TEST_F(DriverTest, TestEgcAsciiSubrangesAndBoundedFind) {
   std::string ascii(2048, 'x');
-  for (size_t i = 10; i < ascii.size(); i += 11) ascii[i] = ' ';
+  for (size_t i = 10; i < ascii.size(); i += 11)
+    ascii[i] = ' ';
 
   EGCIterator iterator(ascii.data(), static_cast<int32_t>(ascii.size()));
   ASSERT_TRUE(iterator.ok());
@@ -6354,7 +5846,8 @@ TEST_F(DriverTest, TestMappingNodeFreelistIsOwnerThreadLocal) {
     });
   }
 
-  for (auto& worker : workers) worker.join();
+  for (auto& worker : workers)
+    worker.join();
   ASSERT_EQ(failures.load(), 0);
 }
 
@@ -6385,8 +5878,7 @@ TEST_F(DriverTest, TestCompileDumpProgHandlesLongFunctionNames) {
   std::string function_name(3000, 'f');
   std::string source = "void " + function_name + "() {}\n";
   std::istringstream stream(source);
-  auto program = compile_file(std::make_unique<IStreamLexStream>(stream),
-                              "long_dump_prog_test");
+  auto program = compile_file(std::make_unique<IStreamLexStream>(stream), "long_dump_prog_test");
 
   ASSERT_NE(program, nullptr);
   FILE* output = tmpfile();
@@ -6419,20 +5911,21 @@ TEST_F(DriverTest, TestUserLogonSchedulingUsesCancellableEvent) {
   ASSERT_NE(comm_source.find("schedule_user_logon("), std::string::npos);
   ASSERT_NE(comm_source.find("cancel_user_logon"), std::string::npos);
 
-  const auto websocket_source = read_source_file_for_test((source_root + "net/websocket.cc").c_str());
+  const auto websocket_source =
+      read_source_file_for_test((source_root + "net/websocket.cc").c_str());
   ASSERT_NE(websocket_source.find("bool websocket_establish_session("), std::string::npos);
   ASSERT_NE(websocket_source.find("schedule_user_logon("), std::string::npos);
   ASSERT_NE(websocket_source.find("void websocket_session_teardown"), std::string::npos);
-  for (const auto *path : {"net/ws_ascii.cc", "net/ws_telnet.cc"}) {
+  for (const auto* path : {"net/ws_ascii.cc", "net/ws_telnet.cc"}) {
     const auto source = read_source_file_for_test((source_root + path).c_str());
     ASSERT_NE(source.find("websocket_establish_session("), std::string::npos) << path;
     ASSERT_NE(source.find("websocket_session_teardown"), std::string::npos) << path;
   }
-  const auto gateway_source = read_source_file_for_test(
-      (source_root + "packages/gateway/gateway_session.cc").c_str());
+  const auto gateway_source =
+      read_source_file_for_test((source_root + "packages/gateway/gateway_session.cc").c_str());
   ASSERT_NE(gateway_source.find("cancel_user_logon"), std::string::npos);
 
-  auto *ip = user_add();
+  auto* ip = user_add();
   ASSERT_NE(ip, nullptr);
   ASSERT_TRUE(schedule_user_logon(g_event_base, ip));
   ASSERT_NE(ip->ev_logon, nullptr);
@@ -6600,14 +6093,15 @@ TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {
   ASSERT_NE(g_event_base, nullptr);
 
 #ifndef _WIN32
-  const char *method = event_base_get_method(g_event_base);
+  const char* method = event_base_get_method(g_event_base);
   if (!method || std::strcmp(method, "epoll") != 0) {
     GTEST_SKIP() << "The deterministic epoll add-failure injection is unavailable";
   }
   const int invalid_fd = open("/dev/null", O_RDONLY | O_NONBLOCK);
   ASSERT_GE(invalid_fd, 0);
-  ASSERT_EQ(event_base_once(g_event_base, invalid_fd, EV_READ,
-                            [](evutil_socket_t, short, void *) {}, nullptr, nullptr),
+  ASSERT_EQ(event_base_once(
+                g_event_base, invalid_fd, EV_READ, [](evutil_socket_t, short, void*) {}, nullptr,
+                nullptr),
             -1);
   evutil_closesocket(invalid_fd);
 #else
@@ -6615,11 +6109,12 @@ TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {
 #endif
 
   int callbacks = 0;
-  ASSERT_EQ(event_base_once(g_event_base, -1, EV_TIMEOUT,
-                            [](evutil_socket_t, short, void *arg) {
-                              ++*static_cast<int *>(arg);
-                            },
-                            &callbacks, nullptr),
+  ASSERT_EQ(event_base_once(
+                g_event_base, -1, EV_TIMEOUT,
+                [](evutil_socket_t, short, void* arg) {
+                  ++*static_cast<int*>(arg);
+                },
+                &callbacks, nullptr),
             0);
   ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_ONCE | EVLOOP_NONBLOCK), 0);
   ASSERT_EQ(callbacks, 1);
@@ -6687,7 +6182,9 @@ TEST_F(DriverTest, TestTimeToNextGametickClampsLargeDelay) {
 TEST_F(DriverTest, TestGameTickQueueSupportsConcurrentProducersAndFullDrain) {
   clear_tick_events();
   struct TickQueueGuard {
-    ~TickQueueGuard() { clear_tick_events(); }
+    ~TickQueueGuard() {
+      clear_tick_events();
+    }
   } tick_queue_guard;
   constexpr int kProducerCount = 8;
   constexpr int kEventsPerProducer = 2000;
@@ -6703,13 +6200,15 @@ TEST_F(DriverTest, TestGameTickQueueSupportsConcurrentProducersAndFullDrain) {
         std::this_thread::yield();
       }
       for (int event = 0; event < kEventsPerProducer; event++) {
-        add_gametick_event(0, [&] { callbacks.fetch_add(1, std::memory_order_relaxed); });
+        add_gametick_event(0, [&] {
+          callbacks.fetch_add(1, std::memory_order_relaxed);
+        });
       }
     });
   }
 
   start.store(true, std::memory_order_release);
-  for (auto &producer : producers) {
+  for (auto& producer : producers) {
     producer.join();
   }
 
@@ -6732,16 +6231,21 @@ TEST_F(DriverTest, TestGameTickQueueSupportsConcurrentProducersAndFullDrain) {
 TEST_F(DriverTest, TestGameTickQueueRunsReentrantCallbacksOutsideLockAndHonorsCancellation) {
   clear_tick_events();
   struct TickQueueGuard {
-    ~TickQueueGuard() { clear_tick_events(); }
+    ~TickQueueGuard() {
+      clear_tick_events();
+    }
   } tick_queue_guard;
   std::atomic<int> callbacks{0};
 
   add_gametick_event(0, [&] {
     callbacks.fetch_add(1, std::memory_order_relaxed);
-    add_gametick_event(0, [&] { callbacks.fetch_add(1, std::memory_order_relaxed); });
+    add_gametick_event(0, [&] {
+      callbacks.fetch_add(1, std::memory_order_relaxed);
+    });
   });
-  auto *cancelled = add_gametick_event(
-      0, [&] { callbacks.fetch_add(100, std::memory_order_relaxed); });
+  auto* cancelled = add_gametick_event(0, [&] {
+    callbacks.fetch_add(100, std::memory_order_relaxed);
+  });
   cancelled->cancel();
 
   ASSERT_EQ(run_tick_events_for_test(), 3u);
@@ -6757,24 +6261,17 @@ TEST_F(DriverTest, TestGameTickAndOwnerMainDrainsUseBoundedPositiveDelaySlices) 
   ASSERT_EQ(kBackendTickContinuationDelay, std::chrono::milliseconds(1));
   ASSERT_EQ(kBackendOwnerMainDrainTaskBudget, 64);
   ASSERT_EQ(kBackendOwnerMainDrainWallBudget, std::chrono::milliseconds(8));
-  ASSERT_EQ(kBackendOwnerMainDrainContinuationDelay,
-            std::chrono::milliseconds(1));
-  ASSERT_NE(source.find("vm_owner_drain_main_tasks_with_budget("),
-            std::string::npos);
-  ASSERT_EQ(source.find("vm_owner_drain_main_tasks(1024)"),
-            std::string::npos);
+  ASSERT_EQ(kBackendOwnerMainDrainContinuationDelay, std::chrono::milliseconds(1));
+  ASSERT_NE(source.find("vm_owner_drain_main_tasks_with_budget("), std::string::npos);
+  ASSERT_EQ(source.find("vm_owner_drain_main_tasks(1024)"), std::string::npos);
   ASSERT_NE(source.find("kBackendTickContinuationDelay"), std::string::npos);
-  ASSERT_NE(source.find("kBackendOwnerMainDrainContinuationDelay"),
-            std::string::npos);
+  ASSERT_NE(source.find("kBackendOwnerMainDrainContinuationDelay"), std::string::npos);
   const auto tick_slice_start = source.find("void drain_game_tick_slice(");
   const auto tick_slice_end = source.find("// Call one bounded event slice", tick_slice_start);
-  const auto tick_slice_source = source.substr(
-      tick_slice_start, tick_slice_end - tick_slice_start);
+  const auto tick_slice_source = source.substr(tick_slice_start, tick_slice_end - tick_slice_start);
   const auto tick_drain = tick_slice_source.find("call_tick_events_slice()");
-  const auto owner_drain = tick_slice_source.find(
-      "drain_backend_owner_main_tasks_slice(false)");
-  const auto continuation_check = tick_slice_source.find(
-      "if (result.due_events_remaining)");
+  const auto owner_drain = tick_slice_source.find("drain_backend_owner_main_tasks_slice(false)");
+  const auto continuation_check = tick_slice_source.find("if (result.due_events_remaining)");
   ASSERT_NE(tick_drain, std::string::npos);
   ASSERT_NE(owner_drain, std::string::npos);
   ASSERT_NE(continuation_check, std::string::npos);
@@ -6789,7 +6286,9 @@ TEST_F(DriverTest, TestBackendWakeupPipeRoutesWorkerWakeupToMainThreadDrain) {
   std::atomic<int> drain_count{0};
   std::atomic<bool> drained_on_main{false};
   struct HandlerGuard {
-    ~HandlerGuard() { backend_set_wakeup_handler(check_reqs); }
+    ~HandlerGuard() {
+      backend_set_wakeup_handler(check_reqs);
+    }
   } handler_guard;
   backend_set_wakeup_handler([&drain_count, &drained_on_main] {
     drained_on_main.store(vm_context_is_main_thread(), std::memory_order_relaxed);
@@ -6800,7 +6299,9 @@ TEST_F(DriverTest, TestBackendWakeupPipeRoutesWorkerWakeupToMainThreadDrain) {
   drain_count.store(0);
 
   bool wrote = false;
-  std::thread worker([&wrote] { wrote = backend_wakeup_event_loop(); });
+  std::thread worker([&wrote] {
+    wrote = backend_wakeup_event_loop();
+  });
   worker.join();
   ASSERT_TRUE(wrote) << "init_backend() must have created the wakeup pipe";
   EXPECT_EQ(drain_count.load(), 0)
@@ -6826,15 +6327,16 @@ TEST_F(DriverTest, TestBackendWakeupPipeRoutesWorkerWakeupToMainThreadDrain) {
 TEST_F(DriverTest, TestWalltimeEventsShareInteractivePriorityAndCleanup) {
   clear_tick_events();
   struct TickQueueGuard {
-    ~TickQueueGuard() { clear_tick_events(); }
+    ~TickQueueGuard() {
+      clear_tick_events();
+    }
   } tick_queue_guard;
 
   ASSERT_EQ(event_base_get_npriorities(g_event_base), kBackendEventPriorityLevels);
-  auto *normal = add_walltime_event(std::chrono::hours(1), [] {});
-  auto *gateway = add_walltime_event(
-      std::chrono::hours(1), [] {}, BackendEventPriority::kGateway);
-  auto *background = add_walltime_event(
-      std::chrono::hours(1), [] {}, BackendEventPriority::kBackground);
+  auto* normal = add_walltime_event(std::chrono::hours(1), [] {});
+  auto* gateway = add_walltime_event(std::chrono::hours(1), [] {}, BackendEventPriority::kGateway);
+  auto* background =
+      add_walltime_event(std::chrono::hours(1), [] {}, BackendEventPriority::kBackground);
 
   ASSERT_NE(normal, nullptr);
   ASSERT_NE(gateway, nullptr);
@@ -6846,8 +6348,7 @@ TEST_F(DriverTest, TestWalltimeEventsShareInteractivePriorityAndCleanup) {
             static_cast<int>(BackendEventPriority::kGateway));
   ASSERT_EQ(walltime_event_priority_for_test(background),
             static_cast<int>(BackendEventPriority::kBackground));
-  ASSERT_EQ(walltime_event_priority_for_test(normal),
-            walltime_event_priority_for_test(gateway));
+  ASSERT_EQ(walltime_event_priority_for_test(normal), walltime_event_priority_for_test(gateway));
   ASSERT_LT(walltime_event_priority_for_test(gateway),
             walltime_event_priority_for_test(background));
 
@@ -6860,7 +6361,7 @@ TEST_F(DriverTest, TestWalltimeEventsShareInteractivePriorityAndCleanup) {
 
 TEST_F(DriverTest, TestNormalAndGatewaySelfReschedulingAreBidirectionallyFair) {
   struct FairnessProbe {
-    event *pressure_event{nullptr};
+    event* pressure_event{nullptr};
     int pressure_callbacks{0};
     int observer_after{-1};
   };
@@ -6871,29 +6372,25 @@ TEST_F(DriverTest, TestNormalAndGatewaySelfReschedulingAreBidirectionallyFair) {
     FairnessProbe probe;
     probe.pressure_event = evtimer_new(
         g_event_base,
-        [](evutil_socket_t, short, void *arg) {
-          auto *state = static_cast<FairnessProbe *>(arg);
+        [](evutil_socket_t, short, void* arg) {
+          auto* state = static_cast<FairnessProbe*>(arg);
           state->pressure_callbacks++;
           if (state->pressure_callbacks < kPressureCallbacks) {
             event_active(state->pressure_event, EV_TIMEOUT, 1);
           }
         },
         &probe);
-    auto *observer_event = evtimer_new(
+    auto* observer_event = evtimer_new(
         g_event_base,
-        [](evutil_socket_t, short, void *arg) {
-          auto *state = static_cast<FairnessProbe *>(arg);
+        [](evutil_socket_t, short, void* arg) {
+          auto* state = static_cast<FairnessProbe*>(arg);
           state->observer_after = state->pressure_callbacks;
         },
         &probe);
     ASSERT_NE(probe.pressure_event, nullptr);
     ASSERT_NE(observer_event, nullptr);
-    ASSERT_EQ(event_priority_set(probe.pressure_event,
-                                 static_cast<int>(pressure_priority)),
-              0);
-    ASSERT_EQ(event_priority_set(observer_event,
-                                 static_cast<int>(observer_priority)),
-              0);
+    ASSERT_EQ(event_priority_set(probe.pressure_event, static_cast<int>(pressure_priority)), 0);
+    ASSERT_EQ(event_priority_set(observer_event, static_cast<int>(observer_priority)), 0);
 
     event_active(probe.pressure_event, EV_TIMEOUT, 1);
     event_active(observer_event, EV_TIMEOUT, 1);
@@ -6919,21 +6416,20 @@ TEST_F(DriverTest, TestPrioritizedWalltimeCalloutsPreserveHandleLifecycle) {
     }
   } callout_guard;
 
-  auto *obj = load_object_for_test("single/void");
+  auto* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
-  auto call_number = [](const char *method, object_t *target) -> long {
-    auto *ret = safe_apply(method, target, 0, ORIGIN_DRIVER);
+  auto call_number = [](const char* method, object_t* target) -> long {
+    auto* ret = safe_apply(method, target, 0, ORIGIN_DRIVER);
     EXPECT_NE(ret, nullptr);
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
 
-  const auto normal_handle =
-      static_cast<LPC_INT>(call_number("start_walltime_callout_probe", obj));
-  const auto gateway_handle = static_cast<LPC_INT>(
-      call_number("start_gateway_walltime_callout_probe", obj));
-  const auto background_handle = static_cast<LPC_INT>(
-      call_number("start_background_walltime_callout_probe", obj));
+  const auto normal_handle = static_cast<LPC_INT>(call_number("start_walltime_callout_probe", obj));
+  const auto gateway_handle =
+      static_cast<LPC_INT>(call_number("start_gateway_walltime_callout_probe", obj));
+  const auto background_handle =
+      static_cast<LPC_INT>(call_number("start_background_walltime_callout_probe", obj));
   ASSERT_GT(normal_handle, 0);
   ASSERT_GT(gateway_handle, 0);
   ASSERT_GT(background_handle, 0);
@@ -6957,31 +6453,29 @@ TEST_F(DriverTest, TestPrioritizedWalltimeCalloutsPreserveHandleLifecycle) {
 
 TEST_F(DriverTest, TestGatewayPriorityPreemptsQueuedBackgroundWarmups) {
   struct PriorityProbe {
-    event *gateway_event{nullptr};
+    event* gateway_event{nullptr};
     int background_callbacks{0};
     int gateway_observed_after{-1};
   } probe;
-  std::vector<event *> background_events;
+  std::vector<event*> background_events;
   constexpr int kBackgroundEvents = 4;
 
   probe.gateway_event = evtimer_new(
       g_event_base,
-      [](evutil_socket_t, short, void *arg) {
-        auto *state = static_cast<PriorityProbe *>(arg);
+      [](evutil_socket_t, short, void* arg) {
+        auto* state = static_cast<PriorityProbe*>(arg);
         state->gateway_observed_after = state->background_callbacks;
       },
       &probe);
   ASSERT_NE(probe.gateway_event, nullptr);
-  ASSERT_EQ(event_priority_set(
-                probe.gateway_event,
-                static_cast<int>(BackendEventPriority::kGateway)),
-            0);
+  ASSERT_EQ(
+      event_priority_set(probe.gateway_event, static_cast<int>(BackendEventPriority::kGateway)), 0);
 
   for (int i = 0; i < kBackgroundEvents; ++i) {
-    auto *background_event = evtimer_new(
+    auto* background_event = evtimer_new(
         g_event_base,
-        [](evutil_socket_t, short, void *arg) {
-          auto *state = static_cast<PriorityProbe *>(arg);
+        [](evutil_socket_t, short, void* arg) {
+          auto* state = static_cast<PriorityProbe*>(arg);
           state->background_callbacks++;
           if (state->background_callbacks == 1) {
             event_active(state->gateway_event, EV_TIMEOUT, 1);
@@ -6989,10 +6483,9 @@ TEST_F(DriverTest, TestGatewayPriorityPreemptsQueuedBackgroundWarmups) {
         },
         &probe);
     ASSERT_NE(background_event, nullptr);
-    ASSERT_EQ(event_priority_set(
-                  background_event,
-                  static_cast<int>(BackendEventPriority::kBackground)),
-              0);
+    ASSERT_EQ(
+        event_priority_set(background_event, static_cast<int>(BackendEventPriority::kBackground)),
+        0);
     background_events.push_back(background_event);
     event_active(background_event, EV_TIMEOUT, 1);
   }
@@ -7001,7 +6494,7 @@ TEST_F(DriverTest, TestGatewayPriorityPreemptsQueuedBackgroundWarmups) {
   ASSERT_EQ(probe.gateway_observed_after, 1);
   ASSERT_EQ(probe.background_callbacks, kBackgroundEvents);
 
-  for (auto *background_event : background_events) {
+  for (auto* background_event : background_events) {
     event_free(background_event);
   }
   event_free(probe.gateway_event);
@@ -7009,31 +6502,29 @@ TEST_F(DriverTest, TestGatewayPriorityPreemptsQueuedBackgroundWarmups) {
 
 TEST_F(DriverTest, TestBackgroundDispatchRepollsBeforeDrainingWholeActiveQueue) {
   struct DispatchProbe {
-    event *normal_event{nullptr};
+    event* normal_event{nullptr};
     int background_callbacks{0};
     int normal_observed_after{-1};
   } probe;
-  std::vector<event *> background_events;
+  std::vector<event*> background_events;
   constexpr int kBackgroundEvents = kBackendBackgroundDispatchMaxCallbacks * 2;
 
   probe.normal_event = evtimer_new(
       g_event_base,
-      [](evutil_socket_t, short, void *arg) {
-        auto *state = static_cast<DispatchProbe *>(arg);
+      [](evutil_socket_t, short, void* arg) {
+        auto* state = static_cast<DispatchProbe*>(arg);
         state->normal_observed_after = state->background_callbacks;
       },
       &probe);
   ASSERT_NE(probe.normal_event, nullptr);
-  ASSERT_EQ(event_priority_set(
-                probe.normal_event,
-                static_cast<int>(BackendEventPriority::kNormal)),
+  ASSERT_EQ(event_priority_set(probe.normal_event, static_cast<int>(BackendEventPriority::kNormal)),
             0);
 
   for (int i = 0; i < kBackgroundEvents; ++i) {
-    auto *background_event = evtimer_new(
+    auto* background_event = evtimer_new(
         g_event_base,
-        [](evutil_socket_t, short, void *arg) {
-          auto *state = static_cast<DispatchProbe *>(arg);
+        [](evutil_socket_t, short, void* arg) {
+          auto* state = static_cast<DispatchProbe*>(arg);
           state->background_callbacks++;
           if (state->background_callbacks == 1) {
             timeval due_now{};
@@ -7042,10 +6533,9 @@ TEST_F(DriverTest, TestBackgroundDispatchRepollsBeforeDrainingWholeActiveQueue) 
         },
         &probe);
     ASSERT_NE(background_event, nullptr);
-    ASSERT_EQ(event_priority_set(
-                  background_event,
-                  static_cast<int>(BackendEventPriority::kBackground)),
-              0);
+    ASSERT_EQ(
+        event_priority_set(background_event, static_cast<int>(BackendEventPriority::kBackground)),
+        0);
     background_events.push_back(background_event);
     event_active(background_event, EV_TIMEOUT, 1);
   }
@@ -7053,22 +6543,19 @@ TEST_F(DriverTest, TestBackgroundDispatchRepollsBeforeDrainingWholeActiveQueue) 
   ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_ONCE | EVLOOP_NONBLOCK), 0);
   ASSERT_EQ(probe.background_callbacks, kBackgroundEvents);
   ASSERT_GT(probe.normal_observed_after, 0);
-  ASSERT_LE(probe.normal_observed_after,
-            kBackendBackgroundDispatchMaxCallbacks);
+  ASSERT_LE(probe.normal_observed_after, kBackendBackgroundDispatchMaxCallbacks);
 
-  for (auto *background_event : background_events) {
+  for (auto* background_event : background_events) {
     event_free(background_event);
   }
   event_free(probe.normal_event);
 }
 
-TEST_F(DriverTest,
-       TestGatewayOwnerOutputQuiescesBeforeOwnerStopAndCleanup) {
-  const auto source =
-      read_source_file_for_test("../src/vm/internal/simulate.cc");
+TEST_F(DriverTest, TestGatewayOwnerOutputQuiescesBeforeOwnerStopAndCleanup) {
+  const auto source = read_source_file_for_test("../src/vm/internal/simulate.cc");
   const auto shutdown_pos = source.find("void shutdownMudOS(int exit_code)");
-  const auto owner_quiesce_pos = source.find(
-      "gateway_owner_output_quiesce(\"driver shutdown\")", shutdown_pos);
+  const auto owner_quiesce_pos =
+      source.find("gateway_owner_output_quiesce(\"driver shutdown\")", shutdown_pos);
   const auto owner_stop_pos = source.find("vm_owner_thread_stop();", shutdown_pos);
   const auto gateway_cleanup_pos = source.find("cleanup_gateway();", shutdown_pos);
   const auto callout_cleanup_pos = source.find("clear_call_outs();", shutdown_pos);
@@ -7089,37 +6576,26 @@ TEST_F(DriverTest,
 TEST_F(DriverTest, TestSigtermUsesControlledShutdownWithSuccessExitCode) {
   const auto main_source = read_source_file_for_test("../src/mainlib.cc");
   const auto backend_source = read_source_file_for_test("../src/backend.cc");
-  const auto simulate_source =
-      read_source_file_for_test("../src/vm/internal/simulate.cc");
+  const auto simulate_source = read_source_file_for_test("../src/vm/internal/simulate.cc");
 
-  ASSERT_NE(main_source.find("signal(SIGTERM, startshutdownMudOS);"),
-            std::string::npos);
-  ASSERT_NE(main_source.find(
-                "// Install the async-signal-safe shutdown request before mudlib startup."),
-            std::string::npos);
-  ASSERT_EQ(main_source.find("signal(SIGTERM, attempt_shutdown);"),
-            std::string::npos);
-  ASSERT_NE(simulate_source.find("sig == SIGTERM ? 0 : -1"),
-            std::string::npos);
-  ASSERT_NE(backend_source.find("shutdownMudOS(MudOS_shutdown_exit_code);"),
-            std::string::npos);
-  ASSERT_NE(backend_source.find("event_base_loopbreak(g_event_base);"),
-            std::string::npos);
+  ASSERT_NE(main_source.find("signal(SIGTERM, startshutdownMudOS);"), std::string::npos);
+  ASSERT_NE(
+      main_source.find("// Install the async-signal-safe shutdown request before mudlib startup."),
+      std::string::npos);
+  ASSERT_EQ(main_source.find("signal(SIGTERM, attempt_shutdown);"), std::string::npos);
+  ASSERT_NE(simulate_source.find("sig == SIGTERM ? 0 : -1"), std::string::npos);
+  ASSERT_NE(backend_source.find("shutdownMudOS(MudOS_shutdown_exit_code);"), std::string::npos);
+  ASSERT_NE(backend_source.find("event_base_loopbreak(g_event_base);"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown) {
-  const auto applies_source =
-      read_source_file_for_test("../src/vm/internal/applies");
-  const auto shutdown_source =
-      read_source_file_for_test("../src/vm/internal/simulate.cc");
-  const auto shutdown_pos =
-      shutdown_source.find("void shutdownMudOS(int exit_code)");
-  const auto prepare_pos = shutdown_source.find(
-      "safe_apply_master_ob(APPLY_PREPARE_SHUTDOWN, 1)", shutdown_pos);
-  const auto async_stop_pos =
-      shutdown_source.find("complete_all_asyncio();", shutdown_pos);
-  const auto owner_stop_pos =
-      shutdown_source.find("vm_owner_thread_stop();", shutdown_pos);
+  const auto applies_source = read_source_file_for_test("../src/vm/internal/applies");
+  const auto shutdown_source = read_source_file_for_test("../src/vm/internal/simulate.cc");
+  const auto shutdown_pos = shutdown_source.find("void shutdownMudOS(int exit_code)");
+  const auto prepare_pos =
+      shutdown_source.find("safe_apply_master_ob(APPLY_PREPARE_SHUTDOWN, 1)", shutdown_pos);
+  const auto async_stop_pos = shutdown_source.find("complete_all_asyncio();", shutdown_pos);
+  const auto owner_stop_pos = shutdown_source.find("vm_owner_thread_stop();", shutdown_pos);
 
   ASSERT_NE(applies_source.find("PREPARE_SHUTDOWN"), std::string::npos);
   ASSERT_NE(shutdown_pos, std::string::npos);
@@ -7130,22 +6606,17 @@ TEST_F(DriverTest, TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown) {
   ASSERT_LT(prepare_pos, owner_stop_pos);
 }
 
-TEST_F(DriverTest,
-       TestGatewayOwnerOutputQuiesceRejectsOffMainBeforeContainerAccess) {
-  const auto source =
-      read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
+TEST_F(DriverTest, TestGatewayOwnerOutputQuiesceRejectsOffMainBeforeContainerAccess) {
+  const auto source = read_source_file_for_test("../src/packages/gateway/gateway_session.cc");
   const auto quiesce_pos =
       source.find("mapping_t *gateway_owner_output_quiesce(const char *reason)");
-  const auto next_function_pos = source.find(
-      "int gateway_fill_session_protocol_output_with_writer", quiesce_pos);
-  const auto main_guard_pos = source.find(
-      "if (!vm_context_is_main_thread())", quiesce_pos);
-  const auto session_watch_read_pos = source.find(
-      "g_gateway_session_future_watches", quiesce_pos);
-  const auto room_wave_read_pos = source.find(
-      "g_gateway_room_output_waves", quiesce_pos);
-  const auto room_pending_read_pos = source.find(
-      "gateway_room_output_projection_pending_count()", quiesce_pos);
+  const auto next_function_pos =
+      source.find("int gateway_fill_session_protocol_output_with_writer", quiesce_pos);
+  const auto main_guard_pos = source.find("if (!vm_context_is_main_thread())", quiesce_pos);
+  const auto session_watch_read_pos = source.find("g_gateway_session_future_watches", quiesce_pos);
+  const auto room_wave_read_pos = source.find("g_gateway_room_output_waves", quiesce_pos);
+  const auto room_pending_read_pos =
+      source.find("gateway_room_output_projection_pending_count()", quiesce_pos);
 
   ASSERT_NE(quiesce_pos, std::string::npos);
   ASSERT_NE(next_function_pos, std::string::npos);
@@ -7543,7 +7014,7 @@ TEST_F(DriverTest, TestVmObjectLifecycleStateSyncsContext) {
 }
 
 TEST_F(DriverTest, TestVmContextThreadScopeBindsThreadLocalContext) {
-  auto *main_context = &vm_context();
+  auto* main_context = &vm_context();
   ASSERT_EQ(main_context, &vm_main_context());
   ASSERT_FALSE(vm_context_is_owner_controlled_lpc());
 
@@ -7597,11 +7068,9 @@ TEST_F(DriverTest, TestEvalLimitTimersAreIndependentAcrossThreads) {
   const auto main_remaining = static_cast<uint64_t>(get_eval());
   set_eval(max_eval_cost);
 
-  ASSERT_GT(worker_remaining,
-            kWorkerDeadlineMicros - kSchedulingToleranceMicros);
+  ASSERT_GT(worker_remaining, kWorkerDeadlineMicros - kSchedulingToleranceMicros);
   ASSERT_LE(worker_remaining, kWorkerDeadlineMicros);
-  ASSERT_GT(main_remaining,
-            kMainDeadlineMicros - kSchedulingToleranceMicros);
+  ASSERT_GT(main_remaining, kMainDeadlineMicros - kSchedulingToleranceMicros);
   ASSERT_LE(main_remaining, kMainDeadlineMicros);
 }
 
@@ -7614,8 +7083,7 @@ TEST_F(DriverTest, TestEvalLimitSignalExpiresOnlyTheTargetThread) {
   bool worker_expired = false;
   std::thread worker([&] {
     set_eval(kWorkerDeadlineMicros);
-    const auto wait_deadline =
-        std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    const auto wait_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (!outoftime && std::chrono::steady_clock::now() < wait_deadline) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -7632,7 +7100,7 @@ TEST_F(DriverTest, TestEvalLimitSignalExpiresOnlyTheTargetThread) {
 #endif
 
 TEST_F(DriverTest, TestVmContextObjectStoreRemainsMainThreadOwned) {
-  auto *main_context = &vm_context();
+  auto* main_context = &vm_context();
   vm_context_sync_object_store(*main_context);
   ASSERT_TRUE(main_context->object_store.main_thread_owned);
   ASSERT_EQ(main_context->object_store.objects, obj_list);
@@ -7644,7 +7112,8 @@ TEST_F(DriverTest, TestVmContextObjectStoreRemainsMainThreadOwned) {
     VMContext worker_context;
     VMContextThreadScope scope(worker_context);
     vm_context_sync_object_store(vm_context());
-    worker_store_rejected = !worker_context.object_store.main_thread_owned && worker_context.object_store.objects == nullptr;
+    worker_store_rejected = !worker_context.object_store.main_thread_owned &&
+                            worker_context.object_store.objects == nullptr;
     worker_rejections = worker_context.object_store.sync_rejections;
   });
   worker.join();
@@ -7698,7 +7167,7 @@ TEST_F(DriverTest, TestRemoveDestructedObjectsBoundedDrainsIncrementally) {
 }
 
 TEST_F(DriverTest, TestVmOwnerScopeBindsAndRestoresCurrentOwner) {
-  auto *context = &vm_context();
+  auto* context = &vm_context();
   vm_context_set_current_owner(*context, "owner/test/original", 7);
 
   {
@@ -7867,9 +7336,9 @@ TEST_F(DriverTest, TestSharedStdServicesUseDefaultOwnerInsidePlayerOwnerScope) {
 }
 
 TEST_F(DriverTest, TestStdHelperServicesUseDefaultOwnerInsidePlayerOwnerScope) {
-  const char* helper_paths[] = {"std/base64.c", "std/break_string.c", "std/element_of_weighted.c",
-                                "std/reduce.c", "std/highest.c",       "std/lowest.c",
-                                "std/number_string.c", "std/sum.c"};
+  const char* helper_paths[] = {
+      "std/base64.c",  "std/break_string.c", "std/element_of_weighted.c", "std/reduce.c",
+      "std/highest.c", "std/lowest.c",       "std/number_string.c",       "std/sum.c"};
   for (auto* path : helper_paths) {
     if (auto* existing = find_object2(path)) {
       destruct_object_for_test(existing);
@@ -7893,11 +7362,15 @@ TEST_F(DriverTest, TestStdHelperServicesUseDefaultOwnerInsidePlayerOwnerScope) {
     auto handle = vm_object_handle(service);
     ASSERT_TRUE(handle.valid) << path;
     ASSERT_FALSE(handle.object_path.empty()) << path;
-    ASSERT_EQ(vm_object_store_owner_resolve(vm_owner_default_id(), handle.object_id), service) << path;
-    ASSERT_EQ(vm_object_store_owner_resolve(vm_owner_id(player), handle.object_id), nullptr) << path;
-    ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_default_id(), handle.object_path.c_str()), service)
+    ASSERT_EQ(vm_object_store_owner_resolve(vm_owner_default_id(), handle.object_id), service)
         << path;
-    ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_id(player), handle.object_path.c_str()), nullptr)
+    ASSERT_EQ(vm_object_store_owner_resolve(vm_owner_id(player), handle.object_id), nullptr)
+        << path;
+    ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_default_id(), handle.object_path.c_str()),
+              service)
+        << path;
+    ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_id(player), handle.object_path.c_str()),
+              nullptr)
         << path;
   }
 
@@ -7976,7 +7449,8 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
   ASSERT_EQ(vm_object_handle_resolve(handle), virtual_object);
   ASSERT_STREQ(handle.object_path.c_str(), "test/virtual");
   ASSERT_EQ(vm_object_store_owner_resolve(vm_owner_default_id(), handle.object_id), virtual_object);
-  ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_default_id(), "test/virtual"), virtual_object);
+  ASSERT_EQ(vm_object_store_owner_path_resolve(vm_owner_default_id(), "test/virtual"),
+            virtual_object);
   auto* handle_status = vm_object_handle_status(virtual_object);
   ASSERT_EQ(mapping_number(handle_status, "current"), 1);
   ASSERT_STREQ(mapping_string(handle_status, "resolve_status"), "current");
@@ -7992,7 +7466,8 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(handle_status, "global_live_object_found"), 0);
   ASSERT_STREQ(mapping_string(handle_status, "global_live_object_source"), "");
-  auto handle_live_object_bridge_ready = mapping_number(handle_status, "global_live_object_bridge_retirement_ready");
+  auto handle_live_object_bridge_ready =
+      mapping_number(handle_status, "global_live_object_bridge_retirement_ready");
   ASSERT_TRUE(handle_live_object_bridge_ready == 0 || handle_live_object_bridge_ready == 1);
   ASSERT_EQ(mapping_number(handle_status, "global_live_object_fallback_skipped"), 0);
   ASSERT_STREQ(mapping_string(handle_status, "global_live_object_fallback_reason"), "");
@@ -8008,7 +7483,8 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
   ASSERT_STREQ(mapping_string(handle_status, "global_record_pointer_bridge_source"), "");
   ASSERT_EQ(mapping_number(handle_status, "global_record_pointer_bridge_skipped"), 0);
   ASSERT_STREQ(mapping_string(handle_status, "global_record_pointer_bridge_skip_reason"), "");
-  auto handle_record_bridge_ready = mapping_number(handle_status, "global_record_bridge_retirement_ready");
+  auto handle_record_bridge_ready =
+      mapping_number(handle_status, "global_record_bridge_retirement_ready");
   ASSERT_TRUE(handle_record_bridge_ready == 0 || handle_record_bridge_ready == 1);
   ASSERT_EQ(mapping_number(handle_status, "global_record_fallback_skipped"), 0);
   ASSERT_STREQ(mapping_string(handle_status, "global_record_fallback_reason"), "");
@@ -8026,26 +7502,31 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
       found_virtual_record = true;
       ASSERT_EQ(mapping_number(record, "object_id"), static_cast<long>(handle.object_id));
       ASSERT_STREQ(mapping_string(record, "owner_id"), vm_owner_default_id());
-      ASSERT_EQ(mapping_number(record, "owner_epoch"), static_cast<long>(vm_owner_epoch(virtual_object)));
+      ASSERT_EQ(mapping_number(record, "owner_epoch"),
+                static_cast<long>(vm_owner_epoch(virtual_object)));
       ASSERT_EQ(mapping_number(record, "destructed"), 0);
       ASSERT_EQ(mapping_number(record, "live"), 1);
       ASSERT_EQ(mapping_number(record, "owner_local_object_ref_entry"), 1);
-      ASSERT_STREQ(mapping_string(record, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+      ASSERT_STREQ(mapping_string(record, "owner_local_object_ref_source"),
+                   "vm_object_shard.local_objects");
       ASSERT_EQ(mapping_number(record, "owner_local_object_ref_index_entry"), 1);
       ASSERT_STREQ(mapping_string(record, "owner_local_object_ref_index_source"),
                    "vm_object_shard.local_object_index");
       ASSERT_EQ(mapping_number(record, "owner_local_path_index_entry"), 1);
-      ASSERT_STREQ(mapping_string(record, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
+      ASSERT_STREQ(mapping_string(record, "owner_local_path_index_source"),
+                   "vm_object_shard.object_path_index");
       break;
     }
   }
   ASSERT_TRUE(found_virtual_record);
   free_mapping(owner_status);
-  auto* virtual_lookup = vm_object_store_owner_lookup_status(vm_owner_default_id(), handle.object_id);
+  auto* virtual_lookup =
+      vm_object_store_owner_lookup_status(vm_owner_default_id(), handle.object_id);
   ASSERT_EQ(mapping_number(virtual_lookup, "success"), 1);
   ASSERT_EQ(mapping_number(virtual_lookup, "found"), 1);
   ASSERT_EQ(mapping_number(virtual_lookup, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(virtual_lookup, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -8053,19 +7534,23 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
   ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(virtual_lookup, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(virtual_lookup, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(virtual_lookup, "owner_local_destructed_path_index_found"), 0);
-  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
+  ASSERT_STREQ(mapping_string(virtual_lookup, "owner_local_path_index_source"),
+               "vm_object_shard.object_path_index");
   ASSERT_STREQ(mapping_string(virtual_lookup, "object_path"), "test/virtual");
   free_mapping(virtual_lookup);
-  auto* virtual_path_lookup = vm_object_store_owner_path_lookup_status(vm_owner_default_id(), "test/virtual");
+  auto* virtual_path_lookup =
+      vm_object_store_owner_path_lookup_status(vm_owner_default_id(), "test/virtual");
   ASSERT_EQ(mapping_number(virtual_path_lookup, "success"), 1);
   ASSERT_EQ(mapping_number(virtual_path_lookup, "record_found"), 1);
   ASSERT_EQ(mapping_number(virtual_path_lookup, "found"), 1);
   ASSERT_EQ(mapping_number(virtual_path_lookup, "object_id"), static_cast<long>(handle.object_id));
   ASSERT_EQ(mapping_number(virtual_path_lookup, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(virtual_path_lookup, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -8073,7 +7558,8 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
   ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(virtual_path_lookup, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(virtual_path_lookup, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(virtual_path_lookup, "owner_local_destructed_path_index_found"), 0);
   ASSERT_STREQ(mapping_string(virtual_path_lookup, "owner_local_path_index_source"),
@@ -8210,7 +7696,8 @@ TEST_F(DriverTest, TestVmOwnerMailboxDrainsOwnerFifo) {
   ASSERT_EQ(first_tasks->type, T_ARRAY);
   ASSERT_EQ(first_tasks->u.arr->size, 1);
   ASSERT_EQ(first_tasks->u.arr->item[0].type, T_MAPPING);
-  ASSERT_EQ(mapping_number(first_tasks->u.arr->item[0].u.map, "task_id"), static_cast<long>(first_id));
+  ASSERT_EQ(mapping_number(first_tasks->u.arr->item[0].u.map, "task_id"),
+            static_cast<long>(first_id));
   ASSERT_EQ(mapping_number(first_tasks->u.arr->item[0].u.map, "owner_epoch"), 0);
   ASSERT_STREQ(mapping_string(first_tasks->u.arr->item[0].u.map, "task_key"), "first");
   free_mapping(first_drain);
@@ -8223,7 +7710,8 @@ TEST_F(DriverTest, TestVmOwnerMailboxDrainsOwnerFifo) {
   ASSERT_EQ(second_tasks->type, T_ARRAY);
   ASSERT_EQ(second_tasks->u.arr->size, 1);
   ASSERT_EQ(second_tasks->u.arr->item[0].type, T_MAPPING);
-  ASSERT_EQ(mapping_number(second_tasks->u.arr->item[0].u.map, "task_id"), static_cast<long>(second_id));
+  ASSERT_EQ(mapping_number(second_tasks->u.arr->item[0].u.map, "task_id"),
+            static_cast<long>(second_id));
   ASSERT_STREQ(mapping_string(second_tasks->u.arr->item[0].u.map, "task_key"), "second");
   free_mapping(second_drain);
 }
@@ -8389,13 +7877,16 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDispatchesWithOwnerScope) {
   auto before_io_adapter = mapping_number(before_runtime, "main_io_adapter_count");
   free_mapping(before_runtime);
 
-  auto task_id = vm_owner_enqueue_main_task(obj, "unit_main", "dispatch", [&] {
-    ran = true;
-    seen_owner = vm_context().owner.current_owner_id;
-    auto* running = vm_owner_thread_status();
-    active_owners_during_callback = mapping_number(running, "main_active_owners");
-    free_mapping(running);
-  }, nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
+  auto task_id = vm_owner_enqueue_main_task(
+      obj, "unit_main", "dispatch",
+      [&] {
+        ran = true;
+        seen_owner = vm_context().owner.current_owner_id;
+        auto* running = vm_owner_thread_status();
+        active_owners_during_callback = mapping_number(running, "main_active_owners");
+        free_mapping(running);
+      },
+      nullptr, VM_OWNER_MAIN_TASK_IO_ADAPTER);
   ASSERT_GT(task_id, 0u);
   ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
   ASSERT_TRUE(ran);
@@ -8408,7 +7899,8 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDispatchesWithOwnerScope) {
   ASSERT_EQ(mapping_number(after, "main_owner_releases"), before_releases + 1);
   free_mapping(after);
   auto* after_runtime = vm_owner_runtime_status();
-  ASSERT_EQ(mapping_number(after_runtime, "normal_path_main_fallback_count"), before_normal_fallback);
+  ASSERT_EQ(mapping_number(after_runtime, "normal_path_main_fallback_count"),
+            before_normal_fallback);
   ASSERT_EQ(mapping_number(after_runtime, "main_io_adapter_count"), before_io_adapter + 1);
   ASSERT_EQ(mapping_number(after_runtime, "main_fallback_policy_ready"), 1);
   free_mapping(after_runtime);
@@ -8452,13 +7944,15 @@ TEST_F(DriverTest, TestVmOwnerMainDrainRecoversAfterCallbackException) {
   };
   const auto first_ref_before = first->ref;
   bool second_ran = false;
-  ASSERT_GT(vm_owner_enqueue_main_task(
-                first, "unit_main", "throws",
-                [] { throw "owner main callback test"; }),
+  ASSERT_GT(vm_owner_enqueue_main_task(first, "unit_main", "throws",
+                                       [] {
+                                         throw "owner main callback test";
+                                       }),
             0u);
-  ASSERT_GT(vm_owner_enqueue_main_task(
-                second, "unit_main", "after-throw",
-                [&] { second_ran = true; }),
+  ASSERT_GT(vm_owner_enqueue_main_task(second, "unit_main", "after-throw",
+                                       [&] {
+                                         second_ran = true;
+                                       }),
             0u);
   ASSERT_EQ(first->ref, first_ref_before + 1);
 
@@ -8501,16 +7995,19 @@ TEST_F(DriverTest, TestVmOwnerMainDrainWallBudgetYieldsAfterFirstTask) {
 
   int first_ran = 0;
   int second_ran = 0;
-  ASSERT_GT(vm_owner_enqueue_main_task(first, "unit_main", "wall-budget-first", [&] {
-              first_ran++;
-              auto deadline = std::chrono::steady_clock::now() +
-                              std::chrono::milliseconds(3);
-              while (std::chrono::steady_clock::now() < deadline) {
-              }
-            }),
+  ASSERT_GT(vm_owner_enqueue_main_task(first, "unit_main", "wall-budget-first",
+                                       [&] {
+                                         first_ran++;
+                                         auto deadline = std::chrono::steady_clock::now() +
+                                                         std::chrono::milliseconds(3);
+                                         while (std::chrono::steady_clock::now() < deadline) {
+                                         }
+                                       }),
             0u);
   ASSERT_GT(vm_owner_enqueue_main_task(second, "unit_main", "wall-budget-second",
-                                       [&] { second_ran++; }),
+                                       [&] {
+                                         second_ran++;
+                                       }),
             0u);
 
   auto result = vm_owner_drain_main_tasks_with_budget(64, 500000);
@@ -8542,7 +8039,9 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDropsStaleOwnerEpoch) {
   vm_owner_set_id(obj, "owner/test/main-stale-old");
 
   bool ran = false;
-  auto task_id = vm_owner_enqueue_main_task(obj, "unit_main", "stale", [&] { ran = true; });
+  auto task_id = vm_owner_enqueue_main_task(obj, "unit_main", "stale", [&] {
+    ran = true;
+  });
   ASSERT_GT(task_id, 0u);
   vm_owner_set_id(obj, "owner/test/main-stale-new");
   ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
@@ -8575,7 +8074,13 @@ TEST_F(DriverTest, TestVmOwnerMainQueueRunsDropCallbackForStaleTask) {
   bool ran = false;
   bool dropped = false;
   auto task_id = vm_owner_enqueue_main_task(
-      obj, "unit_main", "drop", [&] { ran = true; }, [&] { dropped = true; });
+      obj, "unit_main", "drop",
+      [&] {
+        ran = true;
+      },
+      [&] {
+        dropped = true;
+      });
   ASSERT_GT(task_id, 0u);
   vm_owner_set_id(obj, "owner/test/main-drop-new");
   ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
@@ -8712,7 +8217,7 @@ TEST_F(DriverTest, TestVmObjectStoreTracksPendingOwnerMessages) {
   };
 
   auto* drained = vm_owner_submit_message("owner/test/message/source", "owner/test/message/drain",
-                                         "message", "payload/drain");
+                                          "message", "payload/drain");
   ASSERT_EQ(mapping_number(drained, "success"), 1);
   free_mapping(drained);
   assert_pending_messages("owner/test/message/drain", 1);
@@ -8721,8 +8226,8 @@ TEST_F(DriverTest, TestVmObjectStoreTracksPendingOwnerMessages) {
   free_mapping(drain_result);
   assert_pending_messages("owner/test/message/drain", 0);
 
-  auto* scheduled = vm_owner_submit_message("owner/test/message/source", "owner/test/message/schedule",
-                                           "message", "payload/schedule");
+  auto* scheduled = vm_owner_submit_message(
+      "owner/test/message/source", "owner/test/message/schedule", "message", "payload/schedule");
   ASSERT_EQ(mapping_number(scheduled, "success"), 1);
   free_mapping(scheduled);
   assert_pending_messages("owner/test/message/schedule", 1);
@@ -8732,7 +8237,7 @@ TEST_F(DriverTest, TestVmObjectStoreTracksPendingOwnerMessages) {
   assert_pending_messages("owner/test/message/schedule", 0);
 
   auto* purged = vm_owner_submit_message("owner/test/message/source", "owner/test/message/purge",
-                                        "message", "payload/purge");
+                                         "message", "payload/purge");
   ASSERT_EQ(mapping_number(purged, "success"), 1);
   free_mapping(purged);
   assert_pending_messages("owner/test/message/purge", 1);
@@ -8881,9 +8386,9 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatDispatchesThroughOwnerExecutor) {
   ASSERT_GE(mapping_number(after, "main_queued"), before_main_queued + 1);
   ASSERT_EQ(mapping_number(after, "heartbeat_owner_executor_ready"), 1);
   ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_task_type"), "heartbeat");
-  ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_route"), "owner_main_queue_callback_adapter");
-  ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_fallback_route"),
-               "");
+  ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_route"),
+               "owner_main_queue_callback_adapter");
+  ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_fallback_route"), "");
   ASSERT_STREQ(mapping_string(after, "heartbeat_owner_executor_policy"),
                "main_thread_callback_adapter_after_owner_admission");
   ASSERT_EQ(mapping_number(after, "heartbeat_owner_executor_fallback_main_ready"), 1);
@@ -9039,7 +8544,8 @@ TEST_F(DriverTest, TestVmOwnerCalloutDispatchesThroughOwnerExecutor) {
   auto before_callback_queued = mapping_number(before, "executor_callback_queued");
   auto before_callback_dispatched = mapping_number(before, "executor_callback_dispatched");
   auto before_cleanup_queued = mapping_number(before, "executor_callback_main_cleanup_queued");
-  auto before_cleanup_dispatched = mapping_number(before, "executor_callback_main_cleanup_dispatched");
+  auto before_cleanup_dispatched =
+      mapping_number(before, "executor_callback_main_cleanup_dispatched");
   auto before_main_queued = mapping_number(before, "main_queued");
   free_mapping(before);
 
@@ -9062,13 +8568,14 @@ TEST_F(DriverTest, TestVmOwnerCalloutDispatchesThroughOwnerExecutor) {
   ASSERT_GE(mapping_number(after, "executor_callback_queued"), before_callback_queued + 1);
   ASSERT_GE(mapping_number(after, "executor_callback_dispatched"), before_callback_dispatched + 1);
   ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_queued"), before_cleanup_queued);
-  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"), before_cleanup_dispatched);
+  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"),
+            before_cleanup_dispatched);
   ASSERT_GE(mapping_number(after, "main_queued"), before_main_queued + 1);
   ASSERT_EQ(mapping_number(after, "callout_owner_executor_ready"), 1);
   ASSERT_STREQ(mapping_string(after, "callout_owner_executor_task_type"), "call_out");
-  ASSERT_STREQ(mapping_string(after, "callout_owner_executor_route"), "owner_main_queue_callback_adapter");
-  ASSERT_STREQ(mapping_string(after, "callout_owner_executor_fallback_route"),
-               "");
+  ASSERT_STREQ(mapping_string(after, "callout_owner_executor_route"),
+               "owner_main_queue_callback_adapter");
+  ASSERT_STREQ(mapping_string(after, "callout_owner_executor_fallback_route"), "");
   ASSERT_STREQ(mapping_string(after, "callout_owner_executor_policy"),
                "main_thread_callback_adapter_after_owner_admission");
   ASSERT_EQ(mapping_number(after, "callout_owner_executor_expired_handle_detach_ready"), 1);
@@ -9237,20 +8744,24 @@ TEST_F(DriverTest, TestVmOwnerAsyncDnsCallbacksDispatchThroughOwnerExecutor) {
   auto before_callback_queued = mapping_number(before, "executor_callback_queued");
   auto before_callback_dispatched = mapping_number(before, "executor_callback_dispatched");
   auto before_cleanup_queued = mapping_number(before, "executor_callback_main_cleanup_queued");
-  auto before_cleanup_dispatched = mapping_number(before, "executor_callback_main_cleanup_dispatched");
+  auto before_cleanup_dispatched =
+      mapping_number(before, "executor_callback_main_cleanup_dispatched");
   auto before_main_queued = mapping_number(before, "main_queued");
   free_mapping(before);
 
   vm_owner_thread_start(1);
   ASSERT_TRUE(vm_owner_executor_available());
-  ASSERT_TRUE(vm_async_test_support_dispatch_read_callback(obj, "async_callback_probe", "async owner result"));
+  ASSERT_TRUE(vm_async_test_support_dispatch_read_callback(obj, "async_callback_probe",
+                                                           "async owner result"));
   ASSERT_TRUE(vm_dns_test_support_dispatch_callback(obj, "dns_callback_probe", 4242));
 
-  for (int i = 0; i < 100 && !trace_has_state("async_callback", "main_executor_callback_completed"); i++) {
+  for (int i = 0; i < 100 && !trace_has_state("async_callback", "main_executor_callback_completed");
+       i++) {
     vm_owner_drain_main_tasks(64);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-  for (int i = 0; i < 100 && !trace_has_state("dns_callback", "main_executor_callback_completed"); i++) {
+  for (int i = 0; i < 100 && !trace_has_state("dns_callback", "main_executor_callback_completed");
+       i++) {
     vm_owner_drain_main_tasks(64);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -9269,26 +8780,29 @@ TEST_F(DriverTest, TestVmOwnerAsyncDnsCallbacksDispatchThroughOwnerExecutor) {
   ASSERT_GE(mapping_number(after, "executor_callback_queued"), before_callback_queued + 2);
   ASSERT_GE(mapping_number(after, "executor_callback_dispatched"), before_callback_dispatched + 2);
   ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_queued"), before_cleanup_queued);
-  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"), before_cleanup_dispatched);
+  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"),
+            before_cleanup_dispatched);
   ASSERT_GE(mapping_number(after, "main_queued"), before_main_queued + 2);
   ASSERT_EQ(mapping_number(after, "async_owner_executor_ready"), 1);
   ASSERT_STREQ(mapping_string(after, "async_owner_executor_task_type"), "async_callback");
-  ASSERT_STREQ(mapping_string(after, "async_owner_executor_route"), "owner_main_queue_callback_adapter");
-  ASSERT_STREQ(mapping_string(after, "async_owner_executor_fallback_route"),
-               "");
+  ASSERT_STREQ(mapping_string(after, "async_owner_executor_route"),
+               "owner_main_queue_callback_adapter");
+  ASSERT_STREQ(mapping_string(after, "async_owner_executor_fallback_route"), "");
   ASSERT_STREQ(mapping_string(after, "async_owner_executor_policy"),
                "main_thread_callback_adapter_after_owner_admission");
-  ASSERT_STREQ(mapping_string(after, "async_owner_executor_result_policy"), "frozen_deep_copy_result");
+  ASSERT_STREQ(mapping_string(after, "async_owner_executor_result_policy"),
+               "frozen_deep_copy_result");
   ASSERT_EQ(mapping_number(after, "async_owner_executor_cleanup_main_ready"), 1);
   ASSERT_EQ(mapping_number(after, "async_owner_executor_drop_cleanup_ready"), 1);
   ASSERT_EQ(mapping_number(after, "dns_owner_executor_ready"), 1);
   ASSERT_STREQ(mapping_string(after, "dns_owner_executor_task_type"), "dns_callback");
-  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_route"), "owner_main_queue_callback_adapter");
-  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_fallback_route"),
-               "");
+  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_route"),
+               "owner_main_queue_callback_adapter");
+  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_fallback_route"), "");
   ASSERT_STREQ(mapping_string(after, "dns_owner_executor_policy"),
                "main_thread_callback_adapter_after_owner_admission");
-  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_result_policy"), "frozen_deep_copy_result");
+  ASSERT_STREQ(mapping_string(after, "dns_owner_executor_result_policy"),
+               "frozen_deep_copy_result");
   ASSERT_EQ(mapping_number(after, "dns_owner_executor_owner_epoch_capture_ready"), 1);
   ASSERT_EQ(mapping_number(after, "dns_owner_executor_cleanup_main_ready"), 1);
   ASSERT_EQ(mapping_number(after, "dns_owner_executor_drop_cleanup_ready"), 1);
@@ -9357,7 +8871,8 @@ TEST_F(DriverTest, TestVmOwnerAsyncCallbackExecutorDropsStaleOwnerEpoch) {
   ASSERT_TRUE(vm_owner_executor_available());
 
   safe_apply("reset_async_callback_probe", obj, 0, ORIGIN_DRIVER);
-  ASSERT_TRUE(vm_async_test_support_dispatch_read_callback(obj, "async_callback_probe", "stale async result"));
+  ASSERT_TRUE(vm_async_test_support_dispatch_read_callback(obj, "async_callback_probe",
+                                                           "stale async result"));
   vm_owner_set_id(obj, moved_owner);
   ASSERT_GE(vm_owner_drain_main_tasks(64), 1);
 
@@ -9428,10 +8943,13 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbacksDispatchThroughOwnerExecutor) {
             EXPECT_EQ(mapping_number(event, "manifest_version"), 2);
             EXPECT_STREQ(mapping_string(event, "manifest_schema"), "owner_task_manifest_v2");
             EXPECT_STREQ(mapping_string(event, "task_kind"), "executor_callback");
-            EXPECT_STREQ(mapping_string(event, "payload_policy"), "frozen_payload_or_owner_handle_only");
+            EXPECT_STREQ(mapping_string(event, "payload_policy"),
+                         "frozen_payload_or_owner_handle_only");
             EXPECT_STREQ(mapping_string(event, "cleanup_policy"), "main_thread_drop_cleanup");
-            EXPECT_STREQ(mapping_string(event, "reply_future_policy"), "main_reply_or_cleanup_queue");
-            EXPECT_STREQ(mapping_string(event, "admission_policy"), "owner_epoch_payload_allowlist_deadline_guard");
+            EXPECT_STREQ(mapping_string(event, "reply_future_policy"),
+                         "main_reply_or_cleanup_queue");
+            EXPECT_STREQ(mapping_string(event, "admission_policy"),
+                         "owner_epoch_payload_allowlist_deadline_guard");
             EXPECT_STREQ(mapping_string(event, "admission_state"), "accepted");
             EXPECT_STREQ(mapping_string(event, "trace_schema"), "owner_executor_trace_v2");
           }
@@ -9450,7 +8968,8 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbacksDispatchThroughOwnerExecutor) {
   auto before_callback_queued = mapping_number(before, "executor_callback_queued");
   auto before_callback_dispatched = mapping_number(before, "executor_callback_dispatched");
   auto before_cleanup_queued = mapping_number(before, "executor_callback_main_cleanup_queued");
-  auto before_cleanup_dispatched = mapping_number(before, "executor_callback_main_cleanup_dispatched");
+  auto before_cleanup_dispatched =
+      mapping_number(before, "executor_callback_main_cleanup_dispatched");
   auto before_main_queued = mapping_number(before, "main_queued");
   free_mapping(before);
 
@@ -9472,16 +8991,18 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbacksDispatchThroughOwnerExecutor) {
   ASSERT_GE(mapping_number(after, "executor_callback_queued"), before_callback_queued + 1);
   ASSERT_GE(mapping_number(after, "executor_callback_dispatched"), before_callback_dispatched + 1);
   ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_queued"), before_cleanup_queued);
-  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"), before_cleanup_dispatched);
+  ASSERT_EQ(mapping_number(after, "executor_callback_main_cleanup_dispatched"),
+            before_cleanup_dispatched);
   ASSERT_GE(mapping_number(after, "main_queued"), before_main_queued + 1);
   ASSERT_EQ(mapping_number(after, "socket_owner_executor_ready"), 1);
   ASSERT_STREQ(mapping_string(after, "socket_owner_executor_task_type"), "socket_callback");
-  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_route"), "owner_main_queue_callback_adapter");
-  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_fallback_route"),
-               "");
+  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_route"),
+               "owner_main_queue_callback_adapter");
+  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_fallback_route"), "");
   ASSERT_STREQ(mapping_string(after, "socket_owner_executor_policy"),
                "main_thread_callback_adapter_after_owner_admission");
-  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_result_policy"), "frozen_deep_copy_args");
+  ASSERT_STREQ(mapping_string(after, "socket_owner_executor_result_policy"),
+               "frozen_deep_copy_args");
   ASSERT_EQ(mapping_number(after, "socket_owner_executor_cleanup_main_ready"), 1);
   ASSERT_EQ(mapping_number(after, "socket_owner_executor_drop_cleanup_ready"), 1);
   ASSERT_EQ(mapping_number(after, "socket_release_main_required"), 0);
@@ -9580,7 +9101,8 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbackExecutorDropsStaleOwnerEpoch) {
 
   auto* after = vm_owner_thread_status();
   ASSERT_GE(mapping_number(after, "executor_callback_dropped"), before_callback_dropped + 1);
-  ASSERT_GE(mapping_number(after, "owner_executor_admission_dropped"), before_admission_dropped + 1);
+  ASSERT_GE(mapping_number(after, "owner_executor_admission_dropped"),
+            before_admission_dropped + 1);
   ASSERT_GE(mapping_number(after, "owner_executor_stale_drop"), before_stale_drop + 1);
   free_mapping(after);
 }
@@ -9616,10 +9138,13 @@ TEST_F(DriverTest, TestVmOwnerAccessTraceRecordsCrossOwnerAccess) {
   ASSERT_NE(events, nullptr);
   ASSERT_EQ(events->type, T_ARRAY);
   ASSERT_EQ(events->u.arr->size, 1);
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "trace_model"), "cross_owner_access_policy_event");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "trace_model"),
+               "cross_owner_access_policy_event");
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/access/source");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/access/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/access/source");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/access/target");
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "unit-test");
   free_mapping(trace);
 
@@ -9670,8 +9195,10 @@ TEST_F(DriverTest, TestVmOwnerCrossOwnerAccessTraceSkipsSameOwner) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "environment");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/access/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/access/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/access/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/access/target");
   free_mapping(trace);
 
   vm_owner_clear_id(source);
@@ -9890,8 +9417,10 @@ TEST_F(DriverTest, TestCurrentOwnerScopeControlsCrossOwnerBlocking) {
     ASSERT_EQ(events->type, T_ARRAY);
     ASSERT_EQ(events->u.arr->size, 1);
     ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 0);
-    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/scope/target");
-    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/scope/target");
+    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+                 "owner/test/scope/target");
+    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+                 "owner/test/scope/target");
     free_mapping(trace);
 
     vm_owner_set_id(source, "owner/test/scope/source-object");
@@ -9907,8 +9436,10 @@ TEST_F(DriverTest, TestCurrentOwnerScopeControlsCrossOwnerBlocking) {
     ASSERT_EQ(events->type, T_ARRAY);
     ASSERT_EQ(events->u.arr->size, 1);
     ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 0);
-    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/scope/target");
-    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/scope/target");
+    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+                 "owner/test/scope/target");
+    ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+                 "owner/test/scope/target");
     free_mapping(trace);
     set_command_giver(nullptr);
   }
@@ -9963,8 +9494,10 @@ TEST_F(DriverTest, TestAllInventoryRecordsCrossOwnerAccessTrace) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "all_inventory");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/inventory/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/inventory/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/inventory/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/inventory/target");
   free_mapping(trace);
 
   vm_owner_clear_id(source);
@@ -10017,8 +9550,10 @@ TEST_F(DriverTest, TestPresentRecordsCrossOwnerAccessTrace) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "present");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/present/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/present/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/present/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/present/target");
   free_mapping(trace);
 
   vm_owner_clear_id(source);
@@ -10131,8 +9666,10 @@ TEST_F(DriverTest, TestMoveObjectRecordsCrossOwnerAccessTrace) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "move_object");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/move/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/move/dest");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/move/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/move/dest");
   free_mapping(trace);
 
   vm_owner_clear_id(item);
@@ -10226,8 +9763,10 @@ TEST_F(DriverTest, TestDestructRecordsCrossOwnerAccessTrace) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "destruct");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/destruct/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/destruct/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/destruct/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/destruct/target");
   free_mapping(trace);
 
   vm_owner_clear_id(source);
@@ -10322,8 +9861,10 @@ TEST_F(DriverTest, TestCallOtherRecordsCrossOwnerAccessTrace) {
   ASSERT_EQ(events->u.arr->size, 1);
   ASSERT_EQ(mapping_number(events->u.arr->item[0].u.map, "cross_owner"), 1);
   ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "operation"), "call_other");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"), "owner/test/call/shared");
-  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"), "owner/test/call/target");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "source_owner_id"),
+               "owner/test/call/shared");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[0].u.map, "target_owner_id"),
+               "owner/test/call/target");
   free_mapping(trace);
 
   vm_owner_clear_id(caller);
@@ -10501,8 +10042,8 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsNonFrozenResult) {
     return value && value->type == T_STRING ? value->u.string : "";
   };
 
-  auto* submitted = vm_owner_submit_object_message(source_owner, handle, "owner_async_non_frozen_result",
-                                                   "cross-owner/non-frozen/v1");
+  auto* submitted = vm_owner_submit_object_message(
+      source_owner, handle, "owner_async_non_frozen_result", "cross-owner/non-frozen/v1");
   auto future_id = mapping_number(submitted, "future_id");
   auto target_task_id = mapping_number(submitted, "target_task_id");
   ASSERT_EQ(mapping_number(submitted, "success"), 1);
@@ -10666,10 +10207,12 @@ TEST_F(DriverTest, TestVmOwnerThreadExperimentIsOptInAndDispatchesMailboxTasks) 
   ASSERT_NE(events, nullptr);
   ASSERT_EQ(events->type, T_ARRAY);
   ASSERT_GE(events->u.arr->size, 2);
-  ASSERT_STREQ(mapping_string(events->u.arr->item[events->u.arr->size - 1].u.map, "state"), "thread_dispatched");
+  ASSERT_STREQ(mapping_string(events->u.arr->item[events->u.arr->size - 1].u.map, "state"),
+               "thread_dispatched");
   ASSERT_EQ(mapping_number(events->u.arr->item[events->u.arr->size - 1].u.map, "task_id"),
             static_cast<long>(task_id));
-  ASSERT_STREQ(mapping_string(events->u.arr->item[events->u.arr->size - 1].u.map, "owner_id"), owner);
+  ASSERT_STREQ(mapping_string(events->u.arr->item[events->u.arr->size - 1].u.map, "owner_id"),
+               owner);
   free_mapping(trace);
 
   auto* running = vm_owner_thread_status();
@@ -10780,13 +10323,15 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
   };
 
   auto* before = vm_owner_thread_status();
-  auto before_frame_restore = mapping_number(before, "executor_command_frame_restore_entry_executed");
+  auto before_frame_restore =
+      mapping_number(before, "executor_command_frame_restore_entry_executed");
   auto before_safe = mapping_number(before, "executor_safe_task_dispatched");
   auto before_execution_cleared = mapping_number(before, "thread_execution_cleared");
   auto before_eval_stack_owner_bound = mapping_number(before, "thread_eval_stack_owner_bound");
   auto before_eval_stack_cleared = mapping_number(before, "thread_eval_stack_cleared");
   auto before_eval_stack_leaks = mapping_number(before, "thread_eval_stack_leak_detected");
-  auto before_control_stack_owner_bound = mapping_number(before, "thread_control_stack_owner_bound");
+  auto before_control_stack_owner_bound =
+      mapping_number(before, "thread_control_stack_owner_bound");
   auto before_control_stack_cleared = mapping_number(before, "thread_control_stack_cleared");
   auto before_control_stack_leaks = mapping_number(before, "thread_control_stack_leak_detected");
   auto before_value_stack_owner_bound = mapping_number(before, "thread_value_stack_owner_bound");
@@ -10804,7 +10349,8 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
   vm_owner_thread_start(1);
   for (int i = 0; i < 100; i++) {
     auto* status = vm_owner_thread_status();
-    auto frame_restore_done = mapping_number(status, "executor_command_frame_restore_entry_executed");
+    auto frame_restore_done =
+        mapping_number(status, "executor_command_frame_restore_entry_executed");
     free_mapping(status);
     if (frame_restore_done >= before_frame_restore + 1) {
       break;
@@ -10813,21 +10359,30 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
   }
 
   auto* running = vm_owner_thread_status();
-  ASSERT_GE(mapping_number(running, "executor_command_frame_restore_entry_executed"), before_frame_restore + 1);
+  ASSERT_GE(mapping_number(running, "executor_command_frame_restore_entry_executed"),
+            before_frame_restore + 1);
   ASSERT_GE(mapping_number(running, "executor_safe_task_dispatched"), before_safe + 1);
   ASSERT_GE(mapping_number(running, "thread_execution_cleared"), before_execution_cleared + 1);
-  ASSERT_GE(mapping_number(running, "thread_eval_stack_owner_bound"), before_eval_stack_owner_bound + 1);
+  ASSERT_GE(mapping_number(running, "thread_eval_stack_owner_bound"),
+            before_eval_stack_owner_bound + 1);
   ASSERT_GE(mapping_number(running, "thread_eval_stack_cleared"), before_eval_stack_cleared + 1);
   ASSERT_EQ(mapping_number(running, "thread_eval_stack_leak_detected"), before_eval_stack_leaks);
-  ASSERT_GE(mapping_number(running, "thread_control_stack_owner_bound"), before_control_stack_owner_bound + 1);
-  ASSERT_GE(mapping_number(running, "thread_control_stack_cleared"), before_control_stack_cleared + 1);
-  ASSERT_EQ(mapping_number(running, "thread_control_stack_leak_detected"), before_control_stack_leaks);
-  ASSERT_GE(mapping_number(running, "thread_value_stack_owner_bound"), before_value_stack_owner_bound + 1);
+  ASSERT_GE(mapping_number(running, "thread_control_stack_owner_bound"),
+            before_control_stack_owner_bound + 1);
+  ASSERT_GE(mapping_number(running, "thread_control_stack_cleared"),
+            before_control_stack_cleared + 1);
+  ASSERT_EQ(mapping_number(running, "thread_control_stack_leak_detected"),
+            before_control_stack_leaks);
+  ASSERT_GE(mapping_number(running, "thread_value_stack_owner_bound"),
+            before_value_stack_owner_bound + 1);
   ASSERT_GE(mapping_number(running, "thread_value_stack_cleared"), before_value_stack_cleared + 1);
   ASSERT_EQ(mapping_number(running, "thread_value_stack_leak_detected"), before_value_stack_leaks);
-  ASSERT_GE(mapping_number(running, "thread_apply_return_owner_bound"), before_apply_return_owner_bound + 1);
-  ASSERT_GE(mapping_number(running, "thread_apply_return_cleared"), before_apply_return_cleared + 1);
-  ASSERT_EQ(mapping_number(running, "thread_apply_return_leak_detected"), before_apply_return_leaks);
+  ASSERT_GE(mapping_number(running, "thread_apply_return_owner_bound"),
+            before_apply_return_owner_bound + 1);
+  ASSERT_GE(mapping_number(running, "thread_apply_return_cleared"),
+            before_apply_return_cleared + 1);
+  ASSERT_EQ(mapping_number(running, "thread_apply_return_leak_detected"),
+            before_apply_return_leaks);
   ASSERT_EQ(mapping_number(running, "thread_context_leak_detected"), before_context_leaks);
   ASSERT_EQ(mapping_number(running, "ordinary_lpc_default_closed"), 1);
   auto* vm_context_contract = mapping_entry(running, "vm_context_contract");
@@ -10864,19 +10419,20 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
 
 TEST_F(DriverTest, TestVmOwnerPreparedCallbackCleanupSurvivesCallbackDestruction) {
   struct CleanupProbe {
-    VMOwnerCallbackCleanupRecord *record;
-    bool *called;
+    VMOwnerCallbackCleanupRecord* record;
+    bool* called;
   };
   bool called = false;
-  auto *record = new VMOwnerCallbackCleanupRecord();
+  auto* record = new VMOwnerCallbackCleanupRecord();
   CleanupProbe probe{record, &called};
-  record->prepare("owner/test/prepared-cleanup", 1, "socket_callback", "cleanup",
-                  [](void *context) {
-                    auto *probe = static_cast<CleanupProbe *>(context);
-                    *probe->called = true;
-                    delete probe->record;
-                  },
-                  &probe);
+  record->prepare(
+      "owner/test/prepared-cleanup", 1, "socket_callback", "cleanup",
+      [](void* context) {
+        auto* probe = static_cast<CleanupProbe*>(context);
+        *probe->called = true;
+        delete probe->record;
+      },
+      &probe);
 
   ASSERT_NE(vm_owner_enqueue_executor_callback_cleanup(record), 0u);
   ASSERT_GE(vm_owner_drain_main_tasks(16), 1);
@@ -10941,8 +10497,9 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   ASSERT_EQ(vm_owner_enqueue_executor_task(probe, "legacy_lpc", "rejected", [] {}), 0u);
 
   auto first_task = vm_owner_enqueue_executor_task(probe, "heartbeat", "unit-first", [&] {
-    first_saw_owner_scope.store(vm_context().owner.current_owner_id == owner && vm_context_is_main_thread() ? 1 : 0,
-                                std::memory_order_release);
+    first_saw_owner_scope.store(
+        vm_context().owner.current_owner_id == owner && vm_context_is_main_thread() ? 1 : 0,
+        std::memory_order_release);
     first_saw_execution_scope.store(vm_context().execution.current_object == probe ? 1 : 0,
                                     std::memory_order_release);
   });
@@ -10952,7 +10509,10 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   ASSERT_EQ(first_saw_execution_scope.load(std::memory_order_acquire), 1);
 
   auto stale_task = vm_owner_enqueue_executor_task(
-      probe, "call_out", "unit-stale", [&] { second_ran.store(1, std::memory_order_release); },
+      probe, "call_out", "unit-stale",
+      [&] {
+        second_ran.store(1, std::memory_order_release);
+      },
       [&] {
         second_dropped.store(vm_context_is_main_thread() ? 1 : -1, std::memory_order_release);
       });
@@ -10967,19 +10527,25 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   ASSERT_GE(mapping_number(after, "executor_callback_queued"), before_queued + 2);
   ASSERT_GE(mapping_number(after, "executor_callback_dispatched"), before_dispatched + 1);
   ASSERT_GE(mapping_number(after, "executor_callback_dropped"), before_dropped + 1);
-  ASSERT_GE(mapping_number(after, "executor_callback_main_cleanup_queued"), before_cleanup_queued + 1);
+  ASSERT_GE(mapping_number(after, "executor_callback_main_cleanup_queued"),
+            before_cleanup_queued + 1);
   ASSERT_GE(mapping_number(after, "executor_callback_main_cleanup_dispatched"), before_cleanup + 1);
   ASSERT_EQ(mapping_number(after, "executor_callback_task_boundary_ready"), 1);
   ASSERT_EQ(mapping_number(after, "executor_callback_allowlist_ready"), 1);
   ASSERT_EQ(mapping_number(after, "executor_callback_allowlist_count"), 6);
   ASSERT_EQ(mapping_number(after, "owner_callback_diagnostics_ready"), 1);
-  ASSERT_STREQ(mapping_string(after, "owner_callback_diagnostics_schema"), "owner_callback_diagnostics_v1");
-  ASSERT_STREQ(mapping_string(after, "owner_callback_failure_code_schema"), "owner_callback_failure_code_v1");
-  ASSERT_STREQ(mapping_string(after, "owner_callback_drop_reason_schema"), "owner_callback_drop_reason_v1");
+  ASSERT_STREQ(mapping_string(after, "owner_callback_diagnostics_schema"),
+               "owner_callback_diagnostics_v1");
+  ASSERT_STREQ(mapping_string(after, "owner_callback_failure_code_schema"),
+               "owner_callback_failure_code_v1");
+  ASSERT_STREQ(mapping_string(after, "owner_callback_drop_reason_schema"),
+               "owner_callback_drop_reason_v1");
   ASSERT_EQ(mapping_number(after, "owner_callback_allowlist_complete"), 1);
-  ASSERT_STREQ(mapping_string(after, "owner_callback_supported_kinds"),
-               "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
-  ASSERT_STREQ(mapping_string(after, "executor_callback_payload_policy"), "frozen_payload_or_owner_handle_only");
+  ASSERT_STREQ(
+      mapping_string(after, "owner_callback_supported_kinds"),
+      "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
+  ASSERT_STREQ(mapping_string(after, "executor_callback_payload_policy"),
+               "frozen_payload_or_owner_handle_only");
   free_mapping(after);
 
   auto* trace = vm_owner_task_trace(32);
@@ -11022,7 +10588,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   ASSERT_TRUE(stale_dropped);
   ASSERT_TRUE(cleanup_dispatched);
   free_mapping(trace);
-
 }
 
 TEST_F(DriverTest, TestVmOwnerThreadDrainsPendingOwnerMessages) {
@@ -11042,7 +10607,8 @@ TEST_F(DriverTest, TestVmOwnerThreadDrainsPendingOwnerMessages) {
     return value && value->type == T_STRING ? value->u.string : "";
   };
 
-  auto* submitted = vm_owner_submit_message("owner/test/thread/source", owner, "message", "payload/thread");
+  auto* submitted =
+      vm_owner_submit_message("owner/test/thread/source", owner, "message", "payload/thread");
   ASSERT_EQ(mapping_number(submitted, "success"), 1);
   auto future_id = mapping_number(submitted, "future_id");
   free_mapping(submitted);
@@ -11108,7 +10674,8 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageUsesOwnerExecutorRoute) {
   auto before_main_dispatched = mapping_number(before, "main_dispatched");
   free_mapping(before);
 
-  auto* submitted = vm_owner_submit_object_message(source_owner, handle, "owner_lpc_probe", "executor-target/payload");
+  auto* submitted = vm_owner_submit_object_message(source_owner, handle, "owner_lpc_probe",
+                                                   "executor-target/payload");
   auto future_id = mapping_number(submitted, "future_id");
   ASSERT_EQ(mapping_number(submitted, "has_target_handle"), 1);
   ASSERT_EQ(mapping_number(submitted, "target_handle_current"), 1);
@@ -11212,10 +10779,12 @@ TEST_F(DriverTest, TestVmOwnerExecutorDrainsTargetMessagesWithoutMainFallback) {
   free_mapping(before);
   auto* before_runtime = vm_owner_runtime_status();
   auto before_normal_fallback = mapping_number(before_runtime, "normal_path_main_fallback_count");
-  auto before_target_message_fallback = mapping_number(before_runtime, "target_owner_message_main_fallback");
+  auto before_target_message_fallback =
+      mapping_number(before_runtime, "target_owner_message_main_fallback");
   free_mapping(before_runtime);
 
-  auto main_required_task = vm_owner_enqueue_test_main_required_message(owner, "blocked-object-message");
+  auto main_required_task =
+      vm_owner_enqueue_test_main_required_message(owner, "blocked-object-message");
   auto probe_task = vm_owner_enqueue_task(owner, "executor_probe", "safe-after-main-required-head");
   ASSERT_GT(main_required_task, 0u);
   ASSERT_GT(probe_task, main_required_task);
@@ -11272,8 +10841,10 @@ TEST_F(DriverTest, TestVmOwnerExecutorDrainsTargetMessagesWithoutMainFallback) {
   ASSERT_EQ(mapping_number(after_fairness, "mixed_backlog_owner_count"), 0);
   free_mapping(after_thread);
   auto* after_runtime = vm_owner_runtime_status();
-  ASSERT_EQ(mapping_number(after_runtime, "normal_path_main_fallback_count"), before_normal_fallback);
-  ASSERT_EQ(mapping_number(after_runtime, "target_owner_message_main_fallback"), before_target_message_fallback);
+  ASSERT_EQ(mapping_number(after_runtime, "normal_path_main_fallback_count"),
+            before_normal_fallback);
+  ASSERT_EQ(mapping_number(after_runtime, "target_owner_message_main_fallback"),
+            before_target_message_fallback);
   ASSERT_EQ(mapping_number(after_runtime, "normal_path_main_fallback_ready"), 1);
   free_mapping(after_runtime);
 
@@ -11347,8 +10918,7 @@ TEST_F(DriverTest, TestOwnerSchedulerBackpressureRejectsOverLimit) {
   int rejected_backpressure = 0;
   for (int i = 0; i < events->u.arr->size; ++i) {
     auto* event = events->u.arr->item[i].u.map;
-    if (std::string(mapping_string(event, "task_key")) !=
-        "backpressure-over-limit") {
+    if (std::string(mapping_string(event, "task_key")) != "backpressure-over-limit") {
       continue;
     }
     const auto state = std::string(mapping_string(event, "state"));
@@ -11461,20 +11031,17 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
   ASSERT_GT(string_submission.future_id, 0u);
 
   auto* lpc_submission = vm_owner_lpc_task(target, owner, "owner_task_readonly");
-  const auto lpc_future_id =
-      static_cast<uint64_t>(mapping_number(lpc_submission, "future_id"));
+  const auto lpc_future_id = static_cast<uint64_t>(mapping_number(lpc_submission, "future_id"));
   ASSERT_EQ(mapping_number(lpc_submission, "success"), 0);
   ASSERT_GT(lpc_future_id, 0u);
   free_mapping(lpc_submission);
 
-  auto* ordinary_submission =
-      vm_owner_ordinary_lpc_task(target, owner, "owner_task_player", 1);
+  auto* ordinary_submission = vm_owner_ordinary_lpc_task(target, owner, "owner_task_player", 1);
   const auto ordinary_future_id =
       static_cast<uint64_t>(mapping_number(ordinary_submission, "future_id"));
   ASSERT_EQ(mapping_number(ordinary_submission, "success"), 0);
   ASSERT_STREQ(mapping_string(ordinary_submission, "state"), "failed");
-  ASSERT_STREQ(mapping_string(ordinary_submission, "error"),
-               "owner scheduler backpressure");
+  ASSERT_STREQ(mapping_string(ordinary_submission, "error"), "owner scheduler backpressure");
   ASSERT_GT(ordinary_future_id, 0u);
   free_mapping(ordinary_submission);
 
@@ -11482,16 +11049,15 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
   const auto compute_future_id = vm_owner_register_compute_future(
       owner, worker_task_id, "bench", "submission-backpressure-compute");
   ASSERT_GT(compute_future_id, 0u);
-  ASSERT_EQ(vm_owner_enqueue_compute_result(
-                owner, worker_task_id, "bench", "completed", "bench", ""),
-            0u);
+  ASSERT_EQ(
+      vm_owner_enqueue_compute_result(owner, worker_task_id, "bench", "completed", "bench", ""),
+      0u);
 
   auto assert_failed_and_take = [&](uint64_t future_id) {
     auto* failed = vm_owner_future_poll(future_id);
     EXPECT_EQ(mapping_number(failed, "success"), 1);
     EXPECT_STREQ(mapping_string(failed, "state"), "failed");
-    EXPECT_STREQ(mapping_string(failed, "error"),
-                 "owner scheduler backpressure");
+    EXPECT_STREQ(mapping_string(failed, "error"), "owner scheduler backpressure");
     EXPECT_EQ(mapping_number(failed, "requires_owner_message_completion"), 0);
     free_mapping(failed);
     auto* taken = vm_owner_future_take(future_id);
@@ -11540,8 +11106,7 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
   auto assert_production_gate_contract = [&](mapping_t* contract) {
     ASSERT_EQ(mapping_number(contract, "mudlib_audit_required"), 1);
     ASSERT_EQ(mapping_number(contract, "mudlib_cross_owner_hotspots_ready"), 1);
-    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_blocker"),
-                 "");
+    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_blocker"), "");
     ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_evidence"),
                  "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
     ASSERT_EQ(mapping_number(contract, "production_gate_ready"), 1);
@@ -11562,10 +11127,12 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(contract, "production_gate_minimum_ready_evidence"),
                  "accepted_30m_pressure_scope_final_audit_and_socket_release_handshake");
     ASSERT_EQ(mapping_number(contract, "production_gate_unclassified_hotspots_required_zero"), 1);
-    ASSERT_EQ(mapping_number(contract, "production_gate_direct_cross_owner_writes_required_zero"), 1);
+    ASSERT_EQ(mapping_number(contract, "production_gate_direct_cross_owner_writes_required_zero"),
+              1);
     ASSERT_EQ(mapping_number(contract, "production_gate_context_leaks_required_zero"), 1);
     ASSERT_EQ(mapping_number(contract, "production_gate_future_backlog_required_zero"), 1);
-    ASSERT_EQ(mapping_number(contract, "production_gate_same_owner_claim_conflict_required_zero"), 1);
+    ASSERT_EQ(mapping_number(contract, "production_gate_same_owner_claim_conflict_required_zero"),
+              1);
     ASSERT_EQ(mapping_number(contract, "production_gate_gateway_error_delta_required_zero"), 1);
     ASSERT_STREQ(mapping_string(contract, "production_gate_socket_release_policy"),
                  "owner_safe_synchronous_release_acquire_handshake");
@@ -11574,9 +11141,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                  "socket_release_owner_epoch_handshake_contract_v1");
     ASSERT_STREQ(mapping_string(contract, "production_gate_report_schema"),
                  "xkx_gateway_loadtest_report_v1");
-    ASSERT_STREQ(mapping_string(contract, "production_gate_report_required_fields"),
-                 "schema,run_id,mode,users_requested,duration_seconds,scenario,commands_ok,timeouts,"
-                 "gateway_metrics_delta,production_gate_observations");
+    ASSERT_STREQ(
+        mapping_string(contract, "production_gate_report_required_fields"),
+        "schema,run_id,mode,users_requested,duration_seconds,scenario,commands_ok,timeouts,"
+        "gateway_metrics_delta,production_gate_observations");
   };
 
   auto assert_contract = [&](mapping_t* status) {
@@ -11584,21 +11152,25 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(status, "executor_model"), "owner_executor");
     ASSERT_STREQ(mapping_string(status, "executor_dispatch_model"), "descriptor_manifest");
     ASSERT_STREQ(mapping_string(status, "executor_lpc_model"), "default_closed_explicit_open");
-    ASSERT_STREQ(mapping_string(status, "ordinary_lpc_default_policy"), "default_closed_explicit_open");
+    ASSERT_STREQ(mapping_string(status, "ordinary_lpc_default_policy"),
+                 "default_closed_explicit_open");
     ASSERT_EQ(mapping_number(status, "ordinary_lpc_default_closed"), 1);
     ASSERT_EQ(mapping_number(status, "ordinary_lpc_activation_policy_ready"), 1);
     ASSERT_EQ(mapping_number(status, "ordinary_lpc_dispatch_path_ready"), 1);
     ASSERT_EQ(mapping_number(status, "ordinary_lpc_explicit_open_required"), 1);
-    ASSERT_STREQ(mapping_string(status, "ordinary_lpc_activation_policy"), "default_closed_explicit_open");
+    ASSERT_STREQ(mapping_string(status, "ordinary_lpc_activation_policy"),
+                 "default_closed_explicit_open");
     ASSERT_STREQ(mapping_string(status, "ordinary_lpc_next_blocker"), "");
     ASSERT_EQ(mapping_number(status, "owner_runtime_split_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "owner_runtime_split_model"),
                  "runtime_v4_modules_with_owner_runtime_coordinator");
     ASSERT_EQ(mapping_number(status, "owner_runtime_v4_hardening_ready"), 1);
     ASSERT_EQ(mapping_number(status, "owner_runtime_benchmark_smoke_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "owner_runtime_benchmark_schema"), "owner_runtime_bench_v1");
+    ASSERT_STREQ(mapping_string(status, "owner_runtime_benchmark_schema"),
+                 "owner_runtime_bench_v1");
     ASSERT_EQ(mapping_number(status, "owner_runtime_stress_profile_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "owner_runtime_stress_entry"), "tools/owner-runtime-v4-stress.sh");
+    ASSERT_STREQ(mapping_string(status, "owner_runtime_stress_entry"),
+                 "tools/owner-runtime-v4-stress.sh");
     ASSERT_EQ(mapping_number(status, "lpc_modern_runtime_stress_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "lpc_modern_runtime_stress_entry"),
                  "tools/lpc-modern-runtime-stress.sh");
@@ -11632,11 +11204,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "lpc_jit_experiment_default_off"), 1);
     ASSERT_EQ(mapping_number(status, "modern_lpc_pragma_ready"), 1);
     ASSERT_EQ(mapping_number(status, "strict_owner_pragma_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "strict_owner_policy"), "strict_owner_owner_safe_payloads_v1");
+    ASSERT_STREQ(mapping_string(status, "strict_owner_policy"),
+                 "strict_owner_owner_safe_payloads_v1");
     ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "lpcc_owner_audit_schema"), "lpcc_owner_audit_v1");
     ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_cli_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "lpcc_owner_audit_cli"), "lpcc --owner-audit --format=json");
+    ASSERT_STREQ(mapping_string(status, "lpcc_owner_audit_cli"),
+                 "lpcc --owner-audit --format=json");
     ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_static_scanner_ready"), 1);
     ASSERT_EQ(mapping_number(status, "lpc_source_encoding_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "lpc_source_encoding_schema"), "lpc_source_encoding_v1");
@@ -11657,13 +11231,15 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "freeze_snapshot_api_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "freeze_snapshot_model"), "validated_deep_copy");
     ASSERT_EQ(mapping_number(status, "lpc_value_object_profile_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "lpc_value_object_model"), "frozen_snapshot_value_object_v1");
+    ASSERT_STREQ(mapping_string(status, "lpc_value_object_model"),
+                 "frozen_snapshot_value_object_v1");
     ASSERT_EQ(mapping_number(status, "lpc_value_object_live_lifecycle_member"), 0);
     ASSERT_EQ(mapping_number(status, "lpc_value_object_cross_owner_payload_safe"), 1);
     ASSERT_EQ(mapping_number(status, "owner_snapshot_persistence_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "owner_snapshot_persistence_model"),
                  "owner_snapshot_serialized_payload_v1");
-    ASSERT_STREQ(mapping_string(status, "owner_snapshot_persistence_adapter"), "main_thread_file_adapter");
+    ASSERT_STREQ(mapping_string(status, "owner_snapshot_persistence_adapter"),
+                 "main_thread_file_adapter");
     ASSERT_EQ(mapping_number(status, "owner_snapshot_direct_save_hot_path_audit_ready"), 1);
     ASSERT_EQ(mapping_number(status, "owner_commit_api_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "owner_commit_model"), "owner_commit_boundary_record");
@@ -11690,12 +11266,16 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "owner_executor_admission_gate_ready"), 1);
     ASSERT_EQ(mapping_number(status, "owner_callback_admission_unified"), 1);
     ASSERT_EQ(mapping_number(status, "owner_callback_diagnostics_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "owner_callback_diagnostics_schema"), "owner_callback_diagnostics_v1");
-    ASSERT_STREQ(mapping_string(status, "owner_callback_failure_code_schema"), "owner_callback_failure_code_v1");
-    ASSERT_STREQ(mapping_string(status, "owner_callback_drop_reason_schema"), "owner_callback_drop_reason_v1");
+    ASSERT_STREQ(mapping_string(status, "owner_callback_diagnostics_schema"),
+                 "owner_callback_diagnostics_v1");
+    ASSERT_STREQ(mapping_string(status, "owner_callback_failure_code_schema"),
+                 "owner_callback_failure_code_v1");
+    ASSERT_STREQ(mapping_string(status, "owner_callback_drop_reason_schema"),
+                 "owner_callback_drop_reason_v1");
     ASSERT_EQ(mapping_number(status, "owner_callback_allowlist_complete"), 1);
-    ASSERT_STREQ(mapping_string(status, "owner_callback_supported_kinds"),
-                 "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
+    ASSERT_STREQ(
+        mapping_string(status, "owner_callback_supported_kinds"),
+        "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
     ASSERT_STREQ(mapping_string(status, "owner_executor_admission_policy"),
                  "owner_epoch_payload_allowlist_deadline_guard");
     ASSERT_GE(mapping_number(status, "owner_executor_admission_accepted"), 0);
@@ -11760,23 +11340,26 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(status, "gateway_io_boundary"), "main_thread_io_adapter");
     ASSERT_EQ(mapping_number(status, "gateway_low_overhead_latency_probe_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "gateway_latency_probe_source"), "gateway_status_internal");
-  ASSERT_STREQ(mapping_string(status, "gateway_latency_probe_fields"),
-               "receive_decode,receive_payload_copy,receive_enqueue_to_dispatch,receive_apply,"
-               "command_enqueue_to_dispatch,command_execute,"
-               "receive_main_queue_depth,deferred_main_drain_wait,"
-               "reply_enqueue_to_dispatch,reply_execute,output_enqueue_to_dispatch,output_execute,main_drain");
+    ASSERT_STREQ(
+        mapping_string(status, "gateway_latency_probe_fields"),
+        "receive_decode,receive_payload_copy,receive_enqueue_to_dispatch,receive_apply,"
+        "command_enqueue_to_dispatch,command_execute,"
+        "receive_main_queue_depth,deferred_main_drain_wait,"
+        "reply_enqueue_to_dispatch,reply_execute,output_enqueue_to_dispatch,output_execute,main_drain");
     ASSERT_EQ(mapping_number(status, "callback_payload_strict_ready"), 1);
     ASSERT_EQ(mapping_number(status, "owner_callback_payload_strict_diagnostics_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "owner_callback_payload_policy_schema"),
                  "owner_callback_payload_policy_v1");
     ASSERT_STREQ(mapping_string(status, "owner_callback_payload_policy"),
                  "frozen_payload_or_owner_handle_only");
-    ASSERT_STREQ(mapping_string(status, "owner_callback_failure_codes"),
-                 "owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
-                 "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
-    ASSERT_STREQ(mapping_string(status, "owner_callback_drop_reasons"),
-                 "none,owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
-                 "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
+    ASSERT_STREQ(
+        mapping_string(status, "owner_callback_failure_codes"),
+        "owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
+        "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
+    ASSERT_STREQ(
+        mapping_string(status, "owner_callback_drop_reasons"),
+        "none,owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
+        "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
     ASSERT_EQ(mapping_number(status, "owner_callback_human_reason_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "owner_callback_failure_reason_schema"),
                  "owner_callback_failure_reason_v1");
@@ -11794,21 +11377,22 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "executor_callback_allowlist_ready"), 1);
     ASSERT_EQ(mapping_number(status, "executor_callback_main_adapter_ready"), 1);
     ASSERT_EQ(mapping_number(status, "executor_callback_allowlist_count"), 6);
-    ASSERT_STREQ(mapping_string(status, "executor_callback_payload_policy"), "frozen_payload_or_owner_handle_only");
+    ASSERT_STREQ(mapping_string(status, "executor_callback_payload_policy"),
+                 "frozen_payload_or_owner_handle_only");
     ASSERT_EQ(mapping_number(status, "heartbeat_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_task_type"), "heartbeat");
-    ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(status, "heartbeat_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
     ASSERT_EQ(mapping_number(status, "heartbeat_owner_executor_fallback_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "heartbeat_current_object_thread_local"), 0);
     ASSERT_EQ(mapping_number(status, "callout_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "callout_owner_executor_task_type"), "call_out");
-    ASSERT_STREQ(mapping_string(status, "callout_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(status, "callout_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(status, "callout_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(status, "callout_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(status, "callout_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
     ASSERT_EQ(mapping_number(status, "callout_owner_executor_expired_handle_detach_ready"), 1);
@@ -11817,31 +11401,36 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "callout_owner_executor_fallback_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "async_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "async_owner_executor_task_type"), "async_callback");
-    ASSERT_STREQ(mapping_string(status, "async_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(status, "async_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(status, "async_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(status, "async_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(status, "async_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_STREQ(mapping_string(status, "async_owner_executor_result_policy"), "frozen_deep_copy_result");
+    ASSERT_STREQ(mapping_string(status, "async_owner_executor_result_policy"),
+                 "frozen_deep_copy_result");
     ASSERT_EQ(mapping_number(status, "async_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "async_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(status, "dns_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "dns_owner_executor_task_type"), "dns_callback");
-    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_route"), "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
     ASSERT_STREQ(mapping_string(status, "dns_owner_executor_fallback_route"), "");
-    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_policy"), "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_result_policy"), "frozen_deep_copy_result");
+    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_policy"),
+                 "main_thread_callback_adapter_after_owner_admission");
+    ASSERT_STREQ(mapping_string(status, "dns_owner_executor_result_policy"),
+                 "frozen_deep_copy_result");
     ASSERT_EQ(mapping_number(status, "dns_owner_executor_owner_epoch_capture_ready"), 1);
     ASSERT_EQ(mapping_number(status, "dns_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "dns_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(status, "socket_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "socket_owner_executor_task_type"), "socket_callback");
-    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(status, "socket_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_result_policy"), "frozen_deep_copy_args");
+    ASSERT_STREQ(mapping_string(status, "socket_owner_executor_result_policy"),
+                 "frozen_deep_copy_args");
     ASSERT_EQ(mapping_number(status, "socket_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "socket_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(status, "socket_release_main_required"), 0);
@@ -11850,13 +11439,15 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                  "synchronous_release_acquire_owner_epoch_guard");
     ASSERT_EQ(mapping_number(status, "socket_release_owner_epoch_guard_ready"), 1);
     ASSERT_EQ(mapping_number(status, "gateway_command_execute_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_task_type"), "gateway_command_execute");
-    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_route"), "owner_main_queue_io_adapter");
-    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_task_type"),
+                 "gateway_command_execute");
+    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_route"),
+                 "owner_main_queue_io_adapter");
+    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_fallback_route"), "");
     ASSERT_STREQ(mapping_string(status, "gateway_command_execute_policy"),
                  "main_thread_io_adapter_until_interactive_detached");
-    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_payload_policy"), "owner_private_command_snapshot");
+    ASSERT_STREQ(mapping_string(status, "gateway_command_execute_payload_policy"),
+                 "owner_private_command_snapshot");
     ASSERT_EQ(mapping_number(status, "gateway_command_execute_reply_queue_main_ready"), 1);
     ASSERT_EQ(mapping_number(status, "gateway_command_execute_stale_drop_ready"), 1);
     ASSERT_EQ(mapping_number(status, "gateway_command_execute_context_cleanup_ready"), 1);
@@ -11869,15 +11460,21 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_NE(vm_context_contract, nullptr);
     ASSERT_EQ(mapping_number(vm_context_contract, "contract_version"), 1);
     ASSERT_STREQ(mapping_string(vm_context_contract, "context_model"), "thread_local_vm_context");
-    ASSERT_STREQ(mapping_string(vm_context_contract, "execution_state_model"), "vm_context_execution_snapshot");
-    ASSERT_STREQ(mapping_string(vm_context_contract, "owner_state_model"), "vm_context_owner_scope");
-    ASSERT_STREQ(mapping_string(vm_context_contract, "error_state_model"), "vm_context_error_snapshot");
-    ASSERT_STREQ(mapping_string(vm_context_contract, "object_store_model"), "owner_local_object_store");
-    ASSERT_STREQ(mapping_string(vm_context_contract, "object_store_off_main_policy"), "owner_local_lookup_only");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "execution_state_model"),
+                 "vm_context_execution_snapshot");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "owner_state_model"),
+                 "vm_context_owner_scope");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "error_state_model"),
+                 "vm_context_error_snapshot");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "object_store_model"),
+                 "owner_local_object_store");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "object_store_off_main_policy"),
+                 "owner_local_lookup_only");
     ASSERT_EQ(mapping_number(vm_context_contract, "ordinary_lpc_ready"), 1);
     ASSERT_STREQ(mapping_string(vm_context_contract, "ordinary_lpc_blocker"), "");
     ASSERT_EQ(mapping_number(vm_context_contract, "controlled_lpc_ready"), 1);
-    ASSERT_STREQ(mapping_string(vm_context_contract, "controlled_lpc_policy"), "descriptor_manifest_only");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "controlled_lpc_policy"),
+                 "descriptor_manifest_only");
     ASSERT_STREQ(mapping_string(vm_context_contract, "eval_stack_model"),
                  "thread_local_owner_execution_stack");
     ASSERT_EQ(mapping_number(vm_context_contract, "eval_stack_thread_local"), 1);
@@ -11905,7 +11502,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(vm_context_contract, "apply_return_owner_local"), 1);
     ASSERT_EQ(mapping_number(vm_context_contract, "sprintf_state_thread_local"), 1);
     ASSERT_EQ(mapping_number(vm_context_contract, "sprintf_format_buffers_static_free"), 1);
-    ASSERT_STREQ(mapping_string(vm_context_contract, "object_refs_model"), "object_handle_boundary");
+    ASSERT_STREQ(mapping_string(vm_context_contract, "object_refs_model"),
+                 "object_handle_boundary");
     ASSERT_EQ(mapping_number(vm_context_contract, "object_refs_owner_local"), 1);
     ASSERT_STREQ(mapping_string(vm_context_contract, "cross_owner_object_refs_policy"),
                  "object_handle_or_frozen_payload_only");
@@ -12000,7 +11598,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(frozen_payload_contract, "deep_copy"), 1);
     ASSERT_EQ(mapping_number(frozen_payload_contract, "max_depth"), 8);
     ASSERT_EQ(mapping_number(frozen_payload_contract, "mapping_keys_must_be_strings"), 1);
-    ASSERT_EQ(mapping_number(frozen_payload_contract, "top_level_owner_payload_must_be_mapping"), 1);
+    ASSERT_EQ(mapping_number(frozen_payload_contract, "top_level_owner_payload_must_be_mapping"),
+              1);
     ASSERT_EQ(mapping_number(frozen_payload_contract, "object_allowed"), 0);
     ASSERT_EQ(mapping_number(frozen_payload_contract, "function_allowed"), 0);
     ASSERT_EQ(mapping_number(frozen_payload_contract, "buffer_allowed"), 0);
@@ -12037,9 +11636,11 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     };
     ASSERT_EQ(mapping_number(frozen_path("owner_send"), "top_level_mapping_required"), 1);
     ASSERT_EQ(mapping_number(frozen_path("owner_send"), "frozen_result_required"), 0);
-    ASSERT_STREQ(mapping_string(frozen_path("owner_call_async"), "result_policy"), "frozen_result_required");
+    ASSERT_STREQ(mapping_string(frozen_path("owner_call_async"), "result_policy"),
+                 "frozen_result_required");
     ASSERT_EQ(mapping_number(frozen_path("owner_call_async"), "frozen_result_required"), 1);
-    ASSERT_STREQ(mapping_string(frozen_path("owner_publish_snapshot"), "result_policy"), "snapshot_only");
+    ASSERT_STREQ(mapping_string(frozen_path("owner_publish_snapshot"), "result_policy"),
+                 "snapshot_only");
     ASSERT_EQ(mapping_number(frozen_path("worker_snapshot"), "top_level_mapping_required"), 0);
     ASSERT_STREQ(mapping_string(frozen_path("worker_snapshot"), "result_policy"),
                  "owner_future_frozen_result_required");
@@ -12053,20 +11654,23 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_NE(boundary_contract, nullptr);
     ASSERT_EQ(mapping_number(boundary_contract, "contract_version"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "boundary_model"), "owner_executor_boundary_v1");
-    ASSERT_STREQ(mapping_string(boundary_contract, "implementation_state"), "compilation_unit_active");
+    ASSERT_STREQ(mapping_string(boundary_contract, "implementation_state"),
+                 "compilation_unit_active");
     ASSERT_STREQ(mapping_string(boundary_contract, "class_name"), "OwnerExecutor");
     ASSERT_EQ(mapping_number(boundary_contract, "class_extracted"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "module_extracted"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "module_file"), "vm/internal/owner_executor.h");
     ASSERT_EQ(mapping_number(boundary_contract, "compilation_unit_extracted"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "compilation_unit_file"), "vm/internal/owner_executor.cc");
+    ASSERT_STREQ(mapping_string(boundary_contract, "compilation_unit_file"),
+                 "vm/internal/owner_executor.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "depends_on_owner_cc_internal_state"), 0);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_split_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_split_model"),
                  "runtime_v4_modules_with_owner_runtime_coordinator");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_v4_hardening_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_benchmark_smoke_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_benchmark_schema"), "owner_runtime_bench_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_benchmark_schema"),
+                 "owner_runtime_bench_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_stress_profile_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_stress_entry"),
                  "tools/owner-runtime-v4-stress.sh");
@@ -12077,11 +11681,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_coordinator_module_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_coordinator_file"),
                  "vm/internal/owner_runtime_coordinator.cc");
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_store_owner"), "OwnerRuntimeCoordinator");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_store_owner"),
+                 "OwnerRuntimeCoordinator");
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_cc_runtime_role"),
                  "runtime_status_facade_and_legacy_glue");
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_modern_profile_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_modern_profile_schema"), "lpc_modern_profile_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_modern_profile_schema"),
+                 "lpc_modern_profile_v1");
     ASSERT_STREQ(mapping_string(boundary_contract, "lpc_modern_profile_mode"), "opt_in_pragma");
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_vm_profile_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "lpc_vm_profile_schema"), "lpc_vm_profile_v1");
@@ -12094,7 +11700,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(boundary_contract, "lpc_vm_hot_path_profile_model"),
                  "opcode_efun_call_other_function_pointer_parser_mapping_string_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "object_store_benchmark_smoke_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "object_store_benchmark_schema"), "object_store_bench_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "object_store_benchmark_schema"),
+                 "object_store_bench_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_apply_dispatch_cache_probe_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_opcode_dispatch_profile_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_efun_dispatch_profile_ready"), 1);
@@ -12108,14 +11715,18 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_jit_experiment_default_off"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "modern_lpc_pragma_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "strict_owner_pragma_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "strict_owner_policy"), "strict_owner_owner_safe_payloads_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "strict_owner_policy"),
+                 "strict_owner_owner_safe_payloads_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_schema"), "lpcc_owner_audit_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_schema"),
+                 "lpcc_owner_audit_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_cli_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_cli"), "lpcc --owner-audit --format=json");
+    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_cli"),
+                 "lpcc --owner-audit --format=json");
     ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_static_scanner_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_source_encoding_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_source_encoding_schema"), "lpc_source_encoding_v1");
+    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_source_encoding_schema"),
+                 "lpc_source_encoding_v1");
     ASSERT_STREQ(mapping_string(boundary_contract, "vm_internal_string_encoding"), "utf-8");
     ASSERT_EQ(mapping_number(boundary_contract, "session_encoding_contract_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_encoding_boundary_ready"), 1);
@@ -12144,17 +11755,22 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                  "owner_snapshot_serialized_payload_v1");
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_snapshot_persistence_adapter"),
                  "main_thread_file_adapter");
-    ASSERT_EQ(mapping_number(boundary_contract, "owner_snapshot_direct_save_hot_path_audit_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "owner_snapshot_direct_save_hot_path_audit_ready"),
+              1);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_commit_api_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_commit_model"), "owner_commit_boundary_record");
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_modern_api_file"), "packages/core/vm_owner.cc");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_commit_model"),
+                 "owner_commit_boundary_record");
+    ASSERT_STREQ(mapping_string(boundary_contract, "lpc_modern_api_file"),
+                 "packages/core/vm_owner.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_task_manifest_module_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_task_manifest_module_file"),
                  "vm/internal/owner_task_manifest.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_trace_store_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_trace_store_file"), "vm/internal/owner_trace_store.cc");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_trace_store_file"),
+                 "vm/internal/owner_trace_store.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_future_store_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_future_store_file"), "vm/internal/owner_future_store.cc");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_future_store_file"),
+                 "vm/internal/owner_future_store.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_state_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_scheduler_state_file"),
                  "vm/internal/owner_scheduler_state.cc");
@@ -12162,11 +11778,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_metrics_store_file"),
                  "vm/internal/owner_runtime_metrics.cc");
     ASSERT_EQ(mapping_number(boundary_contract, "object_store_owner_fast_path_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "object_store_global_fallback_on_owner_fast_path"), 0);
+    ASSERT_EQ(mapping_number(boundary_contract, "object_store_global_fallback_on_owner_fast_path"),
+              0);
     ASSERT_EQ(mapping_number(boundary_contract, "object_handle_capability_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "object_handle_capability_model"),
                  "object_handle_capability_v1");
-    ASSERT_STREQ(mapping_string(boundary_contract, "object_handle_capability_file"), "vm/object_handle.h");
+    ASSERT_STREQ(mapping_string(boundary_contract, "object_handle_capability_file"),
+                 "vm/object_handle.h");
     ASSERT_STREQ(mapping_string(boundary_contract, "object_handle_permission_intent_default"),
                  "owner_runtime");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_backpressure_ready"), 1);
@@ -12174,7 +11792,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                  "observe_then_reject_new_tasks");
     ASSERT_GT(mapping_number(boundary_contract, "owner_scheduler_max_owner_queue_depth"), 0);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_fairness_guard_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "owner_future_timeout_cancel_drop_cleanup_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "owner_future_timeout_cancel_drop_cleanup_ready"),
+              1);
     ASSERT_EQ(mapping_number(boundary_contract, "dependency_manifest_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "runtime_dependency_contract_version"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "dependency_domains"),
@@ -12190,7 +11809,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_facade_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_facade_model"),
                  "owner_executor_runtime_facade_v1");
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_facade_file"), "vm/internal/owner.cc");
+    ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_facade_file"),
+                 "vm/internal/owner.cc");
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_runtime_facade_domains"),
                  "scheduler_state,mailbox_state,future_completion");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_runtime_facade_scheduler_ready"), 1);
@@ -12216,38 +11836,42 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_drop_reason_schema"),
                  "owner_callback_drop_reason_v1");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_callback_allowlist_complete"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_supported_kinds"),
-                 "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
+    ASSERT_STREQ(
+        mapping_string(boundary_contract, "owner_callback_supported_kinds"),
+        "heartbeat,call_out,async_callback,dns_callback,socket_callback,gateway_command_execute,ed_callback");
     ASSERT_EQ(mapping_number(boundary_contract, "executor_callback_cleanup_main_required"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "executor_callback_main_adapter_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "executor_callback_allowlist_count"), 6);
     ASSERT_STREQ(mapping_string(boundary_contract, "executor_callback_allowlist"),
                  "heartbeat,call_out,async_callback,dns_callback,socket_callback,ed_callback");
     ASSERT_EQ(mapping_number(boundary_contract, "heartbeat_owner_executor_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_task_type"), "heartbeat");
-    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_task_type"),
+                 "heartbeat");
+    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "heartbeat_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
     ASSERT_EQ(mapping_number(boundary_contract, "heartbeat_owner_executor_fallback_main_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "heartbeat_current_object_thread_local"), 0);
     ASSERT_EQ(mapping_number(boundary_contract, "callout_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_task_type"), "call_out");
-    ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "callout_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_EQ(mapping_number(boundary_contract, "callout_owner_executor_expired_handle_detach_ready"), 1);
+    ASSERT_EQ(
+        mapping_number(boundary_contract, "callout_owner_executor_expired_handle_detach_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "callout_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "callout_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "callout_owner_executor_fallback_main_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "async_owner_executor_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_task_type"), "async_callback");
-    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_task_type"),
+                 "async_callback");
+    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
     ASSERT_STREQ(mapping_string(boundary_contract, "async_owner_executor_result_policy"),
@@ -12256,23 +11880,26 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "async_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "dns_owner_executor_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_task_type"), "dns_callback");
-    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_result_policy"), "frozen_deep_copy_result");
+    ASSERT_STREQ(mapping_string(boundary_contract, "dns_owner_executor_result_policy"),
+                 "frozen_deep_copy_result");
     ASSERT_EQ(mapping_number(boundary_contract, "dns_owner_executor_owner_epoch_capture_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "dns_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "dns_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "socket_owner_executor_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_task_type"), "socket_callback");
-    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_route"), "owner_main_queue_callback_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_task_type"),
+                 "socket_callback");
+    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_route"),
+                 "owner_main_queue_callback_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_policy"),
                  "main_thread_callback_adapter_after_owner_admission");
-    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_result_policy"), "frozen_deep_copy_args");
+    ASSERT_STREQ(mapping_string(boundary_contract, "socket_owner_executor_result_policy"),
+                 "frozen_deep_copy_args");
     ASSERT_EQ(mapping_number(boundary_contract, "socket_owner_executor_cleanup_main_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "socket_owner_executor_drop_cleanup_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "socket_release_main_required"), 0);
@@ -12283,18 +11910,22 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_rejected"), 0);
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_executor_activation_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_task_type"), "gateway_command_execute");
-    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_route"), "owner_main_queue_io_adapter");
-    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_task_type"),
+                 "gateway_command_execute");
+    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_route"),
+                 "owner_main_queue_io_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_fallback_route"), "");
     ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_policy"),
                  "main_thread_io_adapter_until_interactive_detached");
     ASSERT_STREQ(mapping_string(boundary_contract, "gateway_command_execute_payload_policy"),
                  "owner_private_command_snapshot");
-    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_reply_queue_main_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_reply_queue_main_ready"),
+              1);
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_stale_drop_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_context_cleanup_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_session_revalidate_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_context_cleanup_ready"),
+              1);
+    ASSERT_EQ(mapping_number(boundary_contract, "gateway_command_execute_session_revalidate_ready"),
+              1);
     ASSERT_EQ(mapping_number(boundary_contract, "ordinary_lpc_default_closed"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "ordinary_lpc_explicit_open_required"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "ordinary_lpc_policy"),
@@ -12308,7 +11939,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_service_shard_domains"),
                  "readonly,player,room,session,item,economy,combat,mail,reward,world,persistence,"
                  "team,guild,sect,quest,rank,crafting,life_skill");
-    ASSERT_EQ(mapping_number(boundary_contract, "owner_service_registry_lpc_domain_alignment_ready"), 1);
+    ASSERT_EQ(
+        mapping_number(boundary_contract, "owner_service_registry_lpc_domain_alignment_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_tick_group_scheduler_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_tick_group_scheduler_schema"),
                  "owner_tick_group_scheduler_v1");
@@ -12321,35 +11953,43 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_scheduler_tick_group_budget_source"),
                  "owner_service_registry");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_priority_groups_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_tick_group_backpressure_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_tick_group_backpressure_ready"),
+              1);
     ASSERT_EQ(mapping_number(boundary_contract, "owner_scheduler_starvation_guard_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "target_owner_message_executor_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "normal_path_main_fallback_count"), 0);
     ASSERT_EQ(mapping_number(boundary_contract, "normal_path_main_fallback_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "main_fallback_policy_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "main_fallback_classification"), "explicit_policy");
+    ASSERT_STREQ(mapping_string(boundary_contract, "main_fallback_classification"),
+                 "explicit_policy");
     ASSERT_EQ(mapping_number(boundary_contract, "session_fifo_contract_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_io_adapter_only_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_io_boundary"), "main_thread_io_adapter");
+    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_io_boundary"),
+                 "main_thread_io_adapter");
     ASSERT_EQ(mapping_number(boundary_contract, "gateway_low_overhead_latency_probe_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_latency_probe_source"), "gateway_status_internal");
-  ASSERT_STREQ(mapping_string(boundary_contract, "gateway_latency_probe_fields"),
-               "receive_decode,receive_payload_copy,receive_enqueue_to_dispatch,receive_apply,"
-               "command_enqueue_to_dispatch,command_execute,"
-               "receive_main_queue_depth,deferred_main_drain_wait,"
-               "reply_enqueue_to_dispatch,reply_execute,output_enqueue_to_dispatch,output_execute,main_drain");
+    ASSERT_STREQ(mapping_string(boundary_contract, "gateway_latency_probe_source"),
+                 "gateway_status_internal");
+    ASSERT_STREQ(
+        mapping_string(boundary_contract, "gateway_latency_probe_fields"),
+        "receive_decode,receive_payload_copy,receive_enqueue_to_dispatch,receive_apply,"
+        "command_enqueue_to_dispatch,command_execute,"
+        "receive_main_queue_depth,deferred_main_drain_wait,"
+        "reply_enqueue_to_dispatch,reply_execute,output_enqueue_to_dispatch,output_execute,main_drain");
     ASSERT_EQ(mapping_number(boundary_contract, "callback_payload_strict_ready"), 1);
-    ASSERT_EQ(mapping_number(boundary_contract, "owner_callback_payload_strict_diagnostics_ready"), 1);
+    ASSERT_EQ(mapping_number(boundary_contract, "owner_callback_payload_strict_diagnostics_ready"),
+              1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_payload_policy_schema"),
                  "owner_callback_payload_policy_v1");
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_payload_policy"),
                  "frozen_payload_or_owner_handle_only");
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_failure_codes"),
-                 "owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
-                 "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
-    ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_drop_reasons"),
-                 "none,owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
-                 "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
+    ASSERT_STREQ(
+        mapping_string(boundary_contract, "owner_callback_failure_codes"),
+        "owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
+        "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
+    ASSERT_STREQ(
+        mapping_string(boundary_contract, "owner_callback_drop_reasons"),
+        "none,owner_scheduler_backpressure,callback_not_allowlisted,callback_invalid_target,"
+        "owner_epoch_mismatch,target_destructed,target_stale,admission_rejected,task_dropped");
     ASSERT_EQ(mapping_number(boundary_contract, "owner_callback_human_reason_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "owner_callback_failure_reason_schema"),
                  "owner_callback_failure_reason_v1");
@@ -12369,11 +12009,14 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     auto* gateway_contract = mapping_entry(status, "gateway_owner_task_contract");
     ASSERT_NE(gateway_contract, nullptr);
     ASSERT_EQ(mapping_number(gateway_contract, "contract_version"), 1);
-    ASSERT_STREQ(mapping_string(gateway_contract, "input_model"), "owner_executor_with_main_fallback");
-    ASSERT_STREQ(mapping_string(gateway_contract, "executor_migration_state"), "owner_executor_active");
+    ASSERT_STREQ(mapping_string(gateway_contract, "input_model"),
+                 "owner_executor_with_main_fallback");
+    ASSERT_STREQ(mapping_string(gateway_contract, "executor_migration_state"),
+                 "owner_executor_active");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_payload_model"),
                  "gateway_command_buffer_metadata_v1");
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_input_source"), "interactive_text_buffer");
+    ASSERT_STREQ(mapping_string(gateway_contract, "command_input_source"),
+                 "interactive_text_buffer");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_text_snapshot_policy"),
                  "owner_private_redacted_from_trace");
     ASSERT_EQ(mapping_number(gateway_contract, "command_text_snapshot_ready"), 1);
@@ -12389,11 +12032,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(gateway_contract, "command_input_callback_apply_frame_task_type"),
                  "interactive_input_callback");
     ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_apply_frame_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_apply_frame_executor_ready"), 1);
+    ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_apply_frame_executor_ready"),
+              1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_input_callback_mode_delta_model"),
                  "owner_command_frame_input_callback_mode_delta");
     ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_mode_delta_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_mode_delta_executor_ready"), 1);
+    ASSERT_EQ(mapping_number(gateway_contract, "command_input_callback_mode_delta_executor_ready"),
+              1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_input_callback_blocker"), "");
     ASSERT_STREQ(mapping_string(gateway_contract, "process_input_apply_frame_model"),
                  "owner_command_frame_process_input_apply");
@@ -12404,15 +12049,18 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(gateway_contract, "process_input_add_action_parser_frame_model"),
                  "owner_command_parser_context_v1");
     ASSERT_EQ(mapping_number(gateway_contract, "process_input_add_action_parser_frame_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "process_input_add_action_parser_frame_executor_ready"), 1);
+    ASSERT_EQ(
+        mapping_number(gateway_contract, "process_input_add_action_parser_frame_executor_ready"),
+        1);
     ASSERT_STREQ(mapping_string(gateway_contract, "process_input_add_action_parser_blocker"), "");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_executor_blocker"),
                  "interactive_command_requires_main_thread_io_adapter");
     ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_ready"), 1);
-    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_task_type"), "gateway_command_execute");
-    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_route"), "owner_main_queue_io_adapter");
-    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_fallback_route"),
-                 "");
+    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_task_type"),
+                 "gateway_command_execute");
+    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_route"),
+                 "owner_main_queue_io_adapter");
+    ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_fallback_route"), "");
     ASSERT_STREQ(mapping_string(gateway_contract, "gateway_command_execute_policy"),
                  "main_thread_io_adapter_until_interactive_detached");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_consume_model"),
@@ -12423,7 +12071,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                  "interactive_command_requires_main_thread_io_adapter");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_queue_model"),
                  "main_reply_queue_after_owner_command");
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_queue_task_type"), "command_reply");
+    ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_queue_task_type"),
+                 "command_reply");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_queue_task_key"),
                  "prompt_telnet_reschedule_io");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_queue_side_effects"),
@@ -12432,10 +12081,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(gateway_contract, "command_reply_queue_main_required"), 1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_write_prompt_apply_frame_model"),
                  "owner_command_frame_write_prompt_apply");
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_reply_write_prompt_apply_frame_task_type"),
-                 "command_reply");
+    ASSERT_STREQ(
+        mapping_string(gateway_contract, "command_reply_write_prompt_apply_frame_task_type"),
+        "command_reply");
     ASSERT_EQ(mapping_number(gateway_contract, "command_reply_write_prompt_apply_frame_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "command_reply_write_prompt_apply_frame_executor_ready"), 0);
+    ASSERT_EQ(
+        mapping_number(gateway_contract, "command_reply_write_prompt_apply_frame_executor_ready"),
+        0);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_mode_delta_model"),
                  "owner_command_frame_mode_delta");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_mode_delta_localecho_restore_boundary"),
@@ -12446,11 +12098,13 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(gateway_contract, "interactive_mode_localecho_restore_task_type"),
                  "interactive_mode_flags");
     ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_localecho_restore_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_localecho_restore_executor_ready"), 1);
+    ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_localecho_restore_executor_ready"),
+              1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_mode_delta_terminal_mode_task_type"),
                  "command_mode_delta");
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_mode_delta_terminal_mode_task_keys"),
-                 "get_char_linemode_restore,single_char_escape_linemode,single_char_escape_charmode_restore");
+    ASSERT_STREQ(
+        mapping_string(gateway_contract, "command_mode_delta_terminal_mode_task_keys"),
+        "get_char_linemode_restore,single_char_escape_linemode,single_char_escape_charmode_restore");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_mode_delta_terminal_mode_boundary"),
                  "main_mode_delta_queue_after_command_consume");
     ASSERT_EQ(mapping_number(gateway_contract, "command_mode_delta_terminal_mode_ready"), 1);
@@ -12460,7 +12114,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(gateway_contract, "interactive_mode_mxp_tag_filter_task_type"),
                  "interactive_mode_flags");
     ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_mxp_tag_filter_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_mxp_tag_filter_executor_ready"), 1);
+    ASSERT_EQ(mapping_number(gateway_contract, "interactive_mode_mxp_tag_filter_executor_ready"),
+              1);
     ASSERT_STREQ(mapping_string(gateway_contract, "interactive_mode_ed_command_model"),
                  "owner_command_frame_ed_command");
     ASSERT_STREQ(mapping_string(gateway_contract, "interactive_mode_ed_command_task_type"),
@@ -12478,13 +12133,17 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(gateway_contract, "command_execution_frame_restore_ready"), 1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_execution_frame_restore_blocker"), "");
     ASSERT_EQ(mapping_number(gateway_contract, "command_execution_frame_executor_ready"), 0);
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_stale_guard"), "owner_epoch_target_handle_guard");
+    ASSERT_STREQ(mapping_string(gateway_contract, "command_stale_guard"),
+                 "owner_epoch_target_handle_guard");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_stale_trace_state"), "main_stale");
-    ASSERT_STREQ(mapping_string(gateway_contract, "command_stale_target_status"), "owner_epoch_mismatch");
+    ASSERT_STREQ(mapping_string(gateway_contract, "command_stale_target_status"),
+                 "owner_epoch_mismatch");
     ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_stale_drop_ready"), 1);
     ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_context_cleanup_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_session_revalidate_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_reply_queue_main_ready"), 1);
+    ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_session_revalidate_ready"),
+              1);
+    ASSERT_EQ(mapping_number(gateway_contract, "gateway_command_execute_reply_queue_main_ready"),
+              1);
     ASSERT_STREQ(mapping_string(gateway_contract, "command_executor_readiness_gate_model"),
                  "all_gates_required_before_owner_executor");
     ASSERT_STREQ(mapping_string(gateway_contract, "command_executor_next_gate"), "");
@@ -12504,7 +12163,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(gateway_contract, "command_side_effect_snapshot_ready_count"), 5);
     ASSERT_EQ(mapping_number(gateway_contract, "command_side_effect_observability_ready"), 1);
     ASSERT_EQ(mapping_number(gateway_contract, "command_side_effect_activation_ready"), 1);
-    auto* command_executor_gates = mapping_array(gateway_contract, "command_executor_readiness_gates");
+    auto* command_executor_gates =
+        mapping_array(gateway_contract, "command_executor_readiness_gates");
     ASSERT_NE(command_executor_gates, nullptr);
     ASSERT_EQ(command_executor_gates->size, 7);
     std::unordered_map<std::string, mapping_t*> command_executor_gates_by_name;
@@ -12521,21 +12181,35 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
       EXPECT_NE(it, command_executor_gates_by_name.end());
       return it == command_executor_gates_by_name.end() ? nullptr : it->second;
     };
-    ASSERT_EQ(mapping_number(command_executor_gate("owner_epoch_target_handle_guard"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_executor_gate("owner_owned_command_snapshot"), "satisfied"), 1);
-    ASSERT_STREQ(mapping_string(command_executor_gate("owner_owned_command_snapshot"), "blocker"), "");
+    ASSERT_EQ(mapping_number(command_executor_gate("owner_epoch_target_handle_guard"), "satisfied"),
+              1);
+    ASSERT_EQ(mapping_number(command_executor_gate("owner_owned_command_snapshot"), "satisfied"),
+              1);
+    ASSERT_STREQ(mapping_string(command_executor_gate("owner_owned_command_snapshot"), "blocker"),
+                 "");
     ASSERT_EQ(mapping_number(command_executor_gate("owner_owned_command_consume"), "satisfied"), 1);
-    ASSERT_STREQ(mapping_string(command_executor_gate("owner_owned_command_consume"), "blocker"), "");
-    ASSERT_EQ(mapping_number(command_executor_gate("owner_executor_command_consume_entry"), "satisfied"), 1);
-    ASSERT_STREQ(mapping_string(command_executor_gate("owner_executor_command_consume_entry"), "blocker"), "");
-    ASSERT_EQ(mapping_number(command_executor_gate("owner_executor_frame_restore"), "satisfied"), 1);
-    ASSERT_STREQ(mapping_string(command_executor_gate("owner_executor_frame_restore"), "blocker"), "");
+    ASSERT_STREQ(mapping_string(command_executor_gate("owner_owned_command_consume"), "blocker"),
+                 "");
+    ASSERT_EQ(
+        mapping_number(command_executor_gate("owner_executor_command_consume_entry"), "satisfied"),
+        1);
+    ASSERT_STREQ(
+        mapping_string(command_executor_gate("owner_executor_command_consume_entry"), "blocker"),
+        "");
+    ASSERT_EQ(mapping_number(command_executor_gate("owner_executor_frame_restore"), "satisfied"),
+              1);
+    ASSERT_STREQ(mapping_string(command_executor_gate("owner_executor_frame_restore"), "blocker"),
+                 "");
     ASSERT_EQ(mapping_number(command_executor_gate("ordinary_lpc_ready"), "satisfied"), 1);
     ASSERT_STREQ(mapping_string(command_executor_gate("ordinary_lpc_ready"), "blocker"), "");
-    ASSERT_EQ(mapping_number(command_executor_gate("gateway_command_executor_activation"), "satisfied"), 1);
-    ASSERT_STREQ(mapping_string(command_executor_gate("gateway_command_executor_activation"), "blocker"),
-                 "interactive_command_requires_main_thread_io_adapter");
-    auto* command_side_effect_gates = mapping_array(gateway_contract, "command_side_effect_readiness_gates");
+    ASSERT_EQ(
+        mapping_number(command_executor_gate("gateway_command_executor_activation"), "satisfied"),
+        1);
+    ASSERT_STREQ(
+        mapping_string(command_executor_gate("gateway_command_executor_activation"), "blocker"),
+        "interactive_command_requires_main_thread_io_adapter");
+    auto* command_side_effect_gates =
+        mapping_array(gateway_contract, "command_side_effect_readiness_gates");
     ASSERT_NE(command_side_effect_gates, nullptr);
     ASSERT_EQ(command_side_effect_gates->size, 5);
     std::unordered_map<std::string, mapping_t*> command_side_effect_gates_by_name;
@@ -12559,60 +12233,96 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
       EXPECT_NE(it, command_side_effect_gates_by_name.end());
       return it == command_side_effect_gates_by_name.end() ? nullptr : it->second;
     };
-    ASSERT_EQ(mapping_number(command_side_effect_gate("interactive_buffer_consume"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_side_effect_gate("interactive_buffer_consume"), "blocks_activation"), 0);
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "blocker"), "");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "state_owner"),
-                 "owner_command_snapshot");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "migration_boundary"),
+    ASSERT_EQ(mapping_number(command_side_effect_gate("interactive_buffer_consume"), "satisfied"),
+              1);
+    ASSERT_EQ(
+        mapping_number(command_side_effect_gate("interactive_buffer_consume"), "blocks_activation"),
+        0);
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "blocker"),
+                 "");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_buffer_consume"), "state_owner"),
+        "owner_command_snapshot");
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"),
+                                "migration_boundary"),
                  "main_thread_consume_before_executor_activation");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "side_effect_class"),
-                 "input_buffer_consume");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_buffer_consume"), "snapshot_policy"),
-                 "owner_private_command_text_snapshot_v1");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_buffer_consume"), "side_effect_class"),
+        "input_buffer_consume");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_buffer_consume"), "snapshot_policy"),
+        "owner_private_command_text_snapshot_v1");
     ASSERT_EQ(mapping_number(command_side_effect_gate("input_to_get_char_state"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_side_effect_gate("input_to_get_char_state"), "blocks_activation"), 0);
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "blocker"), "");
+    ASSERT_EQ(
+        mapping_number(command_side_effect_gate("input_to_get_char_state"), "blocks_activation"),
+        0);
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "blocker"),
+                 "");
     ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "state_owner"),
                  "owner_command_frame");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "migration_boundary"),
-                 "owner_command_frame_input_callback_executor");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "side_effect_class"),
-                 "input_callback_state");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("input_to_get_char_state"), "snapshot_policy"),
-                 "redacted_input_to_get_char_state_v1");
-    ASSERT_EQ(mapping_number(command_side_effect_gate("process_input_add_action_parser"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_side_effect_gate("process_input_add_action_parser"), "blocks_activation"), 0);
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"), "blocker"), "");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"), "state_owner"),
-                 "owner_command_frame");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"), "migration_boundary"),
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("input_to_get_char_state"), "migration_boundary"),
+        "owner_command_frame_input_callback_executor");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("input_to_get_char_state"), "side_effect_class"),
+        "input_callback_state");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("input_to_get_char_state"), "snapshot_policy"),
+        "redacted_input_to_get_char_state_v1");
+    ASSERT_EQ(
+        mapping_number(command_side_effect_gate("process_input_add_action_parser"), "satisfied"),
+        1);
+    ASSERT_EQ(mapping_number(command_side_effect_gate("process_input_add_action_parser"),
+                             "blocks_activation"),
+              0);
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("process_input_add_action_parser"), "blocker"), "");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("process_input_add_action_parser"), "state_owner"),
+        "owner_command_frame");
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"),
+                                "migration_boundary"),
                  "owner_command_parser_context_executor");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"), "side_effect_class"),
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"),
+                                "side_effect_class"),
                  "parser_command_giver_state");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"), "snapshot_policy"),
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("process_input_add_action_parser"),
+                                "snapshot_policy"),
                  "redacted_process_input_add_action_parser_state_v1");
-    ASSERT_EQ(mapping_number(command_side_effect_gate("prompt_telnet_reschedule_io"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_side_effect_gate("prompt_telnet_reschedule_io"), "blocks_activation"), 0);
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "blocker"), "");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "state_owner"),
-                 "main_reply_queue_and_network_io");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "migration_boundary"),
+    ASSERT_EQ(mapping_number(command_side_effect_gate("prompt_telnet_reschedule_io"), "satisfied"),
+              1);
+    ASSERT_EQ(mapping_number(command_side_effect_gate("prompt_telnet_reschedule_io"),
+                             "blocks_activation"),
+              0);
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "blocker"),
+                 "");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "state_owner"),
+        "main_reply_queue_and_network_io");
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"),
+                                "migration_boundary"),
                  "main_reply_queue_after_owner_command");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "side_effect_class"),
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"),
+                                "side_effect_class"),
                  "prompt_telnet_reschedule_io");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "snapshot_policy"),
-                 "redacted_prompt_telnet_reschedule_io_v1");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("prompt_telnet_reschedule_io"), "snapshot_policy"),
+        "redacted_prompt_telnet_reschedule_io_v1");
     ASSERT_EQ(mapping_number(command_side_effect_gate("interactive_mode_flags"), "satisfied"), 1);
-    ASSERT_EQ(mapping_number(command_side_effect_gate("interactive_mode_flags"), "blocks_activation"), 0);
+    ASSERT_EQ(
+        mapping_number(command_side_effect_gate("interactive_mode_flags"), "blocks_activation"), 0);
     ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "blocker"), "");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "state_owner"), "owner_command_frame");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "migration_boundary"),
-                 "owner_command_frame_mode_delta_executor");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "side_effect_class"),
-                 "echo_mxp_ed_mode_flags");
-    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "snapshot_policy"),
-                 "redacted_interactive_mode_flags_v1");
+    ASSERT_STREQ(mapping_string(command_side_effect_gate("interactive_mode_flags"), "state_owner"),
+                 "owner_command_frame");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_mode_flags"), "migration_boundary"),
+        "owner_command_frame_mode_delta_executor");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_mode_flags"), "side_effect_class"),
+        "echo_mxp_ed_mode_flags");
+    ASSERT_STREQ(
+        mapping_string(command_side_effect_gate("interactive_mode_flags"), "snapshot_policy"),
+        "redacted_interactive_mode_flags_v1");
     ASSERT_EQ(mapping_number(gateway_contract, "ordinary_lpc_ready_required"), 0);
     ASSERT_EQ(mapping_number(gateway_contract, "main_required"), 0);
     ASSERT_EQ(mapping_number(gateway_contract, "fallback_main_required"), 1);
@@ -12664,9 +12374,9 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
       EXPECT_NE(it, gateway_tasks_by_key.end());
       return it == gateway_tasks_by_key.end() ? nullptr : it->second;
     };
-    auto assert_gateway_task = [&](const char* task_key, const char* executor_mode, const char* route,
-                                   long requires_main_queue, const char* owner_scope_model,
-                                   const char* stale_policy) {
+    auto assert_gateway_task = [&](const char* task_key, const char* executor_mode,
+                                   const char* route, long requires_main_queue,
+                                   const char* owner_scope_model, const char* stale_policy) {
       auto* task = gateway_task(task_key);
       ASSERT_NE(task, nullptr);
       ASSERT_STREQ(mapping_string(task, "executor_mode"), executor_mode);
@@ -12678,25 +12388,34 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     assert_gateway_task("gateway_receive", "main_required", "owner_main_queue", 1,
                         "owner_scope_and_current_interactive", "owner_epoch_target_guard");
     assert_gateway_task("process_user_command", "main_required", "owner_main_queue", 1,
-                        "owner_scope_current_interactive_command_giver", "owner_epoch_target_guard");
-    ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "payload_key"), "gateway_command_input");
+                        "owner_scope_current_interactive_command_giver",
+                        "owner_epoch_target_guard");
+    ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "payload_key"),
+                 "gateway_command_input");
     ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "input_payload_policy"),
                  "buffer_metadata_no_raw_command_text");
     ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "command_consume_model"),
                  "owner_owned_snapshot_main_thread_consume");
-    ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "command_consume_snapshot_ready"), 1);
-    ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "command_consume_executor_ready"), 0);
+    ASSERT_EQ(
+        mapping_number(gateway_task("process_user_command"), "command_consume_snapshot_ready"), 1);
+    ASSERT_EQ(
+        mapping_number(gateway_task("process_user_command"), "command_consume_executor_ready"), 0);
     ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "command_consume_blocker"),
                  "interactive_command_requires_main_thread_io_adapter");
     ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "execution_frame_model"),
                  "gateway_command_execution_frame_v1");
     ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "execution_frame_policy"),
                  "owner_scope_current_interactive_command_giver");
-    ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "execution_frame_restore_policy"),
-                 "main_thread_vmcontext_scope");
-    ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "execution_frame_restore_ready"), 1);
-    ASSERT_STREQ(mapping_string(gateway_task("process_user_command"), "execution_frame_restore_blocker"), "");
-    ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "execution_frame_executor_ready"), 0);
+    ASSERT_STREQ(
+        mapping_string(gateway_task("process_user_command"), "execution_frame_restore_policy"),
+        "main_thread_vmcontext_scope");
+    ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "execution_frame_restore_ready"),
+              1);
+    ASSERT_STREQ(
+        mapping_string(gateway_task("process_user_command"), "execution_frame_restore_blocker"),
+        "");
+    ASSERT_EQ(
+        mapping_number(gateway_task("process_user_command"), "execution_frame_executor_ready"), 0);
     ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "requires_target_handle"), 1);
     ASSERT_EQ(mapping_number(gateway_task("process_user_command"), "requires_frozen_payload"), 1);
     assert_gateway_task("gateway_logon", "main_required", "direct_main_owner_scope", 0,
@@ -12728,8 +12447,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     for (int i = 0; i < lpc_contracts->size; i++) {
       ASSERT_EQ(lpc_contracts->item[i].type, T_MAPPING);
       auto method = std::string(mapping_string(lpc_contracts->item[i].u.map, "method"));
-      found_top_level_player_domain = found_top_level_player_domain || method == "owner_task_player";
-      found_top_level_economy_domain = found_top_level_economy_domain || method == "owner_task_economy";
+      found_top_level_player_domain =
+          found_top_level_player_domain || method == "owner_task_player";
+      found_top_level_economy_domain =
+          found_top_level_economy_domain || method == "owner_task_economy";
     }
     ASSERT_TRUE(found_top_level_player_domain);
     ASSERT_TRUE(found_top_level_economy_domain);
@@ -12751,7 +12472,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
                 (task_type == "gateway_command_execute" || callback_main_adapter) ? 1 : 0);
       ASSERT_EQ(mapping_number(entry, "manifest_version"), 2);
       ASSERT_STREQ(mapping_string(entry, "manifest_schema"), "owner_task_manifest_v2");
-      ASSERT_STREQ(mapping_string(entry, "admission_policy"), "owner_epoch_payload_allowlist_deadline_guard");
+      ASSERT_STREQ(mapping_string(entry, "admission_policy"),
+                   "owner_epoch_payload_allowlist_deadline_guard");
       ASSERT_STREQ(mapping_string(entry, "trace_schema"), "owner_executor_trace_v2");
       ASSERT_EQ(mapping_number(entry, "deadline_required"), 0);
       ASSERT_EQ(mapping_number(entry, "ordinary_lpc_default_closed"), 1);
@@ -12769,9 +12491,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
       EXPECT_NE(it, dispatch_by_type.end());
       return it == dispatch_by_type.end() ? nullptr : it->second;
     };
-    auto assert_dispatch = [&](const char* task_type, const char* contract_key, const char* dispatch_kind,
-                               const char* executor_mode, long executor_runnable, long executor_safe,
-                               long rejected, const char* route = "owner_executor", long main_required = 0) {
+    auto assert_dispatch = [&](const char* task_type, const char* contract_key,
+                               const char* dispatch_kind, const char* executor_mode,
+                               long executor_runnable, long executor_safe, long rejected,
+                               const char* route = "owner_executor", long main_required = 0) {
       auto* entry = dispatch_entry(task_type);
       ASSERT_NE(entry, nullptr);
       ASSERT_STREQ(mapping_string(entry, "contract_key"), contract_key);
@@ -12787,35 +12510,39 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     assert_dispatch("executor_probe", "executor_probe", "executor_probe", "executor_safe", 1, 1, 0);
     assert_dispatch("lpc_probe", "lpc_probe", "lpc_probe", "executor_safe", 1, 1, 0);
     assert_dispatch("lpc_canary", "lpc_canary", "lpc_canary", "executor_safe", 1, 1, 0);
-    assert_dispatch("lpc_task", "lpc_task_allowlist", "lpc_task", "executor_safe_allowlist", 1, 1, 0);
-    assert_dispatch("ordinary_lpc", "ordinary_lpc_dispatch", "ordinary_lpc", "executor_safe_explicit_open", 1, 1, 0);
-    assert_dispatch("owner_message", "owner_message_mailbox", "owner_message", "executor_safe", 1, 1, 0);
-    assert_dispatch("command_consume", "owner_executor_command_consumer", "command_consume", "executor_safe", 1,
-                    1, 0);
-    assert_dispatch("command_frame_restore", "owner_executor_command_frame_restore", "command_frame_restore",
-                    "executor_safe", 1, 1, 0);
-    assert_dispatch("gateway_command", "gateway_command_executor_activation", "gateway_command", "executor_safe", 1, 1,
+    assert_dispatch("lpc_task", "lpc_task_allowlist", "lpc_task", "executor_safe_allowlist", 1, 1,
                     0);
-    assert_dispatch("heartbeat", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0, 0,
-                    "owner_main_queue_callback_adapter", 1);
-    assert_dispatch("call_out", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0, 0,
-                    "owner_main_queue_callback_adapter", 1);
-    assert_dispatch("async_callback", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0,
-                    0, "owner_main_queue_callback_adapter", 1);
-    assert_dispatch("dns_callback", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0, 0,
-                    "owner_main_queue_callback_adapter", 1);
-    assert_dispatch("socket_callback", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0,
-                    0, "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("ordinary_lpc", "ordinary_lpc_dispatch", "ordinary_lpc",
+                    "executor_safe_explicit_open", 1, 1, 0);
+    assert_dispatch("owner_message", "owner_message_mailbox", "owner_message", "executor_safe", 1,
+                    1, 0);
+    assert_dispatch("command_consume", "owner_executor_command_consumer", "command_consume",
+                    "executor_safe", 1, 1, 0);
+    assert_dispatch("command_frame_restore", "owner_executor_command_frame_restore",
+                    "command_frame_restore", "executor_safe", 1, 1, 0);
+    assert_dispatch("gateway_command", "gateway_command_executor_activation", "gateway_command",
+                    "executor_safe", 1, 1, 0);
+    assert_dispatch("heartbeat", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("call_out", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("async_callback", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("dns_callback", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("socket_callback", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
     assert_dispatch("gateway_command_execute", "gateway_command_main_queue", "main_thread",
                     "main_required", 1, 0, 0, "owner_main_queue", 1);
-    assert_dispatch("ed_callback", "owner_executor_callback", "executor_callback", "main_required_callback", 0, 0, 0,
-                    "owner_main_queue_callback_adapter", 1);
+    assert_dispatch("ed_callback", "owner_executor_callback", "executor_callback",
+                    "main_required_callback", 0, 0, 0, "owner_main_queue_callback_adapter", 1);
     assert_dispatch("room_output_projection", "room_output_projection", "executor_callback",
                     "executor_safe", 1, 1, 0);
     assert_dispatch("compute_result", "compute_result", "compute_result", "executor_safe", 1, 1, 0);
     assert_dispatch("lpc", "lpc", "reject_lpc", "rejected", 1, 0, 1);
     assert_dispatch("owner_state", "owner_state", "guard_owner_state", "rejected", 1, 0, 1);
-    ASSERT_STREQ(mapping_string(dispatch_entry("gateway_command_execute"), "tick_group"), "gateway_command");
+    ASSERT_STREQ(mapping_string(dispatch_entry("gateway_command_execute"), "tick_group"),
+                 "gateway_command");
     ASSERT_STREQ(mapping_string(dispatch_entry("heartbeat"), "tick_group"), "heartbeat");
     ASSERT_STREQ(mapping_string(dispatch_entry("call_out"), "tick_group"), "callout");
     ASSERT_STREQ(mapping_string(dispatch_entry("socket_callback"), "tick_group"), "socket_async");
@@ -12889,7 +12616,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_NE(nested_lpc_contracts, nullptr);
     ASSERT_EQ(nested_lpc_contracts->size, 18);
     ASSERT_EQ(nested_lpc_contracts->item[0].type, T_MAPPING);
-    ASSERT_STREQ(mapping_string(nested_lpc_contracts->item[0].u.map, "method"), "owner_task_readonly");
+    ASSERT_STREQ(mapping_string(nested_lpc_contracts->item[0].u.map, "method"),
+                 "owner_task_readonly");
     bool found_player_domain = false;
     bool found_economy_domain = false;
     for (int i = 0; i < nested_lpc_contracts->size; i++) {
@@ -12941,10 +12669,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
   auto before_failed = mapping_number(before_future_status, "futures_failed");
   free_mapping(before_future_status);
 
-  auto cancel_future_id =
-      vm_owner_register_compute_future("owner/test/future-cancel", 9101, "manifest_cancel", "v2_cancel");
-  auto timeout_future_id =
-      vm_owner_register_compute_future("owner/test/future-timeout", 9102, "manifest_timeout", "v2_timeout");
+  auto cancel_future_id = vm_owner_register_compute_future("owner/test/future-cancel", 9101,
+                                                           "manifest_cancel", "v2_cancel");
+  auto timeout_future_id = vm_owner_register_compute_future("owner/test/future-timeout", 9102,
+                                                            "manifest_timeout", "v2_timeout");
   ASSERT_GT(cancel_future_id, 0u);
   ASSERT_GT(timeout_future_id, 0u);
 
@@ -12975,8 +12703,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
   free_mapping(timed_out);
 
   auto* after_future_status = vm_owner_runtime_status();
-  ASSERT_GE(mapping_number(after_future_status, "owner_executor_future_cancelled"), before_cancelled + 1);
-  ASSERT_GE(mapping_number(after_future_status, "owner_executor_future_timeout"), before_timeout + 1);
+  ASSERT_GE(mapping_number(after_future_status, "owner_executor_future_cancelled"),
+            before_cancelled + 1);
+  ASSERT_GE(mapping_number(after_future_status, "owner_executor_future_timeout"),
+            before_timeout + 1);
   ASSERT_GE(mapping_number(after_future_status, "futures_failed"), before_failed + 2);
   ASSERT_EQ(mapping_number(after_future_status, "owner_executor_future_pending_backlog"),
             mapping_number(after_future_status, "pending_futures"));
@@ -12985,7 +12715,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
 
 TEST_F(DriverTest, TestOwnerRuntimeLayeringGuardKeepsStoresOutOfOwnerCc) {
   const auto owner_cc = read_source_file_for_test("../src/vm/internal/owner.cc");
-  const auto coordinator_cc = read_source_file_for_test("../src/vm/internal/owner_runtime_coordinator.cc");
+  const auto coordinator_cc =
+      read_source_file_for_test("../src/vm/internal/owner_runtime_coordinator.cc");
   ASSERT_FALSE(owner_cc.empty());
   ASSERT_FALSE(coordinator_cc.empty());
 
@@ -12999,15 +12730,20 @@ TEST_F(DriverTest, TestOwnerRuntimeLayeringGuardKeepsStoresOutOfOwnerCc) {
       "std::vector<std::thread> owner_threads;",
   };
   for (const auto& declaration : forbidden_owner_cc_storage) {
-    ASSERT_EQ(owner_cc.find(declaration), std::string::npos) << "owner.cc must not own runtime store: "
-                                                             << declaration;
+    ASSERT_EQ(owner_cc.find(declaration), std::string::npos)
+        << "owner.cc must not own runtime store: " << declaration;
   }
 
-  ASSERT_NE(coordinator_cc.find("OwnerRuntimeCoordinator &owner_runtime_coordinator()"), std::string::npos);
-  ASSERT_NE(coordinator_cc.find("OwnerRuntimeMetrics &owner_runtime_metrics_instance()"), std::string::npos);
-  ASSERT_NE(coordinator_cc.find("OwnerFutureStore &owner_future_store_instance()"), std::string::npos);
-  ASSERT_NE(coordinator_cc.find("OwnerSchedulerState &owner_scheduler_state_instance()"), std::string::npos);
-  ASSERT_NE(coordinator_cc.find("OwnerTraceStore &owner_trace_store_instance()"), std::string::npos);
+  ASSERT_NE(coordinator_cc.find("OwnerRuntimeCoordinator &owner_runtime_coordinator()"),
+            std::string::npos);
+  ASSERT_NE(coordinator_cc.find("OwnerRuntimeMetrics &owner_runtime_metrics_instance()"),
+            std::string::npos);
+  ASSERT_NE(coordinator_cc.find("OwnerFutureStore &owner_future_store_instance()"),
+            std::string::npos);
+  ASSERT_NE(coordinator_cc.find("OwnerSchedulerState &owner_scheduler_state_instance()"),
+            std::string::npos);
+  ASSERT_NE(coordinator_cc.find("OwnerTraceStore &owner_trace_store_instance()"),
+            std::string::npos);
 }
 
 TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
@@ -13019,7 +12755,9 @@ TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
   vm_owner_test_support_reset_budget_yield_observations();
   test_set_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS", "5");
   struct ProbeDelayGuard {
-    ~ProbeDelayGuard() { test_unset_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS"); }
+    ~ProbeDelayGuard() {
+      test_unset_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS");
+    }
   } probe_delay_guard;
   auto mapping_number = [](mapping_t* map, const char* key) -> long {
     auto* value = find_string_in_mapping(map, key);
@@ -13066,7 +12804,8 @@ TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
     auto budget_yields = mapping_number(status, "executor_budget_yields");
     auto probe_done = mapping_number(status, "executor_probe_executed");
     auto last_yield_backlog = mapping_number(status, "executor_last_budget_yield_backlog");
-    auto last_yield_safe_backlog = mapping_number(status, "executor_last_budget_yield_safe_backlog");
+    auto last_yield_safe_backlog =
+        mapping_number(status, "executor_last_budget_yield_safe_backlog");
     auto last_yield_owner = std::string(mapping_string(status, "executor_last_budget_yield_owner"));
     free_mapping(status);
     auto* mailbox = vm_owner_mailbox_status(owner);
@@ -13126,8 +12865,10 @@ TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
   ASSERT_STREQ(mapping_string(executor_trace, "trace_kind"), "owner_executor_trace");
   ASSERT_STREQ(mapping_string(executor_trace, "trace_model"), "owner_executor_scheduler_trace");
   ASSERT_STREQ(mapping_string(executor_trace, "trace_schema"), "owner_executor_trace_v2");
-  ASSERT_STREQ(mapping_string(executor_trace, "owner_task_manifest_schema"), "owner_task_manifest_v2");
-  ASSERT_STREQ(mapping_string(executor_trace, "admission_policy"), "owner_epoch_payload_allowlist_deadline_guard");
+  ASSERT_STREQ(mapping_string(executor_trace, "owner_task_manifest_schema"),
+               "owner_task_manifest_v2");
+  ASSERT_STREQ(mapping_string(executor_trace, "admission_policy"),
+               "owner_epoch_payload_allowlist_deadline_guard");
   ASSERT_STREQ(mapping_string(executor_trace, "executor_contract_version"), "owner_executor_v2");
   ASSERT_STREQ(mapping_string(executor_trace, "executor_model"), "owner_executor");
   ASSERT_GT(mapping_number(executor_trace, "returned"), 0);
@@ -13144,7 +12885,8 @@ TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
     ASSERT_STREQ(mapping_string(event, "trace_model"), "owner_executor_scheduler_event");
     ASSERT_STREQ(mapping_string(event, "trace_schema"), "owner_executor_trace_v2");
     ASSERT_STREQ(mapping_string(event, "owner_task_manifest_schema"), "owner_task_manifest_v2");
-    ASSERT_STREQ(mapping_string(event, "admission_policy"), "owner_epoch_payload_allowlist_deadline_guard");
+    ASSERT_STREQ(mapping_string(event, "admission_policy"),
+                 "owner_epoch_payload_allowlist_deadline_guard");
     ASSERT_STREQ(mapping_string(event, "executor_contract_version"), "owner_executor_v2");
     ASSERT_STREQ(mapping_string(event, "executor_model"), "owner_executor");
     ASSERT_STREQ(mapping_string(event, "executor_dispatch_model"), "descriptor_manifest");
@@ -13199,8 +12941,10 @@ TEST_F(DriverTest, TestVmOwnerExecutorDoesNotYieldWhenExactBudgetDrainsBacklog) 
   auto before_budget_yields = mapping_number(before, "executor_budget_yields");
   auto before_probe = mapping_number(before, "executor_probe_executed");
   auto before_last_yield_backlog = mapping_number(before, "executor_last_budget_yield_backlog");
-  auto before_last_yield_safe_backlog = mapping_number(before, "executor_last_budget_yield_safe_backlog");
-  auto before_last_yield_owner = std::string(mapping_string(before, "executor_last_budget_yield_owner"));
+  auto before_last_yield_safe_backlog =
+      mapping_number(before, "executor_last_budget_yield_safe_backlog");
+  auto before_last_yield_owner =
+      std::string(mapping_string(before, "executor_last_budget_yield_owner"));
   auto budget = mapping_number(before, "executor_task_budget");
   ASSERT_GT(budget, 0);
   free_mapping(before);
@@ -13237,9 +12981,12 @@ TEST_F(DriverTest, TestVmOwnerExecutorDoesNotYieldWhenExactBudgetDrainsBacklog) 
   auto* running = vm_owner_thread_status();
   ASSERT_EQ(mapping_number(running, "executor_budget_yields"), before_budget_yields);
   ASSERT_GE(mapping_number(running, "executor_probe_executed"), before_probe + budget);
-  ASSERT_STREQ(mapping_string(running, "executor_last_budget_yield_owner"), before_last_yield_owner.c_str());
-  ASSERT_EQ(mapping_number(running, "executor_last_budget_yield_backlog"), before_last_yield_backlog);
-  ASSERT_EQ(mapping_number(running, "executor_last_budget_yield_safe_backlog"), before_last_yield_safe_backlog);
+  ASSERT_STREQ(mapping_string(running, "executor_last_budget_yield_owner"),
+               before_last_yield_owner.c_str());
+  ASSERT_EQ(mapping_number(running, "executor_last_budget_yield_backlog"),
+            before_last_yield_backlog);
+  ASSERT_EQ(mapping_number(running, "executor_last_budget_yield_safe_backlog"),
+            before_last_yield_safe_backlog);
   ASSERT_EQ(mapping_number(running, "executor_same_owner_claim_conflicts"), 0);
   ASSERT_EQ(mapping_number(running, "claimed_owners"), 0);
   free_mapping(running);
@@ -13391,7 +13138,8 @@ TEST_F(DriverTest, TestVmOwnerExecutorRunsDifferentOwnersInParallel) {
     auto releases_done = mapping_number(status, "executor_owner_releases");
     auto active_owners = mapping_number(status, "active_owners");
     free_mapping(status);
-    if (probe_done >= before_probe + 2 && releases_done >= before_releases + 2 && active_owners == 0) {
+    if (probe_done >= before_probe + 2 && releases_done >= before_releases + 2 &&
+        active_owners == 0) {
       break;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -13403,8 +13151,10 @@ TEST_F(DriverTest, TestVmOwnerExecutorRunsDifferentOwnersInParallel) {
   ASSERT_GE(mapping_number(running, "executor_owner_claims"), before_claims + 2);
   ASSERT_EQ(mapping_number(running, "executor_owner_claims") - before_claims,
             mapping_number(running, "executor_owner_releases") - before_releases);
-  ASSERT_GE(mapping_number(running, "executor_max_parallel_owners"), std::max<long>(2, before_max_parallel));
-  ASSERT_GE(mapping_number(running, "executor_max_owner_parallel"), std::max<long>(1, before_max_owner_parallel));
+  ASSERT_GE(mapping_number(running, "executor_max_parallel_owners"),
+            std::max<long>(2, before_max_parallel));
+  ASSERT_GE(mapping_number(running, "executor_max_owner_parallel"),
+            std::max<long>(1, before_max_owner_parallel));
   ASSERT_LE(mapping_number(running, "executor_max_owner_parallel"), 1);
   ASSERT_EQ(mapping_number(running, "executor_same_owner_claim_conflicts"), 0);
   ASSERT_EQ(mapping_number(running, "active_owners"), 0);
@@ -13414,16 +13164,16 @@ TEST_F(DriverTest, TestVmOwnerExecutorRunsDifferentOwnersInParallel) {
 }
 
 TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
-  constexpr const char *kOwner = "owner/test/executor/stop-start-guard";
+  constexpr const char* kOwner = "owner/test/executor/stop-start-guard";
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t *map, const char *key) -> long {
-    auto *value = find_string_in_mapping(map, key);
+  auto mapping_number = [](mapping_t* map, const char* key) -> long {
+    auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
     EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
     return value && value->type == T_NUMBER ? value->u.number : 0;
   };
 
-  auto *before = vm_owner_thread_status();
+  auto* before = vm_owner_thread_status();
   const auto before_starts = mapping_number(before, "thread_starts");
   const auto before_probe = mapping_number(before, "executor_probe_executed");
   const auto before_claims = mapping_number(before, "executor_owner_claims");
@@ -13439,10 +13189,9 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
 
   bool saw_active_claim = false;
   for (int i = 0; i < 200; ++i) {
-    auto *status = vm_owner_thread_status();
-    saw_active_claim =
-        mapping_number(status, "active_owners") == 1 &&
-        mapping_number(status, "executor_active_claims") == 1;
+    auto* status = vm_owner_thread_status();
+    saw_active_claim = mapping_number(status, "active_owners") == 1 &&
+                       mapping_number(status, "executor_active_claims") == 1;
     free_mapping(status);
     if (saw_active_claim) {
       break;
@@ -13451,13 +13200,14 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
   }
   ASSERT_TRUE(saw_active_claim);
 
-  std::thread stopper([] { vm_owner_thread_stop(); });
+  std::thread stopper([] {
+    vm_owner_thread_stop();
+  });
   bool saw_stop_owned_threads = false;
   for (int i = 0; i < 200; ++i) {
-    auto *status = vm_owner_thread_status();
+    auto* status = vm_owner_thread_status();
     saw_stop_owned_threads =
-        mapping_number(status, "stopping") == 1 &&
-        mapping_number(status, "enabled") == 0;
+        mapping_number(status, "stopping") == 1 && mapping_number(status, "enabled") == 0;
     free_mapping(status);
     if (saw_stop_owned_threads) {
       break;
@@ -13468,7 +13218,7 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
   // This start must be rejected while the first stop owns the swapped thread
   // handles. The second stop must likewise leave the first stop's latch intact.
   vm_owner_thread_start(1);
-  auto *during = vm_owner_thread_status();
+  auto* during = vm_owner_thread_status();
   const auto during_starts = mapping_number(during, "thread_starts");
   const auto during_enabled = mapping_number(during, "enabled");
   const auto during_stopping = mapping_number(during, "stopping");
@@ -13483,7 +13233,7 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
   ASSERT_EQ(during_enabled, 0);
   ASSERT_EQ(during_stopping, 1);
 
-  auto *stopped = vm_owner_thread_status();
+  auto* stopped = vm_owner_thread_status();
   ASSERT_EQ(mapping_number(stopped, "stopping"), 0);
   ASSERT_EQ(mapping_number(stopped, "active_owners"), 0);
   ASSERT_EQ(mapping_number(stopped, "executor_active_claims"), 0);
@@ -13495,9 +13245,8 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
   ASSERT_GT(vm_owner_enqueue_task(kOwner, "executor_probe", "stop-start-restart"), 0u);
   vm_owner_thread_start(1);
   for (int i = 0; i < 200; ++i) {
-    auto *status = vm_owner_thread_status();
-    const auto restarted =
-        mapping_number(status, "executor_probe_executed") >= before_probe + 3;
+    auto* status = vm_owner_thread_status();
+    const auto restarted = mapping_number(status, "executor_probe_executed") >= before_probe + 3;
     free_mapping(status);
     if (restarted) {
       break;
@@ -13505,7 +13254,7 @@ TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   vm_owner_thread_stop();
-  auto *restarted = vm_owner_thread_status();
+  auto* restarted = vm_owner_thread_status();
   ASSERT_GE(mapping_number(restarted, "executor_probe_executed"), before_probe + 3);
   ASSERT_EQ(mapping_number(restarted, "active_owners"), 0);
   ASSERT_EQ(mapping_number(restarted, "executor_active_claims"), 0);
@@ -13581,9 +13330,12 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   auto before_normal_fallback = mapping_number(before_runtime, "normal_path_main_fallback_count");
   auto before_future_cancelled = mapping_number(before_runtime, "owner_executor_future_cancelled");
   auto before_future_timeout = mapping_number(before_runtime, "owner_executor_future_timeout");
-  auto before_admission_accepted = mapping_number(before_runtime, "owner_executor_admission_accepted");
-  auto before_admission_rejected = mapping_number(before_runtime, "owner_executor_admission_rejected");
-  auto before_admission_dropped = mapping_number(before_runtime, "owner_executor_admission_dropped");
+  auto before_admission_accepted =
+      mapping_number(before_runtime, "owner_executor_admission_accepted");
+  auto before_admission_rejected =
+      mapping_number(before_runtime, "owner_executor_admission_rejected");
+  auto before_admission_dropped =
+      mapping_number(before_runtime, "owner_executor_admission_dropped");
   ASSERT_EQ(mapping_number(before_runtime, "owner_executor_context_cleanup_leaks"), 0);
   ASSERT_EQ(before_normal_fallback, 0);
   free_mapping(before_runtime);
@@ -13602,8 +13354,9 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   vm_owner_thread_start(1);
   wait_for_owner_probe(same_owner, before_probe + same_owner_tasks);
   vm_owner_thread_stop();
-  auto same_elapsed_us =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - same_start).count();
+  auto same_elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::steady_clock::now() - same_start)
+                             .count();
 
   auto* after_same = vm_owner_thread_status();
   ASSERT_GE(mapping_number(after_same, "executor_probe_executed"), before_probe + same_owner_tasks);
@@ -13633,33 +13386,38 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   wait_for_owner_probe(owner_b, before_parallel_probe + different_owner_tasks * 2);
   vm_owner_thread_stop();
   test_unset_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS");
-  auto parallel_elapsed_us =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - parallel_start).count();
+  auto parallel_elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                 std::chrono::steady_clock::now() - parallel_start)
+                                 .count();
 
   auto* after_parallel = vm_owner_thread_status();
-  auto parallel_completed = mapping_number(after_parallel, "executor_probe_executed") - before_parallel_probe;
+  auto parallel_completed =
+      mapping_number(after_parallel, "executor_probe_executed") - before_parallel_probe;
   ASSERT_GE(parallel_completed, different_owner_tasks * 2);
   ASSERT_EQ(mapping_number(after_parallel, "executor_owner_claims") - before_parallel_claims,
             mapping_number(after_parallel, "executor_owner_releases") - before_parallel_releases);
-  ASSERT_EQ(mapping_number(after_parallel, "executor_same_owner_claim_conflicts"), before_conflicts);
+  ASSERT_EQ(mapping_number(after_parallel, "executor_same_owner_claim_conflicts"),
+            before_conflicts);
   ASSERT_EQ(mapping_number(after_parallel, "active_owners"), 0);
   ASSERT_EQ(mapping_number(after_parallel, "claimed_owners"), 0);
-  ASSERT_GE(mapping_number(after_parallel, "executor_max_parallel_owners"), std::max<long>(2, before_max_parallel));
+  ASSERT_GE(mapping_number(after_parallel, "executor_max_parallel_owners"),
+            std::max<long>(2, before_max_parallel));
   ASSERT_LE(mapping_number(after_parallel, "executor_max_owner_parallel"), 1);
   RecordProperty("different_owner_tasks", different_owner_tasks * 2);
   RecordProperty("different_owner_completed", parallel_completed);
   RecordProperty("different_owner_elapsed_us", static_cast<long>(parallel_elapsed_us));
-  RecordProperty("different_owner_max_parallel", mapping_number(after_parallel, "executor_max_parallel_owners"));
-  RecordProperty("owner_claim_delta", mapping_number(after_parallel, "executor_owner_claims") - before_claims);
-  RecordProperty("owner_release_delta", mapping_number(after_parallel, "executor_owner_releases") - before_releases);
+  RecordProperty("different_owner_max_parallel",
+                 mapping_number(after_parallel, "executor_max_parallel_owners"));
+  RecordProperty("owner_claim_delta",
+                 mapping_number(after_parallel, "executor_owner_claims") - before_claims);
+  RecordProperty("owner_release_delta",
+                 mapping_number(after_parallel, "executor_owner_releases") - before_releases);
   free_mapping(after_parallel);
 
-  auto cancel_future_id =
-      vm_owner_register_compute_future("owner/test/runtime-v3/future-cancel", 9201, "runtime_v3_cancel",
-                                       "probe_cancel");
-  auto timeout_future_id =
-      vm_owner_register_compute_future("owner/test/runtime-v3/future-timeout", 9202, "runtime_v3_timeout",
-                                       "probe_timeout");
+  auto cancel_future_id = vm_owner_register_compute_future(
+      "owner/test/runtime-v3/future-cancel", 9201, "runtime_v3_cancel", "probe_cancel");
+  auto timeout_future_id = vm_owner_register_compute_future(
+      "owner/test/runtime-v3/future-timeout", 9202, "runtime_v3_timeout", "probe_timeout");
   ASSERT_GT(cancel_future_id, 0u);
   ASSERT_GT(timeout_future_id, 0u);
   auto* pending_future = vm_owner_future_poll(cancel_future_id);
@@ -13688,8 +13446,9 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
     ASSERT_TRUE(handle_resolve.resolved_via_owner_local_store);
     ASSERT_FALSE(handle_resolve.resolved_via_global_index);
   }
-  auto resolve_elapsed_us =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - resolve_start).count();
+  auto resolve_elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - resolve_start)
+                                .count();
   RecordProperty("object_resolve_iterations", object_resolve_iterations);
   RecordProperty("object_resolve_elapsed_us", static_cast<long>(resolve_elapsed_us));
 
@@ -13697,24 +13456,29 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   ASSERT_NE(guard.callback_probe, nullptr);
   vm_owner_set_id(guard.callback_probe, callback_owner);
   ASSERT_FALSE(vm_owner_executor_available());
-  ASSERT_EQ(vm_owner_enqueue_executor_task(guard.callback_probe, "ordinary_lpc", "runtime-v3-rejected", [] {}), 0u);
+  ASSERT_EQ(vm_owner_enqueue_executor_task(guard.callback_probe, "ordinary_lpc",
+                                           "runtime-v3-rejected", [] {}),
+            0u);
 
   std::atomic<int> adapter_ran{0};
   std::atomic<int> stale_ran{0};
   std::atomic<int> stale_drop_cleanup{0};
   vm_owner_thread_start(1);
   ASSERT_TRUE(vm_owner_executor_available());
-  ASSERT_EQ(vm_owner_enqueue_executor_task(guard.callback_probe, "legacy_lpc", "runtime-v3-legacy-rejected", [] {}),
+  ASSERT_EQ(vm_owner_enqueue_executor_task(guard.callback_probe, "legacy_lpc",
+                                           "runtime-v3-legacy-rejected", [] {}),
             0u);
-  auto adapter_task = vm_owner_enqueue_executor_task(guard.callback_probe, "heartbeat", "runtime-v3-main-adapter", [&] {
-    adapter_ran.store(vm_context_is_main_thread() ? 1 : -1, std::memory_order_release);
-  });
+  auto adapter_task = vm_owner_enqueue_executor_task(
+      guard.callback_probe, "heartbeat", "runtime-v3-main-adapter", [&] {
+        adapter_ran.store(vm_context_is_main_thread() ? 1 : -1, std::memory_order_release);
+      });
   ASSERT_GT(adapter_task, 0u);
   ASSERT_EQ(vm_owner_drain_main_tasks(16), 1);
   ASSERT_EQ(adapter_ran.load(std::memory_order_acquire), 1);
 
   auto stale_task = vm_owner_enqueue_executor_task(
-      guard.callback_probe, "call_out", "runtime-v3-stale", [&] {
+      guard.callback_probe, "call_out", "runtime-v3-stale",
+      [&] {
         stale_ran.store(1, std::memory_order_release);
       },
       [&] {
@@ -13729,24 +13493,35 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   vm_owner_thread_stop();
 
   auto* final_runtime = vm_owner_runtime_status();
-  ASSERT_EQ(mapping_number(final_runtime, "normal_path_main_fallback_count"), before_normal_fallback);
+  ASSERT_EQ(mapping_number(final_runtime, "normal_path_main_fallback_count"),
+            before_normal_fallback);
   ASSERT_EQ(mapping_number(final_runtime, "normal_path_main_fallback_count"), 0);
   ASSERT_EQ(mapping_number(final_runtime, "owner_executor_context_cleanup_leaks"), 0);
-  ASSERT_GE(mapping_number(final_runtime, "owner_executor_future_cancelled"), before_future_cancelled + 1);
-  ASSERT_GE(mapping_number(final_runtime, "owner_executor_future_timeout"), before_future_timeout + 1);
-  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_accepted"), before_admission_accepted + 2);
-  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_rejected"), before_admission_rejected + 1);
-  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_dropped"), before_admission_dropped + 1);
-  RecordProperty("future_cancel_delta",
-                 mapping_number(final_runtime, "owner_executor_future_cancelled") - before_future_cancelled);
-  RecordProperty("future_timeout_delta",
-                 mapping_number(final_runtime, "owner_executor_future_timeout") - before_future_timeout);
+  ASSERT_GE(mapping_number(final_runtime, "owner_executor_future_cancelled"),
+            before_future_cancelled + 1);
+  ASSERT_GE(mapping_number(final_runtime, "owner_executor_future_timeout"),
+            before_future_timeout + 1);
+  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_accepted"),
+            before_admission_accepted + 2);
+  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_rejected"),
+            before_admission_rejected + 1);
+  ASSERT_GE(mapping_number(final_runtime, "owner_executor_admission_dropped"),
+            before_admission_dropped + 1);
+  RecordProperty(
+      "future_cancel_delta",
+      mapping_number(final_runtime, "owner_executor_future_cancelled") - before_future_cancelled);
+  RecordProperty(
+      "future_timeout_delta",
+      mapping_number(final_runtime, "owner_executor_future_timeout") - before_future_timeout);
   RecordProperty("admission_accept_delta",
-                 mapping_number(final_runtime, "owner_executor_admission_accepted") - before_admission_accepted);
+                 mapping_number(final_runtime, "owner_executor_admission_accepted") -
+                     before_admission_accepted);
   RecordProperty("admission_reject_delta",
-                 mapping_number(final_runtime, "owner_executor_admission_rejected") - before_admission_rejected);
-  RecordProperty("admission_drop_delta",
-                 mapping_number(final_runtime, "owner_executor_admission_dropped") - before_admission_dropped);
+                 mapping_number(final_runtime, "owner_executor_admission_rejected") -
+                     before_admission_rejected);
+  RecordProperty(
+      "admission_drop_delta",
+      mapping_number(final_runtime, "owner_executor_admission_dropped") - before_admission_dropped);
   RecordProperty("normal_path_main_fallback_count",
                  mapping_number(final_runtime, "normal_path_main_fallback_count"));
   free_mapping(final_runtime);
@@ -13786,7 +13561,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsLpcAndKeepsMessageSpecs) {
 
   auto lpc_task = vm_owner_enqueue_task(owner, "lpc", "off-main-dummy");
   auto state_task = vm_owner_enqueue_task(owner, "owner_state", "single-owner-state");
-  auto gateway_command_task = vm_owner_enqueue_task(owner, "gateway_command", "player-command-activation");
+  auto gateway_command_task =
+      vm_owner_enqueue_task(owner, "gateway_command", "player-command-activation");
   auto message_task = vm_owner_enqueue_task(owner, "owner_message", "cross-owner-message");
   ASSERT_GT(lpc_task, 0u);
   ASSERT_GT(state_task, lpc_task);
@@ -14035,7 +13811,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   ASSERT_EQ(mapping_number(running, "thread_lpc_canary_rejected"), before_rejected);
   ASSERT_GE(mapping_number(running, "thread_owner_cleared"), before_owner_cleared + 1);
   ASSERT_GE(mapping_number(running, "thread_execution_cleared"), before_execution_cleared + 1);
-  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"), before_canary_flag_cleared + 1);
+  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"),
+            before_canary_flag_cleared + 1);
   ASSERT_EQ(mapping_number(running, "thread_context_leak_detected"), before_context_leaks);
   ASSERT_GE(mapping_number(running, "thread_context_bound"), 1);
   ASSERT_GE(mapping_number(running, "thread_object_store_isolated"), 1);
@@ -14119,7 +13896,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredReadonlyLpcTaskWithMultipleWor
   ASSERT_EQ(mapping_number(submitted, "frozen_result_required"), 1);
   ASSERT_EQ(mapping_number(submitted, "ordinary_lpc_default_closed"), 1);
   ASSERT_EQ(mapping_number(submitted, "ordinary_lpc_activation_policy_ready"), 1);
-  ASSERT_STREQ(mapping_string(submitted, "ordinary_lpc_activation_policy"), "default_closed_explicit_open");
+  ASSERT_STREQ(mapping_string(submitted, "ordinary_lpc_activation_policy"),
+               "default_closed_explicit_open");
   ASSERT_STREQ(mapping_string(submitted, "ordinary_lpc_next_blocker"), "");
   ASSERT_EQ(mapping_number(submitted, "direct_cross_owner_write"), 0);
   ASSERT_EQ(mapping_number(submitted, "owner_epoch"), static_cast<long>(owner_epoch));
@@ -14128,7 +13906,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredReadonlyLpcTaskWithMultipleWor
   ASSERT_STREQ(mapping_string(submitted, "executor_mode"), "executor_safe_allowlist");
   ASSERT_STREQ(mapping_string(submitted, "route"), "owner_executor");
   ASSERT_STREQ(mapping_string(submitted, "result_policy"), "frozen_result_required");
-  ASSERT_STREQ(mapping_string(submitted, "contract_reason"), "registered readonly owner task with frozen result");
+  ASSERT_STREQ(mapping_string(submitted, "contract_reason"),
+               "registered readonly owner task with frozen result");
   auto* submitted_contract = mapping_entry(submitted, "task_contract");
   ASSERT_STREQ(mapping_string(submitted_contract, "method"), "owner_task_readonly");
   ASSERT_EQ(mapping_number(submitted_contract, "executor_safe"), 1);
@@ -14236,7 +14015,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredReadonlyLpcTaskWithMultipleWor
   ASSERT_EQ(mapping_number(running, "thread_lpc_task_rejected"), before_rejected);
   ASSERT_GE(mapping_number(running, "thread_owner_cleared"), before_owner_cleared + 1);
   ASSERT_GE(mapping_number(running, "thread_execution_cleared"), before_execution_cleared + 1);
-  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"), before_controlled_lpc_cleared + 1);
+  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"),
+            before_controlled_lpc_cleared + 1);
   ASSERT_EQ(mapping_number(running, "thread_context_leak_detected"), before_context_leaks);
   ASSERT_EQ(mapping_number(running, "active_owners"), 0);
   ASSERT_GE(mapping_number(running, "executor_owner_claims"), before_claims + 2);
@@ -14351,8 +14131,7 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
   // Suite-order independent baseline: earlier tests may legitimately leave
   // terminal/pending records; this test must only assert that its own fill
   // and the four rejection paths leave the store exactly as they found it.
-  const auto baseline_terminal =
-      owner_future_store_instance().terminal_record_count();
+  const auto baseline_terminal = owner_future_store_instance().terminal_record_count();
   object_t* probe = load_object_for_test("single/void");
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
@@ -14402,13 +14181,13 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
 
   // Path 1: frozen-string callback submission.
   std::atomic<int> projector_runs{0};
-  const auto string_submission = vm_owner_submit_frozen_string_task(
-      probe, "room_output_projection", "capacity-reject-string",
-      [&projector_runs](std::string* output) {
-        projector_runs.fetch_add(1, std::memory_order_relaxed);
-        *output = "must-not-run";
-        return true;
-      });
+  const auto string_submission =
+      vm_owner_submit_frozen_string_task(probe, "room_output_projection", "capacity-reject-string",
+                                         [&projector_runs](std::string* output) {
+                                           projector_runs.fetch_add(1, std::memory_order_relaxed);
+                                           *output = "must-not-run";
+                                           return true;
+                                         });
   ASSERT_FALSE(string_submission.queued);
   ASSERT_EQ(string_submission.task_id, 0u);
   ASSERT_EQ(string_submission.future_id, 0u);
@@ -14424,8 +14203,7 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
   free_mapping(lpc_submission);
 
   // Path 3: ordinary LPC submission.
-  auto* ordinary_submission =
-      vm_owner_ordinary_lpc_task(probe, owner, "owner_task_player", 1);
+  auto* ordinary_submission = vm_owner_ordinary_lpc_task(probe, owner, "owner_task_player", 1);
   ASSERT_EQ(mapping_number(ordinary_submission, "success"), 0);
   ASSERT_EQ(mapping_number(ordinary_submission, "future_id"), 0);
   ASSERT_EQ(mapping_number(ordinary_submission, "task_id"), 0);
@@ -14457,8 +14235,7 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
   free_fill_records();
   // The store must be back to the pre-test baseline (no records from this
   // test's own fill or from the four rejected paths).
-  ASSERT_EQ(owner_future_store_instance().terminal_record_count(),
-            baseline_terminal);
+  ASSERT_EQ(owner_future_store_instance().terminal_record_count(), baseline_terminal);
   destruct_object(probe);
 }
 
@@ -14770,11 +14547,11 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnregisteredLpcTask) {
 
 TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredDomainLpcTasks) {
   const char* owner = "owner/test/thread/lpc-domain-task";
-  const char* methods[] = {"owner_task_player",      "owner_task_room",     "owner_task_session",
-                           "owner_task_item",        "owner_task_economy",  "owner_task_combat",
-                           "owner_task_mail",        "owner_task_reward",   "owner_task_world",
-                           "owner_task_persistence", "owner_task_team",     "owner_task_guild",
-                           "owner_task_sect",        "owner_task_quest",    "owner_task_rank",
+  const char* methods[] = {"owner_task_player",      "owner_task_room",      "owner_task_session",
+                           "owner_task_item",        "owner_task_economy",   "owner_task_combat",
+                           "owner_task_mail",        "owner_task_reward",    "owner_task_world",
+                           "owner_task_persistence", "owner_task_team",      "owner_task_guild",
+                           "owner_task_sect",        "owner_task_quest",     "owner_task_rank",
                            "owner_task_crafting",    "owner_task_life_skill"};
   const int method_count = static_cast<int>(sizeof(methods) / sizeof(methods[0]));
   ASSERT_TRUE(vm_context_is_main_thread());
@@ -14826,7 +14603,9 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredDomainLpcTasks) {
     ASSERT_EQ(mapping_number(submitted, "registered_task"), 1) << method;
     ASSERT_STREQ(mapping_string(submitted, "executor_mode"), "executor_safe_allowlist") << method;
     ASSERT_STREQ(mapping_string(submitted, "route"), "owner_executor") << method;
-    ASSERT_NE(std::string(mapping_string(submitted, "contract_reason")).find("registered"), std::string::npos) << method;
+    ASSERT_NE(std::string(mapping_string(submitted, "contract_reason")).find("registered"),
+              std::string::npos)
+        << method;
     auto* task_contract = mapping_entry(submitted, "task_contract");
     ASSERT_EQ(mapping_number(task_contract, "executor_safe"), 1) << method;
     ASSERT_EQ(mapping_number(task_contract, "main_required"), 0) << method;
@@ -14842,7 +14621,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredDomainLpcTasks) {
     future_ids.push_back(future_id);
   }
   auto* pending_runtime = vm_owner_runtime_status();
-  ASSERT_EQ(mapping_number(pending_runtime, "pending_futures"), before_pending_futures + method_count);
+  ASSERT_EQ(mapping_number(pending_runtime, "pending_futures"),
+            before_pending_futures + method_count);
   free_mapping(pending_runtime);
 
   vm_owner_thread_start(4);
@@ -14879,7 +14659,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredDomainLpcTasks) {
   }
   auto* completed_runtime = vm_owner_runtime_status();
   ASSERT_EQ(mapping_number(completed_runtime, "pending_futures"), before_pending_futures);
-  ASSERT_GE(mapping_number(completed_runtime, "futures_completed"), before_future_completions + method_count);
+  ASSERT_GE(mapping_number(completed_runtime, "futures_completed"),
+            before_future_completions + method_count);
   ASSERT_EQ(mapping_number(completed_runtime, "futures_failed"), before_future_failures);
   free_mapping(completed_runtime);
 
@@ -14940,8 +14721,10 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskMainDrainAndScheduleFailPendingFuture) {
   ASSERT_EQ(drained_tasks->type, T_ARRAY);
   ASSERT_EQ(drained_tasks->u.arr->size, 1);
   ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "task_type"), "lpc_task");
-  ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "task_key"), "owner_task_readonly");
-  ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "executor_mode"), "executor_safe");
+  ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "task_key"),
+               "owner_task_readonly");
+  ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "executor_mode"),
+               "executor_safe");
   ASSERT_STREQ(mapping_string(drained_tasks->u.arr->item[0].u.map, "route"), "owner_executor");
   ASSERT_EQ(mapping_number(drained_tasks->u.arr->item[0].u.map, "executor_safe"), 1);
   ASSERT_EQ(mapping_number(drained_tasks->u.arr->item[0].u.map, "main_required"), 0);
@@ -14954,7 +14737,8 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskMainDrainAndScheduleFailPendingFuture) {
   ASSERT_EQ(mapping_number(drain_failed, "requires_owner_message_completion"), 0);
   free_mapping(drain_failed);
 
-  auto* schedule_submitted = vm_owner_lpc_task(schedule_probe, schedule_owner, "owner_task_readonly");
+  auto* schedule_submitted =
+      vm_owner_lpc_task(schedule_probe, schedule_owner, "owner_task_readonly");
   auto schedule_future_id = mapping_number(schedule_submitted, "future_id");
   ASSERT_EQ(mapping_number(schedule_submitted, "success"), 1);
   ASSERT_EQ(mapping_number(schedule_submitted, "registered_task"), 1);
@@ -14974,8 +14758,10 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskMainDrainAndScheduleFailPendingFuture) {
   ASSERT_EQ(scheduled_tasks->type, T_ARRAY);
   ASSERT_EQ(scheduled_tasks->u.arr->size, 1);
   ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "task_type"), "lpc_task");
-  ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "task_key"), "owner_task_readonly");
-  ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "executor_mode"), "executor_safe");
+  ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "task_key"),
+               "owner_task_readonly");
+  ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "executor_mode"),
+               "executor_safe");
   ASSERT_STREQ(mapping_string(scheduled_tasks->u.arr->item[0].u.map, "route"), "owner_executor");
   ASSERT_EQ(mapping_number(scheduled_tasks->u.arr->item[0].u.map, "executor_safe"), 1);
   ASSERT_EQ(mapping_number(scheduled_tasks->u.arr->item[0].u.map, "main_required"), 0);
@@ -15050,7 +14836,8 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnsafeLpcCanaryRequestsDeltas) {
   ASSERT_EQ(mapping_number(running, "thread_lpc_canary_succeeded"), before_succeeded);
   ASSERT_GE(mapping_number(running, "thread_owner_cleared"), before_owner_cleared + 2);
   ASSERT_GE(mapping_number(running, "thread_execution_cleared"), before_execution_cleared + 2);
-  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"), before_canary_flag_cleared + 2);
+  ASSERT_GE(mapping_number(running, "thread_lpc_canary_flag_cleared"),
+            before_canary_flag_cleared + 2);
   ASSERT_EQ(mapping_number(running, "thread_context_leak_detected"), before_context_leaks);
   free_mapping(running);
 
@@ -15126,7 +14913,8 @@ TEST_F(DriverTest, TestVmOwnerMessageAndCommitTracesAreSpecOnly) {
   ASSERT_EQ(mapping_number(message_event, "message_only_cross_owner"), 1);
   free_mapping(message_trace);
 
-  auto* commit = vm_owner_record_commit_boundary(source_owner, target_owner, "move_object", message_id, "prepared");
+  auto* commit = vm_owner_record_commit_boundary(source_owner, target_owner, "move_object",
+                                                 message_id, "prepared");
   ASSERT_EQ(mapping_number(commit, "success"), 1);
   ASSERT_EQ(mapping_number(commit, "message_id"), message_id);
   ASSERT_EQ(mapping_number(commit, "direct_write"), 0);
@@ -15206,7 +14994,8 @@ TEST_F(DriverTest, TestVmOwnerFuturePollTracksMessageCompletion) {
   };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
-  auto* submitted = vm_owner_submit_message(source_owner, target_owner, "future_method", "future/payload");
+  auto* submitted =
+      vm_owner_submit_message(source_owner, target_owner, "future_method", "future/payload");
   auto future_id = mapping_number(submitted, "future_id");
   auto target_task_id = mapping_number(submitted, "target_task_id");
   ASSERT_GT(future_id, 0);
@@ -15252,7 +15041,8 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesOnlyCompletedFuture) {
   };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
-  auto* submitted = vm_owner_submit_message(source_owner, target_owner, "future_take", "future/take");
+  auto* submitted =
+      vm_owner_submit_message(source_owner, target_owner, "future_take", "future/take");
   auto future_id = mapping_number(submitted, "future_id");
   ASSERT_GT(future_id, 0);
   free_mapping(submitted);
@@ -15299,7 +15089,8 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesFailedFutureOnce) {
   };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
-  auto* submitted = vm_owner_submit_message(source_owner, target_owner, "future_take", "future/take-failed");
+  auto* submitted =
+      vm_owner_submit_message(source_owner, target_owner, "future_take", "future/take-failed");
   auto future_id = mapping_number(submitted, "future_id");
   ASSERT_GT(future_id, 0);
   free_mapping(submitted);
@@ -15337,7 +15128,8 @@ TEST_F(DriverTest, TestVmOwnerPurgeFailsPendingFuture) {
   };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
-  auto* submitted = vm_owner_submit_message(source_owner, target_owner, "future_method", "future/purge");
+  auto* submitted =
+      vm_owner_submit_message(source_owner, target_owner, "future_method", "future/purge");
   auto future_id = mapping_number(submitted, "future_id");
   auto target_task_id = mapping_number(submitted, "target_task_id");
   ASSERT_GT(future_id, 0);
@@ -15774,8 +15566,8 @@ TEST_F(DriverTest, TestVmOwnerWorkerNeverMutatesObjectRefcounts) {
   // Drive handle + message workloads on the worker: submit messages with a
   // target handle, let the worker dispatch them, drain everything.
   for (int i = 0; i < 8; i++) {
-    auto* submitted = vm_owner_submit_object_message(
-        "owner/test/worker/ref-probe-source", handle, "object_method", "ref/probe");
+    auto* submitted = vm_owner_submit_object_message("owner/test/worker/ref-probe-source", handle,
+                                                     "object_method", "ref/probe");
     ASSERT_EQ(mapping_number(submitted, "success"), 1);
     free_mapping(submitted);
   }
@@ -15821,8 +15613,8 @@ TEST_F(DriverTest, TestWebsocketTrustedProxyCidrParser) {
   EXPECT_EQ(cidrs[2].family, AF_INET6);
   EXPECT_EQ(cidrs[2].prefix_length, 32);
 
-  for (const char *invalid : {"127.0.0.1/33", "example.com/32", "127.0.0.1/32,",
-                              "::ffff:192.0.2.0/95"}) {
+  for (const char* invalid :
+       {"127.0.0.1/33", "example.com/32", "127.0.0.1/32,", "::ffff:192.0.2.0/95"}) {
     cidrs.clear();
     error.clear();
     EXPECT_FALSE(websocket_parse_trusted_proxy_cidrs(invalid, &cidrs, &error)) << invalid;
@@ -15832,18 +15624,18 @@ TEST_F(DriverTest, TestWebsocketTrustedProxyCidrParser) {
 }
 
 TEST_F(DriverTest, TestTlsClientIdentityAndMinimumProtocol) {
-  auto *ctx = tls_client_init();
+  auto* ctx = tls_client_init();
   ASSERT_NE(ctx, nullptr);
   EXPECT_EQ(SSL_CTX_get_min_proto_version(ctx), kTlsMinimumProtocolVersion);
 
-  auto *ssl = SSL_new(ctx);
+  auto* ssl = SSL_new(ctx);
   ASSERT_NE(ssl, nullptr);
   EXPECT_TRUE(tls_configure_client_identity(ssl, nullptr, 0, "example.com", true));
   EXPECT_TRUE(tls_configure_client_identity(ssl, nullptr, 0, "example.com", false));
   EXPECT_FALSE(tls_configure_client_identity(ssl, nullptr, 0, "", true));
   EXPECT_FALSE(tls_configure_client_identity(ssl, nullptr, 0, nullptr, true));
 
-  auto *server = tls_server_init(external_port[3].tls_cert, external_port[3].tls_key);
+  auto* server = tls_server_init(external_port[3].tls_cert, external_port[3].tls_key);
   ASSERT_NE(server, nullptr);
   EXPECT_EQ(SSL_CTX_get_min_proto_version(server), kTlsMinimumProtocolVersion);
   tls_server_close(server);
@@ -15877,8 +15669,7 @@ TEST_F(DriverTest, TestSysReloadTlsPermissionAndThreadMatrix) {
 
   auto set_authorized = [](int allowed) {
     push_number(allowed);
-    auto* ret = safe_apply("set_sys_reload_tls_allowed", master_ob, 1,
-                           ORIGIN_DRIVER);
+    auto* ret = safe_apply("set_sys_reload_tls_allowed", master_ob, 1, ORIGIN_DRIVER);
     EXPECT_NE(ret, nullptr);
   };
   auto call_reload = [probe](int port_index) -> std::string {
@@ -15935,15 +15726,12 @@ TEST_F(DriverTest, TestSysReloadTlsPermissionAndThreadMatrix) {
   const auto saved_key = tls_port.tls_key;
   const auto saved_ctx = tls_port.ssl;
   tls_port.tls_cert = "/nonexistent/sys-reload-tls-cert.pem";
-  EXPECT_NE(call_reload(4).find("Failed to reload TLS context"),
-            std::string::npos);
+  EXPECT_NE(call_reload(4).find("Failed to reload TLS context"), std::string::npos);
   EXPECT_EQ(tls_port.ssl, saved_ctx) << "failed reload must keep the old SSL_CTX";
   tls_port.tls_cert = saved_cert;
   tls_port.tls_key = "/nonexistent/sys-reload-tls-key.pem";
-  EXPECT_NE(call_reload(4).find("Failed to reload TLS context"),
-            std::string::npos);
-  EXPECT_EQ(tls_port.ssl, saved_ctx)
-      << "failed private-key load must keep the old SSL_CTX";
+  EXPECT_NE(call_reload(4).find("Failed to reload TLS context"), std::string::npos);
+  EXPECT_EQ(tls_port.ssl, saved_ctx) << "failed private-key load must keep the old SSL_CTX";
   tls_port.tls_key = saved_key;
   // The listener still works after the failed reload: a subsequent reload
   // with the valid certificate succeeds.
@@ -15958,10 +15746,8 @@ TEST_F(DriverTest, TestSysReloadTlsPermissionAndThreadMatrix) {
     object_t* probe2 = load_object_for_test("single/void");
     ASSERT_NE(probe2, nullptr);
     vm_owner_set_id(probe2, owner);
-    auto* submitted =
-        vm_owner_ordinary_lpc_task(probe2, owner, "call_sys_reload_tls_probe", 1);
-    auto future_id =
-        static_cast<uint64_t>(mapping_number(submitted, "future_id"));
+    auto* submitted = vm_owner_ordinary_lpc_task(probe2, owner, "call_sys_reload_tls_probe", 1);
+    auto future_id = static_cast<uint64_t>(mapping_number(submitted, "future_id"));
     ASSERT_EQ(mapping_number(submitted, "success"), 1);
     free_mapping(submitted);
     vm_owner_thread_start(1);
@@ -15979,10 +15765,8 @@ TEST_F(DriverTest, TestSysReloadTlsPermissionAndThreadMatrix) {
     auto* result = find_string_in_mapping(completed, "result");
     ASSERT_NE(result, nullptr);
     ASSERT_EQ(result->type, T_STRING);
-    EXPECT_NE(std::string(result->u.string).find("main thread"),
-              std::string::npos)
-        << "worker + authorized must be rejected for the thread: "
-        << result->u.string;
+    EXPECT_NE(std::string(result->u.string).find("main thread"), std::string::npos)
+        << "worker + authorized must be rejected for the thread: " << result->u.string;
     free_mapping(completed);
     auto* taken = vm_owner_future_take(future_id);
     ASSERT_EQ(mapping_number(taken, "consumed"), 1);
@@ -16033,8 +15817,7 @@ TEST_F(DriverTest, TestVmOwnerWorkerNestedObjectTargetSubmissionRejected) {
   // route (mapping results accepted; the probe method itself then attempts
   // owner_call_async / owner_async / vm_owner_lpc_task / ordinary LPC
   // submissions from the worker).
-  auto* submitted =
-      vm_owner_ordinary_lpc_task(probe, owner, "owner_nested_submission", 1);
+  auto* submitted = vm_owner_ordinary_lpc_task(probe, owner, "owner_nested_submission", 1);
   auto future_id = static_cast<uint64_t>(mapping_number(submitted, "future_id"));
   ASSERT_EQ(mapping_number(submitted, "success"), 1);
   ASSERT_GT(future_id, 0u);
@@ -16055,16 +15838,13 @@ TEST_F(DriverTest, TestVmOwnerWorkerNestedObjectTargetSubmissionRejected) {
   ASSERT_STREQ(mapping_string(completed, "state"), "completed");
   auto* result = mapping_mapping(completed, "result");
   ASSERT_NE(result, nullptr);
-  const char* kProbeKeys[] = {"owner_call_async", "owner_async",
-                              "vm_owner_lpc_task",
+  const char* kProbeKeys[] = {"owner_call_async", "owner_async", "vm_owner_lpc_task",
                               "vm_owner_ordinary_lpc_task"};
   for (const char* key : kProbeKeys) {
     auto* nested = mapping_mapping(result, key);
     ASSERT_NE(nested, nullptr) << key;
     EXPECT_EQ(mapping_number(nested, "success"), 0) << key;
-    EXPECT_STREQ(mapping_string(nested, "error"),
-                 "main_thread_admission_required")
-        << key;
+    EXPECT_STREQ(mapping_string(nested, "error"), "main_thread_admission_required") << key;
   }
   free_mapping(completed);
 
@@ -16111,7 +15891,8 @@ TEST_F(DriverTest, TestVmObjectHandleReportsBasicResolveFailures) {
   auto object_id_mismatch_status = vm_object_handle_resolve_status(object_id_mismatch_handle);
   ASSERT_EQ(object_id_mismatch_status.object, nullptr);
   ASSERT_EQ(object_id_mismatch_status.status, VMObjectHandleResolveStatus::kObjectIdMismatch);
-  ASSERT_STREQ(vm_object_handle_resolve_status_name(object_id_mismatch_status.status), "object_id_mismatch");
+  ASSERT_STREQ(vm_object_handle_resolve_status_name(object_id_mismatch_status.status),
+               "object_id_mismatch");
   ASSERT_TRUE(object_id_mismatch_status.diagnosed_via_owner_local_store);
   ASSERT_TRUE(object_id_mismatch_status.diagnosed_via_owner_local_path_index);
   ASSERT_FALSE(object_id_mismatch_status.diagnosed_via_owner_local_cross_shard);
@@ -16137,7 +15918,8 @@ TEST_F(DriverTest, TestVmObjectHandleReportsBasicResolveFailures) {
   auto object_not_found_status = vm_object_handle_resolve_status(object_not_found_handle);
   ASSERT_EQ(object_not_found_status.object, nullptr);
   ASSERT_EQ(object_not_found_status.status, VMObjectHandleResolveStatus::kObjectNotFound);
-  ASSERT_STREQ(vm_object_handle_resolve_status_name(object_not_found_status.status), "object_not_found");
+  ASSERT_STREQ(vm_object_handle_resolve_status_name(object_not_found_status.status),
+               "object_not_found");
   ASSERT_FALSE(object_not_found_status.diagnosed_via_owner_local_store);
   ASSERT_FALSE(object_not_found_status.diagnosed_via_owner_local_path_index);
   ASSERT_FALSE(object_not_found_status.diagnosed_via_owner_local_cross_shard);
@@ -16162,7 +15944,8 @@ TEST_F(DriverTest, TestVmObjectHandleReportsBasicResolveFailures) {
   ASSERT_TRUE(object_not_found_status.global_record_pointer_bridge_skip_reason.empty());
   ASSERT_TRUE(object_not_found_status.global_record_bridge_retirement_ready);
   ASSERT_TRUE(object_not_found_status.global_record_fallback_skipped);
-  ASSERT_EQ(object_not_found_status.global_record_fallback_reason, "global_record_bridge_retirement_ready");
+  ASSERT_EQ(object_not_found_status.global_record_fallback_reason,
+            "global_record_bridge_retirement_ready");
   ASSERT_FALSE(object_not_found_status.diagnosed_via_global_index);
   ASSERT_FALSE(object_not_found_status.resolved_via_global_index);
 
@@ -16190,9 +15973,8 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
   vm_object_store_register(obj);
   auto handle = vm_object_handle(obj);
   ASSERT_TRUE(handle.valid);
-  ASSERT_TRUE(
-      vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(handle.owner_id.c_str(),
-                                                                              handle.object_id));
+  ASSERT_TRUE(vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(
+      handle.owner_id.c_str(), handle.object_id));
 
   auto* store_status = vm_object_store_status();
   ASSERT_EQ(mapping_number(store_status, "owner_local_record_index_ready"), 1);
@@ -16208,7 +15990,9 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
   ASSERT_TRUE(ObjectTable::instance().insert(bridge_path, &live_only_object));
   struct ObjectTableEntryGuard {
     std::string path;
-    ~ObjectTableEntryGuard() { ObjectTable::instance().remove(path); }
+    ~ObjectTableEntryGuard() {
+      ObjectTable::instance().remove(path);
+    }
   } bridge_entry{bridge_path};
 
   VMObjectHandle bridge_handle;
@@ -16229,7 +16013,8 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
   ASSERT_FALSE(handle_status.global_record_pointer_bridge_found);
   ASSERT_TRUE(handle_status.global_record_pointer_bridge_source.empty());
   ASSERT_TRUE(handle_status.global_record_pointer_bridge_skipped);
-  ASSERT_EQ(handle_status.global_record_pointer_bridge_skip_reason, "global_record_bridge_retirement_ready");
+  ASSERT_EQ(handle_status.global_record_pointer_bridge_skip_reason,
+            "global_record_bridge_retirement_ready");
   ASSERT_TRUE(handle_status.global_record_bridge_retirement_ready);
   ASSERT_TRUE(handle_status.global_record_fallback_skipped);
   ASSERT_EQ(handle_status.global_record_fallback_reason, "global_record_bridge_retirement_ready");
@@ -16239,11 +16024,9 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
 
   // Worker-safe resolution is owner-local only: the same compatibility-only
   // object is rejected without touching either global bridge.
-  auto owner_local_status =
-      vm_object_handle_resolve_owner_local_status(bridge_handle);
+  auto owner_local_status = vm_object_handle_resolve_owner_local_status(bridge_handle);
   ASSERT_EQ(owner_local_status.object, nullptr);
-  ASSERT_EQ(owner_local_status.status,
-            VMObjectHandleResolveStatus::kObjectNotFound);
+  ASSERT_EQ(owner_local_status.status, VMObjectHandleResolveStatus::kObjectNotFound);
   ASSERT_FALSE(owner_local_status.global_live_object_found);
   ASSERT_TRUE(owner_local_status.global_live_object_source.empty());
   ASSERT_FALSE(owner_local_status.global_record_found);
@@ -16252,8 +16035,8 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
   ASSERT_FALSE(owner_local_status.diagnosed_via_global_index);
   ASSERT_FALSE(owner_local_status.resolved_via_global_index);
 
-  auto* path_lookup =
-      vm_object_store_owner_path_lookup_status("owner/test/pointer-bridge/missing", bridge_path.c_str());
+  auto* path_lookup = vm_object_store_owner_path_lookup_status("owner/test/pointer-bridge/missing",
+                                                               bridge_path.c_str());
   ASSERT_EQ(mapping_number(path_lookup, "success"), 1);
   ASSERT_EQ(mapping_number(path_lookup, "found"), 0);
   ASSERT_EQ(mapping_number(path_lookup, "owner_local_global_live_object_found"), 1);
@@ -16288,7 +16071,9 @@ TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeR
 TEST_F(DriverTest, TestVmNameLookupPrefersOwnerLocalPathIndex) {
   struct MulticoreModeGuard {
     int saved_mode;
-    ~MulticoreModeGuard() { CONFIG_INT(__RC_MULTICORE_MODE__) = saved_mode; }
+    ~MulticoreModeGuard() {
+      CONFIG_INT(__RC_MULTICORE_MODE__) = saved_mode;
+    }
   } mode_guard{CONFIG_INT(__RC_MULTICORE_MODE__)};
   CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_AUDIT;
 
@@ -16419,7 +16204,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(before, "storage_model"), "owner_local_store");
   ASSERT_EQ(mapping_number(before, "object_store_owner_fast_path_ready"), 1);
   ASSERT_EQ(mapping_number(before, "owner_local_fast_path_ready"), 1);
-  ASSERT_STREQ(mapping_string(before, "owner_local_fast_path_lock_model"), "shared_mutex_read_lock");
+  ASSERT_STREQ(mapping_string(before, "owner_local_fast_path_lock_model"),
+               "shared_mutex_read_lock");
   ASSERT_STREQ(mapping_string(before, "owner_local_lifecycle_write_model"),
                "owner_shard_canonical_with_global_compat_mirror");
   ASSERT_STREQ(mapping_string(before, "global_record_write_model"), "compatibility_mirror");
@@ -16439,15 +16225,19 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(before, "global_record_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(before, "global_record_bridge_retirement_ready"), 1);
   ASSERT_EQ(mapping_number(before, "global_live_object_bridge_retirement_ready"), 1);
-  ASSERT_EQ(mapping_number(before, "global_record_total"), mapping_number(before, "registered_objects"));
+  ASSERT_EQ(mapping_number(before, "global_record_total"),
+            mapping_number(before, "registered_objects"));
   ASSERT_GE(mapping_number(before, "global_live_record_total"), 1);
   free_mapping(before);
 
   auto handle = vm_object_handle(obj);
   ASSERT_NE(handle.object_path.find('#'), std::string::npos);
   ASSERT_EQ(vm_object_store_owner_resolve("owner/test/migration/a", handle.object_id), obj);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/migration/a", handle.object_path.c_str()), obj);
-  auto* old_lookup_before = vm_object_store_owner_lookup_status("owner/test/migration/a", handle.object_id);
+  ASSERT_EQ(
+      vm_object_store_owner_path_resolve("owner/test/migration/a", handle.object_path.c_str()),
+      obj);
+  auto* old_lookup_before =
+      vm_object_store_owner_lookup_status("owner/test/migration/a", handle.object_id);
   ASSERT_EQ(mapping_number(old_lookup_before, "success"), 1);
   ASSERT_EQ(mapping_number(old_lookup_before, "record_found"), 1);
   ASSERT_EQ(mapping_number(old_lookup_before, "found"), 1);
@@ -16458,7 +16248,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_destructed_record_found"), 0);
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_record_destructed"), 0);
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -16466,11 +16257,14 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_destructed_path_index_found"), 0);
-  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
-  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_record_source"), "vm_object_shard.local_records");
+  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_path_index_source"),
+               "vm_object_shard.object_path_index");
+  ASSERT_STREQ(mapping_string(old_lookup_before, "owner_local_record_source"),
+               "vm_object_shard.local_records");
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_canonical_record_ready"), 1);
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(old_lookup_before, "owner_local_store_complete"), 1);
@@ -16483,12 +16277,13 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(old_lookup_before, "record_owner_id"), "owner/test/migration/a");
   ASSERT_STREQ(mapping_string(old_lookup_before, "object_path"), handle.object_path.c_str());
   free_mapping(old_lookup_before);
-  auto* old_path_lookup_before =
-      vm_object_store_owner_path_lookup_status("owner/test/migration/a", handle.object_path.c_str());
+  auto* old_path_lookup_before = vm_object_store_owner_path_lookup_status(
+      "owner/test/migration/a", handle.object_path.c_str());
   ASSERT_EQ(mapping_number(old_path_lookup_before, "success"), 1);
   ASSERT_EQ(mapping_number(old_path_lookup_before, "record_found"), 1);
   ASSERT_EQ(mapping_number(old_path_lookup_before, "found"), 1);
-  ASSERT_EQ(mapping_number(old_path_lookup_before, "object_id"), static_cast<long>(handle.object_id));
+  ASSERT_EQ(mapping_number(old_path_lookup_before, "object_id"),
+            static_cast<long>(handle.object_id));
   ASSERT_EQ(mapping_number(old_path_lookup_before, "owner_local_object_ref_found"), 1);
   ASSERT_STREQ(mapping_string(old_path_lookup_before, "owner_local_object_ref_source"),
                "vm_object_shard.local_objects");
@@ -16515,7 +16310,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   vm_owner_set_id(obj, "owner/test/migration/b");
   auto migrated_handle_status = vm_object_handle_resolve_status(handle);
   ASSERT_EQ(migrated_handle_status.object, nullptr);
-  ASSERT_STREQ(vm_object_handle_resolve_status_name(migrated_handle_status.status), "owner_mismatch");
+  ASSERT_STREQ(vm_object_handle_resolve_status_name(migrated_handle_status.status),
+               "owner_mismatch");
   ASSERT_FALSE(migrated_handle_status.resolved_via_owner_local_store);
   ASSERT_TRUE(migrated_handle_status.diagnosed_via_owner_local_store);
   ASSERT_FALSE(migrated_handle_status.diagnosed_via_owner_local_path_index);
@@ -16533,7 +16329,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(status, "directory_model"), "owner_local_object_directory");
   ASSERT_STREQ(mapping_string(status, "storage_model"), "owner_local_store");
   ASSERT_EQ(mapping_number(status, "object_store_global_fallback_on_owner_fast_path"), 0);
-  ASSERT_STREQ(mapping_string(status, "object_store_owner_fast_path_scope"), "same_owner_handle_resolve");
+  ASSERT_STREQ(mapping_string(status, "object_store_owner_fast_path_scope"),
+               "same_owner_handle_resolve");
   ASSERT_EQ(mapping_number(status, "owner_local_global_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(status, "owner_local_to_global_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(status, "global_to_owner_local_bridge_consistent"), 1);
@@ -16556,7 +16353,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(status, "global_index_bridge"), 0);
   ASSERT_EQ(mapping_number(status, "global_record_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(status, "global_record_bridge_retirement_ready"), 1);
-  ASSERT_EQ(mapping_number(status, "global_record_total"), mapping_number(status, "registered_objects"));
+  ASSERT_EQ(mapping_number(status, "global_record_total"),
+            mapping_number(status, "registered_objects"));
   ASSERT_GE(mapping_number(status, "global_live_record_total"), 1);
   auto* migrations = find_string_in_mapping(status, "migrations");
   ASSERT_NE(migrations, nullptr);
@@ -16581,7 +16379,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(old_owner, "owner_local_path_index_count"), 0);
   ASSERT_EQ(mapping_number(old_owner, "owner_local_destructed_path_index_count"), 0);
   free_mapping(old_owner);
-  auto* old_lookup_after = vm_object_store_owner_lookup_status("owner/test/migration/a", handle.object_id);
+  auto* old_lookup_after =
+      vm_object_store_owner_lookup_status("owner/test/migration/a", handle.object_id);
   ASSERT_EQ(mapping_number(old_lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(old_lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(old_lookup_after, "found"), 0);
@@ -16615,9 +16414,11 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(old_lookup_after, "record_owner_id"), "owner/test/migration/b");
   free_mapping(old_lookup_after);
   ASSERT_EQ(vm_object_store_owner_resolve("owner/test/migration/a", handle.object_id), nullptr);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/migration/a", handle.object_path.c_str()), nullptr);
-  auto* old_path_lookup_after =
-      vm_object_store_owner_path_lookup_status("owner/test/migration/a", handle.object_path.c_str());
+  ASSERT_EQ(
+      vm_object_store_owner_path_resolve("owner/test/migration/a", handle.object_path.c_str()),
+      nullptr);
+  auto* old_path_lookup_after = vm_object_store_owner_path_lookup_status(
+      "owner/test/migration/a", handle.object_path.c_str());
   ASSERT_EQ(mapping_number(old_path_lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(old_path_lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(old_path_lookup_after, "found"), 0);
@@ -16635,7 +16436,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(old_path_lookup_after, "owner_local_object_ref_index_found"), 0);
   ASSERT_STREQ(mapping_string(old_path_lookup_after, "owner_local_object_ref_index_source"), "");
   ASSERT_EQ(mapping_number(old_path_lookup_after, "owner_local_object_pointer_index_found"), 0);
-  ASSERT_STREQ(mapping_string(old_path_lookup_after, "owner_local_object_pointer_index_source"), "");
+  ASSERT_STREQ(mapping_string(old_path_lookup_after, "owner_local_object_pointer_index_source"),
+               "");
   ASSERT_EQ(mapping_number(old_path_lookup_after, "owner_local_resolve_found"), 0);
   ASSERT_STREQ(mapping_string(old_path_lookup_after, "owner_local_resolve_source"), "");
   ASSERT_EQ(mapping_number(old_path_lookup_after, "owner_local_path_index_found"), 0);
@@ -16674,7 +16476,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(shard_contract->u.map, "shard_kind"), "vm_object_shard");
   ASSERT_STREQ(mapping_string(shard_contract->u.map, "status_model"), "owner_status_record");
   ASSERT_STREQ(mapping_string(shard_contract->u.map, "execution_model"), "owner_execution_shard");
-  ASSERT_STREQ(mapping_string(shard_contract->u.map, "directory_model"), "owner_local_object_directory");
+  ASSERT_STREQ(mapping_string(shard_contract->u.map, "directory_model"),
+               "owner_local_object_directory");
   ASSERT_STREQ(mapping_string(shard_contract->u.map, "storage_model"), "owner_local_store");
   ASSERT_EQ(mapping_number(shard_contract->u.map, "object_directory_count"), 1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_record_count"), 1);
@@ -16690,7 +16493,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_live_index_consistent"), 1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_object_ref_index_consistent"), 1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_destructed_path_index_consistent"), 1);
+  ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_destructed_path_index_consistent"),
+            1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_canonical_record_ready"), 1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(shard_contract->u.map, "owner_local_path_index_ready"), 1);
@@ -16711,23 +16515,29 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
             mapping_number(new_owner, "owner_local_directory_count"));
   auto* directory_record = directory->u.arr->item[0].u.map;
   ASSERT_EQ(mapping_number(directory_record, "object_id"), static_cast<long>(handle.object_id));
-  ASSERT_EQ(mapping_number(directory_record, "owner_epoch"), static_cast<long>(vm_owner_epoch(obj)));
+  ASSERT_EQ(mapping_number(directory_record, "owner_epoch"),
+            static_cast<long>(vm_owner_epoch(obj)));
   ASSERT_EQ(mapping_number(directory_record, "destructed"), 0);
   ASSERT_EQ(mapping_number(directory_record, "live"), 1);
   ASSERT_EQ(mapping_number(directory_record, "owner_local_directory_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_directory_source"), "vm_object_shard.object_directory");
+  ASSERT_STREQ(mapping_string(directory_record, "owner_local_directory_source"),
+               "vm_object_shard.object_directory");
   ASSERT_EQ(mapping_number(directory_record, "owner_local_record_snapshot"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_record_source"), "vm_object_shard.local_records");
+  ASSERT_STREQ(mapping_string(directory_record, "owner_local_record_source"),
+               "vm_object_shard.local_records");
   ASSERT_EQ(mapping_number(directory_record, "owner_local_object_ref_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(directory_record, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(directory_record, "owner_local_path_index_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
+  ASSERT_STREQ(mapping_string(directory_record, "owner_local_path_index_source"),
+               "vm_object_shard.object_path_index");
   ASSERT_EQ(mapping_number(directory_record, "resolved_via_owner_local_store"), 1);
   ASSERT_EQ(mapping_number(directory_record, "resolved_via_global_index"), 0);
   ASSERT_STREQ(mapping_string(directory_record, "owner_id"), "owner/test/migration/b");
   ASSERT_STREQ(mapping_string(directory_record, "object_path"), handle.object_path.c_str());
   free_mapping(new_owner);
-  auto* new_lookup_after = vm_object_store_owner_lookup_status("owner/test/migration/b", handle.object_id);
+  auto* new_lookup_after =
+      vm_object_store_owner_lookup_status("owner/test/migration/b", handle.object_id);
   ASSERT_EQ(mapping_number(new_lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(new_lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(new_lookup_after, "found"), 1);
@@ -16736,7 +16546,8 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_destructed_record_found"), 0);
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_record_destructed"), 0);
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -16744,15 +16555,18 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_destructed_path_index_found"), 0);
   expect_no_lookup_global_live_object(new_lookup_after);
   expect_no_lookup_global_record_id_scan(new_lookup_after);
   expect_no_lookup_global_record_pointer(new_lookup_after);
   expect_no_lookup_global_record_scan(new_lookup_after);
-  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_record_source"), "vm_object_shard.local_records");
-  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
+  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_record_source"),
+               "vm_object_shard.local_records");
+  ASSERT_STREQ(mapping_string(new_lookup_after, "owner_local_path_index_source"),
+               "vm_object_shard.object_path_index");
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_canonical_record_ready"), 1);
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(new_lookup_after, "owner_local_store_complete"), 1);
@@ -16762,13 +16576,16 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_STREQ(mapping_string(new_lookup_after, "object_path"), handle.object_path.c_str());
   free_mapping(new_lookup_after);
   ASSERT_EQ(vm_object_store_owner_resolve("owner/test/migration/b", handle.object_id), obj);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/migration/b", handle.object_path.c_str()), obj);
-  auto* new_path_lookup_after =
-      vm_object_store_owner_path_lookup_status("owner/test/migration/b", handle.object_path.c_str());
+  ASSERT_EQ(
+      vm_object_store_owner_path_resolve("owner/test/migration/b", handle.object_path.c_str()),
+      obj);
+  auto* new_path_lookup_after = vm_object_store_owner_path_lookup_status(
+      "owner/test/migration/b", handle.object_path.c_str());
   ASSERT_EQ(mapping_number(new_path_lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(new_path_lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(new_path_lookup_after, "found"), 1);
-  ASSERT_EQ(mapping_number(new_path_lookup_after, "object_id"), static_cast<long>(handle.object_id));
+  ASSERT_EQ(mapping_number(new_path_lookup_after, "object_id"),
+            static_cast<long>(handle.object_id));
   ASSERT_EQ(mapping_number(new_path_lookup_after, "owner_local_object_ref_found"), 1);
   ASSERT_STREQ(mapping_string(new_path_lookup_after, "owner_local_object_ref_source"),
                "vm_object_shard.local_objects");
@@ -16814,9 +16631,10 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(missing_object_lookup, "global_live_object_bridge_retirement_ready"), 1);
   ASSERT_EQ(mapping_number(missing_object_lookup, "owner_local_global_live_object_found"), 0);
   ASSERT_STREQ(mapping_string(missing_object_lookup, "owner_local_global_live_object_source"), "");
-  ASSERT_EQ(mapping_number(missing_object_lookup, "owner_local_global_live_object_fallback_skipped"), 0);
-  ASSERT_STREQ(mapping_string(missing_object_lookup, "owner_local_global_live_object_fallback_reason"),
-               "");
+  ASSERT_EQ(
+      mapping_number(missing_object_lookup, "owner_local_global_live_object_fallback_skipped"), 0);
+  ASSERT_STREQ(
+      mapping_string(missing_object_lookup, "owner_local_global_live_object_fallback_reason"), "");
   free_mapping(missing_object_lookup);
 
   std::string missing_path = handle.object_path + ".missing";
@@ -16841,9 +16659,11 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(missing_path_lookup, "global_live_object_bridge_retirement_ready"), 1);
   ASSERT_EQ(mapping_number(missing_path_lookup, "owner_local_global_live_object_found"), 0);
   ASSERT_STREQ(mapping_string(missing_path_lookup, "owner_local_global_live_object_source"), "");
-  ASSERT_EQ(mapping_number(missing_path_lookup, "owner_local_global_live_object_fallback_skipped"), 1);
-  ASSERT_STREQ(mapping_string(missing_path_lookup, "owner_local_global_live_object_fallback_reason"),
-               "global_live_object_bridge_retirement_ready");
+  ASSERT_EQ(mapping_number(missing_path_lookup, "owner_local_global_live_object_fallback_skipped"),
+            1);
+  ASSERT_STREQ(
+      mapping_string(missing_path_lookup, "owner_local_global_live_object_fallback_reason"),
+      "global_live_object_bridge_retirement_ready");
   free_mapping(missing_path_lookup);
 
   vm_owner_clear_id(obj);
@@ -16897,7 +16717,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   expect_owner_local_store_complete_contract(missing_owner);
   auto* missing_owner_shard_contract = find_string_in_mapping(missing_owner, "vm_object_shard");
   ASSERT_NE(missing_owner_shard_contract, nullptr);
-  ASSERT_EQ(missing_owner_shard_contract ? missing_owner_shard_contract->type : T_INVALID, T_MAPPING);
+  ASSERT_EQ(missing_owner_shard_contract ? missing_owner_shard_contract->type : T_INVALID,
+            T_MAPPING);
   ASSERT_EQ(mapping_number(missing_owner_shard_contract->u.map, "owner_local_store_ready"), 1);
   expect_owner_local_store_complete_contract(missing_owner_shard_contract->u.map);
   free_mapping(missing_owner);
@@ -16919,7 +16740,9 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_FALSE(handle_resolve.global_record_found);
   ASSERT_FALSE(handle_resolve.resolved_via_global_index);
   ASSERT_EQ(vm_object_store_owner_resolve("owner/test/store/destruct", handle.object_id), obj);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/store/destruct", handle.object_path.c_str()), obj);
+  ASSERT_EQ(
+      vm_object_store_owner_path_resolve("owner/test/store/destruct", handle.object_path.c_str()),
+      obj);
 
   auto* before = vm_object_store_owner_status("owner/test/store/destruct");
   ASSERT_EQ(mapping_number(before, "objects"), 1);
@@ -16938,7 +16761,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   expect_owner_local_store_complete_contract(before);
   auto before_destructed = mapping_number(before, "destructed");
   free_mapping(before);
-  auto* lookup_before = vm_object_store_owner_lookup_status("owner/test/store/destruct", handle.object_id);
+  auto* lookup_before =
+      vm_object_store_owner_lookup_status("owner/test/store/destruct", handle.object_id);
   ASSERT_EQ(mapping_number(lookup_before, "success"), 1);
   ASSERT_EQ(mapping_number(lookup_before, "record_found"), 1);
   ASSERT_EQ(mapping_number(lookup_before, "found"), 1);
@@ -16947,7 +16771,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_destructed_record_found"), 0);
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_record_destructed"), 0);
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(lookup_before, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -16955,7 +16780,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_STREQ(mapping_string(lookup_before, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_destructed_path_index_found"), 0);
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_canonical_record_ready"), 1);
@@ -16963,18 +16789,21 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(lookup_before, "owner_local_store_complete"), 1);
   ASSERT_STREQ(mapping_string(lookup_before, "owner_local_store_complete_blocker"), "");
   expect_no_lookup_global_live_object(lookup_before);
-  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_path_index_source"), "vm_object_shard.object_path_index");
-  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_record_source"), "vm_object_shard.local_records");
+  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_path_index_source"),
+               "vm_object_shard.object_path_index");
+  ASSERT_STREQ(mapping_string(lookup_before, "owner_local_record_source"),
+               "vm_object_shard.local_records");
   ASSERT_EQ(mapping_number(lookup_before, "destructed"), 0);
   free_mapping(lookup_before);
-  auto* path_lookup_before =
-      vm_object_store_owner_path_lookup_status("owner/test/store/destruct", handle.object_path.c_str());
+  auto* path_lookup_before = vm_object_store_owner_path_lookup_status("owner/test/store/destruct",
+                                                                      handle.object_path.c_str());
   ASSERT_EQ(mapping_number(path_lookup_before, "success"), 1);
   ASSERT_EQ(mapping_number(path_lookup_before, "record_found"), 1);
   ASSERT_EQ(mapping_number(path_lookup_before, "found"), 1);
   ASSERT_EQ(mapping_number(path_lookup_before, "object_id"), static_cast<long>(handle.object_id));
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_object_ref_found"), 1);
-  ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_object_ref_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_object_ref_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_object_ref_index_found"), 1);
   ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_object_ref_index_source"),
                "vm_object_shard.local_object_index");
@@ -16982,7 +16811,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_object_pointer_index_source"),
                "vm_object_shard.local_object_index");
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_resolve_found"), 1);
-  ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_resolve_source"), "vm_object_shard.local_objects");
+  ASSERT_STREQ(mapping_string(path_lookup_before, "owner_local_resolve_source"),
+               "vm_object_shard.local_objects");
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_path_index_found"), 1);
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_destructed_path_index_found"), 0);
   ASSERT_EQ(mapping_number(path_lookup_before, "owner_local_canonical_record_ready"), 1);
@@ -16997,7 +16827,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   destruct_object(obj);
   auto destructed_handle_status = vm_object_handle_resolve_status(handle);
   ASSERT_EQ(destructed_handle_status.object, nullptr);
-  ASSERT_STREQ(vm_object_handle_resolve_status_name(destructed_handle_status.status), "record_destructed");
+  ASSERT_STREQ(vm_object_handle_resolve_status_name(destructed_handle_status.status),
+               "record_destructed");
   ASSERT_FALSE(destructed_handle_status.resolved_via_owner_local_store);
   ASSERT_TRUE(destructed_handle_status.diagnosed_via_owner_local_store);
   ASSERT_FALSE(destructed_handle_status.diagnosed_via_owner_local_path_index);
@@ -17010,13 +16841,16 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   auto* store_after_destruct = vm_object_store_status();
   ASSERT_STREQ(mapping_string(store_after_destruct, "store_kind"), "vm_object_store");
   ASSERT_STREQ(mapping_string(store_after_destruct, "status_model"), "object_store_status");
-  ASSERT_STREQ(mapping_string(store_after_destruct, "directory_model"), "owner_local_object_directory");
+  ASSERT_STREQ(mapping_string(store_after_destruct, "directory_model"),
+               "owner_local_object_directory");
   ASSERT_STREQ(mapping_string(store_after_destruct, "storage_model"), "owner_local_store");
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_global_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_to_global_bridge_consistent"), 1);
   ASSERT_EQ(mapping_number(store_after_destruct, "global_to_owner_local_bridge_consistent"), 1);
-  ASSERT_STREQ(mapping_string(store_after_destruct, "owner_local_global_bridge_check"), "bidirectional");
-  ASSERT_STREQ(mapping_string(store_after_destruct, "owner_local_global_bridge_source"), "vm_object_shard");
+  ASSERT_STREQ(mapping_string(store_after_destruct, "owner_local_global_bridge_check"),
+               "bidirectional");
+  ASSERT_STREQ(mapping_string(store_after_destruct, "owner_local_global_bridge_source"),
+               "vm_object_shard");
   expect_owner_local_store_complete_contract(store_after_destruct);
   ASSERT_GE(mapping_number(store_after_destruct, "owner_local_destructed_record_total"), 1);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_object_ref_total"),
@@ -17024,7 +16858,9 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_GE(mapping_number(store_after_destruct, "owner_local_destructed_path_index_total"), 1);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_orphan_record_total"), 0);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_to_global_mismatch_record_total"), 0);
-  ASSERT_EQ(mapping_number(store_after_destruct, "global_to_owner_local_record_mismatch_record_total"), 0);
+  ASSERT_EQ(
+      mapping_number(store_after_destruct, "global_to_owner_local_record_mismatch_record_total"),
+      0);
   ASSERT_EQ(mapping_number(store_after_destruct, "global_to_owner_local_mismatch_record_total"), 0);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_record_index_ready"), 1);
   ASSERT_EQ(mapping_number(store_after_destruct, "owner_local_canonical_record_ready"), 1);
@@ -17040,7 +16876,9 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_GE(mapping_number(store_after_destruct, "global_destructed_record_total"), 1);
   free_mapping(store_after_destruct);
   ASSERT_EQ(vm_object_store_owner_resolve("owner/test/store/destruct", handle.object_id), nullptr);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/store/destruct", handle.object_path.c_str()), nullptr);
+  ASSERT_EQ(
+      vm_object_store_owner_path_resolve("owner/test/store/destruct", handle.object_path.c_str()),
+      nullptr);
 
   auto* after = vm_object_store_owner_status("owner/test/store/destruct");
   ASSERT_EQ(mapping_number(after, "objects"), 0);
@@ -17062,7 +16900,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   expect_owner_local_store_complete_contract(after);
   ASSERT_EQ(mapping_number(after, "destructed"), before_destructed + 1);
   free_mapping(after);
-  auto* lookup_after = vm_object_store_owner_lookup_status("owner/test/store/destruct", handle.object_id);
+  auto* lookup_after =
+      vm_object_store_owner_lookup_status("owner/test/store/destruct", handle.object_id);
   ASSERT_EQ(mapping_number(lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(lookup_after, "found"), 0);
@@ -17081,7 +16920,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(lookup_after, "owner_local_path_index_found"), 0);
   ASSERT_EQ(mapping_number(lookup_after, "owner_local_destructed_path_index_found"), 1);
   expect_no_lookup_global_live_object(lookup_after);
-  ASSERT_STREQ(mapping_string(lookup_after, "owner_local_record_source"), "vm_object_shard.destructed_records");
+  ASSERT_STREQ(mapping_string(lookup_after, "owner_local_record_source"),
+               "vm_object_shard.destructed_records");
   ASSERT_STREQ(mapping_string(lookup_after, "owner_local_path_index_source"),
                "vm_object_shard.destructed_path_index");
   ASSERT_EQ(mapping_number(lookup_after, "owner_local_canonical_record_ready"), 1);
@@ -17090,8 +16930,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_STREQ(mapping_string(lookup_after, "owner_local_store_complete_blocker"), "");
   ASSERT_EQ(mapping_number(lookup_after, "destructed"), 1);
   free_mapping(lookup_after);
-  auto* path_lookup_after =
-      vm_object_store_owner_path_lookup_status("owner/test/store/destruct", handle.object_path.c_str());
+  auto* path_lookup_after = vm_object_store_owner_path_lookup_status("owner/test/store/destruct",
+                                                                     handle.object_path.c_str());
   ASSERT_EQ(mapping_number(path_lookup_after, "success"), 1);
   ASSERT_EQ(mapping_number(path_lookup_after, "record_found"), 1);
   ASSERT_EQ(mapping_number(path_lookup_after, "found"), 0);
@@ -17119,8 +16959,11 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   free_mapping(path_lookup_after);
 
   vm_owner_set_id(obj, "owner/test/store/destruct-after");
-  ASSERT_EQ(vm_object_store_owner_resolve("owner/test/store/destruct-after", handle.object_id), nullptr);
-  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/store/destruct-after", handle.object_path.c_str()), nullptr);
+  ASSERT_EQ(vm_object_store_owner_resolve("owner/test/store/destruct-after", handle.object_id),
+            nullptr);
+  ASSERT_EQ(vm_object_store_owner_path_resolve("owner/test/store/destruct-after",
+                                               handle.object_path.c_str()),
+            nullptr);
   auto* moved_after_destruct = vm_object_store_owner_status("owner/test/store/destruct-after");
   ASSERT_EQ(mapping_number(moved_after_destruct, "objects"), 0);
   ASSERT_EQ(mapping_number(moved_after_destruct, "object_directory_count"), 0);
@@ -17134,25 +16977,32 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_live_index_consistent"), 1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_object_ref_index_consistent"), 1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_destructed_path_index_consistent"), 1);
+  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_destructed_path_index_consistent"),
+            1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_store_complete"), 1);
   expect_owner_local_store_complete_contract(moved_after_destruct);
   auto* empty_shard_contract = find_string_in_mapping(moved_after_destruct, "vm_object_shard");
   ASSERT_NE(empty_shard_contract, nullptr);
   ASSERT_EQ(empty_shard_contract ? empty_shard_contract->type : T_INVALID, T_MAPPING);
-  ASSERT_STREQ(mapping_string(empty_shard_contract->u.map, "directory_model"), "owner_local_object_directory");
+  ASSERT_STREQ(mapping_string(empty_shard_contract->u.map, "directory_model"),
+               "owner_local_object_directory");
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "object_directory_count"), 0);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_record_count"), 0);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_destructed_record_count"), 1);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_object_ref_count"), 0);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_object_ref_index_count"), 0);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_path_index_count"), 0);
-  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_destructed_path_index_count"), 1);
+  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_destructed_path_index_count"),
+            1);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_live_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_object_ref_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_destructed_path_index_consistent"), 1);
+  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_object_ref_index_consistent"),
+            1);
+  ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_live_path_index_consistent"),
+            1);
+  ASSERT_EQ(
+      mapping_number(empty_shard_contract->u.map, "owner_local_destructed_path_index_consistent"),
+      1);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_canonical_record_ready"), 1);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_directory_ready"), 1);
   ASSERT_EQ(mapping_number(empty_shard_contract->u.map, "owner_local_directory_from_shard"), 1);
@@ -17175,7 +17025,8 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(moved_lookup_after_destruct, "owner_local_resolve_found"), 0);
   ASSERT_STREQ(mapping_string(moved_lookup_after_destruct, "owner_local_resolve_source"), "");
   ASSERT_EQ(mapping_number(moved_lookup_after_destruct, "owner_local_path_index_found"), 0);
-  ASSERT_EQ(mapping_number(moved_lookup_after_destruct, "owner_local_destructed_path_index_found"), 1);
+  ASSERT_EQ(mapping_number(moved_lookup_after_destruct, "owner_local_destructed_path_index_found"),
+            1);
   expect_no_lookup_global_live_object(moved_lookup_after_destruct);
   ASSERT_STREQ(mapping_string(moved_lookup_after_destruct, "owner_local_record_source"),
                "vm_object_shard.destructed_records");
@@ -17183,16 +17034,20 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
                "vm_object_shard.destructed_path_index");
   ASSERT_EQ(mapping_number(moved_lookup_after_destruct, "destructed"), 1);
   free_mapping(moved_lookup_after_destruct);
-  auto* moved_path_lookup_after_destruct =
-      vm_object_store_owner_path_lookup_status("owner/test/store/destruct-after", handle.object_path.c_str());
+  auto* moved_path_lookup_after_destruct = vm_object_store_owner_path_lookup_status(
+      "owner/test/store/destruct-after", handle.object_path.c_str());
   ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "success"), 1);
   ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "record_found"), 1);
   ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "found"), 0);
-  ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "object_id"), static_cast<long>(handle.object_id));
+  ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "object_id"),
+            static_cast<long>(handle.object_id));
   ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "owner_local_object_ref_found"), 0);
-  ASSERT_STREQ(mapping_string(moved_path_lookup_after_destruct, "owner_local_object_ref_source"), "");
+  ASSERT_STREQ(mapping_string(moved_path_lookup_after_destruct, "owner_local_object_ref_source"),
+               "");
   ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "owner_local_path_index_found"), 0);
-  ASSERT_EQ(mapping_number(moved_path_lookup_after_destruct, "owner_local_destructed_path_index_found"), 1);
+  ASSERT_EQ(
+      mapping_number(moved_path_lookup_after_destruct, "owner_local_destructed_path_index_found"),
+      1);
   expect_no_lookup_global_live_object(moved_path_lookup_after_destruct);
   ASSERT_STREQ(mapping_string(moved_path_lookup_after_destruct, "owner_local_record_source"),
                "vm_object_shard.destructed_records");
@@ -17293,7 +17148,8 @@ TEST_F(DriverTest, TestVmWorkerSnapshotDigestUsesOwnerKey) {
 }
 
 TEST_F(DriverTest, TestVmWorkerAsyncSnapshotDigestPollsResult) {
-  auto task_id = vm_worker_submit_snapshot_digest("actor/async", "{\"hp\":100,\"room\":\"test\"}", 16);
+  auto task_id =
+      vm_worker_submit_snapshot_digest("actor/async", "{\"hp\":100,\"room\":\"test\"}", 16);
   ASSERT_GT(task_id, 0u);
 
   VMWorkerTaskResult result;
@@ -17708,7 +17564,8 @@ TEST_F(DriverTest, TestVmWorkerComputeResultRejectsCompletedWithoutFrozenFields)
   vm_owner_thread_stop();
   free_mapping(vm_owner_purge_mailbox(owner));
 
-  auto future_id = vm_owner_register_compute_future(owner, worker_task_id, "empty_result", "worker_compute");
+  auto future_id =
+      vm_owner_register_compute_future(owner, worker_task_id, "empty_result", "worker_compute");
   ASSERT_GT(future_id, 0u);
   auto* pending = vm_owner_future_poll(future_id);
   ASSERT_EQ(mapping_number(pending, "success"), 1);
@@ -17717,8 +17574,8 @@ TEST_F(DriverTest, TestVmWorkerComputeResultRejectsCompletedWithoutFrozenFields)
   ASSERT_EQ(mapping_number(pending, "frozen_result"), 0);
   free_mapping(pending);
 
-  auto result_task_id = vm_owner_enqueue_compute_result(owner, worker_task_id, "empty_result", "completed",
-                                                       "empty_result", "");
+  auto result_task_id = vm_owner_enqueue_compute_result(owner, worker_task_id, "empty_result",
+                                                        "completed", "empty_result", "");
   ASSERT_GT(result_task_id, 0u);
   auto* queued = vm_owner_mailbox_status(owner);
   ASSERT_EQ(mapping_number(queued, "owner_queue_depth"), 1);
@@ -17749,7 +17606,8 @@ TEST_F(DriverTest, TestVmWorkerComputeResultRejectsCompletedWithoutFrozenFields)
 }
 
 TEST_F(DriverTest, TestVmWorkerV2EnvelopeKeepsResultUntilTtl) {
-  auto task_id = vm_worker_submit_snapshot_digest_v2("actor/envelope", "{\"hp\":100}", 8, 1000, 5000);
+  auto task_id =
+      vm_worker_submit_snapshot_digest_v2("actor/envelope", "{\"hp\":100}", 8, 1000, 5000);
   ASSERT_GT(task_id, 0u);
 
   VMWorkerTaskResult result;
@@ -17839,7 +17697,8 @@ TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesBenchmarkResult) {
   ASSERT_EQ(mapping_number(result_map->u.map, "tasks"), result.bench.tasks);
   ASSERT_EQ(mapping_number(result_map->u.map, "worker_count"), result.bench.worker_count);
   ASSERT_EQ(mapping_number(result_map->u.map, "max_parallel"), result.bench.max_parallel);
-  ASSERT_EQ(mapping_number(result_map->u.map, "checksum"), static_cast<long>(result.bench.checksum));
+  ASSERT_EQ(mapping_number(result_map->u.map, "checksum"),
+            static_cast<long>(result.bench.checksum));
   free_mapping(completed);
 }
 

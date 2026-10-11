@@ -5,21 +5,21 @@
 // bits as pointers and crash the driver; all must now be clean catchable
 // errors, and the well-typed case must keep working exactly as before.
 void do_tests() {
-    mixed err;
-    mixed not_an_int;
-    mixed not_an_array;
+  mixed err;
+  mixed not_an_int;
+  mixed not_an_array;
 
-    not_an_int = 5;
-    not_an_array = 5;
+  not_an_int = 5;
+  not_an_array = 5;
 
-    err = catch(pcre_replace("ab cd", "(\\w+) (\\w+)", not_an_array));
-    ASSERT(err);
-    err = catch(pcre_replace(not_an_int, "(\\w+) (\\w+)", ({"cd", "ab"})));
-    ASSERT(err);
-    err = catch(pcre_replace("ab cd", not_an_int, ({"cd", "ab"})));
-    ASSERT(err);
-    err = catch(pcre_replace("ab cd", "(\\w+) (\\w+)", ({1, 2})));
-    ASSERT(err);
+  err = catch(pcre_replace("ab cd", "(\\w+) (\\w+)", not_an_array));
+  ASSERT(err);
+  err = catch(pcre_replace(not_an_int, "(\\w+) (\\w+)", ({ "cd", "ab" })));
+  ASSERT(err);
+  err = catch(pcre_replace("ab cd", not_an_int, ({ "cd", "ab" })));
+  ASSERT(err);
+  err = catch(pcre_replace("ab cd", "(\\w+) (\\w+)", ({ 1, 2 })));
+  ASSERT(err);
 
-    ASSERT_EQ("cd ab", pcre_replace("ab cd", "(\\w+) (\\w+)", ({"cd", "ab"})));
+  ASSERT_EQ("cd ab", pcre_replace("ab cd", "(\\w+) (\\w+)", ({ "cd", "ab" })));
 }

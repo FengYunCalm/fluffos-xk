@@ -33,7 +33,7 @@ private void check_file() {
   }
 
   ASSERT2(file_size(TRACE_FILE) > 0,
-         "a later trace produced no file after the previous trace filled its buffer");
+    "a later trace produced no file after the previous trace filled its buffer");
   // Give the asynchronous writer time to finish before unlinking its path.
   call_out((: cleanup_file :), 1);
 }

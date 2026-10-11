@@ -26,15 +26,21 @@ void f_perf_counter_ns() {
 #endif
 
 #ifdef F_PERFORMANCE_WALL_TIME_NS
-void f_performance_wall_time_ns() { push_number(get_current_performance_wall_time_ns()); }
+void f_performance_wall_time_ns() {
+  push_number(get_current_performance_wall_time_ns());
+}
 #endif
 
 #ifdef F_THREAD_CPU_TIME_NS
-void f_thread_cpu_time_ns() { push_number(get_current_thread_cpu_time_ns()); }
+void f_thread_cpu_time_ns() {
+  push_number(get_current_thread_cpu_time_ns());
+}
 #endif
 
 #ifdef F_TIME
-void f_time() { push_number(get_current_time()); }
+void f_time() {
+  push_number(get_current_time());
+}
 #endif
 
 #ifdef F_TIME_NS
@@ -48,7 +54,7 @@ void f_time_ns() {
 void f_ctime() {
   char buf[255] = {};
   const char *cp = buf, *nl;
-  char *p;
+  char* p;
   int l;
   time_t timestamp;
 
@@ -84,7 +90,7 @@ void f_localtime() {
   struct tm res = {};
   time_t lt;
   lt = sp->u.number;
-  auto *tm = localtime_r(&lt, &res);
+  auto* tm = localtime_r(&lt, &res);
 
   pop_stack();
 
@@ -93,7 +99,7 @@ void f_localtime() {
     return;
   }
 
-  auto *vec = allocate_empty_array(11);
+  auto* vec = allocate_empty_array(11);
 
   vec->item[LT_SEC].type = T_NUMBER;
   vec->item[LT_SEC].u.number = tm->tm_sec;
@@ -133,12 +139,13 @@ void f_localtime() {
 #ifdef F_STRFTIME
 void f_strftime() {
   auto arg_time = sp->u.number;
-  const auto *arg_fmt = (sp - 1)->u.string;
+  const auto* arg_fmt = (sp - 1)->u.string;
 
   time_t lt = arg_time;
-  if (lt <= 0) lt = get_current_time();
+  if (lt <= 0)
+    lt = get_current_time();
   struct tm res = {};
-  const struct tm *res_tm = localtime_r(&lt, &res);
+  const struct tm* res_tm = localtime_r(&lt, &res);
   if (!res_tm) {
     error("Invalid time passed to strftime");
   }
@@ -158,13 +165,13 @@ void f_strftime() {
 
 #ifdef F_STRPTIME
 void f_strptime() {
-  const auto *arg_timestr = (sp)->u.string;
-  const auto *arg_fmt = (sp - 1)->u.string;
+  const auto* arg_timestr = (sp)->u.string;
+  const auto* arg_fmt = (sp - 1)->u.string;
 
   struct tm res = {};
   res.tm_isdst = -1;  // make sure mktime check local dst time
 #ifndef _WIN32
-  auto *p = strptime(arg_timestr, arg_fmt, &res);
+  auto* p = strptime(arg_timestr, arg_fmt, &res);
   if (p == nullptr) {
     error("strptime() parse failed.");
   }

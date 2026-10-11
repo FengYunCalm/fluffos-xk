@@ -16,9 +16,8 @@ constexpr int kMaxFrozenDepth = 32;
 constexpr uint64_t kMaxFrozenNodes = 65536;
 
 uint64_t saturating_add(uint64_t a, uint64_t b) {
-  return a > std::numeric_limits<uint64_t>::max() - b
-             ? std::numeric_limits<uint64_t>::max()
-             : a + b;
+  return a > std::numeric_limits<uint64_t>::max() - b ? std::numeric_limits<uint64_t>::max()
+                                                      : a + b;
 }
 
 uint64_t saturating_multiply(uint64_t a, uint64_t b) {
@@ -32,7 +31,7 @@ uint64_t saturating_multiply(uint64_t a, uint64_t b) {
 // undercount); constant strings fall back to strlen. No global scratch
 // state is used (COUNTED_STRLEN is not thread-safe and must not be used
 // from the store lock).
-uint64_t owner_future_string_bytes(const svalue_t *sv) {
+uint64_t owner_future_string_bytes(const svalue_t* sv) {
   if (!sv->u.string) {
     return 0;
   }
@@ -49,29 +48,27 @@ struct FrozenWeightState {
 };
 
 // Forward declaration: the mapping node callback below recurses into it.
-void owner_future_frozen_bytes_internal(const svalue_t *value,
-                                        FrozenWeightState *state, int depth);
+void owner_future_frozen_bytes_internal(const svalue_t* value, FrozenWeightState* state, int depth);
 
-void owner_future_frozen_weight_exhausted(FrozenWeightState *state) {
+void owner_future_frozen_weight_exhausted(FrozenWeightState* state) {
   state->exhausted = true;
   state->bytes = std::numeric_limits<uint64_t>::max();
 }
 
 struct FrozenWeightMapContext {
-  FrozenWeightState *state;
+  FrozenWeightState* state;
   int child_depth;
 };
 
-int owner_future_frozen_map_node(mapping_t * /*map*/, mapping_node_t *node,
-                                 void *opaque) {
-  auto *context = static_cast<FrozenWeightMapContext *>(opaque);
-  auto *state = context->state;
+int owner_future_frozen_map_node(mapping_t* /*map*/, mapping_node_t* node, void* opaque) {
+  auto* context = static_cast<FrozenWeightMapContext*>(opaque);
+  auto* state = context->state;
   if (state->exhausted) {
     return 1;
   }
   // Both the key and the value of every mapping pair are metered.
-  auto *key = &node->values[0];
-  auto *value = &node->values[1];
+  auto* key = &node->values[0];
+  auto* value = &node->values[1];
   state->bytes = saturating_add(state->bytes, sizeof(svalue_t));
   owner_future_frozen_bytes_internal(key, state, context->child_depth);
   owner_future_frozen_bytes_internal(value, state, context->child_depth);
@@ -83,8 +80,8 @@ int owner_future_frozen_map_node(mapping_t * /*map*/, mapping_node_t *node,
 // not an exact memory measurement. Mapping keys AND values are counted,
 // recursion is depth-bounded, node count is bounded, and all additions
 // saturate so a pathological value can never overflow the accounting.
-void owner_future_frozen_bytes_internal(const svalue_t *value,
-                                        FrozenWeightState *state, int depth) {
+void owner_future_frozen_bytes_internal(const svalue_t* value, FrozenWeightState* state,
+                                        int depth) {
   if (!value || !state || state->exhausted) {
     return;
   }
@@ -102,8 +99,7 @@ void owner_future_frozen_bytes_internal(const svalue_t *value,
       if (value->u.arr) {
         state->bytes = saturating_add(state->bytes, sizeof(array_t));
         for (int i = 0; i < value->u.arr->size; i++) {
-          owner_future_frozen_bytes_internal(&value->u.arr->item[i], state,
-                                             depth - 1);
+          owner_future_frozen_bytes_internal(&value->u.arr->item[i], state, depth - 1);
           if (state->exhausted) {
             break;
           }
@@ -114,9 +110,8 @@ void owner_future_frozen_bytes_internal(const svalue_t *value,
       if (value->u.map) {
         state->bytes = saturating_add(state->bytes, sizeof(mapping_t));
         state->bytes = saturating_add(
-            state->bytes,
-            saturating_multiply(static_cast<uint64_t>(MAP_COUNT(value->u.map)),
-                                sizeof(mapping_node_t)));
+            state->bytes, saturating_multiply(static_cast<uint64_t>(MAP_COUNT(value->u.map)),
+                                              sizeof(mapping_node_t)));
         FrozenWeightMapContext context{state, depth - 1};
         mapTraverse(value->u.map, owner_future_frozen_map_node, &context);
       }
@@ -126,14 +121,13 @@ void owner_future_frozen_bytes_internal(const svalue_t *value,
   }
 }
 
-uint64_t owner_future_frozen_bytes(const svalue_t *value) {
+uint64_t owner_future_frozen_bytes(const svalue_t* value) {
   FrozenWeightState state;
   owner_future_frozen_bytes_internal(value, &state, kMaxFrozenDepth);
   return state.bytes;
 }
 
-bool owner_future_total_payload_cap_breached(int64_t current_bytes,
-                                             uint64_t removed_bytes,
+bool owner_future_total_payload_cap_breached(int64_t current_bytes, uint64_t removed_bytes,
                                              uint64_t added_bytes) {
   if (current_bytes < 0) {
     return true;
@@ -147,11 +141,10 @@ bool owner_future_total_payload_cap_breached(int64_t current_bytes,
          remaining > OwnerFutureStore::kMaxTotalPayloadBytes - added_bytes;
 }
 
-uint64_t owner_future_payload_bytes(const OwnerFutureRecord &record) {
+uint64_t owner_future_payload_bytes(const OwnerFutureRecord& record) {
   uint64_t bytes = 0;
   if (record.native_string_result) {
-    bytes = saturating_add(bytes,
-                           record.native_string_result->size() + sizeof(std::string));
+    bytes = saturating_add(bytes, record.native_string_result->size() + sizeof(std::string));
   }
   if (record.result) {
     bytes = saturating_add(bytes, owner_future_frozen_bytes(&record.result->value));
@@ -159,7 +152,7 @@ uint64_t owner_future_payload_bytes(const OwnerFutureRecord &record) {
   return bytes;
 }
 
-bool owner_future_terminal_state_valid(const char *state) {
+bool owner_future_terminal_state_valid(const char* state) {
   return !state || state[0] == '\0' || std::strcmp(state, "completed") == 0 ||
          std::strcmp(state, "failed") == 0;
 }
@@ -179,7 +172,7 @@ void OwnerFutureStore::assert_counts_locked() const {
 #ifndef NDEBUG
   size_t terminal = 0;
   int64_t payload_bytes = 0;
-  for (const auto &entry : futures_) {
+  for (const auto& entry : futures_) {
     if (entry.second.state != "pending") {
       terminal++;
       payload_bytes += static_cast<int64_t>(owner_future_payload_bytes(entry.second));
@@ -188,17 +181,15 @@ void OwnerFutureStore::assert_counts_locked() const {
   assert(terminal == terminal_records_);
   assert(payload_bytes == terminal_payload_bytes_);
   assert(terminal_all_by_time_.size() == terminal_all_time_index_.size());
-  assert(terminal_reapable_by_time_.size() ==
-         terminal_reapable_time_index_.size());
+  assert(terminal_reapable_by_time_.size() == terminal_reapable_time_index_.size());
   // Lifecycle slot invariant: pending + terminal never exceeds the reserved
   // slot cap for admitted records.
-  assert(static_cast<size_t>(pending_.load(std::memory_order_relaxed)) +
-             terminal_records_ <=
+  assert(static_cast<size_t>(pending_.load(std::memory_order_relaxed)) + terminal_records_ <=
          kMaxTerminalRecords);
 #endif
 }
 
-void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord &record) {
+void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord& record) {
   if (record.state == "pending" || record.terminal_at_ns == 0) {
     return;
   }
@@ -214,8 +205,7 @@ void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord &rec
 
   // Reapable index: payload-free records only, so reap scans stay bounded
   // and payload-bearing records are never auto-dropped.
-  const bool has_payload =
-      record.result != nullptr || record.native_string_result != nullptr;
+  const bool has_payload = record.result != nullptr || record.native_string_result != nullptr;
   if (has_payload) {
     auto existing_reap = terminal_reapable_time_index_.find(record.future_id);
     if (existing_reap != terminal_reapable_time_index_.end()) {
@@ -233,7 +223,7 @@ void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord &rec
       terminal_reapable_by_time_.emplace(record.terminal_at_ns, record.future_id);
 }
 
-void OwnerFutureStore::unindex_terminal_record_locked(const OwnerFutureRecord &record) {
+void OwnerFutureStore::unindex_terminal_record_locked(const OwnerFutureRecord& record) {
   if (record.state == "pending") {
     return;
   }
@@ -253,12 +243,13 @@ void OwnerFutureStore::unindex_terminal_record_locked(const OwnerFutureRecord &r
   }
 }
 
-OwnerFutureRecord OwnerFutureStore::reject_pending_by_quota_locked(uint64_t future_id, const char *reason) {
+OwnerFutureRecord OwnerFutureStore::reject_pending_by_quota_locked(uint64_t future_id,
+                                                                   const char* reason) {
   auto it = futures_.find(future_id);
   if (it == futures_.end() || it->second.state != "pending") {
     return OwnerFutureRecord{};
   }
-  OwnerFutureRecord &record = it->second;
+  OwnerFutureRecord& record = it->second;
   record.state = "failed";
   record.result_key.clear();
   record.error = normalize_text(reason, "future quota exceeded");
@@ -286,8 +277,7 @@ bool OwnerFutureStore::admit_pending(OwnerFutureRecord record) {
   }
   auto future_id = record.future_id;
   auto existing = futures_.find(future_id);
-  const bool replacing_pending =
-      existing != futures_.end() && existing->second.state == "pending";
+  const bool replacing_pending = existing != futures_.end() && existing->second.state == "pending";
   if (existing != futures_.end() && existing->second.state != "pending") {
     // A terminal id cannot be re-admitted as pending: the slot is occupied
     // until take/reap. restore_terminal_checked is the only terminal path.
@@ -300,8 +290,7 @@ bool OwnerFutureStore::admit_pending(OwnerFutureRecord record) {
   // exceed the slot cap and no completion can ever be forced to drop a
   // record. This is what makes 'admission success -> queryable terminal'
   // an invariant instead of a best effort.
-  const size_t reserved_after =
-      static_cast<size_t>(pending_after) + terminal_records_;
+  const size_t reserved_after = static_cast<size_t>(pending_after) + terminal_records_;
   if (reserved_after > kMaxTerminalRecords) {
     capacity_rejects_.fetch_add(1, std::memory_order_relaxed);
     return false;
@@ -334,10 +323,8 @@ bool OwnerFutureStore::restore_terminal_checked(OwnerFutureRecord record) {
   }
   auto future_id = record.future_id;
   auto existing = futures_.find(future_id);
-  const bool replacing_terminal =
-      existing != futures_.end() && existing->second.state != "pending";
-  const bool replacing_pending =
-      existing != futures_.end() && existing->second.state == "pending";
+  const bool replacing_terminal = existing != futures_.end() && existing->second.state != "pending";
+  const bool replacing_pending = existing != futures_.end() && existing->second.state == "pending";
   if (replacing_pending) {
     return false;
   }
@@ -362,8 +349,7 @@ bool OwnerFutureStore::restore_terminal_checked(OwnerFutureRecord record) {
   if (replacing_terminal) {
     unindex_terminal_record_locked(existing->second);
     terminal_records_--;
-    terminal_payload_bytes_ -=
-        static_cast<int64_t>(owner_future_payload_bytes(existing->second));
+    terminal_payload_bytes_ -= static_cast<int64_t>(owner_future_payload_bytes(existing->second));
     erase_task_index_entry(existing->second.target_task_id, future_id);
   }
   auto target_task_id = record.target_task_id;
@@ -432,8 +418,7 @@ bool OwnerFutureStore::has_pending_for_task(uint64_t target_task_id) const {
   const auto range = future_ids_by_task_.equal_range(target_task_id);
   for (auto it = range.first; it != range.second; ++it) {
     const auto future_it = futures_.find(it->second);
-    if (future_it != futures_.end() &&
-        future_it->second.target_task_id == target_task_id &&
+    if (future_it != futures_.end() && future_it->second.target_task_id == target_task_id &&
         future_it->second.state == "pending") {
       return true;
     }
@@ -441,9 +426,9 @@ bool OwnerFutureStore::has_pending_for_task(uint64_t target_task_id) const {
   return false;
 }
 
-std::optional<OwnerFutureCompletion> OwnerFutureStore::complete(uint64_t future_id, const char *state,
-                                                                const char *result_key, const char *error,
-                                                                std::shared_ptr<VMFrozenValue> result) {
+std::optional<OwnerFutureCompletion> OwnerFutureStore::complete(
+    uint64_t future_id, const char* state, const char* result_key, const char* error,
+    std::shared_ptr<VMFrozenValue> result) {
   if (!owner_future_terminal_state_valid(state)) {
     return std::nullopt;
   }
@@ -452,15 +437,16 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete(uint64_t future_
   if (it == futures_.end() || it->second.state != "pending") {
     return std::nullopt;
   }
-  auto completion = complete_record(it->second, state, result_key, error, std::move(result), nullptr);
+  auto completion =
+      complete_record(it->second, state, result_key, error, std::move(result), nullptr);
   lock.unlock();
   completion.target_status = target_status(completion.record);
   return completion;
 }
 
-std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_for_task(uint64_t target_task_id, const char *state,
-                                                                         const char *result_key, const char *error,
-                                                                         std::shared_ptr<VMFrozenValue> result) {
+std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_for_task(
+    uint64_t target_task_id, const char* state, const char* result_key, const char* error,
+    std::shared_ptr<VMFrozenValue> result) {
   if (!owner_future_terminal_state_valid(state)) {
     return std::nullopt;
   }
@@ -474,7 +460,8 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_for_task(uint64_
       continue;
     }
     if (future_it->second.state == "pending") {
-      auto completion = complete_record(future_it->second, state, result_key, error, std::move(result), nullptr);
+      auto completion =
+          complete_record(future_it->second, state, result_key, error, std::move(result), nullptr);
       lock.unlock();
       completion.target_status = target_status(completion.record);
       return completion;
@@ -484,24 +471,23 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_for_task(uint64_
 }
 
 std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_string_for_task(
-    uint64_t target_task_id, const char *result_key, std::string result) {
+    uint64_t target_task_id, const char* result_key, std::string result) {
   std::unique_lock<std::mutex> lock(mutex_);
   auto range = future_ids_by_task_.equal_range(target_task_id);
   for (auto index_it = range.first; index_it != range.second;) {
     auto current_index = index_it++;
     auto future_it = futures_.find(current_index->second);
-    if (future_it == futures_.end() ||
-        future_it->second.target_task_id != target_task_id) {
+    if (future_it == futures_.end() || future_it->second.target_task_id != target_task_id) {
       future_ids_by_task_.erase(current_index);
       continue;
     }
-    auto &record = future_it->second;
+    auto& record = future_it->second;
     if (record.state != "pending") {
       continue;
     }
     auto native = std::make_shared<const std::string>(std::move(result));
-    auto completion = complete_record(record, "completed", result_key, "",
-                                      nullptr, std::move(native));
+    auto completion =
+        complete_record(record, "completed", result_key, "", nullptr, std::move(native));
     lock.unlock();
     completion.target_status = target_status(completion.record);
     return completion;
@@ -509,8 +495,8 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_string_for_task(
   return std::nullopt;
 }
 
-OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(uint64_t future_id, const char *reason, bool cancelled,
-                                                          bool timed_out) {
+OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(uint64_t future_id, const char* reason,
+                                                          bool cancelled, bool timed_out) {
   std::unique_lock<std::mutex> lock(mutex_);
   OwnerFutureTerminalResult result;
   auto it = futures_.find(future_id);
@@ -519,7 +505,7 @@ OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(uint64_t future_id, co
   }
 
   result.found = true;
-  auto &future = it->second;
+  auto& future = it->second;
   if (future.state == "pending") {
     // The lifecycle slot was reserved at admission, so the terminal cap
     // cannot be hit here for an admitted future; the defensive path below
@@ -653,19 +639,19 @@ void OwnerFutureStore::reap_expired_terminal_locked() {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void OwnerFutureStore::mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const {
+void OwnerFutureStore::mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &entry : futures_) {
+  for (const auto& entry : futures_) {
     vm_mark_frozen_value_once(entry.second.result, seen);
   }
 }
 #endif
 
-const char *OwnerFutureStore::normalize_text(const char *text, const char *fallback) {
+const char* OwnerFutureStore::normalize_text(const char* text, const char* fallback) {
   return text && text[0] != '\0' ? text : fallback;
 }
 
-VMObjectHandleResolveStatus OwnerFutureStore::target_status(const OwnerFutureRecord &record) {
+VMObjectHandleResolveStatus OwnerFutureStore::target_status(const OwnerFutureRecord& record) {
   return record.has_target_handle ? vm_object_handle_resolve_status(record.target_handle).status
                                   : VMObjectHandleResolveStatus::kCurrent;
 }
@@ -680,10 +666,9 @@ void OwnerFutureStore::erase_task_index_entry(uint64_t target_task_id, uint64_t 
   }
 }
 
-OwnerFutureCompletion OwnerFutureStore::complete_record(OwnerFutureRecord &record, const char *state,
-                                                        const char *result_key, const char *error,
-                                                        std::shared_ptr<VMFrozenValue> result,
-                                                        std::shared_ptr<const std::string> native_string) {
+OwnerFutureCompletion OwnerFutureStore::complete_record(
+    OwnerFutureRecord& record, const char* state, const char* result_key, const char* error,
+    std::shared_ptr<VMFrozenValue> result, std::shared_ptr<const std::string> native_string) {
   // Enforce quotas before transitioning pending -> terminal. A breach is a
   // deterministic rejection: the record is terminalized as a payload-free
   // FAILED tombstone in its reserved slot (never erased, never unknown) and
@@ -692,29 +677,25 @@ OwnerFutureCompletion OwnerFutureStore::complete_record(OwnerFutureRecord &recor
   const bool wants_native_result = native_string != nullptr;
   const uint64_t payload_bytes =
       wants_frozen_result ? owner_future_frozen_bytes(&result->value)
-                          : (wants_native_result
-                                 ? native_string->size() + sizeof(std::string)
-                                 : 0);
+                          : (wants_native_result ? native_string->size() + sizeof(std::string) : 0);
   const bool single_cap_breach = payload_bytes > kMaxSinglePayloadBytes;
-  const bool total_cap_breach = owner_future_total_payload_cap_breached(
-      terminal_payload_bytes_, 0, payload_bytes);
+  const bool total_cap_breach =
+      owner_future_total_payload_cap_breached(terminal_payload_bytes_, 0, payload_bytes);
   // The lifecycle slot was reserved at admission, so the terminal record cap
   // cannot be breached by an admitted pending; this stays as a defensive
   // check that also keeps a tombstone rather than erasing the record.
   if (terminal_records_ >= kMaxTerminalRecords ||
-      ((wants_frozen_result || wants_native_result) &&
-       (single_cap_breach || total_cap_breach))) {
+      ((wants_frozen_result || wants_native_result) && (single_cap_breach || total_cap_breach))) {
     byte_rejects_.fetch_add(single_cap_breach || total_cap_breach ? 1 : 0,
                             std::memory_order_relaxed);
     capacity_rejects_.fetch_add(terminal_records_ >= kMaxTerminalRecords ? 1 : 0,
                                 std::memory_order_relaxed);
     OwnerFutureCompletion completion;
     completion.record = reject_pending_by_quota_locked(
-        record.future_id,
-        terminal_records_ >= kMaxTerminalRecords
-            ? "future_terminal_capacity"
-            : (single_cap_breach ? "future_payload_single_byte_cap"
-                                 : "future_payload_total_byte_cap"));
+        record.future_id, terminal_records_ >= kMaxTerminalRecords
+                              ? "future_terminal_capacity"
+                              : (single_cap_breach ? "future_payload_single_byte_cap"
+                                                   : "future_payload_total_byte_cap"));
     completion.completed_with_frozen_result = false;
     completion.quota_rejected = true;
     return completion;

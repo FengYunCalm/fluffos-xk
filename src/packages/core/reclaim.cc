@@ -16,12 +16,12 @@
 
 enum { MAX_RECURSION = 25 };
 
-static void gc_mapping(mapping_t * /*m*/);
-static void check_svalue(svalue_t * /*v*/);
+static void gc_mapping(mapping_t* /*m*/);
+static void check_svalue(svalue_t* /*v*/);
 
 static int cleaned, nested;
 
-static void check_svalue(svalue_t *v) {
+static void check_svalue(svalue_t* v) {
   int idx;
 
   nested++;
@@ -50,9 +50,11 @@ static void check_svalue(svalue_t *v) {
       break;
     case T_FUNCTION: {
       svalue_t tmp;
-      program_t *prog;
+      program_t* prog;
 
-      if (v->u.fp->hdr.owner && (v->u.fp->hdr.owner->flags & O_DESTRUCTED)) {  // #1247-equivalent RECLAIM-2 (funptr double-decrement)
+      if (v->u.fp->hdr.owner &&
+          (v->u.fp->hdr.owner->flags &
+           O_DESTRUCTED)) {  // #1247-equivalent RECLAIM-2 (funptr double-decrement)
         /* E3 P2: detach the owner only. The funptr keeps pinning its
          * creation-time program via local.prog's func_ref; dealloc_funp()
          * performs the single symmetric decrement. The old manual
@@ -72,7 +74,7 @@ static void check_svalue(svalue_t *v) {
   nested--;
 }
 
-static void gc_mapping(mapping_t *m) {
+static void gc_mapping(mapping_t* m) {
   /* Be careful to correctly handle destructed mapping keys.  We can't
    * just call check_svalue() b/c the hash would be wrong and the '0'
    * element we add would be unreferenceable (in most cases)
@@ -111,10 +113,12 @@ static void gc_mapping(mapping_t *m) {
 int reclaim_objects(bool is_auto) {
   if (is_auto) {
     add_gametick_event(time_to_next_gametick(std::chrono::seconds(30 + random_number(30))),
-                       TickEvent::callback_type([] { return reclaim_objects(true); }));
+                       TickEvent::callback_type([] {
+                         return reclaim_objects(true);
+                       }));
   }
   int i;
-  object_t *ob;
+  object_t* ob;
 
   reclaim_call_outs();
 

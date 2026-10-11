@@ -16,7 +16,7 @@
 namespace {
 constexpr int k_max_json_depth = 20;
 
-void append_frozen_json_string(const char *value, size_t length, std::string *out) {
+void append_frozen_json_string(const char* value, size_t length, std::string* out) {
   constexpr char k_hex_digits[] = "0123456789abcdef";
   out->push_back('"');
   for (size_t i = 0; i < length; i++) {
@@ -57,7 +57,7 @@ void append_frozen_json_string(const char *value, size_t length, std::string *ou
   out->push_back('"');
 }
 
-void append_frozen_json_value(const svalue_t *value, int depth, std::string *out) {
+void append_frozen_json_value(const svalue_t* value, int depth, std::string* out) {
   if (depth > k_max_json_depth) {
     error("json_encode_frozen: Maximum JSON nesting depth exceeded.\n");
   }
@@ -91,12 +91,12 @@ void append_frozen_json_value(const svalue_t *value, int depth, std::string *out
       int bucket = value->u.map->table_size;
       out->push_back('{');
       do {
-        for (auto *node = value->u.map->table[bucket]; node; node = node->next) {
+        for (auto* node = value->u.map->table[bucket]; node; node = node->next) {
           if (!first) {
             out->push_back(',');
           }
           first = false;
-          auto *key = &node->values[0];
+          auto* key = &node->values[0];
           append_frozen_json_string(key->u.string ? key->u.string : "",
                                     key->u.string ? SVALUE_STRLEN(key) : 0, out);
           out->push_back(':');
@@ -107,11 +107,12 @@ void append_frozen_json_value(const svalue_t *value, int depth, std::string *out
       return;
     }
     default:
-      error("json_encode_frozen: value must contain only numbers, strings, arrays, and string-key mappings.\n");
+      error(
+          "json_encode_frozen: value must contain only numbers, strings, arrays, and string-key mappings.\n");
   }
 }
 
-nlohmann::json svalue_to_plain_json(const svalue_t *sv, int depth) {
+nlohmann::json svalue_to_plain_json(const svalue_t* sv, int depth) {
   if (depth > k_max_json_depth) {
     error("write_json: Maximum JSON nesting depth exceeded.\n");
   }
@@ -136,7 +137,7 @@ nlohmann::json svalue_to_plain_json(const svalue_t *sv, int depth) {
     case T_MAPPING: {
       nlohmann::json obj = nlohmann::json::object();
       for (int i = 0; i < sv->u.map->table_size; i++) {
-        for (auto *node = sv->u.map->table[i]; node; node = node->next) {
+        for (auto* node = sv->u.map->table[i]; node; node = node->next) {
           if (node->values[0].type != T_STRING) {
             error("write_json: mapping key must be string.\n");
           }
@@ -150,7 +151,7 @@ nlohmann::json svalue_to_plain_json(const svalue_t *sv, int depth) {
       if (!sv->u.ob || (sv->u.ob->flags & O_DESTRUCTED)) {
         return nullptr;
       }
-      char *name = add_slash(sv->u.ob->obname);
+      char* name = add_slash(sv->u.ob->obname);
       std::string result(name);
       FREE_MSTR(name);
       return result;
@@ -160,7 +161,7 @@ nlohmann::json svalue_to_plain_json(const svalue_t *sv, int depth) {
   }
 }
 
-svalue_t json_to_svalue_plain(const nlohmann::json &value, int depth) {
+svalue_t json_to_svalue_plain(const nlohmann::json& value, int depth) {
   if (depth > k_max_json_depth) {
     error("read_json: Maximum JSON nesting depth exceeded.\n");
   }
@@ -169,17 +170,16 @@ svalue_t json_to_svalue_plain(const nlohmann::json &value, int depth) {
 
   if (value.is_object()) {
     auto count = static_cast<int>(value.size());
-    array_t *keys = allocate_array(count);
-    array_t *values = nullptr;
+    array_t* keys = allocate_array(count);
+    array_t* values = nullptr;
 
     try {
       values = allocate_array(count);
       int i = 0;
-      for (const auto &entry : value.items()) {
+      for (const auto& entry : value.items()) {
         keys->item[i].type = T_STRING;
         keys->item[i].subtype = STRING_MALLOC;
-        keys->item[i].u.string =
-            string_copy(entry.key().c_str(), "read_json: key");
+        keys->item[i].u.string = string_copy(entry.key().c_str(), "read_json: key");
 
         auto item = json_to_svalue_plain(entry.value(), depth + 1);
         assign_svalue_no_free(&values->item[i], &item);
@@ -222,8 +222,7 @@ svalue_t json_to_svalue_plain(const nlohmann::json &value, int depth) {
   if (value.is_string()) {
     sv.type = T_STRING;
     sv.subtype = STRING_MALLOC;
-    sv.u.string =
-        string_copy(value.get<std::string>().c_str(), "read_json: string");
+    sv.u.string = string_copy(value.get<std::string>().c_str(), "read_json: string");
     return sv;
   }
 
@@ -235,8 +234,7 @@ svalue_t json_to_svalue_plain(const nlohmann::json &value, int depth) {
 
   if (value.is_number_unsigned()) {
     const auto number = value.get<std::uint64_t>();
-    if (number >
-        static_cast<std::uint64_t>(std::numeric_limits<LPC_INT>::max())) {
+    if (number > static_cast<std::uint64_t>(std::numeric_limits<LPC_INT>::max())) {
       error("read_json: unsigned integer exceeds LPC integer range.\n");
     }
     sv.type = T_NUMBER;
@@ -268,10 +266,10 @@ svalue_t json_to_svalue_plain(const nlohmann::json &value, int depth) {
 }
 }  // namespace
 
-std::string json_encode_frozen_value(const svalue_t *value) {
+std::string json_encode_frozen_value(const svalue_t* value) {
   std::string validation_error;
-  if (!vm_frozen_value_safe_with_max_depth(value, 0, k_max_json_depth,
-                                           "json_encode_frozen value", &validation_error)) {
+  if (!vm_frozen_value_safe_with_max_depth(value, 0, k_max_json_depth, "json_encode_frozen value",
+                                           &validation_error)) {
     error("json_encode_frozen: %s.\n", validation_error.c_str());
   }
 
@@ -281,11 +279,11 @@ std::string json_encode_frozen_value(const svalue_t *value) {
   return result;
 }
 
-bool try_json_encode_frozen_value(const svalue_t *value, std::string *result) {
+bool try_json_encode_frozen_value(const svalue_t* value, std::string* result) {
   std::string validation_error;
   if (result == nullptr ||
-      !vm_frozen_value_safe_with_max_depth(value, 0, k_max_json_depth,
-                                           "json_encode_frozen value", &validation_error)) {
+      !vm_frozen_value_safe_with_max_depth(value, 0, k_max_json_depth, "json_encode_frozen value",
+                                           &validation_error)) {
     return false;
   }
 
@@ -295,8 +293,8 @@ bool try_json_encode_frozen_value(const svalue_t *value, std::string *result) {
   return true;
 }
 
-svalue_t read_json(const char *file) {
-  char *content = read_file(file, 0, 0);
+svalue_t read_json(const char* file) {
+  char* content = read_file(file, 0, 0);
   if (!content) {
     error("read_json: unable to read file '%s'.\n", file);
   }
@@ -305,7 +303,7 @@ svalue_t read_json(const char *file) {
   try {
     auto parsed = nlohmann::json::parse(content);
     result = json_to_svalue_plain(parsed, 0);
-  } catch (const nlohmann::json::exception &err) {
+  } catch (const nlohmann::json::exception& err) {
     FREE_MSTR(content);
     error("read_json: %s\n", err.what());
   } catch (...) {
@@ -317,7 +315,7 @@ svalue_t read_json(const char *file) {
   return result;
 }
 
-int write_json(const char *file, const svalue_t *value) {
+int write_json(const char* file, const svalue_t* value) {
   auto json_value = svalue_to_plain_json(value, 0);
   std::string content = json_value.dump();
   return write_file(file, content.c_str(), 1);

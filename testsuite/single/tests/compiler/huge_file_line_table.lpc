@@ -27,7 +27,7 @@ private void probe(int pad_lines, string label) {
 
   err = catch(ob->boom());
   ASSERT2(stringp(err) && strsrch(err, "line table probe") != -1,
-          label + ": error is reported without terminating the driver");
+    label + ": error is reported without terminating the driver");
   ASSERT_EQ(1, ob->fine());
   destruct(ob);
   rm(GEN);

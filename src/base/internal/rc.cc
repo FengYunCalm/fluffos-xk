@@ -23,9 +23,9 @@
 #include "base/internal/strutils.h"
 #include "log.h"
 
-char *config_str[NUM_CONFIG_STRS];
+char* config_str[NUM_CONFIG_STRS];
 int config_int[NUM_CONFIG_INTS];
-char *external_cmd[g_num_external_cmds];
+char* external_cmd[g_num_external_cmds];
 
 namespace {
 
@@ -135,13 +135,13 @@ const int kOptional = 0;
 const int kWarnMissing = -1;
 const int K_WARN_FOUND = -2;
 
-bool scan_config_line(const char *fmt, void *dest, int required) {
+bool scan_config_line(const char* fmt, void* dest, int required) {
   /* zero the destination.  It is either a pointer to an int or a char
    buffer, so this will work */
-  *(reinterpret_cast<int *>(dest)) = 0;
+  *(reinterpret_cast<int*>(dest)) = 0;
 
   bool found = false;
-  for (const auto &line : config_lines) {
+  for (const auto& line : config_lines) {
     if (sscanf(line.c_str(), fmt, dest) == 1) {
       found = true;
       break;
@@ -181,7 +181,7 @@ bool scan_config_line(const char *fmt, void *dest, int required) {
   return false;
 }
 
-int parse_multicore_mode(const char *value) {
+int parse_multicore_mode(const char* value) {
   if (!value || value[0] == '\0' || strcmp(value, "audit") == 0) {
     return 1;
   }
@@ -208,12 +208,12 @@ void config_init() {
   }
 
   // populate default value for int flags.
-  for (const auto &flag : INT_FLAGS) {
+  for (const auto& flag : INT_FLAGS) {
     CONFIG_INT(flag.pos) = flag.defaultValue;
   }
 }
 
-void read_config(const char *filename) {
+void read_config(const char* filename) {
   config_init();
 
   debug_message("Processing config file: %s\n", filename);
@@ -315,7 +315,7 @@ void read_config(const char *filename) {
   /* Process ports */
   {
     int i, port, port_start = 0;
-    for (auto &external : external_port) {
+    for (auto& external : external_port) {
       external.websocket_trusted_proxy_cidrs.clear();
     }
     if (scan_config_line("port number : %d\n", &CONFIG_INT(__MUD_PORT__), 0)) {
@@ -432,14 +432,14 @@ void read_config(const char *filename) {
   scan_config_line("swap file : %[^\n]", tmp, K_WARN_FOUND);
 
   // Give all obsolete (thus untouched) config strings a value.
-  for (auto &i : config_str) {
+  for (auto& i : config_str) {
     if (i == nullptr) {
       i = alloc_cstring("", "rc_obsolete");
     }
   }
 
   // process int flags
-  for (const auto &flag : INT_FLAGS) {
+  for (const auto& flag : INT_FLAGS) {
     int value = 0;
     char buf[256];
     sprintf(buf, "%s : %%d\n", flag.key.c_str());
@@ -460,7 +460,7 @@ void read_config(const char *filename) {
 }
 
 void print_rc_table() {
-  for (const auto &flag : INT_FLAGS) {
+  for (const auto& flag : INT_FLAGS) {
     auto val = CONFIG_INT(flag.pos);
     if (val != flag.defaultValue) {
       debug_message("%s : %d # default: %d\n", flag.key.c_str(), val, flag.defaultValue);

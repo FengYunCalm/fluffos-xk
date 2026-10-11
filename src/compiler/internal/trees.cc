@@ -18,11 +18,11 @@
 #include "lex.h"
 
 /* our globals */
-static parse_node_block_t *parse_block_list = nullptr;
-static parse_node_block_t *free_block_list = nullptr;
+static parse_node_block_t* parse_block_list = nullptr;
+static parse_node_block_t* free_block_list = nullptr;
 
-static parse_node_t *next_node = nullptr;
-static parse_node_t *last_node = nullptr;
+static parse_node_t* next_node = nullptr;
+static parse_node_t* last_node = nullptr;
 
 static int last_prog_size = 1;
 
@@ -37,7 +37,7 @@ static bool node_cursor_is_live() {
     return false;
   }
 
-  for (auto *block = parse_block_list; block; block = block->next) {
+  for (auto* block = parse_block_list; block; block = block->next) {
     auto start_addr = reinterpret_cast<uintptr_t>(&block->nodes[0]);
     auto end_addr = reinterpret_cast<uintptr_t>(&block->nodes[NODES_PER_BLOCK]);
     if (node_addr >= start_addr && node_addr < end_addr && last_addr == end_addr) {
@@ -52,7 +52,7 @@ static bool node_cursor_is_live() {
 
 /* called by code generation when it is done with the tree */
 void free_tree() {
-  parse_node_block_t *cur_block;
+  parse_node_block_t* cur_block;
 
   if (!(cur_block = parse_block_list)) {
     next_node = nullptr;
@@ -74,8 +74,8 @@ void free_tree() {
 
 /* called when the parser cleans up */
 void release_tree() {
-  parse_node_block_t *cur_block;
-  parse_node_block_t *next_block;
+  parse_node_block_t* cur_block;
+  parse_node_block_t* next_block;
 
   free_tree();
   next_block = free_block_list;
@@ -90,8 +90,8 @@ void release_tree() {
 }
 
 /* get a new node to add to the tree */
-parse_node_t *new_node() {
-  parse_node_block_t *cur_block;
+parse_node_t* new_node() {
+  parse_node_block_t* cur_block;
 
   /* fast case */
   if (node_cursor_is_live()) {
@@ -103,7 +103,7 @@ parse_node_t *new_node() {
   if ((cur_block = free_block_list)) {
     free_block_list = cur_block->next;
   } else {
-    cur_block = reinterpret_cast<parse_node_block_t *>(
+    cur_block = reinterpret_cast<parse_node_block_t*>(
         DMALLOC(sizeof(parse_node_block_t), TAG_COMPILER, "new_node"));
     memset(cur_block, 0, sizeof(parse_node_block_t));
   }
@@ -121,8 +121,8 @@ parse_node_t *new_node() {
  * This should be used for nodes that hold expressions together but don't
  * generate any code themselves (NODE_IF, etc)
  */
-parse_node_t *new_node_no_line() {
-  parse_node_block_t *cur_block;
+parse_node_t* new_node_no_line() {
+  parse_node_block_t* cur_block;
 
   /* fast case */
   if (node_cursor_is_live()) {
@@ -133,7 +133,7 @@ parse_node_t *new_node_no_line() {
   if ((cur_block = free_block_list)) {
     free_block_list = cur_block->next;
   } else {
-    cur_block = reinterpret_cast<parse_node_block_t *>(
+    cur_block = reinterpret_cast<parse_node_block_t*>(
         DMALLOC(sizeof(parse_node_block_t), TAG_COMPILER, "new_node"));
     memset(cur_block, 0, sizeof(parse_node_block_t));
   }
@@ -148,8 +148,8 @@ parse_node_t *new_node_no_line() {
 }
 
 /* quick routine to make a generic branched node */
-parse_node_t *make_branched_node(short kind, char type, parse_node_t *l, parse_node_t *r) {
-  parse_node_t *ret;
+parse_node_t* make_branched_node(short kind, char type, parse_node_t* l, parse_node_t* r) {
+  parse_node_t* ret;
 
   ret = new_node();
   ret->kind = kind;
@@ -160,14 +160,14 @@ parse_node_t *make_branched_node(short kind, char type, parse_node_t *l, parse_n
 }
 
 /* create an optimized typical binary integer operator */
-parse_node_t *binary_int_op(parse_node_t *l, parse_node_t *r, char op, const char *name) {
-  parse_node_t *ret;
+parse_node_t* binary_int_op(parse_node_t* l, parse_node_t* r, char op, const char* name) {
+  parse_node_t* ret;
 
   if (exact_types) {
     if (!IS_TYPE(l->type, TYPE_NUMBER)) {
       char buf[256];
-      char *end = EndOf(buf);
-      char *p;
+      char* end = EndOf(buf);
+      char* p;
 
       p = strput(buf, end, "Bad left argument to '");
       p = strput(p, end, name);
@@ -178,8 +178,8 @@ parse_node_t *binary_int_op(parse_node_t *l, parse_node_t *r, char op, const cha
     }
     if (!IS_TYPE(r->type, TYPE_NUMBER)) {
       char buf[256];
-      char *end = EndOf(buf);
-      char *p;
+      char* end = EndOf(buf);
+      char* p;
 
       p = strput(buf, end, "Bad right argument to '");
       p = strput(p, end, name);
@@ -241,8 +241,8 @@ parse_node_t *binary_int_op(parse_node_t *l, parse_node_t *r, char op, const cha
   return ret;
 }
 
-parse_node_t *make_range_node(int code, parse_node_t *expr, parse_node_t *l, parse_node_t *r) {
-  parse_node_t *newnode;
+parse_node_t* make_range_node(int code, parse_node_t* expr, parse_node_t* l, parse_node_t* r) {
+  parse_node_t* newnode;
 
   if (r) {
     CREATE_TERNARY_OP(newnode, code, 0, l, r, expr);
@@ -279,8 +279,8 @@ parse_node_t *make_range_node(int code, parse_node_t *expr, parse_node_t *l, par
   return newnode;
 }
 
-parse_node_t *insert_pop_value(parse_node_t *expr) {
-  parse_node_t *replacement;
+parse_node_t* insert_pop_value(parse_node_t* expr) {
+  parse_node_t* replacement;
 
   if (!expr) {
     return nullptr;
@@ -462,9 +462,9 @@ parse_node_t *insert_pop_value(parse_node_t *expr) {
   return replacement;
 }
 
-parse_node_t *pop_value(parse_node_t *pn) {
+parse_node_t* pop_value(parse_node_t* pn) {
   if (pn) {
-    parse_node_t *ret = insert_pop_value(pn);
+    parse_node_t* ret = insert_pop_value(pn);
 
     if (!ret) {
       if (pn->kind == NODE_BINARY_OP && pn->v.number >= F_EQ && pn->v.number <= F_GT) {
@@ -479,7 +479,7 @@ parse_node_t *pop_value(parse_node_t *pn) {
   return nullptr;
 }
 
-int is_boolean(parse_node_t *pn) {
+int is_boolean(parse_node_t* pn) {
   switch (pn->kind) {
     case NODE_UNARY_OP:
       if (pn->v.number == F_NOT) {
@@ -499,8 +499,8 @@ int is_boolean(parse_node_t *pn) {
   return 0;
 }
 
-parse_node_t *optimize_loop_test(parse_node_t *pn) {
-  parse_node_t *ret;
+parse_node_t* optimize_loop_test(parse_node_t* pn) {
+  parse_node_t* ret;
 
   if (!pn) {
     return nullptr;

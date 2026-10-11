@@ -1,5 +1,5 @@
 void do_tests() {
-  mixed *arr = ({1});
+  mixed *arr = ({ 1 });
   ASSERT(intp(refs(arr)));
   ASSERT(refs(arr) >= 1);
 }

@@ -2,9 +2,10 @@
 
 #include <algorithm>
 
-int64_t owner_mailbox_queue_depth_if(const std::deque<OwnerMailboxTask> &queue, OwnerMailboxPredicate predicate) {
+int64_t owner_mailbox_queue_depth_if(const std::deque<OwnerMailboxTask>& queue,
+                                     OwnerMailboxPredicate predicate) {
   int64_t depth = 0;
-  for (const auto &task : queue) {
+  for (const auto& task : queue) {
     if (predicate && predicate(task)) {
       depth++;
     }
@@ -12,8 +13,9 @@ int64_t owner_mailbox_queue_depth_if(const std::deque<OwnerMailboxTask> &queue, 
   return depth;
 }
 
-bool owner_mailbox_queue_has_task(const std::deque<OwnerMailboxTask> &queue, OwnerMailboxPredicate predicate) {
-  for (const auto &task : queue) {
+bool owner_mailbox_queue_has_task(const std::deque<OwnerMailboxTask>& queue,
+                                  OwnerMailboxPredicate predicate) {
+  for (const auto& task : queue) {
     if (predicate && predicate(task)) {
       return true;
     }
@@ -21,14 +23,14 @@ bool owner_mailbox_queue_has_task(const std::deque<OwnerMailboxTask> &queue, Own
   return false;
 }
 
-int64_t OwnerSchedulerState::mailbox_depth(const std::string &owner_id) const {
+int64_t OwnerSchedulerState::mailbox_depth(const std::string& owner_id) const {
   auto it = owner_mailboxes_.find(owner_id);
   return it == owner_mailboxes_.end() ? 0 : static_cast<int64_t>(it->second.size());
 }
 
 int64_t OwnerSchedulerState::mailbox_total_depth() const {
   int64_t depth = 0;
-  for (const auto &entry : owner_mailboxes_) {
+  for (const auto& entry : owner_mailboxes_) {
     depth += static_cast<int64_t>(entry.second.size());
   }
   return depth;
@@ -36,20 +38,20 @@ int64_t OwnerSchedulerState::mailbox_total_depth() const {
 
 int64_t OwnerSchedulerState::main_queue_total_depth() const {
   int64_t depth = 0;
-  for (const auto &entry : owner_main_queues_) {
+  for (const auto& entry : owner_main_queues_) {
     depth += static_cast<int64_t>(entry.second.size());
   }
   return depth;
 }
 
-int64_t OwnerSchedulerState::main_queue_depth(const std::string &owner_id) const {
+int64_t OwnerSchedulerState::main_queue_depth(const std::string& owner_id) const {
   auto it = owner_main_queues_.find(owner_id);
   return it == owner_main_queues_.end() ? 0 : static_cast<int64_t>(it->second.size());
 }
 
 int64_t OwnerSchedulerState::mailbox_active_owners() const {
   int64_t owners = 0;
-  for (const auto &entry : owner_mailboxes_) {
+  for (const auto& entry : owner_mailboxes_) {
     if (!entry.second.empty()) {
       owners++;
     }
@@ -57,24 +59,31 @@ int64_t OwnerSchedulerState::mailbox_active_owners() const {
   return owners;
 }
 
-int64_t OwnerSchedulerState::active_owner_count() const { return static_cast<int64_t>(active_owner_set_.size()); }
+int64_t OwnerSchedulerState::active_owner_count() const {
+  return static_cast<int64_t>(active_owner_set_.size());
+}
 
-int64_t OwnerSchedulerState::active_main_owner_count() const { return static_cast<int64_t>(active_main_owner_set_.size()); }
+int64_t OwnerSchedulerState::active_main_owner_count() const {
+  return static_cast<int64_t>(active_main_owner_set_.size());
+}
 
 int64_t OwnerSchedulerState::active_claim_count() const {
   return static_cast<int64_t>(active_owner_claim_counts_.size());
 }
 
-bool OwnerSchedulerState::schedulable_empty() const { return schedulable_owners_.empty(); }
+bool OwnerSchedulerState::schedulable_empty() const {
+  return schedulable_owners_.empty();
+}
 
-int64_t OwnerSchedulerState::mailbox_depth_if(const std::string &owner_id, OwnerMailboxPredicate predicate) const {
+int64_t OwnerSchedulerState::mailbox_depth_if(const std::string& owner_id,
+                                              OwnerMailboxPredicate predicate) const {
   auto it = owner_mailboxes_.find(owner_id);
   return it == owner_mailboxes_.end() ? 0 : owner_mailbox_queue_depth_if(it->second, predicate);
 }
 
 int64_t OwnerSchedulerState::mailbox_total_depth_if(OwnerMailboxPredicate predicate) const {
   int64_t depth = 0;
-  for (const auto &entry : owner_mailboxes_) {
+  for (const auto& entry : owner_mailboxes_) {
     depth += owner_mailbox_queue_depth_if(entry.second, predicate);
   }
   return depth;
@@ -82,8 +91,9 @@ int64_t OwnerSchedulerState::mailbox_total_depth_if(OwnerMailboxPredicate predic
 
 int64_t OwnerSchedulerState::runnable_owner_count(OwnerMailboxPredicate runnable) const {
   int64_t owners = 0;
-  for (const auto &entry : owner_mailboxes_) {
-    if (active_owner_set_.count(entry.first) == 0 && owner_mailbox_queue_has_task(entry.second, runnable)) {
+  for (const auto& entry : owner_mailboxes_) {
+    if (active_owner_set_.count(entry.first) == 0 &&
+        owner_mailbox_queue_has_task(entry.second, runnable)) {
       owners++;
     }
   }
@@ -92,7 +102,7 @@ int64_t OwnerSchedulerState::runnable_owner_count(OwnerMailboxPredicate runnable
 
 int64_t OwnerSchedulerState::main_runnable_owner_count() const {
   int64_t owners = 0;
-  for (const auto &entry : owner_main_queues_) {
+  for (const auto& entry : owner_main_queues_) {
     if (!entry.second.empty() && active_main_owner_set_.count(entry.first) == 0) {
       owners++;
     }
@@ -100,16 +110,17 @@ int64_t OwnerSchedulerState::main_runnable_owner_count() const {
   return owners;
 }
 
-bool OwnerSchedulerState::owner_has_thread_task(const std::string &owner_id, OwnerMailboxPredicate runnable) const {
+bool OwnerSchedulerState::owner_has_thread_task(const std::string& owner_id,
+                                                OwnerMailboxPredicate runnable) const {
   auto it = owner_mailboxes_.find(owner_id);
   return it != owner_mailboxes_.end() && owner_mailbox_queue_has_task(it->second, runnable);
 }
 
-OwnerQueueFairnessSnapshot OwnerSchedulerState::fairness_snapshot(OwnerMailboxPredicate runnable,
-                                                                  OwnerMailboxPredicate safe,
-                                                                  OwnerMailboxPredicate main_required) const {
+OwnerQueueFairnessSnapshot OwnerSchedulerState::fairness_snapshot(
+    OwnerMailboxPredicate runnable, OwnerMailboxPredicate safe,
+    OwnerMailboxPredicate main_required) const {
   OwnerQueueFairnessSnapshot snapshot;
-  for (const auto &entry : owner_mailboxes_) {
+  for (const auto& entry : owner_mailboxes_) {
     auto owner_backlog = static_cast<int64_t>(entry.second.size());
     if (owner_backlog <= 0) {
       continue;
@@ -138,12 +149,14 @@ OwnerQueueFairnessSnapshot OwnerSchedulerState::fairness_snapshot(OwnerMailboxPr
       snapshot.mixed_backlog_owner_count++;
     }
     snapshot.max_owner_backlog = std::max(snapshot.max_owner_backlog, owner_backlog);
-    snapshot.max_executor_runnable_backlog = std::max(snapshot.max_executor_runnable_backlog, runnable_backlog);
+    snapshot.max_executor_runnable_backlog =
+        std::max(snapshot.max_executor_runnable_backlog, runnable_backlog);
     snapshot.max_executor_safe_backlog = std::max(snapshot.max_executor_safe_backlog, safe_backlog);
-    snapshot.max_main_required_backlog = std::max(snapshot.max_main_required_backlog, main_required_backlog);
+    snapshot.max_main_required_backlog =
+        std::max(snapshot.max_main_required_backlog, main_required_backlog);
   }
 
-  for (const auto &entry : owner_main_queues_) {
+  for (const auto& entry : owner_main_queues_) {
     auto main_depth = static_cast<int64_t>(entry.second.size());
     if (main_depth <= 0) {
       continue;
@@ -159,9 +172,10 @@ OwnerQueueFairnessSnapshot OwnerSchedulerState::fairness_snapshot(OwnerMailboxPr
   return snapshot;
 }
 
-bool OwnerSchedulerState::enqueue_owner_task(OwnerMailboxTask task, const std::string &owner_id,
-                                             bool task_requires_main, OwnerMailboxPredicate runnable) {
-  auto &queue = owner_mailboxes_[owner_id];
+bool OwnerSchedulerState::enqueue_owner_task(OwnerMailboxTask task, const std::string& owner_id,
+                                             bool task_requires_main,
+                                             OwnerMailboxPredicate runnable) {
+  auto& queue = owner_mailboxes_[owner_id];
   auto had_thread_task = owner_mailbox_queue_has_task(queue, runnable);
   queue.push_back(std::move(task));
   if (!task_requires_main && !had_thread_task && active_owner_set_.count(owner_id) == 0 &&
@@ -172,13 +186,14 @@ bool OwnerSchedulerState::enqueue_owner_task(OwnerMailboxTask task, const std::s
   return false;
 }
 
-void OwnerSchedulerState::push_front_owner_task(const std::string &owner_id, OwnerMailboxTask task) {
+void OwnerSchedulerState::push_front_owner_task(const std::string& owner_id,
+                                                OwnerMailboxTask task) {
   owner_mailboxes_[owner_id].push_front(std::move(task));
 }
 
 bool OwnerSchedulerState::enqueue_main_task(OwnerMainTask task) {
   auto owner_id = task.owner_id;
-  auto &queue = owner_main_queues_[owner_id];
+  auto& queue = owner_main_queues_[owner_id];
   auto was_empty = queue.empty();
   queue.push_back(std::move(task));
   if (was_empty && active_main_owner_set_.count(owner_id) == 0) {
@@ -188,8 +203,8 @@ bool OwnerSchedulerState::enqueue_main_task(OwnerMainTask task) {
   return false;
 }
 
-OwnerSchedulerReleaseResult OwnerSchedulerState::release_active_owner(const std::string &owner_id,
-                                                                      OwnerMailboxPredicate runnable) {
+OwnerSchedulerReleaseResult OwnerSchedulerState::release_active_owner(
+    const std::string& owner_id, OwnerMailboxPredicate runnable) {
   OwnerSchedulerReleaseResult result;
   result.released = active_owner_set_.erase(owner_id) > 0;
   active_owner_claim_counts_.erase(owner_id);
@@ -200,12 +215,11 @@ OwnerSchedulerReleaseResult OwnerSchedulerState::release_active_owner(const std:
   return result;
 }
 
-int64_t OwnerSchedulerState::release_all_active_owners(
-    OwnerMailboxPredicate runnable) {
+int64_t OwnerSchedulerState::release_all_active_owners(OwnerMailboxPredicate runnable) {
   const auto released = static_cast<int64_t>(active_owner_set_.size());
   active_owner_set_.clear();
   active_owner_claim_counts_.clear();
-  for (const auto &entry : owner_mailboxes_) {
+  for (const auto& entry : owner_mailboxes_) {
     if (owner_mailbox_queue_has_task(entry.second, runnable)) {
       mark_owner_schedulable(entry.first);
     }
@@ -213,7 +227,7 @@ int64_t OwnerSchedulerState::release_all_active_owners(
   return released;
 }
 
-bool OwnerSchedulerState::release_active_main_owner(const std::string &owner_id) {
+bool OwnerSchedulerState::release_active_main_owner(const std::string& owner_id) {
   auto released = active_main_owner_set_.erase(owner_id) > 0;
   auto it = owner_main_queues_.find(owner_id);
   if (it != owner_main_queues_.end() && !it->second.empty()) {
@@ -222,8 +236,8 @@ bool OwnerSchedulerState::release_active_main_owner(const std::string &owner_id)
   return released;
 }
 
-OwnerSchedulerPopResult OwnerSchedulerState::pop_next_schedulable_task(OwnerMailboxTask *out, bool claim_owner,
-                                                                       OwnerMailboxPredicate runnable) {
+OwnerSchedulerPopResult OwnerSchedulerState::pop_next_schedulable_task(
+    OwnerMailboxTask* out, bool claim_owner, OwnerMailboxPredicate runnable) {
   OwnerSchedulerPopResult result;
   while (!schedulable_owners_.empty()) {
     auto owner_id = schedulable_owners_.front();
@@ -272,7 +286,7 @@ OwnerSchedulerPopResult OwnerSchedulerState::pop_next_schedulable_task(OwnerMail
   return result;
 }
 
-bool OwnerSchedulerState::pop_next_main_task(OwnerMainTask *out, bool claim_owner) {
+bool OwnerSchedulerState::pop_next_main_task(OwnerMainTask* out, bool claim_owner) {
   while (!main_schedulable_owners_.empty()) {
     auto owner_id = main_schedulable_owners_.front();
     main_schedulable_owners_.pop_front();
@@ -305,9 +319,8 @@ bool OwnerSchedulerState::pop_next_main_task(OwnerMainTask *out, bool claim_owne
   return false;
 }
 
-OwnerSchedulerPopResult OwnerSchedulerState::pop_next_executor_task_for_owner(const std::string &owner_id,
-                                                                              OwnerMailboxTask *out,
-                                                                              OwnerMailboxPredicate runnable) {
+OwnerSchedulerPopResult OwnerSchedulerState::pop_next_executor_task_for_owner(
+    const std::string& owner_id, OwnerMailboxTask* out, OwnerMailboxPredicate runnable) {
   OwnerSchedulerPopResult result;
   auto it = owner_mailboxes_.find(owner_id);
   if (it == owner_mailboxes_.end() || it->second.empty()) {
@@ -333,7 +346,8 @@ OwnerSchedulerPopResult OwnerSchedulerState::pop_next_executor_task_for_owner(co
   return result;
 }
 
-std::vector<OwnerMailboxTask> OwnerSchedulerState::drain_owner_mailbox(const std::string &owner_id, size_t limit) {
+std::vector<OwnerMailboxTask> OwnerSchedulerState::drain_owner_mailbox(const std::string& owner_id,
+                                                                       size_t limit) {
   std::vector<OwnerMailboxTask> tasks;
   auto it = owner_mailboxes_.find(owner_id);
   if (it == owner_mailboxes_.end()) {
@@ -353,17 +367,17 @@ std::vector<OwnerMailboxTask> OwnerSchedulerState::drain_owner_mailbox(const std
   return tasks;
 }
 
-bool OwnerSchedulerState::remove_owner_task(uint64_t task_id,
-                                            OwnerMailboxTask *removed) {
+bool OwnerSchedulerState::remove_owner_task(uint64_t task_id, OwnerMailboxTask* removed) {
   if (!removed) {
     return false;
   }
-  for (auto mailbox_it = owner_mailboxes_.begin();
-       mailbox_it != owner_mailboxes_.end(); ++mailbox_it) {
-    auto &queue = mailbox_it->second;
-    auto task_it = std::find_if(
-        queue.begin(), queue.end(),
-        [task_id](const OwnerMailboxTask &task) { return task.task_id == task_id; });
+  for (auto mailbox_it = owner_mailboxes_.begin(); mailbox_it != owner_mailboxes_.end();
+       ++mailbox_it) {
+    auto& queue = mailbox_it->second;
+    auto task_it =
+        std::find_if(queue.begin(), queue.end(), [task_id](const OwnerMailboxTask& task) {
+          return task.task_id == task_id;
+        });
     if (task_it == queue.end()) {
       continue;
     }
@@ -380,7 +394,8 @@ bool OwnerSchedulerState::remove_owner_task(uint64_t task_id,
   return false;
 }
 
-std::vector<OwnerMailboxTask> OwnerSchedulerState::remove_owner_mailbox(const std::string &owner_id) {
+std::vector<OwnerMailboxTask> OwnerSchedulerState::remove_owner_mailbox(
+    const std::string& owner_id) {
   std::vector<OwnerMailboxTask> tasks;
   auto it = owner_mailboxes_.find(owner_id);
   if (it == owner_mailboxes_.end()) {
@@ -396,33 +411,33 @@ std::vector<OwnerMailboxTask> OwnerSchedulerState::remove_owner_mailbox(const st
   return tasks;
 }
 
-void OwnerSchedulerState::erase_owner_mailbox(const std::string &owner_id) {
+void OwnerSchedulerState::erase_owner_mailbox(const std::string& owner_id) {
   owner_mailboxes_.erase(owner_id);
   schedulable_owner_set_.erase(owner_id);
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void OwnerSchedulerState::mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const {
-  for (const auto &entry : owner_mailboxes_) {
-    for (const auto &task : entry.second) {
+void OwnerSchedulerState::mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const {
+  for (const auto& entry : owner_mailboxes_) {
+    for (const auto& task : entry.second) {
       vm_mark_frozen_value_once(task.payload, seen);
     }
   }
-  for (const auto &entry : owner_main_queues_) {
-    for (const auto &task : entry.second) {
+  for (const auto& entry : owner_main_queues_) {
+    for (const auto& task : entry.second) {
       vm_mark_frozen_value_once(task.payload, seen);
     }
   }
 }
 #endif
 
-void OwnerSchedulerState::mark_owner_schedulable(const std::string &owner_id) {
+void OwnerSchedulerState::mark_owner_schedulable(const std::string& owner_id) {
   if (schedulable_owner_set_.insert(owner_id).second) {
     schedulable_owners_.push_back(owner_id);
   }
 }
 
-void OwnerSchedulerState::mark_main_owner_schedulable(const std::string &owner_id) {
+void OwnerSchedulerState::mark_main_owner_schedulable(const std::string& owner_id) {
   if (main_schedulable_owner_set_.insert(owner_id).second) {
     main_schedulable_owners_.push_back(owner_id);
   }

@@ -15,74 +15,69 @@ nosave int sys_reload_tls_allowed = 1;
 
 // I15 transaction probes. The mode is stored in a separate already-loaded
 // helper object so the target's __INIT cannot reset the operation selector.
-public void set_recompile_create_probe(int mode)
-{
-    load_object("/clone/recompile_lifecycle_probe")->set_mode(mode);
+public void set_recompile_create_probe(int mode) {
+  load_object("/clone/recompile_lifecycle_probe")->set_mode(mode);
 }
 
-public int query_recompile_create_probe()
-{
-    return load_object("/clone/recompile_lifecycle_probe")->query_mode();
+public int query_recompile_create_probe() {
+  return load_object("/clone/recompile_lifecycle_probe")->query_mode();
 }
 
-void create()
-{
-    object probe = load_object("/clone/recompile_lifecycle_probe");
-    object escaped_probe;
-    function born;
-    int mode = probe->query_mode();
-    if (!mode) return;
-    probe->set_last_mode(mode);
-    probe->set_mode(0);
-    switch (mode) {
-      case 1:
-        destruct(this_object());
-        break;
-      case 2:
-        reload_object(this_object());
-        break;
-      case 3:
-        replace_program("/single/master");
-        break;
-      case 4:
-        vm_set_owner_id(this_object(), "owner/recompile/probe");
-        break;
-      case 5:
-        move_object(this_object());
-        break;
-      case 6:
-        new("/single/master");
-        break;
-      case 7:
-        probe->destroy_target(this_object());
-        break;
-      case 8:
-        // A non-simul transaction must still permit an unrelated LPC load;
-        // the simul-only compile barrier must not become a global ban.
-        load_object("/clone/recompile_unrelated_probe");
-        break;
-      case 9:
-        escaped_probe = load_object("/clone/recompile_lifecycle_probe");
-        born = bind((: $1 :), escaped_probe);
-        escaped_probe->store_escaped_fp(born);
-        error("I05 staged function pointer rollback probe");
-        break;
-      case 10:
-        escaped_probe = load_object("/clone/recompile_lifecycle_probe");
-        born = bind((: $1 :), escaped_probe);
-        escaped_probe->store_escaped_fp(born);
-        break;
-    }
+void create() {
+  object probe = load_object("/clone/recompile_lifecycle_probe");
+  object escaped_probe;
+  function born;
+  int mode = probe->query_mode();
+  if (!mode) return;
+  probe->set_last_mode(mode);
+  probe->set_mode(0);
+  switch (mode) {
+    case 1:
+      destruct(this_object());
+      break;
+    case 2:
+      reload_object(this_object());
+      break;
+    case 3:
+      replace_program("/single/master");
+      break;
+    case 4:
+      vm_set_owner_id(this_object(), "owner/recompile/probe");
+      break;
+    case 5:
+      move_object(this_object());
+      break;
+    case 6:
+      new("/single/master");
+      break;
+    case 7:
+      probe->destroy_target(this_object());
+      break;
+    case 8:
+      // A non-simul transaction must still permit an unrelated LPC load;
+      // the simul-only compile barrier must not become a global ban.
+      load_object("/clone/recompile_unrelated_probe");
+      break;
+    case 9:
+      escaped_probe = load_object("/clone/recompile_lifecycle_probe");
+      born = bind((: $1 :), escaped_probe);
+      escaped_probe->store_escaped_fp(born);
+      error("I05 staged function pointer rollback probe");
+      break;
+    case 10:
+      escaped_probe = load_object("/clone/recompile_lifecycle_probe");
+      born = bind((: $1 :), escaped_probe);
+      escaped_probe->store_escaped_fp(born);
+      break;
+  }
 }
 
-public int valid_sys_reload_tls()
-{
-    return sys_reload_tls_allowed;
+public int valid_sys_reload_tls() {
+  return sys_reload_tls_allowed;
 }
 
-public void set_sys_reload_tls_allowed(int allowed)
-{
-    sys_reload_tls_allowed = allowed;
+public void set_sys_reload_tls_allowed(int allowed) {
+  sys_reload_tls_allowed = allowed;
 }
 
 public varargs string clear_last_error(string file) {
@@ -95,11 +90,11 @@ public varargs string clear_last_error(string file) {
 }
 
 // find stack right before __assert
-private mapping* trace_to_last_assert() {
+private mapping *trace_to_last_assert() {
   mapping *trace = dump_trace();
   for (int i = 0; i < sizeof(trace); i++) {
-    if (trace[i]["function"][0..7] == "__assert") {
-      return trace[0..i];
+    if (trace[i]["function"][0 ..7] == "__assert") {
+      return trace[0 ..i];
     }
   }
   return trace;
@@ -116,9 +111,9 @@ private string format_assert_trace(mapping *trace) {
   }
   for (int i = 0; i < frame_count; i++) {
     frames += ({ sprintf("Line: %O File: %O Function: %O Object: %O Program: %O",
-                         trace[i]["line"], trace[i]["file"], trace[i]["function"],
-                         trace[i]["object"] || "No object",
-                         trace[i]["program"] || "No program") });
+      trace[i]["line"], trace[i]["file"], trace[i]["function"],
+      trace[i]["object"] || "No object",
+      trace[i]["program"] || "No program") });
   }
   return implode(frames, "\n");
 }
@@ -157,20 +152,20 @@ void flag(string str) {
   mixed error;
   string cmd, arg;
 
-  if(sscanf(str, "%(test|speed):%s", cmd, arg) != 2)
+  if (sscanf(str, "%(test|speed):%s", cmd, arg) != 2)
     cmd = str;
 
   switch (cmd) {
     case "test":
       error = catch("/command/tests"->main(arg));
-      if(error) {
+      if (error) {
         has_error = 1;
         write(error);
       }
       break;
     case "speed":
       error = catch("/command/speed"->main(arg));
-      if(error) {
+      if (error) {
         has_error = 1;
         write(error);
       }
@@ -185,11 +180,10 @@ void flag(string str) {
 }
 
 void catch_tell(string str) {
-   has_error = 1;
+  has_error = 1;
 }
 
-object connect()
-{
+object connect() {
   object login_ob;
   mixed err;
   string login_path = test_login_ob || LOGIN_OB;
@@ -209,26 +203,27 @@ object connect()
 // filename named by 'file'.  It should return 0 if no object is to be
 // associated.
 
-mixed compile_object(string file)
-{
-    write("MASTER: compile_object is called, file : " + file + "\n");
-    if (file=="/test/virtual") {
-        return load_object("/single/void");
-    }
-    return 0;
+mixed compile_object(string file) {
+  write("MASTER: compile_object is called, file : " + file + "\n");
+  if (file == "/test/virtual") {
+    return load_object("/single/void");
+  }
+  return 0;
 }
 
 // This is called when there is a driver segmentation fault or a bus error,
 // etc.  As it's static it can't be called by anything but the driver (and
 // master).
 
-staticf void crash(string, object, object)
-{
+staticf void crash(string, object, object) {
   foreach (object ob in users())
-    tell_object(ob, "Master object shouts: Damn!\nMaster object tells you: The game is crashing.\n");
+    tell_object(
+      ob,
+      "Master object shouts: Damn!\nMaster object tells you: The game is crashing.\n"
+    );
 #if 0
   log_file("crashes", MUD_NAME + " crashed on: " + ctime(time()) +
-      ", error: " + error + "\n");
+    ", error: " + error + "\n");
   if (command_giver) {
     log_file("crashes", "this_player: " + file_name(command_giver) + "\n");
   }
@@ -244,8 +239,7 @@ staticf void crash(string, object, object)
 // Return:          Array of nonblank lines that don't begin with '#'
 // Note:            must be declared static (else a security hole)
 
-staticf string *update_file(string file)
-{
+staticf string *update_file(string file) {
   string *arr;
   string str;
   int i;
@@ -265,8 +259,7 @@ staticf string *update_file(string file)
 
 // Function name:       epilog
 // Return:              List of files to preload
-string* epilog(int)
-{
+string *epilog(int) {
   string *items;
 
   items = update_file(CONFIG_DIR + "/preload");
@@ -274,8 +267,7 @@ string* epilog(int)
 }
 
 // preload an object
-void preload(string file)
-{
+void preload(string file) {
   int t1;
   string err;
 
@@ -289,15 +281,14 @@ void preload(string file)
     write("\nError " + err + " when loading " + file + "\n");
   } else {
     t1 = time() - t1;
-    write("(" + t1/60 + "." + t1 % 60 + ")\n");
+    write("(" + t1 / 60 + "." + t1 % 60 + ")\n");
   }
 }
 
 // Write an error message into a log file. The error occured in the object
 // 'file', giving the error message 'message'.
 
-void log_error(string, string message)
-{
+void log_error(string, string message) {
   write_file(LOG_DIR + "/compile", message);
 }
 
@@ -305,8 +296,7 @@ void log_error(string, string message)
 // individual options settings. These functions are located in the master
 // object so that the local admins can decide what strategy they want to use.
 
-int save_ed_setup(object who, int code)
-{
+int save_ed_setup(object who, int code) {
   string file;
 
   if (!intp(code)) {
@@ -324,8 +314,7 @@ int save_ed_setup(object who, int code)
 // Retrieve the ed setup. No meaning to defend this file read from
 // unauthorized access.
 
-int retrieve_ed_setup(object who)
-{
+int retrieve_ed_setup(object who) {
   string file;
   int code;
 
@@ -344,8 +333,7 @@ int retrieve_ed_setup(object who)
 // When an object is destructed, this function is called with every
 // item in that room.  We get the chance to save users from being destructed.
 
-void destruct_environment_of(object ob)
-{
+void destruct_environment_of(object ob) {
   if (!interactive(ob)) {
     return;
   }
@@ -355,34 +343,28 @@ void destruct_environment_of(object ob)
 
 // make_path_absolute: This is called by the driver to resolve path names in ed.
 
-string make_path_absolute(string file)
-{
+string make_path_absolute(string file) {
   file = resolve_path((string)this_player()->query_cwd(), file);
   return file;
 }
 
-string get_root_uid()
-{
+string get_root_uid() {
   return ROOT_UID;
 }
 
-string get_bb_uid()
-{
+string get_bb_uid() {
   return BACKBONE_UID;
 }
 
-string creator_file(string str)
-{
+string creator_file(string str) {
   return (string)call_other(SINGLE_DIR + "/simul_efun", "creator_file", str);
 }
 
-string domain_file(string str)
-{
+string domain_file(string str) {
   return (string)call_other(SINGLE_DIR + "/simul_efun", "domain_file", str);
 }
 
-string author_file(string str)
-{
+string author_file(string str) {
   return (string)call_other(SINGLE_DIR + "/simul_efun", "author_file", str);
 }
 
@@ -400,12 +382,12 @@ staticf void error_handler(mapping map, int flag) {
   if (flag) str = "*Error caught\n";
   else str = "";
   str += sprintf("Error: %s\nCurrent object: %O\nCurrent program: %s\nFile: %O Line: %d\n%O\n",
-      map["error"], (map["object"] || "No current object"),
-      (map["program"] || "No current program"),
-      map["file"], map["line"],
-      implode(map_array(map["trace"],
-          (: sprintf("Line: %O  File: %O Object: %O Program: %O", $1["line"], $1["file"], $1["object"] || "No object", $1["program"] ||
-                     "No program") :)), "\n"));
+    map["error"], (map["object"] || "No current object"),
+    (map["program"] || "No current program"),
+    map["file"], map["line"],
+    implode(map_array(map["trace"],
+      (: sprintf("Line: %O  File: %O Object: %O Program: %O", $1["line"], $1["file"], $1["object"] || "No object", $1["program"] ||
+        "No program") :)), "\n"));
   last_error = str;
   write_file("/log/log", str);
   if (!flag || assertion_failed) {
@@ -413,7 +395,7 @@ staticf void error_handler(mapping map, int flag) {
 
     if (tests && tests->is_running()) {
       if (!flag && !assertion_failed &&
-          tests->consume_expected_error(map["program"], map["error"])) {
+        tests->consume_expected_error(map["program"], map["error"])) {
         return;
       }
       has_error = 1;
@@ -423,14 +405,12 @@ staticf void error_handler(mapping map, int flag) {
   if (!flag && ob) tell_object(ob, str);
 }
 
-mixed get_include_path(string file)
-{
+mixed get_include_path(string file) {
   object probe = query_include_probe();
   if (probe) {
     return probe->include_path_for_test(file);
   }
-  switch(file)
-  {
+  switch (file) {
     case "/clone/mgip1":
     case "/clone/mgip1.c":
       return ({ "/include/m_gip1", "/include" });
@@ -444,12 +424,17 @@ mixed get_include_path(string file)
     case "/clone/mgip4.c":
       return ({});          // should yield error message
     default:
-      return ({ ":DEFAULT:" });;
+      return ({ ":DEFAULT:" }); ;
   }
 }
 
 int valid_database(object ob, string action, mixed *info) {
-  write("MASTER valid_database called: " + sprintf("ob:%O action:%O info:%O", ob, action, info) + "\n");
+  write("MASTER valid_database called: " + sprintf(
+    "ob:%O action:%O info:%O",
+    ob,
+    action,
+    info
+  ) + "\n");
 
   // Approve!
   return 1;

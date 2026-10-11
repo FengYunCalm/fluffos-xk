@@ -11,31 +11,31 @@ typedef struct {
   uint32_t ref;
 } refed_t;
 
-typedef const char *LPC_STRING;
+typedef const char* LPC_STRING;
 union u {
   LPC_INT number;
   LPC_FLOAT real;
   LPC_STRING string;
 
-  refed_t *refed; /* any of the block below */
+  refed_t* refed; /* any of the block below */
 
-  struct buffer_t *buf;
-  struct object_t *ob;
-  struct array_t *arr;
-  struct mapping_t *map;
-  struct funptr_t *fp;
+  struct buffer_t* buf;
+  struct object_t* ob;
+  struct array_t* arr;
+  struct mapping_t* map;
+  struct funptr_t* fp;
 
-  struct svalue_t *lvalue;
-  struct ref_t *ref;
-  struct promise_t *prom;
-  unsigned char *lvalue_byte;
+  struct svalue_t* lvalue;
+  struct ref_t* ref;
+  struct promise_t* prom;
+  unsigned char* lvalue_byte;
   void (*error_handler)(void);
 
   /* Per-instance state for index/range lvalues.  These values are owned by
    * the stack slot (or by ref_t::index_sv after ref capture), not by a
    * thread-local scratch sentinel. */
-  struct codepoint_lvalue_t *cp_lv;
-  struct range_lvalue_t *range_lv;
+  struct codepoint_lvalue_t* cp_lv;
+  struct range_lvalue_t* range_lv;
 };
 
 /*
@@ -56,13 +56,13 @@ struct ref_t {
   uint32_t ref;
 
   struct ref_t *next, *prev;
-  struct control_stack_t *csp;
-  svalue_t *lvalue;
+  struct control_stack_t* csp;
+  svalue_t* lvalue;
   svalue_t sv;
   /* F_MAKE_REF transfers an indexed lvalue box here while sv keeps the
    * referenced container alive. */
   svalue_t index_sv;
-  svalue_t *codepoint_owner;
+  svalue_t* codepoint_owner;
   int32_t codepoint_index;
 };
 
@@ -97,20 +97,20 @@ struct ref_t {
 
 struct codepoint_lvalue_t;
 struct range_lvalue_t;
-void free_indexed_lvalue(svalue_t *v);
+void free_indexed_lvalue(svalue_t* v);
 
-static inline bool is_stack_lvalue(const svalue_t *v) {
-  return v->type == T_LVALUE || v->type == T_LVALUE_BYTE ||
-         v->type == T_LVALUE_RANGE || v->type == T_LVALUE_CODEPOINT;
+static inline bool is_stack_lvalue(const svalue_t* v) {
+  return v->type == T_LVALUE || v->type == T_LVALUE_BYTE || v->type == T_LVALUE_RANGE ||
+         v->type == T_LVALUE_CODEPOINT;
 }
 
 /* Destinations that need the index-kind switch. A T_LVALUE unwraps to a
  * real slot and is a plain assign_svalue. */
-static inline bool is_indexed_lvalue(const svalue_t *v) {
+static inline bool is_indexed_lvalue(const svalue_t* v) {
   return v->type == T_LVALUE_BYTE || v->type == T_LVALUE_RANGE || v->type == T_LVALUE_CODEPOINT;
 }
 
-static inline svalue_t *lvalue_target(svalue_t *slot) {
+static inline svalue_t* lvalue_target(svalue_t* slot) {
   return slot->type == T_LVALUE ? slot->u.lvalue : slot;
 }
 
@@ -139,16 +139,16 @@ static inline svalue_t *lvalue_target(svalue_t *slot) {
 
 /* utility function for manipulating svalues */
 
-void copy_some_svalues(svalue_t *, svalue_t *, int);
-void assign_svalue(svalue_t *, svalue_t *);
-void assign_svalue_no_free(svalue_t *, svalue_t *);
-void free_compound(void *ptr, uint32_t type);
+void copy_some_svalues(svalue_t*, svalue_t*, int);
+void assign_svalue(svalue_t*, svalue_t*);
+void assign_svalue_no_free(svalue_t*, svalue_t*);
+void free_compound(void* ptr, uint32_t type);
 
 #ifdef DEBUG
 #define free_svalue(x, y) int_free_svalue(x, y)
 #else
 /* Also declared in machine.h, which includes this header before getting to it. */
-void int_free_svalue(svalue_t *);
+void int_free_svalue(svalue_t*);
 
 /* int_free_svalue() is called several million times on an interpreter-bound
  * workload -- roughly once per dispatched opcode that drops a stack slot -- and
@@ -165,9 +165,8 @@ void int_free_svalue(svalue_t *);
  * DEBUG builds keep calling the out-of-line version unconditionally, so the
  * double-free detection that depends on the bit being set keeps working.
  * (Upstream #1342.) */
-inline void free_svalue_maybe_refed(svalue_t *v) {
-  if (v->type & (T_STRING | T_REFED | T_ERROR_HANDLER | T_LVALUE_CODEPOINT |
-                 T_LVALUE_RANGE)) {
+inline void free_svalue_maybe_refed(svalue_t* v) {
+  if (v->type & (T_STRING | T_REFED | T_ERROR_HANDLER | T_LVALUE_CODEPOINT | T_LVALUE_RANGE)) {
     int_free_svalue(v);
   }
 }
@@ -180,8 +179,9 @@ extern svalue_t const0, const1, const0u;
 /* Is this string svalue pure ASCII (and CR-free), i.e. byte offset == grapheme
  * cluster index? Kept as a macro rather than an inline function so it expands
  * where SVALUE_STRLEN/STRING_COUNTED are already visible. */
-#define SVALUE_STR_ASCII(sv)                                                                   \
-  u8_string_is_ascii_cached((sv)->u.string, SVALUE_STRLEN(sv), ((sv)->subtype & STRING_COUNTED) != 0)
+#define SVALUE_STR_ASCII(sv)                                   \
+  u8_string_is_ascii_cached((sv)->u.string, SVALUE_STRLEN(sv), \
+                            ((sv)->subtype & STRING_COUNTED) != 0)
 
 /* Tag a freshly built concatenation. ascii(a + b) == ascii(a) && ascii(b) is
  * exact ONLY because the ASCII predicate excludes CR: with no CR on either
@@ -192,7 +192,8 @@ extern svalue_t const0, const1, const0u;
  * Without this, `s += x` in a loop re-derives the tag from scratch for each
  * intermediate string, making an accompanying sizeof(s) O(n^2). (Upstream
  * #1344.) */
-#define MSTR_TAG_JOIN(res, ascii_both)   (MSTR_ASCII(res) = (ascii_both) ? MSTR_ASCII_YES : MSTR_ASCII_NO)
+#define MSTR_TAG_JOIN(res, ascii_both) \
+  (MSTR_ASCII(res) = (ascii_both) ? MSTR_ASCII_YES : MSTR_ASCII_NO)
 
 /* Tag a substring (range / extract_range). ASCII propagates ONE WAY only:
  * every byte of the result came from the source, so an ASCII-and-CR-free
@@ -202,85 +203,92 @@ extern svalue_t const0, const1, const0u;
  * "abc", perfectly ASCII, from a non-ASCII source. So a non-ASCII source
  * leaves the result UNKNOWN (new_string()'s default), to be derived lazily
  * if anyone asks. That asymmetry is why this is not MSTR_TAG_JOIN. */
-#define MSTR_TAG_SUBSTRING(res, src_ascii)   SAFE(if (src_ascii) { MSTR_ASCII(res) = MSTR_ASCII_YES; })
+#define MSTR_TAG_SUBSTRING(res, src_ascii) \
+  SAFE(if (src_ascii) { MSTR_ASCII(res) = MSTR_ASCII_YES; })
 
 /* These are not used anywhere */
 
 /* Beek - add some sanity to joining strings */
 /* add to an svalue */
-#define EXTEND_SVALUE_STRING(x, y, z)                                                             \
-  SAFE({                                                                                          \
-    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);                             \
-    char *ess_res;                                                                                \
-    int ess_len;                                                                                  \
-    int ess_r;                                                                                    \
-    ess_len = (ess_r = SVALUE_STRLEN(x)) + strlen(y);                                             \
-    if (ess_len > max_string_length) error("Maximum string length exceeded in concatenation.\n"); \
-    bool ess_ascii = SVALUE_STR_ASCII(x) && u8_string_is_ascii_cached((y), ess_len - ess_r, false);\
-    if ((x)->subtype == STRING_MALLOC && MSTR_REF((x)->u.string) == 1) {                          \
-      ess_res = (char *)extend_string((x)->u.string, ess_len);                                    \
-      if (!ess_res) fatal("Out of memory!\n");                                                    \
-      strcpy(ess_res + ess_r, (y));                                                               \
-    } else {                                                                                      \
-      ess_res = new_string(ess_len, z);                                                           \
-      strcpy(ess_res, (x)->u.string);                                                             \
-      strcpy(ess_res + ess_r, (y));                                                               \
-      free_string_svalue(x);                                                                      \
-      (x)->subtype = STRING_MALLOC;                                                               \
-    }                                                                                             \
-    MSTR_TAG_JOIN(ess_res, ess_ascii);                                                             \
-    (x)->u.string = ess_res;                                                                      \
+#define EXTEND_SVALUE_STRING(x, y, z)                                                  \
+  SAFE({                                                                               \
+    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);                  \
+    char* ess_res;                                                                     \
+    int ess_len;                                                                       \
+    int ess_r;                                                                         \
+    ess_len = (ess_r = SVALUE_STRLEN(x)) + strlen(y);                                  \
+    if (ess_len > max_string_length)                                                   \
+      error("Maximum string length exceeded in concatenation.\n");                     \
+    bool ess_ascii =                                                                   \
+        SVALUE_STR_ASCII(x) && u8_string_is_ascii_cached((y), ess_len - ess_r, false); \
+    if ((x)->subtype == STRING_MALLOC && MSTR_REF((x)->u.string) == 1) {               \
+      ess_res = (char*)extend_string((x)->u.string, ess_len);                          \
+      if (!ess_res)                                                                    \
+        fatal("Out of memory!\n");                                                     \
+      strcpy(ess_res + ess_r, (y));                                                    \
+    } else {                                                                           \
+      ess_res = new_string(ess_len, z);                                                \
+      strcpy(ess_res, (x)->u.string);                                                  \
+      strcpy(ess_res + ess_r, (y));                                                    \
+      free_string_svalue(x);                                                           \
+      (x)->subtype = STRING_MALLOC;                                                    \
+    }                                                                                  \
+    MSTR_TAG_JOIN(ess_res, ess_ascii);                                                 \
+    (x)->u.string = ess_res;                                                           \
   })
 
 /* <something that needs no free> + string svalue */
-#define SVALUE_STRING_ADD_LEFT(y, z)                                                              \
-  SAFE({                                                                                          \
-    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);                             \
-    char *pss_res;                                                                                \
-    int pss_r;                                                                                    \
-    int pss_len;                                                                                  \
-    pss_len = SVALUE_STRLEN(sp) + (pss_r = strlen(y));                                            \
-    if (pss_len > max_string_length) error("Maximum string length exceeded in concatenation.\n"); \
-    bool pss_ascii = SVALUE_STR_ASCII(sp) && u8_string_is_ascii_cached((y), pss_r, false);         \
-    pss_res = new_string(pss_len, z);                                                             \
-    strcpy(pss_res, y);                                                                           \
-    strcpy(pss_res + pss_r, sp->u.string);                                                        \
-    free_string_svalue(sp--);                                                                     \
-    sp->type = T_STRING;                                                                          \
-    MSTR_TAG_JOIN(pss_res, pss_ascii);                                                            \
-    sp->u.string = pss_res;                                                                       \
-    sp->subtype = STRING_MALLOC;                                                                  \
+#define SVALUE_STRING_ADD_LEFT(y, z)                                                       \
+  SAFE({                                                                                   \
+    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);                      \
+    char* pss_res;                                                                         \
+    int pss_r;                                                                             \
+    int pss_len;                                                                           \
+    pss_len = SVALUE_STRLEN(sp) + (pss_r = strlen(y));                                     \
+    if (pss_len > max_string_length)                                                       \
+      error("Maximum string length exceeded in concatenation.\n");                         \
+    bool pss_ascii = SVALUE_STR_ASCII(sp) && u8_string_is_ascii_cached((y), pss_r, false); \
+    pss_res = new_string(pss_len, z);                                                      \
+    strcpy(pss_res, y);                                                                    \
+    strcpy(pss_res + pss_r, sp->u.string);                                                 \
+    free_string_svalue(sp--);                                                              \
+    sp->type = T_STRING;                                                                   \
+    MSTR_TAG_JOIN(pss_res, pss_ascii);                                                     \
+    sp->u.string = pss_res;                                                                \
+    sp->subtype = STRING_MALLOC;                                                           \
   })
 
 /* basically, string + string; faster than using extend b/c of SVALUE_STRLEN */
-#define SVALUE_STRING_JOIN(x, y, z)                                                               \
-  SAFE({                                                                                          \
-    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);                             \
-    char *ssj_res;                                                                                \
-    int ssj_r;                                                                                    \
-    int ssj_len;                                                                                  \
-    bool ssj_ascii = SVALUE_STR_ASCII(x) && SVALUE_STR_ASCII(y);                                   \
-    ssj_r = SVALUE_STRLEN(x);                                                                     \
-    ssj_len = ssj_r + SVALUE_STRLEN(y);                                                           \
-    if (ssj_len > max_string_length) error("Maximum string length exceeded in concatenation.\n"); \
-    if ((x)->subtype == STRING_MALLOC && MSTR_REF((x)->u.string) == 1) {                          \
-      ssj_res = (char *)extend_string((x)->u.string, ssj_len);                                    \
-      if (!ssj_res) fatal("Out of memory!\n");                                                    \
-      (void)strcpy(ssj_res + ssj_r, (y)->u.string);                                               \
-      free_string_svalue(y);                                                                      \
-    } else {                                                                                      \
-      ssj_res = (char *)new_string(ssj_len, z);                                                   \
-      strcpy(ssj_res, (x)->u.string);                                                             \
-      strcpy(ssj_res + ssj_r, (y)->u.string);                                                     \
-      free_string_svalue(y);                                                                      \
-      free_string_svalue(x);                                                                      \
-      (x)->subtype = STRING_MALLOC;                                                               \
-    }                                                                                             \
-    MSTR_TAG_JOIN(ssj_res, ssj_ascii);                                                             \
-    (x)->u.string = ssj_res;                                                                      \
+#define SVALUE_STRING_JOIN(x, y, z)                                      \
+  SAFE({                                                                 \
+    const auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);    \
+    char* ssj_res;                                                       \
+    int ssj_r;                                                           \
+    int ssj_len;                                                         \
+    bool ssj_ascii = SVALUE_STR_ASCII(x) && SVALUE_STR_ASCII(y);         \
+    ssj_r = SVALUE_STRLEN(x);                                            \
+    ssj_len = ssj_r + SVALUE_STRLEN(y);                                  \
+    if (ssj_len > max_string_length)                                     \
+      error("Maximum string length exceeded in concatenation.\n");       \
+    if ((x)->subtype == STRING_MALLOC && MSTR_REF((x)->u.string) == 1) { \
+      ssj_res = (char*)extend_string((x)->u.string, ssj_len);            \
+      if (!ssj_res)                                                      \
+        fatal("Out of memory!\n");                                       \
+      (void)strcpy(ssj_res + ssj_r, (y)->u.string);                      \
+      free_string_svalue(y);                                             \
+    } else {                                                             \
+      ssj_res = (char*)new_string(ssj_len, z);                           \
+      strcpy(ssj_res, (x)->u.string);                                    \
+      strcpy(ssj_res + ssj_r, (y)->u.string);                            \
+      free_string_svalue(y);                                             \
+      free_string_svalue(x);                                             \
+      (x)->subtype = STRING_MALLOC;                                      \
+    }                                                                    \
+    MSTR_TAG_JOIN(ssj_res, ssj_ascii);                                   \
+    (x)->u.string = ssj_res;                                             \
   })
 
 // Translate svalue into json summary, only suitable for
-json svalue_to_json_summary(const svalue_t *obj, int depth = 0);
+json svalue_to_json_summary(const svalue_t* obj, int depth = 0);
 
 #endif /* LPC_SVALUE_H */

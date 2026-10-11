@@ -82,4 +82,3 @@ void do_tests() {
     ASSERT_EQ(499, ra[499][0]);
   }
 }
-

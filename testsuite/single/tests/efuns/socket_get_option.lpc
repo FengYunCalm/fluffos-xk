@@ -28,7 +28,7 @@ private void cleanup() {
 private void exercise() {
   int before = 7143;
   string after = "unchanged";
-  mixed *locals = ({before, after});
+  mixed *locals = ({ before, after });
   int closed;
   string held;
 
@@ -38,21 +38,21 @@ private void exercise() {
   ASSERT(second >= 0);
   ASSERT(first != second);
 
-  foreach (int fd in ({first, second})) {
+  foreach (int fd in ({ first, second })) {
     ASSERT_EQ(socket_get_option(fd, SO_TLS_VERIFY_PEER), 0);
     ASSERT(!undefinedp(socket_get_option(fd, SO_TLS_VERIFY_PEER)));
-    foreach (int option in ({SO_TLS_SNI_HOSTNAME, SO_TLS_CERT, SO_TLS_KEY})) {
+    foreach (int option in ({ SO_TLS_SNI_HOSTNAME, SO_TLS_CERT, SO_TLS_KEY })) {
       ASSERT_EQ(socket_get_option(fd, option), 0);
       ASSERT(!undefinedp(socket_get_option(fd, option)));
     }
   }
-  foreach (int value in ({0, 1, 0, 1})) {
+  foreach (int value in ({ 0, 1, 0, 1 })) {
     socket_set_option(first, SO_TLS_VERIFY_PEER, value);
     socket_set_option(second, SO_TLS_VERIFY_PEER, 1 - value);
     ASSERT_EQ(socket_get_option(first, SO_TLS_VERIFY_PEER), value);
     ASSERT_EQ(socket_get_option(second, SO_TLS_VERIFY_PEER), 1 - value);
   }
-  foreach (int option in ({SO_TLS_SNI_HOSTNAME, SO_TLS_CERT, SO_TLS_KEY})) {
+  foreach (int option in ({ SO_TLS_SNI_HOSTNAME, SO_TLS_CERT, SO_TLS_KEY })) {
     string value = sprintf("option-%d.example", option);
     socket_set_option(first, option, value);
     socket_set_option(second, option, "other");
@@ -73,7 +73,7 @@ private void exercise() {
   ASSERT(catch(socket_set_option(first, SO_TLS_SNI_HOSTNAME, 3)));
   ASSERT_EQ(before, 7143);
   ASSERT_EQ(after, "unchanged");
-  ASSERT_EQ(locals, ({7143, "unchanged"}));
+  ASSERT_EQ(locals, ({ 7143, "unchanged" }));
 
   socket_set_option(first, SO_TLS_SNI_HOSTNAME, "retained.example");
   held = socket_get_option(first, SO_TLS_SNI_HOSTNAME);
@@ -81,7 +81,7 @@ private void exercise() {
   ASSERT_EQ(socket_close(first), 1);
   first = -1;
   ASSERT_EQ(held, "retained.example");
-  foreach (int option in ({1, 2, 3, 4})) {
+  foreach (int option in ({ 1, 2, 3, 4 })) {
     ASSERT_EQ(socket_get_option(closed, option), 0);
     ASSERT(!undefinedp(socket_get_option(closed, option)));
   }

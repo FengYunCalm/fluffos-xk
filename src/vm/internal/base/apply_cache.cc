@@ -13,11 +13,11 @@
 #include "vm/internal/base/program.h"
 #include "vm/internal/lpc_vm_profile.h"
 
-static inline void fill_lookup_table(program_t *prog);
+static inline void fill_lookup_table(program_t* prog);
 
 namespace {
 struct ApplyDispatchDirectCacheEntry {
-  program_t *prog{nullptr};
+  program_t* prog{nullptr};
   intptr_t key{0};
   lookup_entry_s entry{nullptr};
 };
@@ -27,7 +27,7 @@ FLUFFOS_VM_THREAD_LOCAL std::array<ApplyDispatchDirectCacheEntry, 4> apply_dispa
 FLUFFOS_VM_THREAD_LOCAL uint64_t apply_dispatch_direct_cache_epoch_seen{0};
 FLUFFOS_VM_THREAD_LOCAL size_t apply_dispatch_direct_cache_next_slot{0};
 #if !FLUFFOS_OWNER_THREAD_VM
-program_t *apply_shared_single_cache_prog{nullptr};
+program_t* apply_shared_single_cache_prog{nullptr};
 intptr_t apply_shared_single_cache_key{0};
 lookup_entry_s apply_shared_single_cache_entry{nullptr};
 #endif
@@ -41,7 +41,7 @@ void ensure_apply_dispatch_cache_epoch_current(bool profile_enabled) {
   if (apply_dispatch_direct_cache_epoch_seen == epoch) {
     return;
   }
-  for (auto &entry : apply_dispatch_direct_cache) {
+  for (auto& entry : apply_dispatch_direct_cache) {
     entry = ApplyDispatchDirectCacheEntry{};
   }
   apply_dispatch_direct_cache_next_slot = 0;
@@ -51,9 +51,10 @@ void ensure_apply_dispatch_cache_epoch_current(bool profile_enabled) {
   apply_dispatch_direct_cache_epoch_seen = epoch;
 }
 
-lookup_entry_s apply_dispatch_direct_cache_lookup(program_t *prog, intptr_t key, bool profile_enabled, bool *hit) {
+lookup_entry_s apply_dispatch_direct_cache_lookup(program_t* prog, intptr_t key,
+                                                  bool profile_enabled, bool* hit) {
   ensure_apply_dispatch_cache_epoch_current(profile_enabled);
-  for (const auto &entry : apply_dispatch_direct_cache) {
+  for (const auto& entry : apply_dispatch_direct_cache) {
     if (entry.prog == prog && entry.key == key && entry.entry.funp != nullptr) {
       if (profile_enabled) {
         lpc_vm_profile_record_apply_dispatch_cache_lookup(true);
@@ -69,7 +70,8 @@ lookup_entry_s apply_dispatch_direct_cache_lookup(program_t *prog, intptr_t key,
   return lookup_entry_s{nullptr};
 }
 
-void apply_dispatch_direct_cache_store(program_t *prog, intptr_t key, lookup_entry_s entry, bool profile_enabled) {
+void apply_dispatch_direct_cache_store(program_t* prog, intptr_t key, lookup_entry_s entry,
+                                       bool profile_enabled) {
   if (!entry.funp) {
     return;
   }
@@ -79,7 +81,7 @@ void apply_dispatch_direct_cache_store(program_t *prog, intptr_t key, lookup_ent
 }
 }  // namespace
 
-lookup_entry_s apply_cache_lookup(const char *funcname, program_t *prog) {
+lookup_entry_s apply_cache_lookup(const char* funcname, program_t* prog) {
   ScopedTracer _tracer("Apply Cache Lookup", EventCategory::APPLY_CACHE, [=] {
     return json{"name", funcname};
   });
@@ -135,7 +137,7 @@ lookup_entry_s apply_cache_lookup(const char *funcname, program_t *prog) {
   }
 }
 
-lookup_entry_s apply_cache_lookup_shared(const char *funcname, program_t *prog) {
+lookup_entry_s apply_cache_lookup_shared(const char* funcname, program_t* prog) {
 #if FLUFFOS_OWNER_THREAD_VM
   ScopedTracer _tracer("Apply Cache Shared Lookup", EventCategory::APPLY_CACHE, [=] {
     return json{"name", funcname};
@@ -206,7 +208,7 @@ lookup_entry_s apply_cache_lookup_shared(const char *funcname, program_t *prog) 
 }
 
 static inline void fill_lookup_table_recurse(
-    std::unique_ptr<program_t::apply_lookup_table_type> &table, program_t *prog, uint16_t fio,
+    std::unique_ptr<program_t::apply_lookup_table_type>& table, program_t* prog, uint16_t fio,
     uint16_t vio) {
   // add all defined functions
   for (int i = 0; i < prog->num_functions_defined; i++) {
@@ -236,23 +238,24 @@ static inline void fill_lookup_table_recurse(
   }
 }
 
-static inline void fill_lookup_table(program_t *prog) {
+static inline void fill_lookup_table(program_t* prog) {
   const bool profile_enabled = lpc_vm_profile_recording_enabled();
-  auto start = profile_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  auto start =
+      profile_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   prog->apply_lookup_table = std::make_unique<program_t::apply_lookup_table_type>();
   fill_lookup_table_recurse(prog->apply_lookup_table, prog, 0, 0);
 
   apply_cache_items += prog->apply_lookup_table->size();
   if (profile_enabled) {
-    auto elapsed_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start)
-            .count();
+    auto elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - start)
+                          .count();
     lpc_vm_profile_record_apply_cache_table_build(prog->apply_lookup_table->size(),
                                                   static_cast<uint64_t>(elapsed_ns));
   }
 }
 
-void apply_cache_invalidate_program(program_t * /*prog*/) {
+void apply_cache_invalidate_program(program_t* /*prog*/) {
 #if !FLUFFOS_OWNER_THREAD_VM
   apply_shared_single_cache_prog = nullptr;
   apply_shared_single_cache_key = 0;
@@ -261,9 +264,9 @@ void apply_cache_invalidate_program(program_t * /*prog*/) {
   apply_dispatch_cache_epoch.fetch_add(1, std::memory_order_acq_rel);
 }
 
-
-void prepare_apply_lookup_table(program_t *prog) {
-  if (prog == nullptr) return;
+void prepare_apply_lookup_table(program_t* prog) {
+  if (prog == nullptr)
+    return;
   if (prog->apply_lookup_table == nullptr) {
     fill_lookup_table(prog);
   }

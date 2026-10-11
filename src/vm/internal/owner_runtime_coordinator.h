@@ -44,16 +44,16 @@ struct OwnerRuntimeCounterSnapshot {
 
 class OwnerRuntimeCoordinator {
  public:
-  OwnerRuntimeMetrics &metrics();
-  OwnerFutureStore &futures();
-  OwnerSchedulerState &scheduler();
-  OwnerTraceStore &traces();
+  OwnerRuntimeMetrics& metrics();
+  OwnerFutureStore& futures();
+  OwnerSchedulerState& scheduler();
+  OwnerTraceStore& traces();
 
-  std::mutex &mutex();
-  std::condition_variable &cv();
-  bool &thread_stopping();
-  bool &main_draining();
-  std::vector<std::thread> &threads();
+  std::mutex& mutex();
+  std::condition_variable& cv();
+  bool& thread_stopping();
+  bool& main_draining();
+  std::vector<std::thread>& threads();
 
   // E3 P1: worker claim accounting. Only these methods touch the counters,
   // so a missed decrement cannot silently wedge quiescence.
@@ -67,7 +67,7 @@ class OwnerRuntimeCoordinator {
 
   // Recompile quiescence (E3 P1). Callers must hold no locks; begin/end take
   // the runtime mutex internally.
-  OwnerRecompileState &recompile_state();
+  OwnerRecompileState& recompile_state();
 
   // Read-only counters (F1: observable in runtime status). A snapshot is the
   // only public read surface so related values cannot be observed from
@@ -106,23 +106,22 @@ class OwnerRuntimeCoordinator {
   uint64_t admission_rejected_{0};
 };
 
-OwnerRuntimeCoordinator &owner_runtime_coordinator();
-OwnerRuntimeMetrics &owner_runtime_metrics_instance();
-OwnerFutureStore &owner_future_store_instance();
-OwnerSchedulerState &owner_scheduler_state_instance();
-OwnerTraceStore &owner_trace_store_instance();
-std::mutex &owner_runtime_mutex_instance();
-std::condition_variable &owner_runtime_cv_instance();
-bool &owner_thread_stopping_flag();
-bool &owner_main_draining_flag();
-std::vector<std::thread> &owner_threads_instance();
+OwnerRuntimeCoordinator& owner_runtime_coordinator();
+OwnerRuntimeMetrics& owner_runtime_metrics_instance();
+OwnerFutureStore& owner_future_store_instance();
+OwnerSchedulerState& owner_scheduler_state_instance();
+OwnerTraceStore& owner_trace_store_instance();
+std::mutex& owner_runtime_mutex_instance();
+std::condition_variable& owner_runtime_cv_instance();
+bool& owner_thread_stopping_flag();
+bool& owner_main_draining_flag();
+std::vector<std::thread>& owner_threads_instance();
 
 // E3 P1 public API. begin() is main-thread-only, transitions OPEN->CLOSING,
 // waits (bounded by timeout) for active owner claims (worker-side,
 // executor-local) to drain, then FROZEN. Any failure restores OPEN and returns ok=false. end() must be
 // called with the matching epoch; it reopens admission.
-OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(
-    std::chrono::milliseconds timeout);
+OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(std::chrono::milliseconds timeout);
 void vm_owner_recompile_quiesce_end(uint64_t epoch) noexcept;
 // NOTE: there is intentionally no unlocked vm_owner_recompile_context_allowed()
 // helper -- the only admission gate (enqueue_owner_task_locked in owner.cc)

@@ -111,6 +111,7 @@ def test_paths_and_non_mutation(repo: Path) -> None:
     write(repo / "src/space name.cc", good.read_bytes())
     write(repo / "src/line\nname.cc", good.read_bytes())
     write(repo / "testsuite/not-native.c", good.read_bytes())
+    write(repo / "src/empty.cc", b"")
     outside = repo.parent / "outside.cc"
     write(outside, good.read_bytes())
     symlink = repo / "src/symlink.cc"
@@ -121,6 +122,8 @@ def test_paths_and_non_mutation(repo: Path) -> None:
     before_stat = good.stat()
     output = expect_pass(repo, "--paths", "src/good.cc", "src/space name.cc", "src/line\nname.cc")
     assert_contains(output, "checked: 3")
+    output = expect_pass(repo, "--paths", "src/empty.cc")
+    assert_contains(output, "not-applicable: src/empty.cc (empty source)")
     after_stat = good.stat()
     if sha256(good) != before_hash or after_stat.st_mtime_ns != before_stat.st_mtime_ns:
         raise TestFailure("--paths changed source bytes or mtime")
@@ -145,8 +148,10 @@ def test_paths_and_non_mutation(repo: Path) -> None:
 def test_base_and_all_native(repo: Path) -> None:
     good = repo / "src/good.cc"
     other = repo / "src/other.cc"
+    empty = repo / "src/empty.cc"
     write(good, "int add(int left, int right) {\n  return left + right;\n}\n")
     write(other, good.read_bytes())
+    write(empty, b"")
     commit_all(repo, "base-scope")
     base = git(repo, "rev-parse", "HEAD").strip()
 
@@ -175,6 +180,7 @@ def test_base_and_all_native(repo: Path) -> None:
     commit_all(repo, "formatted")
     output = expect_pass(repo, "--all-native")
     assert_contains(output, "scope: all-native")
+    assert_contains(output, "excluded: src/empty.cc (empty-source)")
     assert_contains(output, "checked: 3")
 
 

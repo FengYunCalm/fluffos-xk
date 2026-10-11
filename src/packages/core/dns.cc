@@ -14,9 +14,9 @@
 #include <ws2ipdef.h>
 #include <ws2tcpip.h>
 #endif
-static struct evdns_base *g_dns_base = nullptr;
+static struct evdns_base* g_dns_base = nullptr;
 
-void init_dns_event_base(struct event_base *base) {
+void init_dns_event_base(struct event_base* base) {
   // Configure a DNS resolver with default nameserver
   g_dns_base = evdns_base_new(base, EVDNS_BASE_INITIALIZE_NAMESERVERS);
 
@@ -26,37 +26,37 @@ void init_dns_event_base(struct event_base *base) {
 #endif
 }
 
-static void add_ip_entry(struct sockaddr * /*addr*/, ev_socklen_t size, char * /*name*/);
+static void add_ip_entry(struct sockaddr* /*addr*/, ev_socklen_t size, char* /*name*/);
 
 using addr_name_query_t = struct addr_name_query_s {
   sockaddr_storage addr;
   ev_socklen_t addrlen;
-  struct evdns_request *req;
+  struct evdns_request* req;
 };
 
 // Reverse DNS lookup.
-void on_addr_name_result(int err, char type, int count, int /*ttl*/, void *addresses, void *arg) {
-  auto *query = reinterpret_cast<addr_name_query_t *>(arg);
+void on_addr_name_result(int err, char type, int count, int /*ttl*/, void* addresses, void* arg) {
+  auto* query = reinterpret_cast<addr_name_query_t*>(arg);
 
   if (err) {
     debug(dns, "DNS reverse lookup fail: %s.\n", evdns_err_to_string(err));
   } else if (count == 0) {
     debug(dns, "DNS reverse lookup returns no result.\n");
   } else {
-    auto *result = *(reinterpret_cast<char **>(addresses));
+    auto* result = *(reinterpret_cast<char**>(addresses));
     debug(dns, "DNS reverse lookup result: %d: %s\n", type, result);
-    add_ip_entry(reinterpret_cast<sockaddr *>(&query->addr), query->addrlen, result);
+    add_ip_entry(reinterpret_cast<sockaddr*>(&query->addr), query->addrlen, result);
   }
   delete query;
 }
 
 // Start a reverse lookup.
-void query_name_by_addr(object_t *ob) {
+void query_name_by_addr(object_t* ob) {
   if (!ob || !ob->interactive) {
     return;
   }
 
-  const char *addr = query_ip_number(ob);
+  const char* addr = query_ip_number(ob);
   if (!addr) {
     return;
   }
@@ -67,12 +67,11 @@ void query_name_by_addr(object_t *ob) {
     return;
   }
 
-  if (ob->interactive->addrlen == 0 ||
-      ob->interactive->addrlen > sizeof(ob->interactive->addr)) {
+  if (ob->interactive->addrlen == 0 || ob->interactive->addrlen > sizeof(ob->interactive->addr)) {
     return;
   }
 
-  auto *query = new addr_name_query_t;
+  auto* query = new addr_name_query_t;
 
   // By the time resolve finish, ob may be already gone, we have to
   // copy the address.
@@ -81,9 +80,9 @@ void query_name_by_addr(object_t *ob) {
 
   // Check for mapped v4 address, if we are querying for v6 address.
   if (query->addr.ss_family == AF_INET6) {
-    in6_addr *addr6 = &((reinterpret_cast<sockaddr_in6 *>(&query->addr))->sin6_addr);
+    in6_addr* addr6 = &((reinterpret_cast<sockaddr_in6*>(&query->addr))->sin6_addr);
     if (IN6_IS_ADDR_V4MAPPED(addr6) || IN6_IS_ADDR_V4COMPAT(addr6)) {
-      in_addr *addr4 = &(reinterpret_cast<in_addr *>(addr6))[3];
+      in_addr* addr4 = &(reinterpret_cast<in_addr*>(addr6))[3];
       debug(dns, "Found mapped v4 address, using extracted v4 address to resolve.\n");
       query->req = evdns_base_resolve_reverse(g_dns_base, addr4, 0, on_addr_name_result, query);
     } else {
@@ -91,19 +90,19 @@ void query_name_by_addr(object_t *ob) {
           evdns_base_resolve_reverse_ipv6(g_dns_base, addr6, 0, on_addr_name_result, query);
     }
   } else {
-    in_addr *addr4 = &(reinterpret_cast<sockaddr_in *>(&query->addr))->sin_addr;
+    in_addr* addr4 = &(reinterpret_cast<sockaddr_in*>(&query->addr))->sin_addr;
     query->req = evdns_base_resolve_reverse(g_dns_base, addr4, 0, on_addr_name_result, query);
   }
 }
 
 struct AddrNumberQuery {
   LPC_INT key{0};
-  const char *name{nullptr};
+  const char* name{nullptr};
   svalue_t call_back{};
-  object_t *ob_to_call{nullptr};
-  evdns_getaddrinfo_request *req{nullptr};
+  object_t* ob_to_call{nullptr};
+  evdns_getaddrinfo_request* req{nullptr};
   int err{0};
-  evutil_addrinfo *res{nullptr};
+  evutil_addrinfo* res{nullptr};
   std::string owner_id;
   uint64_t owner_epoch{0};
   VMOwnerCallbackCleanupRecord cleanup_record;
@@ -114,18 +113,20 @@ class ControlledLpcScope {
   ControlledLpcScope() : previous_(vm_context().owner.controlled_lpc_active) {
     vm_context().owner.controlled_lpc_active = true;
   }
-  ~ControlledLpcScope() { vm_context().owner.controlled_lpc_active = previous_; }
+  ~ControlledLpcScope() {
+    vm_context().owner.controlled_lpc_active = previous_;
+  }
 
  private:
   bool previous_;
 };
 
-void free_addr_number_query(AddrNumberQuery *query);
-void free_addr_number_query_cleanup(void *context) {
-  free_addr_number_query(static_cast<AddrNumberQuery *>(context));
+void free_addr_number_query(AddrNumberQuery* query);
+void free_addr_number_query_cleanup(void* context) {
+  free_addr_number_query(static_cast<AddrNumberQuery*>(context));
 }
 
-object_t *dns_callback_owner(AddrNumberQuery *query) {
+object_t* dns_callback_owner(AddrNumberQuery* query) {
   if (!query) {
     return nullptr;
   }
@@ -135,22 +136,23 @@ object_t *dns_callback_owner(AddrNumberQuery *query) {
   return query->ob_to_call;
 }
 
-void bind_dns_query_owner(AddrNumberQuery *query) {
-  auto *owner = dns_callback_owner(query);
+void bind_dns_query_owner(AddrNumberQuery* query) {
+  auto* owner = dns_callback_owner(query);
   query->owner_id = vm_owner_id(owner);
   query->owner_epoch = vm_owner_epoch(owner);
-  query->cleanup_record.prepare(query->owner_id.c_str(), query->owner_epoch, "dns_callback", "<pending>",
-                                free_addr_number_query_cleanup, query);
+  query->cleanup_record.prepare(query->owner_id.c_str(), query->owner_epoch, "dns_callback",
+                                "<pending>", free_addr_number_query_cleanup, query);
 }
 
-const char *dns_query_task_key(AddrNumberQuery *query) {
+const char* dns_query_task_key(AddrNumberQuery* query) {
   return query && query->call_back.type == T_STRING ? query->call_back.u.string : "<function>";
 }
 
-bool dns_query_owner_stale(AddrNumberQuery *query, object_t *owner, const char *task_key) {
+bool dns_query_owner_stale(AddrNumberQuery* query, object_t* owner, const char* task_key) {
   if (!query || !owner || (owner->flags & O_DESTRUCTED)) {
-    vm_owner_record_task_trace(query ? query->owner_id.c_str() : vm_owner_default_id(), "dns_callback",
-                               task_key ? task_key : "", query ? query->owner_epoch : 0, "destructed");
+    vm_owner_record_task_trace(query ? query->owner_id.c_str() : vm_owner_default_id(),
+                               "dns_callback", task_key ? task_key : "",
+                               query ? query->owner_epoch : 0, "destructed");
     return true;
   }
   if (query->owner_id != vm_owner_id(owner) || query->owner_epoch != vm_owner_epoch(owner)) {
@@ -161,7 +163,7 @@ bool dns_query_owner_stale(AddrNumberQuery *query, object_t *owner, const char *
   return false;
 }
 
-void free_addr_number_query(AddrNumberQuery *query) {
+void free_addr_number_query(AddrNumberQuery* query) {
   if (!query) {
     return;
   }
@@ -174,7 +176,7 @@ void free_addr_number_query(AddrNumberQuery *query) {
   delete query;
 }
 
-void cleanup_addr_number_query(AddrNumberQuery *query, const char *task_key, bool main_required) {
+void cleanup_addr_number_query(AddrNumberQuery* query, const char* task_key, bool main_required) {
   if (!query) {
     return;
   }
@@ -187,9 +189,9 @@ void cleanup_addr_number_query(AddrNumberQuery *query, const char *task_key, boo
 }
 
 // query finished, call the LPC callback.
-void on_query_addr_by_name_finish(AddrNumberQuery *query, bool cleanup_main_required = false) {
-  auto *owner = dns_callback_owner(query);
-  auto *task_key = dns_query_task_key(query);
+void on_query_addr_by_name_finish(AddrNumberQuery* query, bool cleanup_main_required = false) {
+  auto* owner = dns_callback_owner(query);
+  auto* task_key = dns_query_task_key(query);
   if (dns_query_owner_stale(query, owner, task_key)) {
     cleanup_addr_number_query(query, task_key, cleanup_main_required);
     return;
@@ -201,7 +203,7 @@ void on_query_addr_by_name_finish(AddrNumberQuery *query, bool cleanup_main_requ
     push_undefined();
     push_undefined();
   } else {
-    auto *result = query->res;
+    auto* result = query->res;
 #ifndef IPV6
     // Skip to first IPv4 result.
     while (result != nullptr && result->ai_family != AF_INET) {
@@ -244,35 +246,46 @@ void on_query_addr_by_name_finish(AddrNumberQuery *query, bool cleanup_main_requ
     safe_apply(query->call_back.u.string, query->ob_to_call, 3, ORIGIN_INTERNAL);
   } else {
     VMOwnerScope owner_scope(vm_context(), vm_owner_id(owner), vm_owner_epoch(owner));
-    vm_owner_record_task_trace(vm_owner_id(owner), "dns_callback", "<function>", vm_owner_epoch(owner),
-                               "dispatched");
+    vm_owner_record_task_trace(vm_owner_id(owner), "dns_callback", "<function>",
+                               vm_owner_epoch(owner), "dispatched");
     safe_call_function_pointer(query->call_back.u.fp, 3);
   }
 
   cleanup_addr_number_query(query, task_key, cleanup_main_required);
 }
 
-void enqueue_addr_by_name_callback(AddrNumberQuery *query) {
-  auto *owner = dns_callback_owner(query);
-  auto *task_key = dns_query_task_key(query);
+void enqueue_addr_by_name_callback(AddrNumberQuery* query) {
+  auto* owner = dns_callback_owner(query);
+  auto* task_key = dns_query_task_key(query);
   if (!owner || (owner->flags & O_DESTRUCTED)) {
-    vm_owner_record_task_trace(query ? query->owner_id.c_str() : vm_owner_default_id(), "dns_callback", task_key,
-                               query ? query->owner_epoch : 0, "destructed");
+    vm_owner_record_task_trace(query ? query->owner_id.c_str() : vm_owner_default_id(),
+                               "dns_callback", task_key, query ? query->owner_epoch : 0,
+                               "destructed");
     free_addr_number_query(query);
     return;
   }
   auto executor_available = vm_owner_executor_available();
   if (executor_available) {
     auto task_id = vm_owner_enqueue_executor_task(
-        owner, "dns_callback", task_key, [query] { on_query_addr_by_name_finish(query, true); },
-        [query] { cleanup_addr_number_query(query, dns_query_task_key(query), true); });
+        owner, "dns_callback", task_key,
+        [query] {
+          on_query_addr_by_name_finish(query, true);
+        },
+        [query] {
+          cleanup_addr_number_query(query, dns_query_task_key(query), true);
+        });
     if (task_id != 0) {
       return;
     }
   }
   auto task_id = vm_owner_enqueue_main_task(
-      owner, "dns_callback", task_key, [query] { on_query_addr_by_name_finish(query); },
-      [query] { free_addr_number_query(query); },
+      owner, "dns_callback", task_key,
+      [query] {
+        on_query_addr_by_name_finish(query);
+      },
+      [query] {
+        free_addr_number_query(query);
+      },
       executor_available ? VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK
                          : VM_OWNER_MAIN_TASK_OFF_MODE_FALLBACK);
   if (task_id == 0) {
@@ -281,19 +294,21 @@ void enqueue_addr_by_name_callback(AddrNumberQuery *query) {
 }
 
 // intermediate result from evdns_getaddrinfo
-void on_getaddr_result(int err, evutil_addrinfo *res, void *arg) {
-  auto *query = reinterpret_cast<AddrNumberQuery *>(arg);
+void on_getaddr_result(int err, evutil_addrinfo* res, void* arg) {
+  auto* query = reinterpret_cast<AddrNumberQuery*>(arg);
   query->err = err;
   query->res = res;
 
   // Schedule an immediate event to queue the LPC callback on its owner.
-  add_gametick_event(0, [=] { return enqueue_addr_by_name_callback(query); });
+  add_gametick_event(0, [=] {
+    return enqueue_addr_by_name_callback(query);
+  });
 }
 
 /*
  * Try to resolve "name" and call the callback when finish.
  */
-int query_addr_by_name(const char *name, svalue_t *call_back) {
+int query_addr_by_name(const char* name, svalue_t* call_back) {
   static unsigned int key = 0;
 
   struct evutil_addrinfo hints = {0};
@@ -302,7 +317,7 @@ int query_addr_by_name(const char *name, svalue_t *call_back) {
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = 0;
 
-  auto *query = new AddrNumberQuery();
+  auto* query = new AddrNumberQuery();
 
   query->key = key++;
   query->name = make_shared_string(name);
@@ -319,11 +334,11 @@ int query_addr_by_name(const char *name, svalue_t *call_back) {
   return query->key;
 } /* query_addr_number() */
 
-bool vm_dns_test_support_dispatch_callback(object_t *owner, const char *method, LPC_INT key) {
+bool vm_dns_test_support_dispatch_callback(object_t* owner, const char* method, LPC_INT key) {
   if (!owner || !method) {
     return false;
   }
-  auto *query = new AddrNumberQuery();
+  auto* query = new AddrNumberQuery();
   query->key = key;
   query->name = make_shared_string("owner-executor.test");
   query->ob_to_call = owner;
@@ -341,7 +356,7 @@ enum { IPSIZE = 200 };
 using ipentry_t = struct {
   struct sockaddr_storage addr;
   socklen_t addrlen;
-  const char *name;
+  const char* name;
 };
 
 static ipentry_t iptable[IPSIZE];
@@ -358,7 +373,7 @@ void mark_iptable() {
 }
 #endif
 
-const char *query_ip_name(object_t *ob) {
+const char* query_ip_name(object_t* ob) {
   int i;
 
   if (ob == nullptr) {
@@ -377,7 +392,7 @@ const char *query_ip_name(object_t *ob) {
   return query_ip_number(ob);
 }
 
-static void add_ip_entry(struct sockaddr *addr, socklen_t size, char *name) {
+static void add_ip_entry(struct sockaddr* addr, socklen_t size, char* name) {
   int i;
 
   for (i = 0; i < IPSIZE; i++) {
@@ -395,7 +410,7 @@ static void add_ip_entry(struct sockaddr *addr, socklen_t size, char *name) {
   ipcur = (ipcur + 1) % IPSIZE;
 }
 
-const char *query_ip_number(object_t *ob) {
+const char* query_ip_number(object_t* ob) {
   if (ob == nullptr) {
     ob = command_giver;
   }
@@ -407,15 +422,14 @@ const char *query_ip_number(object_t *ob) {
     return make_shared_string(ob->interactive->gateway_real_ip);
   }
 
-  if (ob->interactive->addrlen == 0 ||
-      ob->interactive->addrlen > sizeof(ob->interactive->addr)) {
+  if (ob->interactive->addrlen == 0 || ob->interactive->addrlen > sizeof(ob->interactive->addr)) {
     return nullptr;
   }
 
   char host[NI_MAXHOST];
-  int const ret = getnameinfo(reinterpret_cast<sockaddr *>(&ob->interactive->addr),
-                              ob->interactive->addrlen, host, sizeof(host), nullptr, 0,
-                              NI_NUMERICHOST);
+  int const ret =
+      getnameinfo(reinterpret_cast<sockaddr*>(&ob->interactive->addr), ob->interactive->addrlen,
+                  host, sizeof(host), nullptr, 0, NI_NUMERICHOST);
   if (ret) {
     debug(dns, "query_ip_number: getnameinfo: %s\n", evutil_gai_strerror(ret));
     return nullptr;

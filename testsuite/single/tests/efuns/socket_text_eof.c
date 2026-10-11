@@ -43,12 +43,11 @@ void finish_test() {
 
 void server_read(int fd, string message) {
   ASSERT2(expected == message,
-          sprintf("unexpected EOF payload: expected %O, received %O", expected, message));
+    sprintf("unexpected EOF payload: expected %O, received %O", expected, message));
   call_out("finish_test", 0);
 }
 
-void server_write(int fd) {
-}
+void server_write(int fd) {}
 
 void server_accept_ready(int fd) {
   accepted_fd = socket_accept(fd, "server_read", "server_write");
@@ -79,7 +78,7 @@ void begin_test() {
   client_fd = socket_create(STREAM, "client_read");
   ASSERT2(client_fd >= 0, "failed to create client socket");
   ASSERT_EQ(EESUCCESS,
-            socket_connect(client_fd, local, "client_read", "client_write"));
+    socket_connect(client_fd, local, "client_read", "client_write"));
 }
 
 void do_tests() {

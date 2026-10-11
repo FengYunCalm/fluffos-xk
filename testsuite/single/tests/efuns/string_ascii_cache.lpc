@@ -82,7 +82,7 @@ void do_tests() {
   // --- non-ASCII, then reduced back to ASCII ---
   s = wide + "xy";
   ASSERT_EQ(4, sizeof(s));
-  s = s[2..3];
+  s = s[2 ..3];
   ASSERT_EQ(2, sizeof(s));
 
   // --- write a non-ASCII codepoint through a string-char lvalue after the
@@ -104,13 +104,13 @@ void do_tests() {
   s = "0123456789";
   ASSERT_EQ(10, sizeof(s));
   ASSERT_EQ('5', s[5]);
-  ASSERT_EQ("345", s[3..5]);
+  ASSERT_EQ("345", s[3 ..5]);
   ASSERT_EQ('9', s[<1]);
 
   wide = "你好世";  // 你好世
   ASSERT_EQ(3, sizeof(wide));
-  ASSERT_EQ("好", wide[1..1]);
-  ASSERT_EQ("世", wide[<1..]);
+  ASSERT_EQ("好", wide[1 ..1]);
+  ASSERT_EQ("世", wide[<1 ..]);
 
   // --- a shared string (interned) reused via a second reference keeps a
   // correct tag ---
@@ -143,7 +143,7 @@ void do_tests() {
     string b = "world";
     s = a + b;                 // fresh STRING_MALLOC, ref==1, tag=ASCII via join
     ASSERT_EQ(11, sizeof(s));
-    s[0..1] = "\xc3\xa9";       // 2-byte UTF-8 char (é, U+00E9), same byte length as "he"
+    s[0 ..1] = "\xc3\xa9";       // 2-byte UTF-8 char (é, U+00E9), same byte length as "he"
     ASSERT_EQ(10, sizeof(s));  // 1 wide cluster + 9 ascii clusters, NOT 11 (stale byte length)
   }
   {
@@ -152,7 +152,7 @@ void do_tests() {
     string result;
     s = a + b;
     ASSERT_EQ(11, sizeof(s));
-    result = (s[0..1] = "\xc3\xa9");  // used as a value -> assign_lvalue_range
+    result = (s[0 ..1] = "\xc3\xa9");  // used as a value -> assign_lvalue_range
     ASSERT_EQ("\xc3\xa9", result);
     ASSERT_EQ(10, sizeof(s));
   }

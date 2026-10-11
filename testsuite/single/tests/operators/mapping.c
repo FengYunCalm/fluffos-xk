@@ -1,8 +1,8 @@
 void do_tests() {
   int x = 100;
-  string* tmp1 = ({ "x", "y", "z" });
+  string *tmp1 = ({ "x", "y", "z" });
   mapping tmp = ([ "ab": 10, 20: "ab", tmp1: "abc" ]);
-  string str = "(ab)"; // String to run through sscanf()
+  string str = "(ab)";  // String to run through sscanf()
   string fail = "";
 
   ASSERT_EQ(10, tmp["ab"]);
@@ -16,5 +16,5 @@ void do_tests() {
 
   ASSERT_EQ("ab", tmp[20]);
   ASSERT_EQ("ab", tmp[10 * 2]);
-  ASSERT_EQ("ab", tmp[x/5]);
+  ASSERT_EQ("ab", tmp[x / 5]);
 }

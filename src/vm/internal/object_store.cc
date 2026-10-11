@@ -16,16 +16,21 @@
 #include <unordered_set>
 namespace {
 constexpr size_t kObjectStoreMigrationTraceLimit = 128;
-constexpr const char *kGlobalLiveObjectBridgeSource = "ObjectTable.global_live_object_bridge";
-constexpr const char *kGlobalRecordBridgeSource = "global_object_records";
-constexpr const char *kGlobalRecordIdScanBridgeSource = "global_object_records.object_id_scan_bridge";
-constexpr const char *kGlobalRecordPointerBridgeSource = "global_object_records.pointer_bridge";
-constexpr const char *kGlobalRecordScanBridgeSource = "global_object_records.path_scan_bridge";
-constexpr const char *kOwnerLocalStoreCompleteBlockerGlobalIndexBridge = "global_index_bridge_active";
-constexpr const char *kOwnerLocalStoreCompleteBlockerGlobalObjectTable = "global_object_table_active";
-constexpr const char *kOwnerLocalStoreCompleteBlockerNotMarkedComplete = "owner_local_store_not_marked_complete";
-constexpr const char *kOwnerLocalDeferredDestructBlocker = "deferred_destruct_main_thread_list";
-constexpr const char *kGlobalIndexPhysicalRetirementBlocker = "global_object_records_compatibility_index";
+constexpr const char* kGlobalLiveObjectBridgeSource = "ObjectTable.global_live_object_bridge";
+constexpr const char* kGlobalRecordBridgeSource = "global_object_records";
+constexpr const char* kGlobalRecordIdScanBridgeSource =
+    "global_object_records.object_id_scan_bridge";
+constexpr const char* kGlobalRecordPointerBridgeSource = "global_object_records.pointer_bridge";
+constexpr const char* kGlobalRecordScanBridgeSource = "global_object_records.path_scan_bridge";
+constexpr const char* kOwnerLocalStoreCompleteBlockerGlobalIndexBridge =
+    "global_index_bridge_active";
+constexpr const char* kOwnerLocalStoreCompleteBlockerGlobalObjectTable =
+    "global_object_table_active";
+constexpr const char* kOwnerLocalStoreCompleteBlockerNotMarkedComplete =
+    "owner_local_store_not_marked_complete";
+constexpr const char* kOwnerLocalDeferredDestructBlocker = "deferred_destruct_main_thread_list";
+constexpr const char* kGlobalIndexPhysicalRetirementBlocker =
+    "global_object_records_compatibility_index";
 
 bool object_store_lifecycle_tracking_enabled() {
   return vm_multicore_mode_fast() != VM_MULTICORE_MODE_OFF;
@@ -62,8 +67,8 @@ struct VMObjectShard {
   std::unordered_set<uint64_t> object_directory;
   std::unordered_map<uint64_t, ObjectRecord> local_records;
   std::unordered_map<uint64_t, ObjectRecord> destructed_records;
-  std::unordered_map<uint64_t, object_t *> local_objects;
-  std::unordered_map<object_t *, uint64_t> local_object_index;
+  std::unordered_map<uint64_t, object_t*> local_objects;
+  std::unordered_map<object_t*, uint64_t> local_object_index;
   std::unordered_map<std::string, uint64_t> object_path_index;
   std::unordered_map<std::string, uint64_t> destructed_path_index;
   // Only paths with duplicate records need a count; singleton paths use the index directly.
@@ -90,11 +95,11 @@ struct OwnerLocalLookupResult {
   std::string owner_id;
   std::string query_path;
   uint64_t object_id{0};
-  const ObjectRecord *local_record{nullptr};
-  const ObjectRecord *destructed_record{nullptr};
-  const ObjectRecord *cross_owner_record{nullptr};
-  const ObjectRecord *global_record{nullptr};
-  const ObjectRecord *record{nullptr};
+  const ObjectRecord* local_record{nullptr};
+  const ObjectRecord* destructed_record{nullptr};
+  const ObjectRecord* cross_owner_record{nullptr};
+  const ObjectRecord* global_record{nullptr};
+  const ObjectRecord* record{nullptr};
   std::string cross_owner_record_source;
   std::string global_record_source;
   std::string global_record_id_scan_bridge_source;
@@ -106,7 +111,7 @@ struct OwnerLocalLookupResult {
   std::string global_record_pointer_bridge_skip_reason;
   std::string global_record_scan_bridge_skip_reason;
   std::string global_live_object_fallback_reason;
-  object_t *resolved_object{nullptr};
+  object_t* resolved_object{nullptr};
   bool shard_contains{false};
   bool same_owner{false};
   bool local_object_ref_found{false};
@@ -156,15 +161,15 @@ struct OwnerLocalBridgeSummary {
 };
 
 struct GlobalLiveObjectBridgeResult {
-  object_t *object{nullptr};
-  const ObjectRecord *record{nullptr};
+  object_t* object{nullptr};
+  const ObjectRecord* record{nullptr};
   bool record_pointer_bridge_used{false};
   bool record_pointer_bridge_found{false};
   bool record_pointer_bridge_skipped{false};
 };
 
 struct GlobalRecordByPathBridgeResult {
-  const ObjectRecord *record{nullptr};
+  const ObjectRecord* record{nullptr};
   bool live_object_found{false};
   bool record_pointer_bridge_used{false};
   bool record_pointer_bridge_found{false};
@@ -176,7 +181,7 @@ struct GlobalRecordByPathBridgeResult {
 std::shared_mutex object_store_directory_mutex;
 std::atomic<uint64_t> next_object_id{1};
 std::atomic<uint64_t> next_migration_id{1};
-std::unordered_map<object_t *, ObjectRecord> object_records;
+std::unordered_map<object_t*, ObjectRecord> object_records;
 std::unordered_map<std::string, VMObjectShard> owner_shards;
 std::unordered_map<std::string, uint64_t> shadowed_destructed_path_counts;
 std::deque<ObjectMigrationRecord> object_migration_traces;
@@ -184,18 +189,21 @@ std::deque<ObjectMigrationRecord> object_migration_traces;
 using ObjectStoreReadLock = std::shared_lock<std::shared_mutex>;
 using ObjectStoreWriteLock = std::unique_lock<std::shared_mutex>;
 
-const char *safe_owner_id(const char *owner_id) {
+const char* safe_owner_id(const char* owner_id) {
   return owner_id && owner_id[0] != '\0' ? owner_id : vm_owner_default_id();
 }
 
-std::string safe_object_path(object_t *object) { return object && object->obname ? object->obname : ""; }
-
-std::string safe_permission_intent(const char *permission_intent) {
-  return permission_intent && permission_intent[0] != '\0' ? permission_intent
-                                                          : kVMObjectHandleDefaultPermissionIntent;
+std::string safe_object_path(object_t* object) {
+  return object && object->obname ? object->obname : "";
 }
 
-const char *owner_local_store_complete_blocker(bool owner_local_store_complete, bool global_index_bridge,
+std::string safe_permission_intent(const char* permission_intent) {
+  return permission_intent && permission_intent[0] != '\0' ? permission_intent
+                                                           : kVMObjectHandleDefaultPermissionIntent;
+}
+
+const char* owner_local_store_complete_blocker(bool owner_local_store_complete,
+                                               bool global_index_bridge,
                                                bool uses_global_object_table) {
   if (owner_local_store_complete) {
     return "";
@@ -209,11 +217,11 @@ const char *owner_local_store_complete_blocker(bool owner_local_store_complete, 
   return kOwnerLocalStoreCompleteBlockerNotMarkedComplete;
 }
 
-GlobalLiveObjectBridgeResult find_global_live_object_bridge_by_path_locked(const std::string &object_path,
-                                                                           bool include_record_bridge = true);
+GlobalLiveObjectBridgeResult find_global_live_object_bridge_by_path_locked(
+    const std::string& object_path, bool include_record_bridge = true);
 
-const ObjectRecord *find_global_record_id_scan_bridge_locked(uint64_t object_id) {
-  for (const auto &entry : object_records) {
+const ObjectRecord* find_global_record_id_scan_bridge_locked(uint64_t object_id) {
+  for (const auto& entry : object_records) {
     if (entry.second.object_id == object_id) {
       return &entry.second;
     }
@@ -221,22 +229,22 @@ const ObjectRecord *find_global_record_id_scan_bridge_locked(uint64_t object_id)
   return nullptr;
 }
 
-const ObjectRecord *find_global_record_by_object_id_locked(uint64_t object_id) {
+const ObjectRecord* find_global_record_by_object_id_locked(uint64_t object_id) {
   return find_global_record_id_scan_bridge_locked(object_id);
 }
 
-const ObjectRecord *find_global_record_pointer_bridge_locked(object_t *object) {
+const ObjectRecord* find_global_record_pointer_bridge_locked(object_t* object) {
   auto it = object_records.find(object);
   return it == object_records.end() ? nullptr : &it->second;
 }
 
-const ObjectRecord *find_global_record_by_object_pointer_locked(object_t *object) {
+const ObjectRecord* find_global_record_by_object_pointer_locked(object_t* object) {
   return find_global_record_pointer_bridge_locked(object);
 }
 
-const ObjectRecord *find_global_record_scan_bridge_by_path_locked(const std::string &object_path) {
-  const ObjectRecord *destructed_record = nullptr;
-  for (const auto &entry : object_records) {
+const ObjectRecord* find_global_record_scan_bridge_by_path_locked(const std::string& object_path) {
+  const ObjectRecord* destructed_record = nullptr;
+  for (const auto& entry : object_records) {
     if (entry.second.object_path == object_path) {
       if (!entry.second.destructed) {
         return &entry.second;
@@ -247,8 +255,8 @@ const ObjectRecord *find_global_record_scan_bridge_by_path_locked(const std::str
   return destructed_record;
 }
 
-GlobalRecordByPathBridgeResult find_global_record_by_object_path_locked(const std::string &object_path,
-                                                                        bool allow_live_object_bridge = true) {
+GlobalRecordByPathBridgeResult find_global_record_by_object_path_locked(
+    const std::string& object_path, bool allow_live_object_bridge = true) {
   GlobalRecordByPathBridgeResult result;
   if (object_path.empty()) {
     return result;
@@ -270,8 +278,8 @@ GlobalRecordByPathBridgeResult find_global_record_by_object_path_locked(const st
   return result;
 }
 
-GlobalLiveObjectBridgeResult find_global_live_object_bridge_by_path_locked(const std::string &object_path,
-                                                                           bool include_record_bridge) {
+GlobalLiveObjectBridgeResult find_global_live_object_bridge_by_path_locked(
+    const std::string& object_path, bool include_record_bridge) {
   GlobalLiveObjectBridgeResult result;
   if (object_path.empty()) {
     return result;
@@ -287,25 +295,24 @@ GlobalLiveObjectBridgeResult find_global_live_object_bridge_by_path_locked(const
   return result;
 }
 
-void add_mapping_map(mapping_t *map, const char *key_name, mapping_t *value) {
+void add_mapping_map(mapping_t* map, const char* key_name, mapping_t* value) {
   auto key = const0u;
   key.type = T_STRING;
   key.subtype = STRING_CONSTANT;
   key.u.string = key_name;
-  auto *slot = find_for_insert(map, &key, 1);
+  auto* slot = find_for_insert(map, &key, 1);
   free_string(key.u.string);
   slot->type = T_MAPPING;
   slot->u.map = value;
   value->ref++;
 }
 
-void add_owner_local_lifecycle_contract(mapping_t *map, bool lookup_resolve_ready,
+void add_owner_local_lifecycle_contract(mapping_t* map, bool lookup_resolve_ready,
                                         bool canonical_write_ready) {
   constexpr bool deferred_destruct_ready = true;
   constexpr bool global_index_physical_retirement_ready = true;
   const auto lifecycle_ready = lookup_resolve_ready && canonical_write_ready &&
-                               deferred_destruct_ready &&
-                               global_index_physical_retirement_ready;
+                               deferred_destruct_ready && global_index_physical_retirement_ready;
   add_mapping_pair(map, "owner_local_lifecycle_contract_version", 1);
   add_mapping_pair(map, "owner_local_lookup_resolve_ready", lookup_resolve_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_create_canonical_ready", canonical_write_ready ? 1 : 0);
@@ -316,15 +323,16 @@ void add_owner_local_lifecycle_contract(mapping_t *map, bool lookup_resolve_read
                      deferred_destruct_ready ? "" : kOwnerLocalDeferredDestructBlocker);
   add_mapping_pair(map, "global_index_physical_retirement_ready",
                    global_index_physical_retirement_ready ? 1 : 0);
-  add_mapping_string(map, "global_index_physical_retirement_blocker",
-                     global_index_physical_retirement_ready ? "" : kGlobalIndexPhysicalRetirementBlocker);
+  add_mapping_string(
+      map, "global_index_physical_retirement_blocker",
+      global_index_physical_retirement_ready ? "" : kGlobalIndexPhysicalRetirementBlocker);
   add_mapping_pair(map, "owner_local_lifecycle_ready", lifecycle_ready ? 1 : 0);
   add_mapping_string(map, "owner_local_lifecycle_blocker",
                      lifecycle_ready ? "" : kOwnerLocalStoreCompleteBlockerNotMarkedComplete);
 }
 
-VMObjectShard &shard_for_owner(const std::string &owner_id) {
-  auto &shard = owner_shards[owner_id];
+VMObjectShard& shard_for_owner(const std::string& owner_id) {
+  auto& shard = owner_shards[owner_id];
   if (shard.status.owner_id.empty()) {
     shard.status.owner_id = owner_id;
   }
@@ -334,17 +342,18 @@ VMObjectShard &shard_for_owner(const std::string &owner_id) {
   return shard;
 }
 
-const ObjectRecord *find_local_record_locked(const VMObjectShard &shard, uint64_t object_id) {
+const ObjectRecord* find_local_record_locked(const VMObjectShard& shard, uint64_t object_id) {
   auto it = shard.local_records.find(object_id);
   return it == shard.local_records.end() ? nullptr : &it->second;
 }
 
-const ObjectRecord *find_destructed_record_locked(const VMObjectShard &shard, uint64_t object_id) {
+const ObjectRecord* find_destructed_record_locked(const VMObjectShard& shard, uint64_t object_id) {
   auto it = shard.destructed_records.find(object_id);
   return it == shard.destructed_records.end() ? nullptr : &it->second;
 }
 
-const ObjectRecord *find_live_record_by_object_pointer_locked(const char *owner_id, object_t *object) {
+const ObjectRecord* find_live_record_by_object_pointer_locked(const char* owner_id,
+                                                              object_t* object) {
   if (!object) {
     return nullptr;
   }
@@ -359,43 +368,43 @@ const ObjectRecord *find_live_record_by_object_pointer_locked(const char *owner_
   return find_local_record_locked(shard_it->second, object_index->second);
 }
 
-const ObjectRecord *find_record_by_owner_local_object_id_locked(uint64_t object_id) {
+const ObjectRecord* find_record_by_owner_local_object_id_locked(uint64_t object_id) {
   if (object_id == 0) {
     return nullptr;
   }
-  const ObjectRecord *destructed_record = nullptr;
-  for (const auto &entry : owner_shards) {
-    if (auto *record = find_local_record_locked(entry.second, object_id)) {
+  const ObjectRecord* destructed_record = nullptr;
+  for (const auto& entry : owner_shards) {
+    if (auto* record = find_local_record_locked(entry.second, object_id)) {
       return record;
     }
   }
-  for (const auto &entry : owner_shards) {
-    if (auto *record = find_destructed_record_locked(entry.second, object_id)) {
+  for (const auto& entry : owner_shards) {
+    if (auto* record = find_destructed_record_locked(entry.second, object_id)) {
       destructed_record = record;
     }
   }
   return destructed_record;
 }
 
-const ObjectRecord *find_record_by_owner_local_path_locked(const std::string &object_path) {
+const ObjectRecord* find_record_by_owner_local_path_locked(const std::string& object_path) {
   if (object_path.empty()) {
     return nullptr;
   }
-  const ObjectRecord *destructed_record = nullptr;
-  for (const auto &entry : owner_shards) {
-    const auto &shard = entry.second;
+  const ObjectRecord* destructed_record = nullptr;
+  for (const auto& entry : owner_shards) {
+    const auto& shard = entry.second;
     auto live_path = shard.object_path_index.find(object_path);
     if (live_path != shard.object_path_index.end()) {
-      if (auto *record = find_local_record_locked(shard, live_path->second)) {
+      if (auto* record = find_local_record_locked(shard, live_path->second)) {
         return record;
       }
     }
   }
-  for (const auto &entry : owner_shards) {
-    const auto &shard = entry.second;
+  for (const auto& entry : owner_shards) {
+    const auto& shard = entry.second;
     auto destructed_path = shard.destructed_path_index.find(object_path);
     if (destructed_path != shard.destructed_path_index.end()) {
-      if (auto *record = find_destructed_record_locked(shard, destructed_path->second)) {
+      if (auto* record = find_destructed_record_locked(shard, destructed_path->second)) {
         destructed_record = record;
       }
     }
@@ -403,10 +412,11 @@ const ObjectRecord *find_record_by_owner_local_path_locked(const std::string &ob
   return destructed_record;
 }
 
-object_t *shard_resolve_live_object_locked(const VMObjectShard &shard, uint64_t object_id) {
+object_t* shard_resolve_live_object_locked(const VMObjectShard& shard, uint64_t object_id) {
   auto record = shard.local_records.find(object_id);
   if (record == shard.local_records.end() || record->second.destructed ||
-      record->second.owner_id != shard.status.owner_id || shard.object_directory.count(object_id) == 0) {
+      record->second.owner_id != shard.status.owner_id ||
+      shard.object_directory.count(object_id) == 0) {
     return nullptr;
   }
   auto object = shard.local_objects.find(object_id);
@@ -424,7 +434,8 @@ object_t *shard_resolve_live_object_locked(const VMObjectShard &shard, uint64_t 
   return object->second;
 }
 
-object_t *shard_resolve_live_path_locked(const VMObjectShard &shard, const std::string &object_path) {
+object_t* shard_resolve_live_path_locked(const VMObjectShard& shard,
+                                         const std::string& object_path) {
   if (object_path.empty()) {
     return nullptr;
   }
@@ -435,7 +446,7 @@ object_t *shard_resolve_live_path_locked(const VMObjectShard &shard, const std::
   return shard_resolve_live_object_locked(shard, path->second);
 }
 
-object_t *owner_local_resolve_object_fast_path_locked(const char *owner_id, uint64_t object_id) {
+object_t* owner_local_resolve_object_fast_path_locked(const char* owner_id, uint64_t object_id) {
   auto shard_it = owner_shards.find(safe_owner_id(owner_id));
   if (shard_it == owner_shards.end()) {
     return nullptr;
@@ -443,7 +454,7 @@ object_t *owner_local_resolve_object_fast_path_locked(const char *owner_id, uint
   return shard_resolve_live_object_locked(shard_it->second, object_id);
 }
 
-object_t *owner_local_resolve_path_fast_path_locked(const char *owner_id, const char *object_path) {
+object_t* owner_local_resolve_path_fast_path_locked(const char* owner_id, const char* object_path) {
   auto shard_it = owner_shards.find(safe_owner_id(owner_id));
   if (shard_it == owner_shards.end()) {
     return nullptr;
@@ -451,12 +462,12 @@ object_t *owner_local_resolve_path_fast_path_locked(const char *owner_id, const 
   return shard_resolve_live_path_locked(shard_it->second, object_path ? object_path : "");
 }
 
-bool shard_has_local_object_ref_locked(const VMObjectShard &shard, uint64_t object_id) {
+bool shard_has_local_object_ref_locked(const VMObjectShard& shard, uint64_t object_id) {
   auto object_it = shard.local_objects.find(object_id);
   return object_it != shard.local_objects.end() && object_it->second != nullptr;
 }
 
-bool shard_has_local_object_ref_index_locked(const VMObjectShard &shard, uint64_t object_id) {
+bool shard_has_local_object_ref_index_locked(const VMObjectShard& shard, uint64_t object_id) {
   auto object_it = shard.local_objects.find(object_id);
   if (object_it == shard.local_objects.end() || object_it->second == nullptr) {
     return false;
@@ -465,8 +476,8 @@ bool shard_has_local_object_ref_index_locked(const VMObjectShard &shard, uint64_
   return object_index != shard.local_object_index.end() && object_index->second == object_id;
 }
 
-bool shard_path_index_matches_locked(const std::unordered_map<std::string, uint64_t> &index,
-                                     const std::string &object_path, uint64_t object_id) {
+bool shard_path_index_matches_locked(const std::unordered_map<std::string, uint64_t>& index,
+                                     const std::string& object_path, uint64_t object_id) {
   if (object_path.empty() || object_id == 0) {
     return false;
   }
@@ -474,11 +485,11 @@ bool shard_path_index_matches_locked(const std::unordered_map<std::string, uint6
   return path_it != index.end() && path_it->second == object_id;
 }
 
-bool owner_local_live_path_index_contains_locked(const std::string &object_path) {
+bool owner_local_live_path_index_contains_locked(const std::string& object_path) {
   if (object_path.empty()) {
     return false;
   }
-  for (const auto &entry : owner_shards) {
+  for (const auto& entry : owner_shards) {
     if (entry.second.object_path_index.find(object_path) != entry.second.object_path_index.end()) {
       return true;
     }
@@ -486,7 +497,8 @@ bool owner_local_live_path_index_contains_locked(const std::string &object_path)
   return false;
 }
 
-bool shard_live_path_index_covers_path_locked(const VMObjectShard &shard, const std::string &object_path) {
+bool shard_live_path_index_covers_path_locked(const VMObjectShard& shard,
+                                              const std::string& object_path) {
   if (object_path.empty()) {
     return true;
   }
@@ -494,26 +506,27 @@ bool shard_live_path_index_covers_path_locked(const VMObjectShard &shard, const 
   if (path == shard.object_path_index.end()) {
     return false;
   }
-  auto *record = find_local_record_locked(shard, path->second);
+  auto* record = find_local_record_locked(shard, path->second);
   return record && !record->destructed && record->object_path == object_path;
 }
 
-const ObjectRecord *find_cross_owner_record_by_object_id_locked(const std::string &owner_id, uint64_t object_id,
-                                                                std::string &record_source) {
-  for (const auto &entry : owner_shards) {
+const ObjectRecord* find_cross_owner_record_by_object_id_locked(const std::string& owner_id,
+                                                                uint64_t object_id,
+                                                                std::string& record_source) {
+  for (const auto& entry : owner_shards) {
     if (entry.first == owner_id) {
       continue;
     }
-    if (auto *record = find_local_record_locked(entry.second, object_id)) {
+    if (auto* record = find_local_record_locked(entry.second, object_id)) {
       record_source = "vm_object_shard.local_records";
       return record;
     }
   }
-  for (const auto &entry : owner_shards) {
+  for (const auto& entry : owner_shards) {
     if (entry.first == owner_id) {
       continue;
     }
-    if (auto *record = find_destructed_record_locked(entry.second, object_id)) {
+    if (auto* record = find_destructed_record_locked(entry.second, object_id)) {
       record_source = "vm_object_shard.destructed_records";
       return record;
     }
@@ -522,32 +535,32 @@ const ObjectRecord *find_cross_owner_record_by_object_id_locked(const std::strin
   return nullptr;
 }
 
-const ObjectRecord *find_cross_owner_record_by_path_locked(const std::string &owner_id,
-                                                           const std::string &object_path,
-                                                           std::string &record_source) {
+const ObjectRecord* find_cross_owner_record_by_path_locked(const std::string& owner_id,
+                                                           const std::string& object_path,
+                                                           std::string& record_source) {
   if (object_path.empty()) {
     record_source.clear();
     return nullptr;
   }
-  for (const auto &entry : owner_shards) {
+  for (const auto& entry : owner_shards) {
     if (entry.first == owner_id) {
       continue;
     }
     auto path = entry.second.object_path_index.find(object_path);
     if (path != entry.second.object_path_index.end()) {
-      if (auto *record = find_local_record_locked(entry.second, path->second)) {
+      if (auto* record = find_local_record_locked(entry.second, path->second)) {
         record_source = "vm_object_shard.object_path_index";
         return record;
       }
     }
   }
-  for (const auto &entry : owner_shards) {
+  for (const auto& entry : owner_shards) {
     if (entry.first == owner_id) {
       continue;
     }
     auto path = entry.second.destructed_path_index.find(object_path);
     if (path != entry.second.destructed_path_index.end()) {
-      if (auto *record = find_destructed_record_locked(entry.second, path->second)) {
+      if (auto* record = find_destructed_record_locked(entry.second, path->second)) {
         record_source = "vm_object_shard.destructed_path_index";
         return record;
       }
@@ -557,17 +570,16 @@ const ObjectRecord *find_cross_owner_record_by_path_locked(const std::string &ow
   return nullptr;
 }
 
-bool resolve_handle_from_owner_local_shard_locked(const VMObjectHandle &handle,
-                                                  VMObjectHandleResolveResult &result) {
+bool resolve_handle_from_owner_local_shard_locked(const VMObjectHandle& handle,
+                                                  VMObjectHandleResolveResult& result) {
   auto shard_it = owner_shards.find(safe_owner_id(handle.owner_id.c_str()));
   if (shard_it == owner_shards.end()) {
     return false;
   }
-  auto *record = find_local_record_locked(shard_it->second, handle.object_id);
-  auto *object = shard_resolve_live_object_locked(shard_it->second, handle.object_id);
+  auto* record = find_local_record_locked(shard_it->second, handle.object_id);
+  auto* object = shard_resolve_live_object_locked(shard_it->second, handle.object_id);
   if (!record || !object || record->object_path != handle.object_path ||
-      record->owner_id != handle.owner_id ||
-      record->owner_epoch != handle.owner_epoch) {
+      record->owner_id != handle.owner_id || record->owner_epoch != handle.owner_epoch) {
     return false;
   }
   result.object = object;
@@ -578,46 +590,51 @@ bool resolve_handle_from_owner_local_shard_locked(const VMObjectHandle &handle,
   return true;
 }
 
-void finalize_owner_local_lookup_locked(OwnerLocalLookupResult &result, const VMObjectShard *shard,
+void finalize_owner_local_lookup_locked(OwnerLocalLookupResult& result, const VMObjectShard* shard,
                                         bool require_live_path_index_for_found) {
-  result.record = result.local_record
-                      ? result.local_record
-                      : (result.destructed_record
-                             ? result.destructed_record
-                             : (result.cross_owner_record ? result.cross_owner_record : result.global_record));
+  result.record =
+      result.local_record
+          ? result.local_record
+          : (result.destructed_record
+                 ? result.destructed_record
+                 : (result.cross_owner_record ? result.cross_owner_record : result.global_record));
   if (result.record) {
     result.object_id = result.record->object_id;
   }
   result.shard_contains =
       shard && result.object_id != 0 && shard->object_directory.count(result.object_id) > 0;
   result.same_owner = result.record && result.record->owner_id == result.owner_id;
-  result.local_object_ref_found = shard && result.local_record && shard_has_local_object_ref_locked(*shard, result.object_id);
+  result.local_object_ref_found =
+      shard && result.local_record && shard_has_local_object_ref_locked(*shard, result.object_id);
   result.local_object_ref_index_found =
-      shard && result.local_record && shard_has_local_object_ref_index_locked(*shard, result.object_id);
+      shard && result.local_record &&
+      shard_has_local_object_ref_index_locked(*shard, result.object_id);
   if (shard && result.record) {
-    result.live_path_index_found =
-        shard_path_index_matches_locked(shard->object_path_index, result.record->object_path, result.object_id);
-    result.destructed_path_index_found =
-        shard_path_index_matches_locked(shard->destructed_path_index, result.record->object_path, result.object_id);
+    result.live_path_index_found = shard_path_index_matches_locked(
+        shard->object_path_index, result.record->object_path, result.object_id);
+    result.destructed_path_index_found = shard_path_index_matches_locked(
+        shard->destructed_path_index, result.record->object_path, result.object_id);
   }
-  result.found = result.local_record && result.same_owner && !result.record->destructed && result.shard_contains &&
-                 result.local_object_ref_found && result.local_object_ref_index_found &&
+  result.found = result.local_record && result.same_owner && !result.record->destructed &&
+                 result.shard_contains && result.local_object_ref_found &&
+                 result.local_object_ref_index_found &&
                  (!require_live_path_index_for_found || result.live_path_index_found);
-  result.resolved_object = result.found && shard ? shard_resolve_live_object_locked(*shard, result.object_id) : nullptr;
+  result.resolved_object =
+      result.found && shard ? shard_resolve_live_object_locked(*shard, result.object_id) : nullptr;
   result.found = result.found && result.resolved_object != nullptr;
 }
 
-bool shard_live_counts_consistent(const VMObjectShard &shard) {
+bool shard_live_counts_consistent(const VMObjectShard& shard) {
   return shard.object_directory.size() == shard.local_records.size() &&
          shard.local_records.size() == shard.local_objects.size() &&
          shard.local_objects.size() == shard.local_object_index.size();
 }
 
-bool shard_live_object_ref_index_consistent(const VMObjectShard &shard) {
+bool shard_live_object_ref_index_consistent(const VMObjectShard& shard) {
   if (shard.local_objects.size() != shard.local_object_index.size()) {
     return false;
   }
-  for (const auto &entry : shard.local_objects) {
+  for (const auto& entry : shard.local_objects) {
     if (!entry.second) {
       return false;
     }
@@ -626,7 +643,7 @@ bool shard_live_object_ref_index_consistent(const VMObjectShard &shard) {
       return false;
     }
   }
-  for (const auto &entry : shard.local_object_index) {
+  for (const auto& entry : shard.local_object_index) {
     auto forward = shard.local_objects.find(entry.second);
     if (forward == shard.local_objects.end() || forward->second != entry.first) {
       return false;
@@ -635,9 +652,9 @@ bool shard_live_object_ref_index_consistent(const VMObjectShard &shard) {
   return true;
 }
 
-bool shard_live_path_index_consistent(const VMObjectShard &shard) {
+bool shard_live_path_index_consistent(const VMObjectShard& shard) {
   std::unordered_set<std::string> expected_paths;
-  for (const auto &entry : shard.local_records) {
+  for (const auto& entry : shard.local_records) {
     if (!entry.second.object_path.empty()) {
       expected_paths.insert(entry.second.object_path);
     }
@@ -645,21 +662,21 @@ bool shard_live_path_index_consistent(const VMObjectShard &shard) {
   if (shard.object_path_index.size() != expected_paths.size()) {
     return false;
   }
-  for (const auto &entry : shard.object_path_index) {
+  for (const auto& entry : shard.object_path_index) {
     if (expected_paths.count(entry.first) == 0) {
       return false;
     }
-    auto *record = find_local_record_locked(shard, entry.second);
+    auto* record = find_local_record_locked(shard, entry.second);
     if (!record || record->object_path != entry.first || record->destructed) {
       return false;
     }
   }
-  for (const auto &object_path : expected_paths) {
+  for (const auto& object_path : expected_paths) {
     auto path = shard.object_path_index.find(object_path);
     if (path == shard.object_path_index.end()) {
       return false;
     }
-    auto *record = find_local_record_locked(shard, path->second);
+    auto* record = find_local_record_locked(shard, path->second);
     if (!record || record->object_path != object_path || record->destructed) {
       return false;
     }
@@ -667,31 +684,32 @@ bool shard_live_path_index_consistent(const VMObjectShard &shard) {
   return true;
 }
 
-bool shard_destructed_path_index_consistent(const VMObjectShard &shard) {
+bool shard_destructed_path_index_consistent(const VMObjectShard& shard) {
   std::unordered_set<std::string> expected_paths;
-  for (const auto &entry : shard.destructed_records) {
-    if (!entry.second.object_path.empty() && !owner_local_live_path_index_contains_locked(entry.second.object_path)) {
+  for (const auto& entry : shard.destructed_records) {
+    if (!entry.second.object_path.empty() &&
+        !owner_local_live_path_index_contains_locked(entry.second.object_path)) {
       expected_paths.insert(entry.second.object_path);
     }
   }
   if (shard.destructed_path_index.size() != expected_paths.size()) {
     return false;
   }
-  for (const auto &entry : shard.destructed_path_index) {
+  for (const auto& entry : shard.destructed_path_index) {
     if (expected_paths.count(entry.first) == 0) {
       return false;
     }
-    auto *record = find_destructed_record_locked(shard, entry.second);
+    auto* record = find_destructed_record_locked(shard, entry.second);
     if (!record || record->object_path != entry.first || !record->destructed) {
       return false;
     }
   }
-  for (const auto &object_path : expected_paths) {
+  for (const auto& object_path : expected_paths) {
     auto path = shard.destructed_path_index.find(object_path);
     if (path == shard.destructed_path_index.end()) {
       return false;
     }
-    auto *record = find_destructed_record_locked(shard, path->second);
+    auto* record = find_destructed_record_locked(shard, path->second);
     if (!record || record->object_path != object_path || !record->destructed) {
       return false;
     }
@@ -699,13 +717,14 @@ bool shard_destructed_path_index_consistent(const VMObjectShard &shard) {
   return true;
 }
 
-bool object_record_equal(const ObjectRecord &lhs, const ObjectRecord &rhs) {
-  return lhs.object_id == rhs.object_id && lhs.owner_id == rhs.owner_id && lhs.owner_epoch == rhs.owner_epoch &&
-         lhs.object_path == rhs.object_path && lhs.destructed == rhs.destructed;
+bool object_record_equal(const ObjectRecord& lhs, const ObjectRecord& rhs) {
+  return lhs.object_id == rhs.object_id && lhs.owner_id == rhs.owner_id &&
+         lhs.owner_epoch == rhs.owner_epoch && lhs.object_path == rhs.object_path &&
+         lhs.destructed == rhs.destructed;
 }
 
-bool object_is_pending_destruct(object_t *object) {
-  for (auto *pending = obj_list_destruct; pending; pending = pending->next_all) {
+bool object_is_pending_destruct(object_t* object) {
+  for (auto* pending = obj_list_destruct; pending; pending = pending->next_all) {
     if (pending == object) {
       return true;
     }
@@ -713,26 +732,29 @@ bool object_is_pending_destruct(object_t *object) {
   return false;
 }
 
-bool shard_canonical_record_ready(const VMObjectShard &shard) {
+bool shard_canonical_record_ready(const VMObjectShard& shard) {
   return shard_live_counts_consistent(shard) && shard_live_object_ref_index_consistent(shard) &&
          shard_live_path_index_consistent(shard) && shard_destructed_path_index_consistent(shard);
 }
 
-bool shard_record_index_ready(const VMObjectShard &shard) {
+bool shard_record_index_ready(const VMObjectShard& shard) {
   return shard.object_directory.size() == shard.local_records.size() &&
          shard.object_path_index.size() <= shard.local_records.size() &&
          shard.destructed_path_index.size() <= shard.destructed_records.size() &&
          shard_live_path_index_consistent(shard) && shard_destructed_path_index_consistent(shard);
 }
 
-bool owner_local_store_ready_for_shard(const VMObjectShard &shard, const OwnerLocalBridgeSummary &summary) {
+bool owner_local_store_ready_for_shard(const VMObjectShard& shard,
+                                       const OwnerLocalBridgeSummary& summary) {
   return shard.owner_local_directory_ready && shard_canonical_record_ready(shard) &&
          summary.global_live_object_bridge_retirement_ready;
 }
 
-bool owner_local_store_complete_for_shard(const VMObjectShard &shard, const OwnerLocalBridgeSummary &summary) {
+bool owner_local_store_complete_for_shard(const VMObjectShard& shard,
+                                          const OwnerLocalBridgeSummary& summary) {
   return owner_local_store_ready_for_shard(shard, summary) &&
-         summary.global_record_bridge_retirement_ready && summary.global_live_object_bridge_retirement_ready;
+         summary.global_record_bridge_retirement_ready &&
+         summary.global_live_object_bridge_retirement_ready;
 }
 
 OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
@@ -749,8 +771,8 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
     const auto entry = global_records_by_id.find(object_id);
     return entry == global_records_by_id.end() ? nullptr : entry->second;
   };
-  for (const auto &entry : owner_shards) {
-    const auto &shard = entry.second;
+  for (const auto& entry : owner_shards) {
+    const auto& shard = entry.second;
     auto shard_record_ready = shard_record_index_ready(shard);
     auto shard_ready = shard_canonical_record_ready(shard);
     summary.live_records += shard.local_records.size();
@@ -759,23 +781,28 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
     summary.destructed_records += shard.destructed_records.size();
     summary.live_path_index_entries += shard.object_path_index.size();
     summary.destructed_path_index_entries += shard.destructed_path_index.size();
-    summary.owner_local_record_index_ready = summary.owner_local_record_index_ready && shard_record_ready;
-    summary.owner_local_canonical_record_ready = summary.owner_local_canonical_record_ready && shard_ready;
-    summary.global_record_bridge_consistent = summary.global_record_bridge_consistent && shard_record_ready;
+    summary.owner_local_record_index_ready =
+        summary.owner_local_record_index_ready && shard_record_ready;
+    summary.owner_local_canonical_record_ready =
+        summary.owner_local_canonical_record_ready && shard_ready;
+    summary.global_record_bridge_consistent =
+        summary.global_record_bridge_consistent && shard_record_ready;
     summary.owner_local_to_global_bridge_consistent =
         summary.owner_local_to_global_bridge_consistent && shard_ready;
-    for (const auto &record_entry : shard.local_records) {
+    for (const auto& record_entry : shard.local_records) {
       const auto* global_record = find_global_record(record_entry.first);
-      if (!global_record || !object_record_equal(*global_record, record_entry.second) || global_record->destructed) {
+      if (!global_record || !object_record_equal(*global_record, record_entry.second) ||
+          global_record->destructed) {
         summary.global_record_bridge_consistent = false;
         summary.owner_local_to_global_bridge_consistent = false;
         summary.orphan_records++;
         summary.owner_local_to_global_mismatch_records++;
       }
     }
-    for (const auto &record_entry : shard.destructed_records) {
+    for (const auto& record_entry : shard.destructed_records) {
       const auto* global_record = find_global_record(record_entry.first);
-      if (!global_record || !object_record_equal(*global_record, record_entry.second) || !global_record->destructed) {
+      if (!global_record || !object_record_equal(*global_record, record_entry.second) ||
+          !global_record->destructed) {
         summary.global_record_bridge_consistent = false;
         summary.owner_local_to_global_bridge_consistent = false;
         summary.orphan_records++;
@@ -784,9 +811,9 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
     }
   }
 
-  for (const auto &entry : object_records) {
-    auto *object = entry.first;
-    const auto &record = entry.second;
+  for (const auto& entry : object_records) {
+    auto* object = entry.first;
+    const auto& record = entry.second;
     summary.global_records++;
     if (record.destructed) {
       summary.global_destructed_records++;
@@ -801,12 +828,13 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
       summary.global_to_owner_local_mismatch_records++;
       continue;
     }
-    const auto &shard = shard_it->second;
+    const auto& shard = shard_it->second;
     if (record.destructed) {
-      auto *destructed_record = find_destructed_record_locked(shard, record.object_id);
-      auto record_bridge_match =
-          destructed_record && object_record_equal(*destructed_record, record) &&
-          shard.local_records.count(record.object_id) == 0 && shard.object_directory.count(record.object_id) == 0;
+      auto* destructed_record = find_destructed_record_locked(shard, record.object_id);
+      auto record_bridge_match = destructed_record &&
+                                 object_record_equal(*destructed_record, record) &&
+                                 shard.local_records.count(record.object_id) == 0 &&
+                                 shard.object_directory.count(record.object_id) == 0;
       if (!record_bridge_match) {
         summary.global_record_bridge_consistent = false;
         summary.global_to_owner_local_record_mismatch_records++;
@@ -819,7 +847,7 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
       continue;
     }
 
-    auto *local_record = find_local_record_locked(shard, record.object_id);
+    auto* local_record = find_local_record_locked(shard, record.object_id);
     auto object_ref = shard.local_objects.find(record.object_id);
     auto object_index_ref = shard.local_object_index.find(object);
     auto record_bridge_match =
@@ -831,19 +859,22 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
       summary.global_record_bridge_consistent = false;
       summary.global_to_owner_local_record_mismatch_records++;
     }
-    if (!record_bridge_match || object_ref == shard.local_objects.end() || object_ref->second != object ||
-        object_index_ref == shard.local_object_index.end() || object_index_ref->second != record.object_id) {
+    if (!record_bridge_match || object_ref == shard.local_objects.end() ||
+        object_ref->second != object || object_index_ref == shard.local_object_index.end() ||
+        object_index_ref->second != record.object_id) {
       summary.global_to_owner_local_bridge_consistent = false;
       summary.global_to_owner_local_mismatch_records++;
     }
   }
 
   summary.global_record_bridge_consistent =
-      summary.global_record_bridge_consistent && summary.owner_local_to_global_mismatch_records == 0 &&
+      summary.global_record_bridge_consistent &&
+      summary.owner_local_to_global_mismatch_records == 0 &&
       summary.global_to_owner_local_record_mismatch_records == 0;
-  summary.global_bridge_consistent =
-      summary.owner_local_to_global_bridge_consistent && summary.global_to_owner_local_bridge_consistent &&
-      summary.owner_local_to_global_mismatch_records == 0 && summary.global_to_owner_local_mismatch_records == 0;
+  summary.global_bridge_consistent = summary.owner_local_to_global_bridge_consistent &&
+                                     summary.global_to_owner_local_bridge_consistent &&
+                                     summary.owner_local_to_global_mismatch_records == 0 &&
+                                     summary.global_to_owner_local_mismatch_records == 0;
   summary.global_record_bridge_retirement_ready =
       summary.owner_local_record_index_ready && summary.global_record_bridge_consistent &&
       summary.global_records == summary.live_records + summary.destructed_records &&
@@ -852,27 +883,31 @@ OwnerLocalBridgeSummary owner_local_bridge_summary_locked() {
   summary.global_live_object_bridge_retirement_ready =
       summary.global_record_bridge_retirement_ready && summary.owner_local_canonical_record_ready &&
       summary.global_bridge_consistent && summary.live_records == summary.object_refs &&
-      summary.live_records == summary.object_ref_indexes && summary.live_path_index_entries <= summary.live_records;
+      summary.live_records == summary.object_ref_indexes &&
+      summary.live_path_index_entries <= summary.live_records;
   return summary;
 }
 
-OwnerLocalLookupResult owner_local_lookup_by_object_locked(const char *owner_id, uint64_t object_id) {
+OwnerLocalLookupResult owner_local_lookup_by_object_locked(const char* owner_id,
+                                                           uint64_t object_id) {
   OwnerLocalLookupResult result;
   result.owner_id = safe_owner_id(owner_id);
   result.object_id = object_id;
   auto shard_it = owner_shards.find(result.owner_id);
-  auto *shard = shard_it == owner_shards.end() ? nullptr : &shard_it->second;
+  auto* shard = shard_it == owner_shards.end() ? nullptr : &shard_it->second;
   result.owner_local_canonical_record_ready = shard ? shard_canonical_record_ready(*shard) : true;
   auto bridge_summary = owner_local_bridge_summary_locked();
-  result.global_record_bridge_retirement_ready = bridge_summary.global_record_bridge_retirement_ready;
-  result.global_live_object_bridge_retirement_ready = bridge_summary.global_live_object_bridge_retirement_ready;
+  result.global_record_bridge_retirement_ready =
+      bridge_summary.global_record_bridge_retirement_ready;
+  result.global_live_object_bridge_retirement_ready =
+      bridge_summary.global_live_object_bridge_retirement_ready;
   if (shard) {
     result.local_record = find_local_record_locked(*shard, object_id);
     result.destructed_record = find_destructed_record_locked(*shard, object_id);
   }
   if (!result.local_record && !result.destructed_record) {
-    result.cross_owner_record =
-        find_cross_owner_record_by_object_id_locked(result.owner_id, object_id, result.cross_owner_record_source);
+    result.cross_owner_record = find_cross_owner_record_by_object_id_locked(
+        result.owner_id, object_id, result.cross_owner_record_source);
   }
   if (!result.local_record && !result.destructed_record && !result.cross_owner_record) {
     if (result.global_record_bridge_retirement_ready) {
@@ -894,16 +929,19 @@ OwnerLocalLookupResult owner_local_lookup_by_object_locked(const char *owner_id,
   return result;
 }
 
-OwnerLocalLookupResult owner_local_lookup_by_path_locked(const char *owner_id, const char *object_path) {
+OwnerLocalLookupResult owner_local_lookup_by_path_locked(const char* owner_id,
+                                                         const char* object_path) {
   OwnerLocalLookupResult result;
   result.owner_id = safe_owner_id(owner_id);
   result.query_path = object_path ? object_path : "";
   auto shard_it = owner_shards.find(result.owner_id);
-  auto *shard = shard_it == owner_shards.end() ? nullptr : &shard_it->second;
+  auto* shard = shard_it == owner_shards.end() ? nullptr : &shard_it->second;
   result.owner_local_canonical_record_ready = shard ? shard_canonical_record_ready(*shard) : true;
   auto bridge_summary = owner_local_bridge_summary_locked();
-  result.global_record_bridge_retirement_ready = bridge_summary.global_record_bridge_retirement_ready;
-  result.global_live_object_bridge_retirement_ready = bridge_summary.global_live_object_bridge_retirement_ready;
+  result.global_record_bridge_retirement_ready =
+      bridge_summary.global_record_bridge_retirement_ready;
+  result.global_live_object_bridge_retirement_ready =
+      bridge_summary.global_live_object_bridge_retirement_ready;
   if (shard && !result.query_path.empty()) {
     auto live_path = shard->object_path_index.find(result.query_path);
     if (live_path != shard->object_path_index.end()) {
@@ -915,10 +953,11 @@ OwnerLocalLookupResult owner_local_lookup_by_path_locked(const char *owner_id, c
     }
   }
   if (!result.local_record && !result.destructed_record) {
-    result.cross_owner_record =
-        find_cross_owner_record_by_path_locked(result.owner_id, result.query_path, result.cross_owner_record_source);
+    result.cross_owner_record = find_cross_owner_record_by_path_locked(
+        result.owner_id, result.query_path, result.cross_owner_record_source);
   }
-  if (!result.local_record && !result.destructed_record && !result.cross_owner_record && !result.query_path.empty()) {
+  if (!result.local_record && !result.destructed_record && !result.cross_owner_record &&
+      !result.query_path.empty()) {
     if (result.global_live_object_bridge_retirement_ready) {
       result.global_live_object_fallback_skipped = true;
       result.global_live_object_fallback_reason = "global_live_object_bridge_retirement_ready";
@@ -961,18 +1000,18 @@ OwnerLocalLookupResult owner_local_lookup_by_path_locked(const char *owner_id, c
   return result;
 }
 
-bool diagnose_handle_from_owner_local_store_locked(const VMObjectHandle &handle,
-                                                   VMObjectHandleResolveResult &result) {
+bool diagnose_handle_from_owner_local_store_locked(const VMObjectHandle& handle,
+                                                   VMObjectHandleResolveResult& result) {
   auto lookup = owner_local_lookup_by_object_locked(handle.owner_id.c_str(), handle.object_id);
-  auto *record = lookup.local_record
-                     ? lookup.local_record
-                     : (lookup.destructed_record ? lookup.destructed_record : lookup.cross_owner_record);
+  auto* record = lookup.local_record ? lookup.local_record
+                                     : (lookup.destructed_record ? lookup.destructed_record
+                                                                 : lookup.cross_owner_record);
   bool diagnosed_via_path_index = false;
   if (!record) {
     lookup = owner_local_lookup_by_path_locked(handle.owner_id.c_str(), handle.object_path.c_str());
-    record = lookup.local_record
-                 ? lookup.local_record
-                 : (lookup.destructed_record ? lookup.destructed_record : lookup.cross_owner_record);
+    record = lookup.local_record ? lookup.local_record
+                                 : (lookup.destructed_record ? lookup.destructed_record
+                                                             : lookup.cross_owner_record);
     diagnosed_via_path_index = record != nullptr;
   }
   if (!record) {
@@ -997,9 +1036,10 @@ bool diagnose_handle_from_owner_local_store_locked(const VMObjectHandle &handle,
   return true;
 }
 
-bool resolve_handle_from_owner_local_object_pointer_locked(const VMObjectHandle &handle, object_t *object,
-                                                           VMObjectHandleResolveResult &result) {
-  const auto *record = find_live_record_by_object_pointer_locked(handle.owner_id.c_str(), object);
+bool resolve_handle_from_owner_local_object_pointer_locked(const VMObjectHandle& handle,
+                                                           object_t* object,
+                                                           VMObjectHandleResolveResult& result) {
+  const auto* record = find_live_record_by_object_pointer_locked(handle.owner_id.c_str(), object);
   if (!record) {
     return false;
   }
@@ -1040,8 +1080,9 @@ bool resolve_handle_from_owner_local_object_pointer_locked(const VMObjectHandle 
   return true;
 }
 
-bool diagnose_handle_from_global_record_locked(const VMObjectHandle &handle, const ObjectRecord &record,
-                                               bool destructed_first, VMObjectHandleResolveResult &result) {
+bool diagnose_handle_from_global_record_locked(const VMObjectHandle& handle,
+                                               const ObjectRecord& record, bool destructed_first,
+                                               VMObjectHandleResolveResult& result) {
   result.diagnosed_via_global_index = true;
   if (destructed_first && record.destructed) {
     result.status = VMObjectHandleResolveStatus::kRecordDestructed;
@@ -1070,8 +1111,8 @@ bool diagnose_handle_from_global_record_locked(const VMObjectHandle &handle, con
   return false;
 }
 
-void shard_erase_path_index(std::unordered_map<std::string, uint64_t> &index, const std::string &object_path,
-                            uint64_t object_id) {
+void shard_erase_path_index(std::unordered_map<std::string, uint64_t>& index,
+                            const std::string& object_path, uint64_t object_id) {
   if (object_path.empty()) {
     return;
   }
@@ -1081,9 +1122,9 @@ void shard_erase_path_index(std::unordered_map<std::string, uint64_t> &index, co
   }
 }
 
-void shard_add_path_index(
-    std::unordered_map<std::string, uint64_t> &index,
-    std::unordered_map<std::string, uint64_t> &duplicate_counts, const ObjectRecord &record) {
+void shard_add_path_index(std::unordered_map<std::string, uint64_t>& index,
+                          std::unordered_map<std::string, uint64_t>& duplicate_counts,
+                          const ObjectRecord& record) {
   if (record.object_path.empty()) {
     return;
   }
@@ -1107,15 +1148,15 @@ void shard_add_path_index(
 }
 
 template <typename RecordMap>
-void shard_remove_path_index(
-    std::unordered_map<std::string, uint64_t> &index,
-    std::unordered_map<std::string, uint64_t> &duplicate_counts, const RecordMap &records,
-    uint64_t object_id, bool require_destructed) {
+void shard_remove_path_index(std::unordered_map<std::string, uint64_t>& index,
+                             std::unordered_map<std::string, uint64_t>& duplicate_counts,
+                             const RecordMap& records, uint64_t object_id,
+                             bool require_destructed) {
   auto record_it = records.find(object_id);
   if (record_it == records.end() || record_it->second.object_path.empty()) {
     return;
   }
-  const auto &object_path = record_it->second.object_path;
+  const auto& object_path = record_it->second.object_path;
   auto path_it = index.find(object_path);
   if (path_it == index.end()) {
     return;
@@ -1142,7 +1183,7 @@ void shard_remove_path_index(
     duplicate_it->second--;
   }
   uint64_t selected_object_id = 0;
-  for (const auto &record_entry : records) {
+  for (const auto& record_entry : records) {
     if (record_entry.first != object_id && record_entry.second.object_path == object_path &&
         record_entry.second.destructed == require_destructed &&
         record_entry.first > selected_object_id) {
@@ -1154,23 +1195,23 @@ void shard_remove_path_index(
   }
 }
 
-void shard_remove_live_path_index(VMObjectShard &shard, uint64_t object_id) {
+void shard_remove_live_path_index(VMObjectShard& shard, uint64_t object_id) {
   shard_remove_path_index(shard.object_path_index, shard.live_path_duplicate_counts,
                           shard.local_records, object_id, false);
 }
 
-void shard_remove_destructed_path_index(VMObjectShard &shard, uint64_t object_id) {
+void shard_remove_destructed_path_index(VMObjectShard& shard, uint64_t object_id) {
   shard_remove_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
                           shard.destructed_records, object_id, true);
 }
 
-void erase_destructed_path_index_for_live_path_locked(const std::string &object_path) {
+void erase_destructed_path_index_for_live_path_locked(const std::string& object_path) {
   if (object_path.empty()) {
     return;
   }
   uint64_t indexed_record_count = 0;
-  for (auto &entry : owner_shards) {
-    auto &shard = entry.second;
+  for (auto& entry : owner_shards) {
+    auto& shard = entry.second;
     auto duplicate_it = shard.destructed_path_duplicate_counts.find(object_path);
     if (duplicate_it != shard.destructed_path_duplicate_counts.end()) {
       indexed_record_count += duplicate_it->second;
@@ -1180,23 +1221,22 @@ void erase_destructed_path_index_for_live_path_locked(const std::string &object_
     shard.destructed_path_index.erase(object_path);
     shard.destructed_path_duplicate_counts.erase(object_path);
   }
-  if (indexed_record_count != 0 &&
-      shadowed_destructed_path_counts.count(object_path) == 0) {
+  if (indexed_record_count != 0 && shadowed_destructed_path_counts.count(object_path) == 0) {
     shadowed_destructed_path_counts.emplace(object_path, indexed_record_count);
   }
 }
 
-void rebuild_destructed_path_index_for_path_locked(const std::string &object_path) {
+void rebuild_destructed_path_index_for_path_locked(const std::string& object_path) {
   if (object_path.empty()) {
     return;
   }
-  for (auto &entry : owner_shards) {
+  for (auto& entry : owner_shards) {
     entry.second.destructed_path_index.erase(object_path);
     entry.second.destructed_path_duplicate_counts.erase(object_path);
   }
-  for (auto &entry : owner_shards) {
-    auto &shard = entry.second;
-    for (const auto &record_entry : shard.destructed_records) {
+  for (auto& entry : owner_shards) {
+    auto& shard = entry.second;
+    for (const auto& record_entry : shard.destructed_records) {
       if (record_entry.second.object_path == object_path) {
         shard_add_path_index(shard.destructed_path_index, shard.destructed_path_duplicate_counts,
                              record_entry.second);
@@ -1206,7 +1246,7 @@ void rebuild_destructed_path_index_for_path_locked(const std::string &object_pat
   shadowed_destructed_path_counts.erase(object_path);
 }
 
-void decrement_shadowed_destructed_path_count(const std::string &object_path) {
+void decrement_shadowed_destructed_path_count(const std::string& object_path) {
   auto shadowed_it = shadowed_destructed_path_counts.find(object_path);
   if (shadowed_it == shadowed_destructed_path_counts.end()) {
     return;
@@ -1218,7 +1258,7 @@ void decrement_shadowed_destructed_path_count(const std::string &object_path) {
   }
 }
 
-void shard_remove_live_object_ref(VMObjectShard &shard, uint64_t object_id) {
+void shard_remove_live_object_ref(VMObjectShard& shard, uint64_t object_id) {
   auto object_it = shard.local_objects.find(object_id);
   if (object_it != shard.local_objects.end() && object_it->second) {
     auto reverse = shard.local_object_index.find(object_it->second);
@@ -1229,7 +1269,7 @@ void shard_remove_live_object_ref(VMObjectShard &shard, uint64_t object_id) {
   shard.local_objects.erase(object_id);
 }
 
-void shard_set_live_object_ref(VMObjectShard &shard, uint64_t object_id, object_t *object) {
+void shard_set_live_object_ref(VMObjectShard& shard, uint64_t object_id, object_t* object) {
   shard_remove_live_object_ref(shard, object_id);
   if (!object) {
     return;
@@ -1242,7 +1282,7 @@ void shard_set_live_object_ref(VMObjectShard &shard, uint64_t object_id, object_
   shard.local_object_index[object] = object_id;
 }
 
-void shard_add_live_object(VMObjectShard &shard, const ObjectRecord &record, object_t *object) {
+void shard_add_live_object(VMObjectShard& shard, const ObjectRecord& record, object_t* object) {
   // status.objects is still exposed as a compatibility count while the directory is shard-owned.
   shard_remove_live_path_index(shard, record.object_id);
   shard_remove_destructed_path_index(shard, record.object_id);
@@ -1257,7 +1297,7 @@ void shard_add_live_object(VMObjectShard &shard, const ObjectRecord &record, obj
   shard_add_path_index(shard.object_path_index, shard.live_path_duplicate_counts, record);
 }
 
-void shard_remove_object(VMObjectShard &shard, uint64_t object_id) {
+void shard_remove_object(VMObjectShard& shard, uint64_t object_id) {
   std::string object_path;
   auto live_record = shard.local_records.find(object_id);
   const bool removed_live_record = live_record != shard.local_records.end();
@@ -1265,8 +1305,8 @@ void shard_remove_object(VMObjectShard &shard, uint64_t object_id) {
     object_path = live_record->second.object_path;
   }
   auto destructed_record = shard.destructed_records.find(object_id);
-  const bool removed_destructed_record = !removed_live_record &&
-                                         destructed_record != shard.destructed_records.end();
+  const bool removed_destructed_record =
+      !removed_live_record && destructed_record != shard.destructed_records.end();
   if (removed_destructed_record) {
     object_path = destructed_record->second.object_path;
   }
@@ -1289,7 +1329,7 @@ void shard_remove_object(VMObjectShard &shard, uint64_t object_id) {
   }
 }
 
-void shard_mark_destructed_object(VMObjectShard &shard, const ObjectRecord &record) {
+void shard_mark_destructed_object(VMObjectShard& shard, const ObjectRecord& record) {
   auto previous_destructed = shard.destructed_records.find(record.object_id);
   if (previous_destructed != shard.destructed_records.end() &&
       shadowed_destructed_path_counts.count(previous_destructed->second.object_path) != 0) {
@@ -1316,31 +1356,42 @@ void shard_mark_destructed_object(VMObjectShard &shard, const ObjectRecord &reco
   }
 }
 
-mapping_t *vm_object_shard_contract_mapping(const VMObjectShard &shard, const OwnerLocalBridgeSummary &summary) {
+mapping_t* vm_object_shard_contract_mapping(const VMObjectShard& shard,
+                                            const OwnerLocalBridgeSummary& summary) {
   auto shard_ready = shard_canonical_record_ready(shard);
   auto store_ready = owner_local_store_ready_for_shard(shard, summary);
   auto store_complete = owner_local_store_complete_for_shard(shard, summary);
-  auto *map = allocate_mapping(35);
+  auto* map = allocate_mapping(35);
   add_mapping_string(map, "owner_id", shard.status.owner_id.c_str());
   add_mapping_string(map, "shard_kind", "vm_object_shard");
   add_mapping_string(map, "status_model", "owner_status_record");
   add_mapping_string(map, "execution_model", "owner_execution_shard");
   add_mapping_string(map, "directory_model", "owner_local_object_directory");
-  add_mapping_string(map, "storage_model", store_complete ? "owner_local_store" : "global_index_bridge");
-  add_mapping_pair(map, "object_directory_count", static_cast<LPC_INT>(shard.object_directory.size()));
-  add_mapping_pair(map, "owner_local_record_count", static_cast<LPC_INT>(shard.local_records.size()));
-  add_mapping_pair(map, "owner_local_destructed_record_count", static_cast<LPC_INT>(shard.destructed_records.size()));
-  add_mapping_pair(map, "owner_local_object_ref_count", static_cast<LPC_INT>(shard.local_objects.size()));
+  add_mapping_string(map, "storage_model",
+                     store_complete ? "owner_local_store" : "global_index_bridge");
+  add_mapping_pair(map, "object_directory_count",
+                   static_cast<LPC_INT>(shard.object_directory.size()));
+  add_mapping_pair(map, "owner_local_record_count",
+                   static_cast<LPC_INT>(shard.local_records.size()));
+  add_mapping_pair(map, "owner_local_destructed_record_count",
+                   static_cast<LPC_INT>(shard.destructed_records.size()));
+  add_mapping_pair(map, "owner_local_object_ref_count",
+                   static_cast<LPC_INT>(shard.local_objects.size()));
   add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
-  add_mapping_pair(map, "owner_local_object_ref_index_count", static_cast<LPC_INT>(shard.local_object_index.size()));
-  add_mapping_string(map, "owner_local_object_ref_index_source", "vm_object_shard.local_object_index");
-  add_mapping_pair(map, "owner_local_path_index_count", static_cast<LPC_INT>(shard.object_path_index.size()));
+  add_mapping_pair(map, "owner_local_object_ref_index_count",
+                   static_cast<LPC_INT>(shard.local_object_index.size()));
+  add_mapping_string(map, "owner_local_object_ref_index_source",
+                     "vm_object_shard.local_object_index");
+  add_mapping_pair(map, "owner_local_path_index_count",
+                   static_cast<LPC_INT>(shard.object_path_index.size()));
   add_mapping_pair(map, "owner_local_destructed_path_index_count",
                    static_cast<LPC_INT>(shard.destructed_path_index.size()));
   add_mapping_pair(map, "owner_local_path_index_ready", 1);
   add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-  add_mapping_string(map, "owner_local_destructed_path_index_source", "vm_object_shard.destructed_path_index");
-  add_mapping_pair(map, "owner_local_live_index_consistent", shard_live_counts_consistent(shard) ? 1 : 0);
+  add_mapping_string(map, "owner_local_destructed_path_index_source",
+                     "vm_object_shard.destructed_path_index");
+  add_mapping_pair(map, "owner_local_live_index_consistent",
+                   shard_live_counts_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_object_ref_index_consistent",
                    shard_live_object_ref_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_live_path_index_consistent",
@@ -1349,28 +1400,33 @@ mapping_t *vm_object_shard_contract_mapping(const VMObjectShard &shard, const Ow
                    shard_destructed_path_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_canonical_record_ready", shard_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_ready", shard.owner_local_directory_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_from_shard", shard.owner_local_directory_from_shard ? 1 : 0);
+  add_mapping_pair(map, "owner_local_directory_from_shard",
+                   shard.owner_local_directory_from_shard ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_ready", store_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_complete", store_complete ? 1 : 0);
-  add_mapping_string(map, "owner_local_store_complete_blocker",
-                     owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
+  add_mapping_string(
+      map, "owner_local_store_complete_blocker",
+      owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
   add_mapping_pair(map, "uses_global_object_table", store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", store_complete ? 0 : 1);
   add_mapping_pair(map, "global_live_object_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_live_object_bridge_source", store_complete ? "" : kGlobalLiveObjectBridgeSource);
+  add_mapping_string(map, "global_live_object_bridge_source",
+                     store_complete ? "" : kGlobalLiveObjectBridgeSource);
   add_mapping_pair(map, "global_record_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_record_bridge_source", store_complete ? "" : kGlobalRecordBridgeSource);
+  add_mapping_string(map, "global_record_bridge_source",
+                     store_complete ? "" : kGlobalRecordBridgeSource);
   add_owner_local_lifecycle_contract(map, store_complete, shard_ready);
   add_mapping_pair(map, "contract_version", 1);
   return map;
 }
 
-void append_migration_trace_locked(const ObjectRecord &record, const std::string &from_owner_id,
-                                   const std::string &to_owner_id);
+void append_migration_trace_locked(const ObjectRecord& record, const std::string& from_owner_id,
+                                   const std::string& to_owner_id);
 
-ObjectRecord &write_owner_local_lifecycle_record_locked(object_t *object, bool force_destructed = false,
-                                                        bool *was_destructed_out = nullptr) {
-  auto &compat_record = object_records[object];
+ObjectRecord& write_owner_local_lifecycle_record_locked(object_t* object,
+                                                        bool force_destructed = false,
+                                                        bool* was_destructed_out = nullptr) {
+  auto& compat_record = object_records[object];
   auto previous_record = compat_record;
   auto had_previous_record = previous_record.object_id != 0;
   auto object_already_destructed = object && (object->flags & O_DESTRUCTED) != 0;
@@ -1381,23 +1437,27 @@ ObjectRecord &write_owner_local_lifecycle_record_locked(object_t *object, bool f
   auto live_destructed =
       object_already_destructed || force_destructed ||
       (had_previous_record && previous_record.destructed && object_pending_destruct);
-  auto record_reused_by_live_object =
-      had_previous_record && previous_record.destructed && !live_destructed && !object_pending_destruct;
+  auto record_reused_by_live_object = had_previous_record && previous_record.destructed &&
+                                      !live_destructed && !object_pending_destruct;
   auto current_owner_explicit = vm_owner_has_explicit_id(object);
-  auto preserve_destructed_snapshot =
-      had_previous_record && previous_record.destructed && live_destructed && !current_owner_explicit;
+  auto preserve_destructed_snapshot = had_previous_record && previous_record.destructed &&
+                                      live_destructed && !current_owner_explicit;
   if (was_destructed_out) {
-    *was_destructed_out = had_previous_record ? previous_record.destructed && !record_reused_by_live_object
-                                              : object_already_destructed;
+    *was_destructed_out = had_previous_record
+                              ? previous_record.destructed && !record_reused_by_live_object
+                              : object_already_destructed;
   }
 
   ObjectRecord record;
   record.object_id = (!had_previous_record || record_reused_by_live_object)
                          ? next_object_id.fetch_add(1, std::memory_order_relaxed)
                          : previous_record.object_id;
-  record.owner_id = preserve_destructed_snapshot ? previous_record.owner_id : safe_owner_id(vm_owner_id(object));
-  record.owner_epoch = preserve_destructed_snapshot ? previous_record.owner_epoch : vm_owner_epoch(object);
-  record.object_path = preserve_destructed_snapshot ? previous_record.object_path : safe_object_path(object);
+  record.owner_id =
+      preserve_destructed_snapshot ? previous_record.owner_id : safe_owner_id(vm_owner_id(object));
+  record.owner_epoch =
+      preserve_destructed_snapshot ? previous_record.owner_epoch : vm_owner_epoch(object);
+  record.object_path =
+      preserve_destructed_snapshot ? previous_record.object_path : safe_object_path(object);
   record.destructed = live_destructed;
 
   if (had_previous_record &&
@@ -1408,7 +1468,7 @@ ObjectRecord &write_owner_local_lifecycle_record_locked(object_t *object, bool f
     }
   }
 
-  auto &new_shard = shard_for_owner(record.owner_id);
+  auto& new_shard = shard_for_owner(record.owner_id);
   if (record.destructed) {
     shard_mark_destructed_object(new_shard, record);
   } else {
@@ -1417,7 +1477,8 @@ ObjectRecord &write_owner_local_lifecycle_record_locked(object_t *object, bool f
   if (!had_previous_record || record_reused_by_live_object) {
     new_shard.status.registered++;
   }
-  if (had_previous_record && !record_reused_by_live_object && previous_record.owner_id != record.owner_id) {
+  if (had_previous_record && !record_reused_by_live_object &&
+      previous_record.owner_id != record.owner_id) {
     append_migration_trace_locked(record, previous_record.owner_id, record.owner_id);
   }
 
@@ -1425,8 +1486,8 @@ ObjectRecord &write_owner_local_lifecycle_record_locked(object_t *object, bool f
   return compat_record;
 }
 
-void append_migration_trace_locked(const ObjectRecord &record, const std::string &from_owner_id,
-                                   const std::string &to_owner_id) {
+void append_migration_trace_locked(const ObjectRecord& record, const std::string& from_owner_id,
+                                   const std::string& to_owner_id) {
   ObjectMigrationRecord trace;
   trace.migration_id = next_migration_id.fetch_add(1, std::memory_order_relaxed);
   trace.object_id = record.object_id;
@@ -1440,8 +1501,8 @@ void append_migration_trace_locked(const ObjectRecord &record, const std::string
   }
 }
 
-mapping_t *migration_trace_mapping(const ObjectMigrationRecord &trace) {
-  auto *map = allocate_mapping(6);
+mapping_t* migration_trace_mapping(const ObjectMigrationRecord& trace) {
+  auto* map = allocate_mapping(6);
   add_mapping_pair(map, "migration_id", static_cast<LPC_INT>(trace.migration_id));
   add_mapping_pair(map, "object_id", static_cast<LPC_INT>(trace.object_id));
   add_mapping_pair(map, "owner_epoch", static_cast<LPC_INT>(trace.owner_epoch));
@@ -1451,8 +1512,8 @@ mapping_t *migration_trace_mapping(const ObjectMigrationRecord &trace) {
   return map;
 }
 
-mapping_t *object_record_mapping(const ObjectRecord &record) {
-  auto *map = allocate_mapping(18);
+mapping_t* object_record_mapping(const ObjectRecord& record) {
+  auto* map = allocate_mapping(18);
   add_mapping_pair(map, "object_id", static_cast<LPC_INT>(record.object_id));
   add_mapping_string(map, "owner_id", record.owner_id.c_str());
   add_mapping_pair(map, "owner_epoch", static_cast<LPC_INT>(record.owner_epoch));
@@ -1466,7 +1527,8 @@ mapping_t *object_record_mapping(const ObjectRecord &record) {
   add_mapping_pair(map, "owner_local_object_ref_entry", 1);
   add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
   add_mapping_pair(map, "owner_local_object_ref_index_entry", 1);
-  add_mapping_string(map, "owner_local_object_ref_index_source", "vm_object_shard.local_object_index");
+  add_mapping_string(map, "owner_local_object_ref_index_source",
+                     "vm_object_shard.local_object_index");
   add_mapping_pair(map, "owner_local_path_index_entry", 1);
   add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
   add_mapping_pair(map, "resolved_via_owner_local_store", 1);
@@ -1475,18 +1537,18 @@ mapping_t *object_record_mapping(const ObjectRecord &record) {
   return map;
 }
 
-array_t *object_directory_for_owner_locked(const VMObjectShard &shard) {
-  std::vector<const ObjectRecord *> records;
+array_t* object_directory_for_owner_locked(const VMObjectShard& shard) {
+  std::vector<const ObjectRecord*> records;
   records.reserve(shard.object_directory.size());
   for (auto object_id : shard.object_directory) {
-    auto *record = find_local_record_locked(shard, object_id);
+    auto* record = find_local_record_locked(shard, object_id);
     if (record && shard_has_local_object_ref_locked(shard, object_id) &&
         record->owner_id == shard.status.owner_id && !record->destructed) {
       records.push_back(record);
     }
   }
 
-  auto *directory = allocate_array(static_cast<int>(records.size()));
+  auto* directory = allocate_array(static_cast<int>(records.size()));
   for (size_t i = 0; i < records.size(); i++) {
     directory->item[i].type = T_MAPPING;
     directory->item[i].subtype = 0;
@@ -1495,13 +1557,14 @@ array_t *object_directory_for_owner_locked(const VMObjectShard &shard) {
   return directory;
 }
 
-LPC_INT execution_runnable_tasks(const ObjectExecutionShardRecord &execution) {
-  return static_cast<LPC_INT>(execution.active_heartbeats.size() + execution.pending_callouts.size() +
+LPC_INT execution_runnable_tasks(const ObjectExecutionShardRecord& execution) {
+  return static_cast<LPC_INT>(execution.active_heartbeats.size() +
+                              execution.pending_callouts.size() +
                               execution.pending_messages.size());
 }
 
-mapping_t *status_record_mapping(const ObjectShardStatusRecord &status) {
-  auto *map = allocate_mapping(7);
+mapping_t* status_record_mapping(const ObjectShardStatusRecord& status) {
+  auto* map = allocate_mapping(7);
   add_mapping_string(map, "owner_id", status.owner_id.c_str());
   add_mapping_pair(map, "objects", static_cast<LPC_INT>(status.objects.size()));
   add_mapping_pair(map, "registered", static_cast<LPC_INT>(status.registered));
@@ -1512,38 +1575,44 @@ mapping_t *status_record_mapping(const ObjectShardStatusRecord &status) {
   return map;
 }
 
-mapping_t *execution_shard_mapping(const ObjectExecutionShardRecord &execution) {
+mapping_t* execution_shard_mapping(const ObjectExecutionShardRecord& execution) {
   auto runnable_tasks = execution_runnable_tasks(execution);
-  auto *map = allocate_mapping(6);
+  auto* map = allocate_mapping(6);
   add_mapping_string(map, "owner_id", execution.owner_id.c_str());
-  add_mapping_pair(map, "active_heartbeats", static_cast<LPC_INT>(execution.active_heartbeats.size()));
-  add_mapping_pair(map, "pending_callouts", static_cast<LPC_INT>(execution.pending_callouts.size()));
-  add_mapping_pair(map, "pending_messages", static_cast<LPC_INT>(execution.pending_messages.size()));
+  add_mapping_pair(map, "active_heartbeats",
+                   static_cast<LPC_INT>(execution.active_heartbeats.size()));
+  add_mapping_pair(map, "pending_callouts",
+                   static_cast<LPC_INT>(execution.pending_callouts.size()));
+  add_mapping_pair(map, "pending_messages",
+                   static_cast<LPC_INT>(execution.pending_messages.size()));
   add_mapping_pair(map, "runnable_tasks", static_cast<LPC_INT>(runnable_tasks));
   add_mapping_pair(map, "executor_ready", runnable_tasks > 0 ? 1 : 0);
   return map;
 }
 
-mapping_t *shard_mapping(const VMObjectShard &shard, const OwnerLocalBridgeSummary &summary) {
+mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSummary& summary) {
   auto runnable_tasks = execution_runnable_tasks(shard.execution);
   auto shard_ready = shard_canonical_record_ready(shard);
   auto store_ready = owner_local_store_ready_for_shard(shard, summary);
   auto store_complete = owner_local_store_complete_for_shard(shard, summary);
-  auto *status_record = status_record_mapping(shard.status);
-  auto *execution_shard = execution_shard_mapping(shard.execution);
-  auto *object_directory = object_directory_for_owner_locked(shard);
-  auto *shard_contract = vm_object_shard_contract_mapping(shard, summary);
-  auto *map = allocate_mapping(48);
+  auto* status_record = status_record_mapping(shard.status);
+  auto* execution_shard = execution_shard_mapping(shard.execution);
+  auto* object_directory = object_directory_for_owner_locked(shard);
+  auto* shard_contract = vm_object_shard_contract_mapping(shard, summary);
+  auto* map = allocate_mapping(48);
   add_mapping_string(map, "owner_id", shard.status.owner_id.c_str());
   add_mapping_pair(map, "objects", static_cast<LPC_INT>(shard.status.objects.size()));
   add_mapping_pair(map, "registered", static_cast<LPC_INT>(shard.status.registered));
   add_mapping_pair(map, "destructed", static_cast<LPC_INT>(shard.status.destructed));
   add_mapping_pair(map, "heartbeats", static_cast<LPC_INT>(shard.status.heartbeats));
-  add_mapping_pair(map, "active_heartbeats", static_cast<LPC_INT>(shard.execution.active_heartbeats.size()));
+  add_mapping_pair(map, "active_heartbeats",
+                   static_cast<LPC_INT>(shard.execution.active_heartbeats.size()));
   add_mapping_pair(map, "callouts", static_cast<LPC_INT>(shard.status.callouts));
-  add_mapping_pair(map, "pending_callouts", static_cast<LPC_INT>(shard.execution.pending_callouts.size()));
+  add_mapping_pair(map, "pending_callouts",
+                   static_cast<LPC_INT>(shard.execution.pending_callouts.size()));
   add_mapping_pair(map, "messages", static_cast<LPC_INT>(shard.status.messages));
-  add_mapping_pair(map, "pending_messages", static_cast<LPC_INT>(shard.execution.pending_messages.size()));
+  add_mapping_pair(map, "pending_messages",
+                   static_cast<LPC_INT>(shard.execution.pending_messages.size()));
   add_mapping_pair(map, "runnable_tasks", runnable_tasks);
   add_mapping_pair(map, "executor_ready", runnable_tasks > 0 ? 1 : 0);
   add_mapping_map(map, "vm_object_shard", shard_contract);
@@ -1554,20 +1623,29 @@ mapping_t *shard_mapping(const VMObjectShard &shard, const OwnerLocalBridgeSumma
   add_mapping_pair(map, "execution_shard_ready", runnable_tasks > 0 ? 1 : 0);
   add_mapping_array(map, "object_directory", object_directory);
   add_mapping_pair(map, "object_directory_count", static_cast<LPC_INT>(object_directory->size));
-  add_mapping_pair(map, "owner_local_directory_count", static_cast<LPC_INT>(shard.object_directory.size()));
-  add_mapping_pair(map, "owner_local_record_count", static_cast<LPC_INT>(shard.local_records.size()));
-  add_mapping_pair(map, "owner_local_destructed_record_count", static_cast<LPC_INT>(shard.destructed_records.size()));
-  add_mapping_pair(map, "owner_local_object_ref_count", static_cast<LPC_INT>(shard.local_objects.size()));
+  add_mapping_pair(map, "owner_local_directory_count",
+                   static_cast<LPC_INT>(shard.object_directory.size()));
+  add_mapping_pair(map, "owner_local_record_count",
+                   static_cast<LPC_INT>(shard.local_records.size()));
+  add_mapping_pair(map, "owner_local_destructed_record_count",
+                   static_cast<LPC_INT>(shard.destructed_records.size()));
+  add_mapping_pair(map, "owner_local_object_ref_count",
+                   static_cast<LPC_INT>(shard.local_objects.size()));
   add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
-  add_mapping_pair(map, "owner_local_object_ref_index_count", static_cast<LPC_INT>(shard.local_object_index.size()));
-  add_mapping_string(map, "owner_local_object_ref_index_source", "vm_object_shard.local_object_index");
-  add_mapping_pair(map, "owner_local_path_index_count", static_cast<LPC_INT>(shard.object_path_index.size()));
+  add_mapping_pair(map, "owner_local_object_ref_index_count",
+                   static_cast<LPC_INT>(shard.local_object_index.size()));
+  add_mapping_string(map, "owner_local_object_ref_index_source",
+                     "vm_object_shard.local_object_index");
+  add_mapping_pair(map, "owner_local_path_index_count",
+                   static_cast<LPC_INT>(shard.object_path_index.size()));
   add_mapping_pair(map, "owner_local_destructed_path_index_count",
                    static_cast<LPC_INT>(shard.destructed_path_index.size()));
   add_mapping_pair(map, "owner_local_path_index_ready", 1);
   add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-  add_mapping_string(map, "owner_local_destructed_path_index_source", "vm_object_shard.destructed_path_index");
-  add_mapping_pair(map, "owner_local_live_index_consistent", shard_live_counts_consistent(shard) ? 1 : 0);
+  add_mapping_string(map, "owner_local_destructed_path_index_source",
+                     "vm_object_shard.destructed_path_index");
+  add_mapping_pair(map, "owner_local_live_index_consistent",
+                   shard_live_counts_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_object_ref_index_consistent",
                    shard_live_object_ref_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_live_path_index_consistent",
@@ -1576,18 +1654,22 @@ mapping_t *shard_mapping(const VMObjectShard &shard, const OwnerLocalBridgeSumma
                    shard_destructed_path_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_canonical_record_ready", shard_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_ready", shard.owner_local_directory_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_from_shard", shard.owner_local_directory_from_shard ? 1 : 0);
+  add_mapping_pair(map, "owner_local_directory_from_shard",
+                   shard.owner_local_directory_from_shard ? 1 : 0);
   add_mapping_string(map, "owner_local_directory_source", "vm_object_shard.object_directory");
   add_mapping_pair(map, "owner_local_store_ready", store_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_complete", store_complete ? 1 : 0);
-  add_mapping_string(map, "owner_local_store_complete_blocker",
-                     owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
+  add_mapping_string(
+      map, "owner_local_store_complete_blocker",
+      owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
   add_mapping_pair(map, "uses_global_object_table", store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", store_complete ? 0 : 1);
   add_mapping_pair(map, "global_live_object_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_live_object_bridge_source", store_complete ? "" : kGlobalLiveObjectBridgeSource);
+  add_mapping_string(map, "global_live_object_bridge_source",
+                     store_complete ? "" : kGlobalLiveObjectBridgeSource);
   add_mapping_pair(map, "global_record_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_record_bridge_source", store_complete ? "" : kGlobalRecordBridgeSource);
+  add_mapping_string(map, "global_record_bridge_source",
+                     store_complete ? "" : kGlobalRecordBridgeSource);
   add_owner_local_lifecycle_contract(map, store_complete, shard_ready);
   free_mapping(shard_contract);
   free_mapping(status_record);
@@ -1620,14 +1702,14 @@ void vm_object_store_test_support_reset_worker_ref_mutation_count() {
   g_object_ref_worker_mutations.store(0, std::memory_order_relaxed);
 }
 
-VMObjectHandle vm_object_handle_with_intent(object_t *object, const char *permission_intent) {
+VMObjectHandle vm_object_handle_with_intent(object_t* object, const char* permission_intent) {
   VMObjectHandle handle;
   handle.permission_intent = safe_permission_intent(permission_intent);
   if (!object) {
     return handle;
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
-  auto &record = write_owner_local_lifecycle_record_locked(object);
+  auto& record = write_owner_local_lifecycle_record_locked(object);
   handle.object_id = record.object_id;
   handle.owner_id = record.owner_id;
   handle.owner_epoch = record.owner_epoch;
@@ -1637,11 +1719,11 @@ VMObjectHandle vm_object_handle_with_intent(object_t *object, const char *permis
   return handle;
 }
 
-VMObjectHandle vm_object_handle(object_t *object) {
+VMObjectHandle vm_object_handle(object_t* object) {
   return vm_object_handle_with_intent(object, kVMObjectHandleDefaultPermissionIntent);
 }
 
-object_t *vm_object_handle_resolve(const VMObjectHandle &handle) {
+object_t* vm_object_handle_resolve(const VMObjectHandle& handle) {
   auto result = vm_object_handle_resolve_status(handle);
   return result.status == VMObjectHandleResolveStatus::kCurrent ? result.object : nullptr;
 }
@@ -1649,7 +1731,7 @@ object_t *vm_object_handle_resolve(const VMObjectHandle &handle) {
 // Resolve a handle assuming the caller already holds the object-store lock
 // (shared read lock). Keeps resolve + any caller-side acquire in the same
 // lock domain so the object cannot be destructed/freed in between.
-static VMObjectHandleResolveResult resolve_handle_status_locked(const VMObjectHandle &handle) {
+static VMObjectHandleResolveResult resolve_handle_status_locked(const VMObjectHandle& handle) {
   VMObjectHandleResolveResult result;
   if (!handle.valid) {
     result.status = VMObjectHandleResolveStatus::kInvalidHandle;
@@ -1664,8 +1746,10 @@ static VMObjectHandleResolveResult resolve_handle_status_locked(const VMObjectHa
     return result;
   }
   auto bridge_summary = owner_local_bridge_summary_locked();
-  result.global_record_bridge_retirement_ready = bridge_summary.global_record_bridge_retirement_ready;
-  result.global_live_object_bridge_retirement_ready = bridge_summary.global_live_object_bridge_retirement_ready;
+  result.global_record_bridge_retirement_ready =
+      bridge_summary.global_record_bridge_retirement_ready;
+  result.global_live_object_bridge_retirement_ready =
+      bridge_summary.global_live_object_bridge_retirement_ready;
   if (diagnose_handle_from_owner_local_store_locked(handle, result)) {
     return result;
   }
@@ -1705,7 +1789,7 @@ static VMObjectHandleResolveResult resolve_handle_status_locked(const VMObjectHa
       result.global_record_id_scan_bridge_skip_reason = "global_record_bridge_retirement_ready";
     } else {
       result.global_record_id_scan_bridge_used = true;
-      auto *record = find_global_record_id_scan_bridge_locked(handle.object_id);
+      auto* record = find_global_record_id_scan_bridge_locked(handle.object_id);
       result.global_record_id_scan_bridge_found = record != nullptr;
       result.global_record_id_scan_bridge_source = kGlobalRecordIdScanBridgeSource;
       if (record) {
@@ -1764,7 +1848,7 @@ static VMObjectHandleResolveResult resolve_handle_status_locked(const VMObjectHa
 // path never reaches ObjectTable/global compatibility bridges and never reads
 // mutable lifecycle fields from object_t.
 static VMObjectHandleResolveResult resolve_handle_owner_local_status_locked(
-    const VMObjectHandle &handle) {
+    const VMObjectHandle& handle) {
   VMObjectHandleResolveResult result;
   if (!handle.valid) {
     result.status = VMObjectHandleResolveStatus::kInvalidHandle;
@@ -1779,7 +1863,7 @@ static VMObjectHandleResolveResult resolve_handle_owner_local_status_locked(
     return result;
   }
 
-  const ObjectRecord *record = nullptr;
+  const ObjectRecord* record = nullptr;
   bool diagnosed_via_path_index = false;
   bool diagnosed_via_cross_shard = false;
   auto shard_it = owner_shards.find(safe_owner_id(handle.owner_id.c_str()));
@@ -1794,11 +1878,9 @@ static VMObjectHandleResolveResult resolve_handle_owner_local_status_locked(
         record = find_local_record_locked(shard_it->second, live_path->second);
       }
       if (!record) {
-        auto destructed_path =
-            shard_it->second.destructed_path_index.find(handle.object_path);
+        auto destructed_path = shard_it->second.destructed_path_index.find(handle.object_path);
         if (destructed_path != shard_it->second.destructed_path_index.end()) {
-          record = find_destructed_record_locked(shard_it->second,
-                                                 destructed_path->second);
+          record = find_destructed_record_locked(shard_it->second, destructed_path->second);
         }
       }
       diagnosed_via_path_index = record != nullptr;
@@ -1807,13 +1889,13 @@ static VMObjectHandleResolveResult resolve_handle_owner_local_status_locked(
 
   std::string cross_owner_record_source;
   if (!record) {
-    record = find_cross_owner_record_by_object_id_locked(
-        handle.owner_id, handle.object_id, cross_owner_record_source);
+    record = find_cross_owner_record_by_object_id_locked(handle.owner_id, handle.object_id,
+                                                         cross_owner_record_source);
     diagnosed_via_cross_shard = record != nullptr;
   }
   if (!record) {
-    record = find_cross_owner_record_by_path_locked(
-        handle.owner_id, handle.object_path, cross_owner_record_source);
+    record = find_cross_owner_record_by_path_locked(handle.owner_id, handle.object_path,
+                                                    cross_owner_record_source);
     diagnosed_via_path_index = record != nullptr;
     diagnosed_via_cross_shard = record != nullptr;
   }
@@ -1843,22 +1925,22 @@ static VMObjectHandleResolveResult resolve_handle_owner_local_status_locked(
   return result;
 }
 
-VMObjectHandleResolveResult vm_object_handle_resolve_status(const VMObjectHandle &handle) {
+VMObjectHandleResolveResult vm_object_handle_resolve_status(const VMObjectHandle& handle) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   return resolve_handle_status_locked(handle);
 }
 
 VMObjectHandleResolveResult vm_object_handle_resolve_owner_local_status(
-    const VMObjectHandle &handle) {
+    const VMObjectHandle& handle) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   return resolve_handle_owner_local_status_locked(handle);
 }
 
-object_t *vm_object_handle_acquire(const VMObjectHandle &handle) {
+object_t* vm_object_handle_acquire(const VMObjectHandle& handle) {
   return vm_object_handle_acquire_status(handle).object;
 }
 
-VMObjectHandleAcquireResult vm_object_handle_acquire_status(const VMObjectHandle &handle) {
+VMObjectHandleAcquireResult vm_object_handle_acquire_status(const VMObjectHandle& handle) {
   VMObjectHandleAcquireResult result;
   // Main-thread admission contract (R2-F06), enforced in ALL builds: plain
   // object_t refcounts may only be modified on the main VM thread. Workers
@@ -1887,7 +1969,7 @@ VMObjectHandleAcquireResult vm_object_handle_acquire_status(const VMObjectHandle
   return result;
 }
 
-const char *vm_object_handle_resolve_status_name(VMObjectHandleResolveStatus status) {
+const char* vm_object_handle_resolve_status_name(VMObjectHandleResolveStatus status) {
   switch (status) {
     case VMObjectHandleResolveStatus::kCurrent:
       return "current";
@@ -1921,9 +2003,11 @@ const char *vm_object_handle_resolve_status_name(VMObjectHandleResolveStatus sta
   return "unknown";
 }
 
-bool vm_object_handle_is_current(const VMObjectHandle &handle) { return vm_object_handle_resolve(handle) != nullptr; }
+bool vm_object_handle_is_current(const VMObjectHandle& handle) {
+  return vm_object_handle_resolve(handle) != nullptr;
+}
 
-void vm_object_store_register(object_t *object) {
+void vm_object_store_register(object_t* object) {
   if (!object) {
     return;
   }
@@ -1935,14 +2019,14 @@ void vm_object_store_register(object_t *object) {
 }
 
 // C++ regression hook for bridge-readiness tests; not part of the LPC/runtime API.
-bool vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(const char *owner_id,
+bool vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(const char* owner_id,
                                                                               uint64_t object_id) {
   ObjectStoreWriteLock lock(object_store_directory_mutex);
   auto shard_it = owner_shards.find(safe_owner_id(owner_id));
   if (shard_it == owner_shards.end()) {
     return false;
   }
-  auto &shard = shard_it->second;
+  auto& shard = shard_it->second;
   auto object_it = shard.local_objects.find(object_id);
   if (object_it == shard.local_objects.end()) {
     return false;
@@ -1957,10 +2041,10 @@ bool vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(co
   return true;
 }
 
-mapping_t *vm_object_handle_status_with_intent(object_t *object, const char *permission_intent) {
+mapping_t* vm_object_handle_status_with_intent(object_t* object, const char* permission_intent) {
   auto handle = vm_object_handle_with_intent(object, permission_intent);
   auto status = vm_object_handle_resolve_status(handle);
-  auto *map = allocate_mapping(43);
+  auto* map = allocate_mapping(43);
   add_mapping_pair(map, "success", handle.valid ? 1 : 0);
   add_mapping_pair(map, "object_handle_capability_ready", 1);
   add_mapping_string(map, "capability_model", kVMObjectHandleCapabilityModelV1);
@@ -1970,28 +2054,33 @@ mapping_t *vm_object_handle_status_with_intent(object_t *object, const char *per
   add_mapping_string(map, "object_path", handle.object_path.c_str());
   add_mapping_string(map, "permission_intent", handle.permission_intent.c_str());
   add_mapping_pair(map, "snapshot_version", static_cast<LPC_INT>(handle.snapshot_version));
-  add_mapping_pair(map, "capability_epoch_guard", handle.owner_epoch == handle.snapshot_version ? 1 : 0);
+  add_mapping_pair(map, "capability_epoch_guard",
+                   handle.owner_epoch == handle.snapshot_version ? 1 : 0);
   add_mapping_pair(map, "valid", handle.valid ? 1 : 0);
   add_mapping_pair(map, "current", status.status == VMObjectHandleResolveStatus::kCurrent ? 1 : 0);
   add_mapping_string(map, "resolve_status", vm_object_handle_resolve_status_name(status.status));
-  add_mapping_pair(map, "resolved_via_owner_local_store", status.resolved_via_owner_local_store ? 1 : 0);
+  add_mapping_pair(map, "resolved_via_owner_local_store",
+                   status.resolved_via_owner_local_store ? 1 : 0);
   add_mapping_pair(map, "owner_local_fast_path_used", status.owner_local_fast_path_used ? 1 : 0);
   add_mapping_string(map, "owner_local_fast_path_lock_model",
                      status.owner_local_fast_path_used ? "shared_mutex_read_lock" : "");
   add_mapping_pair(map, "owner_local_fast_path_global_fallback",
                    status.owner_local_fast_path_used && status.resolved_via_global_index ? 1 : 0);
-  add_mapping_pair(map, "diagnosed_via_owner_local_store", status.diagnosed_via_owner_local_store ? 1 : 0);
+  add_mapping_pair(map, "diagnosed_via_owner_local_store",
+                   status.diagnosed_via_owner_local_store ? 1 : 0);
   add_mapping_pair(map, "diagnosed_via_owner_local_path_index",
                    status.diagnosed_via_owner_local_path_index ? 1 : 0);
   add_mapping_pair(map, "diagnosed_via_owner_local_cross_shard",
                    status.diagnosed_via_owner_local_cross_shard ? 1 : 0);
   add_mapping_pair(map, "owner_local_object_pointer_index_found",
                    status.owner_local_object_pointer_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_pointer_index_source",
-                     status.owner_local_object_pointer_index_found ? "vm_object_shard.local_object_index" : "");
+  add_mapping_string(
+      map, "owner_local_object_pointer_index_source",
+      status.owner_local_object_pointer_index_found ? "vm_object_shard.local_object_index" : "");
   add_mapping_pair(map, "global_live_object_found", status.global_live_object_found ? 1 : 0);
-  add_mapping_string(map, "global_live_object_source",
-                     status.global_live_object_found ? status.global_live_object_source.c_str() : "");
+  add_mapping_string(
+      map, "global_live_object_source",
+      status.global_live_object_found ? status.global_live_object_source.c_str() : "");
   add_mapping_pair(map, "global_live_object_bridge_retirement_ready",
                    status.global_live_object_bridge_retirement_ready ? 1 : 0);
   add_mapping_pair(map, "global_live_object_fallback_skipped",
@@ -2033,19 +2122,21 @@ mapping_t *vm_object_handle_status_with_intent(object_t *object, const char *per
                          : "");
   add_mapping_pair(map, "global_record_bridge_retirement_ready",
                    status.global_record_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "global_record_fallback_skipped", status.global_record_fallback_skipped ? 1 : 0);
-  add_mapping_string(map, "global_record_fallback_reason",
-                     status.global_record_fallback_skipped ? status.global_record_fallback_reason.c_str() : "");
+  add_mapping_pair(map, "global_record_fallback_skipped",
+                   status.global_record_fallback_skipped ? 1 : 0);
+  add_mapping_string(
+      map, "global_record_fallback_reason",
+      status.global_record_fallback_skipped ? status.global_record_fallback_reason.c_str() : "");
   add_mapping_pair(map, "diagnosed_via_global_index", status.diagnosed_via_global_index ? 1 : 0);
   add_mapping_pair(map, "resolved_via_global_index", status.resolved_via_global_index ? 1 : 0);
   return map;
 }
 
-mapping_t *vm_object_handle_status(object_t *object) {
+mapping_t* vm_object_handle_status(object_t* object) {
   return vm_object_handle_status_with_intent(object, kVMObjectHandleDefaultPermissionIntent);
 }
 
-void vm_object_store_update_owner(object_t *object) {
+void vm_object_store_update_owner(object_t* object) {
   if (!object) {
     return;
   }
@@ -2056,7 +2147,7 @@ void vm_object_store_update_owner(object_t *object) {
   write_owner_local_lifecycle_record_locked(object);
 }
 
-void vm_object_store_mark_destructed(object_t *object) {
+void vm_object_store_mark_destructed(object_t* object) {
   if (!object) {
     return;
   }
@@ -2065,15 +2156,15 @@ void vm_object_store_mark_destructed(object_t *object) {
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
   bool was_destructed = false;
-  auto &record = write_owner_local_lifecycle_record_locked(object, true, &was_destructed);
-  auto &shard = shard_for_owner(record.owner_id);
+  auto& record = write_owner_local_lifecycle_record_locked(object, true, &was_destructed);
+  auto& shard = shard_for_owner(record.owner_id);
   shard.execution.active_heartbeats.erase(record.object_id);
   if (!was_destructed) {
     shard.status.destructed++;
   }
 }
 
-void vm_object_store_record_callout(object_t *object, uint64_t callout_id) {
+void vm_object_store_record_callout(object_t* object, uint64_t callout_id) {
   if (!object) {
     return;
   }
@@ -2081,15 +2172,15 @@ void vm_object_store_record_callout(object_t *object, uint64_t callout_id) {
     return;
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
-  auto &record = write_owner_local_lifecycle_record_locked(object);
-  auto &shard = shard_for_owner(record.owner_id);
+  auto& record = write_owner_local_lifecycle_record_locked(object);
+  auto& shard = shard_for_owner(record.owner_id);
   shard.status.callouts++;
   if (callout_id != 0) {
     shard.execution.pending_callouts.insert(callout_id);
   }
 }
 
-void vm_object_store_remove_callout(const char *owner_id, uint64_t callout_id) {
+void vm_object_store_remove_callout(const char* owner_id, uint64_t callout_id) {
   if (callout_id == 0) {
     return;
   }
@@ -2100,7 +2191,7 @@ void vm_object_store_remove_callout(const char *owner_id, uint64_t callout_id) {
   shard_for_owner(safe_owner_id(owner_id)).execution.pending_callouts.erase(callout_id);
 }
 
-void vm_object_store_record_heartbeat(object_t *object) {
+void vm_object_store_record_heartbeat(object_t* object) {
   if (!object) {
     return;
   }
@@ -2108,15 +2199,15 @@ void vm_object_store_record_heartbeat(object_t *object) {
     return;
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
-  auto &record = write_owner_local_lifecycle_record_locked(object);
-  auto &shard = shard_for_owner(record.owner_id);
+  auto& record = write_owner_local_lifecycle_record_locked(object);
+  auto& shard = shard_for_owner(record.owner_id);
   shard.status.heartbeats++;
   if (!record.destructed) {
     shard.execution.active_heartbeats.insert(record.object_id);
   }
 }
 
-void vm_object_store_remove_heartbeat(object_t *object) {
+void vm_object_store_remove_heartbeat(object_t* object) {
   if (!object) {
     return;
   }
@@ -2124,23 +2215,23 @@ void vm_object_store_remove_heartbeat(object_t *object) {
     return;
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
-  auto &record = write_owner_local_lifecycle_record_locked(object);
+  auto& record = write_owner_local_lifecycle_record_locked(object);
   shard_for_owner(record.owner_id).execution.active_heartbeats.erase(record.object_id);
 }
 
-void vm_object_store_record_message(const char *owner_id, uint64_t task_id) {
+void vm_object_store_record_message(const char* owner_id, uint64_t task_id) {
   if (!object_store_lifecycle_tracking_enabled()) {
     return;
   }
   ObjectStoreWriteLock lock(object_store_directory_mutex);
-  auto &shard = shard_for_owner(safe_owner_id(owner_id));
+  auto& shard = shard_for_owner(safe_owner_id(owner_id));
   shard.status.messages++;
   if (task_id != 0) {
     shard.execution.pending_messages.insert(task_id);
   }
 }
 
-void vm_object_store_remove_message(const char *owner_id, uint64_t task_id) {
+void vm_object_store_remove_message(const char* owner_id, uint64_t task_id) {
   if (task_id == 0) {
     return;
   }
@@ -2151,37 +2242,39 @@ void vm_object_store_remove_message(const char *owner_id, uint64_t task_id) {
   shard_for_owner(safe_owner_id(owner_id)).execution.pending_messages.erase(task_id);
 }
 
-mapping_t *vm_object_store_status() {
+mapping_t* vm_object_store_status() {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   auto owner_local_bridge = owner_local_bridge_summary_locked();
-  auto *shards = allocate_array(static_cast<int>(owner_shards.size()));
+  auto* shards = allocate_array(static_cast<int>(owner_shards.size()));
   bool owner_local_store_ready = true;
   bool owner_local_store_complete = true;
   int i = 0;
-  for (const auto &entry : owner_shards) {
-    owner_local_store_ready =
-        owner_local_store_ready && owner_local_store_ready_for_shard(entry.second, owner_local_bridge);
+  for (const auto& entry : owner_shards) {
+    owner_local_store_ready = owner_local_store_ready &&
+                              owner_local_store_ready_for_shard(entry.second, owner_local_bridge);
     owner_local_store_complete =
-        owner_local_store_complete && owner_local_store_complete_for_shard(entry.second, owner_local_bridge);
+        owner_local_store_complete &&
+        owner_local_store_complete_for_shard(entry.second, owner_local_bridge);
     shards->item[i].type = T_MAPPING;
     shards->item[i].subtype = 0;
     shards->item[i].u.map = shard_mapping(entry.second, owner_local_bridge);
     i++;
   }
-  auto *migrations = allocate_array(static_cast<int>(object_migration_traces.size()));
+  auto* migrations = allocate_array(static_cast<int>(object_migration_traces.size()));
   int migration_index = 0;
-  for (const auto &trace : object_migration_traces) {
+  for (const auto& trace : object_migration_traces) {
     migrations->item[migration_index].type = T_MAPPING;
     migrations->item[migration_index].subtype = 0;
     migrations->item[migration_index].u.map = migration_trace_mapping(trace);
     migration_index++;
   }
-  auto *map = allocate_mapping(51);
+  auto* map = allocate_mapping(51);
   add_mapping_pair(map, "success", 1);
   add_mapping_string(map, "store_kind", "vm_object_store");
   add_mapping_string(map, "status_model", "object_store_status");
   add_mapping_string(map, "directory_model", "owner_local_object_directory");
-  add_mapping_string(map, "storage_model", owner_local_store_complete ? "owner_local_store" : "global_index_bridge");
+  add_mapping_string(map, "storage_model",
+                     owner_local_store_complete ? "owner_local_store" : "global_index_bridge");
   add_mapping_pair(map, "object_store_owner_fast_path_ready", 1);
   add_mapping_pair(map, "owner_local_fast_path_ready", 1);
   add_mapping_string(map, "owner_local_fast_path_lock_model", "shared_mutex_read_lock");
@@ -2192,12 +2285,16 @@ mapping_t *vm_object_store_status() {
   add_mapping_string(map, "global_record_write_model", "compatibility_mirror");
   add_mapping_pair(map, "global_record_canonical_write", 0);
   add_mapping_pair(map, "registered_objects", static_cast<LPC_INT>(object_records.size()));
-  add_mapping_pair(map, "global_record_total", static_cast<LPC_INT>(owner_local_bridge.global_records));
-  add_mapping_pair(map, "global_live_record_total", static_cast<LPC_INT>(owner_local_bridge.global_live_records));
+  add_mapping_pair(map, "global_record_total",
+                   static_cast<LPC_INT>(owner_local_bridge.global_records));
+  add_mapping_pair(map, "global_live_record_total",
+                   static_cast<LPC_INT>(owner_local_bridge.global_live_records));
   add_mapping_pair(map, "global_destructed_record_total",
                    static_cast<LPC_INT>(owner_local_bridge.global_destructed_records));
-  add_mapping_pair(map, "owner_local_record_total", static_cast<LPC_INT>(owner_local_bridge.live_records));
-  add_mapping_pair(map, "owner_local_object_ref_total", static_cast<LPC_INT>(owner_local_bridge.object_refs));
+  add_mapping_pair(map, "owner_local_record_total",
+                   static_cast<LPC_INT>(owner_local_bridge.live_records));
+  add_mapping_pair(map, "owner_local_object_ref_total",
+                   static_cast<LPC_INT>(owner_local_bridge.object_refs));
   add_mapping_pair(map, "owner_local_object_ref_index_total",
                    static_cast<LPC_INT>(owner_local_bridge.object_ref_indexes));
   add_mapping_pair(map, "owner_local_destructed_record_total",
@@ -2210,8 +2307,9 @@ mapping_t *vm_object_store_status() {
                    static_cast<LPC_INT>(owner_local_bridge.orphan_records));
   add_mapping_pair(map, "owner_local_to_global_mismatch_record_total",
                    static_cast<LPC_INT>(owner_local_bridge.owner_local_to_global_mismatch_records));
-  add_mapping_pair(map, "global_to_owner_local_record_mismatch_record_total",
-                   static_cast<LPC_INT>(owner_local_bridge.global_to_owner_local_record_mismatch_records));
+  add_mapping_pair(
+      map, "global_to_owner_local_record_mismatch_record_total",
+      static_cast<LPC_INT>(owner_local_bridge.global_to_owner_local_record_mismatch_records));
   add_mapping_pair(map, "global_to_owner_local_mismatch_record_total",
                    static_cast<LPC_INT>(owner_local_bridge.global_to_owner_local_mismatch_records));
   add_mapping_pair(map, "owner_local_record_index_ready",
@@ -2220,10 +2318,10 @@ mapping_t *vm_object_store_status() {
                    owner_local_bridge.owner_local_canonical_record_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_ready", owner_local_store_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_complete", owner_local_store_complete ? 1 : 0);
-  add_mapping_string(map, "owner_local_store_complete_blocker",
-                     owner_local_store_complete_blocker(owner_local_store_complete,
-                                                        !owner_local_store_complete,
-                                                        !owner_local_store_complete));
+  add_mapping_string(
+      map, "owner_local_store_complete_blocker",
+      owner_local_store_complete_blocker(owner_local_store_complete, !owner_local_store_complete,
+                                         !owner_local_store_complete));
   add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
   add_mapping_pair(map, "owner_local_to_global_bridge_consistent",
@@ -2259,20 +2357,21 @@ mapping_t *vm_object_store_status() {
   return map;
 }
 
-mapping_t *vm_object_store_owner_status(const char *owner_id) {
+mapping_t* vm_object_store_owner_status(const char* owner_id) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   auto normalized = safe_owner_id(owner_id);
   auto owner_local_bridge = owner_local_bridge_summary_locked();
   auto it = owner_shards.find(normalized);
   if (it == owner_shards.end()) {
-    auto *object_directory = allocate_array(0);
+    auto* object_directory = allocate_array(0);
     VMObjectShard empty_shard;
     empty_shard.status.owner_id = normalized;
     empty_shard.execution.owner_id = normalized;
     auto empty_store_ready = owner_local_store_ready_for_shard(empty_shard, owner_local_bridge);
-    auto empty_store_complete = owner_local_store_complete_for_shard(empty_shard, owner_local_bridge);
-    auto *shard_contract = vm_object_shard_contract_mapping(empty_shard, owner_local_bridge);
-    auto *map = allocate_mapping(36);
+    auto empty_store_complete =
+        owner_local_store_complete_for_shard(empty_shard, owner_local_bridge);
+    auto* shard_contract = vm_object_shard_contract_mapping(empty_shard, owner_local_bridge);
+    auto* map = allocate_mapping(36);
     add_mapping_pair(map, "success", 1);
     add_mapping_string(map, "owner_id", normalized);
     add_mapping_pair(map, "objects", 0);
@@ -2286,7 +2385,8 @@ mapping_t *vm_object_store_owner_status(const char *owner_id) {
     add_mapping_pair(map, "owner_local_object_ref_count", 0);
     add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
     add_mapping_pair(map, "owner_local_object_ref_index_count", 0);
-    add_mapping_string(map, "owner_local_object_ref_index_source", "vm_object_shard.local_object_index");
+    add_mapping_string(map, "owner_local_object_ref_index_source",
+                       "vm_object_shard.local_object_index");
     add_mapping_pair(map, "owner_local_path_index_count", 0);
     add_mapping_pair(map, "owner_local_destructed_path_index_count", 0);
     add_mapping_pair(map, "owner_local_path_index_ready", 1);
@@ -2302,44 +2402,44 @@ mapping_t *vm_object_store_owner_status(const char *owner_id) {
     add_mapping_pair(map, "owner_local_store_ready", empty_store_ready ? 1 : 0);
     add_mapping_pair(map, "owner_local_store_complete", empty_store_complete ? 1 : 0);
     add_mapping_string(map, "owner_local_store_complete_blocker",
-                       owner_local_store_complete_blocker(empty_store_complete,
-                                                          !empty_store_complete,
-                                                          !empty_store_complete));
+                       owner_local_store_complete_blocker(
+                           empty_store_complete, !empty_store_complete, !empty_store_complete));
     add_mapping_pair(map, "uses_global_object_table", empty_store_complete ? 0 : 1);
     add_mapping_pair(map, "global_index_bridge", empty_store_complete ? 0 : 1);
     add_mapping_pair(map, "global_live_object_bridge_ready", empty_store_complete ? 0 : 1);
     add_mapping_string(map, "global_live_object_bridge_source",
                        empty_store_complete ? "" : kGlobalLiveObjectBridgeSource);
     add_mapping_pair(map, "global_record_bridge_ready", empty_store_complete ? 0 : 1);
-    add_mapping_string(map, "global_record_bridge_source", empty_store_complete ? "" : kGlobalRecordBridgeSource);
+    add_mapping_string(map, "global_record_bridge_source",
+                       empty_store_complete ? "" : kGlobalRecordBridgeSource);
     add_owner_local_lifecycle_contract(map, empty_store_complete, true);
     add_mapping_pair(map, "executor_ready", 0);
     free_mapping(shard_contract);
     free_array(object_directory);
     return map;
   }
-  auto *map = shard_mapping(it->second, owner_local_bridge);
+  auto* map = shard_mapping(it->second, owner_local_bridge);
   add_mapping_pair(map, "success", 1);
   return map;
 }
 
-object_t *vm_object_store_owner_resolve(const char *owner_id, uint64_t object_id) {
+object_t* vm_object_store_owner_resolve(const char* owner_id, uint64_t object_id) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   return owner_local_resolve_object_fast_path_locked(owner_id, object_id);
 }
 
-object_t *vm_object_store_owner_path_resolve(const char *owner_id, const char *object_path) {
+object_t* vm_object_store_owner_path_resolve(const char* owner_id, const char* object_path) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   return owner_local_resolve_path_fast_path_locked(owner_id, object_path);
 }
 
-object_t *vm_object_store_find_live_by_path(const char *object_path) {
+object_t* vm_object_store_find_live_by_path(const char* object_path) {
   if (!object_store_lifecycle_tracking_enabled() || !object_path || object_path[0] == '\0') {
     return nullptr;
   }
 
   ObjectStoreReadLock lock(object_store_directory_mutex);
-  const auto *record = find_record_by_owner_local_path_locked(object_path);
+  const auto* record = find_record_by_owner_local_path_locked(object_path);
   if (!record || record->destructed) {
     return nullptr;
   }
@@ -2350,27 +2450,30 @@ object_t *vm_object_store_find_live_by_path(const char *object_path) {
   return shard_resolve_live_object_locked(shard_it->second, record->object_id);
 }
 
-mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t object_id) {
+mapping_t* vm_object_store_owner_lookup_status(const char* owner_id, uint64_t object_id) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   auto result = owner_local_lookup_by_object_locked(owner_id, object_id);
 
-  auto *map = allocate_mapping(62);
+  auto* map = allocate_mapping(62);
   add_mapping_pair(map, "success", 1);
   add_mapping_string(map, "owner_id", result.owner_id.c_str());
   add_mapping_pair(map, "object_id", static_cast<LPC_INT>(object_id));
   add_mapping_pair(map, "record_found", result.record ? 1 : 0);
   add_mapping_pair(map, "found", result.found ? 1 : 0);
   add_mapping_string(map, "record_owner_id", result.record ? result.record->owner_id.c_str() : "");
-  add_mapping_pair(map, "owner_epoch", result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
+  add_mapping_pair(map, "owner_epoch",
+                   result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
   add_mapping_string(map, "object_path", result.record ? result.record->object_path.c_str() : "");
   add_mapping_pair(map, "destructed", result.record && result.record->destructed ? 1 : 0);
   add_mapping_pair(map, "owner_mismatch", result.record && !result.same_owner ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_entry", result.found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_record_found", result.local_record || result.destructed_record ? 1 : 0);
+  add_mapping_pair(map, "owner_local_record_found",
+                   result.local_record || result.destructed_record ? 1 : 0);
   add_mapping_pair(map, "owner_local_destructed_record_found", result.destructed_record ? 1 : 0);
   add_mapping_string(map, "owner_local_record_source",
-                     result.local_record ? "vm_object_shard.local_records"
-                                         : (result.destructed_record ? "vm_object_shard.destructed_records" : ""));
+                     result.local_record
+                         ? "vm_object_shard.local_records"
+                         : (result.destructed_record ? "vm_object_shard.destructed_records" : ""));
   add_mapping_pair(map, "owner_local_record_destructed", result.destructed_record ? 1 : 0);
   add_mapping_pair(map, "owner_local_cross_shard_record_found", result.cross_owner_record ? 1 : 0);
   add_mapping_string(map, "owner_local_cross_shard_record_source",
@@ -2410,8 +2513,9 @@ mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t ob
                    result.global_record_scan_bridge_used ? 1 : 0);
   add_mapping_pair(map, "owner_local_global_record_scan_bridge_found",
                    result.global_record_scan_bridge_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_scan_bridge_source",
-                     result.global_record_scan_bridge_used ? result.global_record_scan_bridge_source.c_str() : "");
+  add_mapping_string(
+      map, "owner_local_global_record_scan_bridge_source",
+      result.global_record_scan_bridge_used ? result.global_record_scan_bridge_source.c_str() : "");
   add_mapping_pair(map, "owner_local_global_record_scan_bridge_skipped",
                    result.global_record_scan_bridge_skipped ? 1 : 0);
   add_mapping_string(map, "owner_local_global_record_scan_bridge_skip_reason",
@@ -2420,13 +2524,16 @@ mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t ob
                          : "");
   add_mapping_pair(map, "owner_local_global_record_fallback_skipped",
                    result.global_record_fallback_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_fallback_reason",
-                     result.global_record_fallback_skipped ? result.global_record_fallback_reason.c_str() : "");
+  add_mapping_string(
+      map, "owner_local_global_record_fallback_reason",
+      result.global_record_fallback_skipped ? result.global_record_fallback_reason.c_str() : "");
   add_mapping_pair(map, "global_record_bridge_retirement_ready",
                    result.global_record_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_live_object_found", result.global_live_object_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_live_object_source",
-                     result.global_live_object_found ? result.global_live_object_source.c_str() : "");
+  add_mapping_pair(map, "owner_local_global_live_object_found",
+                   result.global_live_object_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_global_live_object_source",
+      result.global_live_object_found ? result.global_live_object_source.c_str() : "");
   add_mapping_pair(map, "global_live_object_bridge_retirement_ready",
                    result.global_live_object_bridge_retirement_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_global_live_object_fallback_skipped",
@@ -2438,21 +2545,27 @@ mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t ob
   add_mapping_pair(map, "owner_local_object_ref_found", result.local_object_ref_found ? 1 : 0);
   add_mapping_string(map, "owner_local_object_ref_source",
                      result.local_object_ref_found ? "vm_object_shard.local_objects" : "");
-  add_mapping_pair(map, "owner_local_object_ref_index_found", result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_ref_index_source",
-                     result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
-  add_mapping_pair(map, "owner_local_object_pointer_index_found", result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_pointer_index_source",
-                     result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
+  add_mapping_pair(map, "owner_local_object_ref_index_found",
+                   result.local_object_ref_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_object_ref_index_source",
+      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
+  add_mapping_pair(map, "owner_local_object_pointer_index_found",
+                   result.local_object_ref_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_object_pointer_index_source",
+      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
   add_mapping_pair(map, "owner_local_resolve_found", result.resolved_object ? 1 : 0);
   add_mapping_string(map, "owner_local_resolve_source",
                      result.resolved_object ? "vm_object_shard.local_objects" : "");
   add_mapping_pair(map, "owner_local_path_index_found", result.live_path_index_found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_path_index_found", result.destructed_path_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_path_index_source",
-                     result.live_path_index_found
-                         ? "vm_object_shard.object_path_index"
-                         : (result.destructed_path_index_found ? "vm_object_shard.destructed_path_index" : ""));
+  add_mapping_pair(map, "owner_local_destructed_path_index_found",
+                   result.destructed_path_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_path_index_source",
+      result.live_path_index_found
+          ? "vm_object_shard.object_path_index"
+          : (result.destructed_path_index_found ? "vm_object_shard.destructed_path_index" : ""));
   add_mapping_pair(map, "owner_local_path_index_ready", 1);
   add_mapping_pair(map, "owner_local_directory_ready", 1);
   add_mapping_pair(map, "owner_local_canonical_record_ready",
@@ -2464,20 +2577,20 @@ mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t ob
                                     result.global_live_object_bridge_retirement_ready;
   add_mapping_pair(map, "owner_local_store_ready", owner_local_store_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_complete", owner_local_store_complete ? 1 : 0);
-  add_mapping_string(map, "owner_local_store_complete_blocker",
-                     owner_local_store_complete_blocker(owner_local_store_complete,
-                                                        !owner_local_store_complete,
-                                                        !owner_local_store_complete));
+  add_mapping_string(
+      map, "owner_local_store_complete_blocker",
+      owner_local_store_complete_blocker(owner_local_store_complete, !owner_local_store_complete,
+                                         !owner_local_store_complete));
   add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
   return map;
 }
 
-mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const char *object_path) {
+mapping_t* vm_object_store_owner_path_lookup_status(const char* owner_id, const char* object_path) {
   ObjectStoreReadLock lock(object_store_directory_mutex);
   auto result = owner_local_lookup_by_path_locked(owner_id, object_path);
 
-  auto *map = allocate_mapping(62);
+  auto* map = allocate_mapping(62);
   add_mapping_pair(map, "success", 1);
   add_mapping_string(map, "owner_id", result.owner_id.c_str());
   add_mapping_string(map, "object_path", result.query_path.c_str());
@@ -2485,15 +2598,18 @@ mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const 
   add_mapping_pair(map, "record_found", result.record ? 1 : 0);
   add_mapping_pair(map, "found", result.found ? 1 : 0);
   add_mapping_string(map, "record_owner_id", result.record ? result.record->owner_id.c_str() : "");
-  add_mapping_pair(map, "owner_epoch", result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
+  add_mapping_pair(map, "owner_epoch",
+                   result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
   add_mapping_pair(map, "destructed", result.record && result.record->destructed ? 1 : 0);
   add_mapping_pair(map, "owner_mismatch", result.record && !result.same_owner ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_entry", result.found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_record_found", result.local_record || result.destructed_record ? 1 : 0);
+  add_mapping_pair(map, "owner_local_record_found",
+                   result.local_record || result.destructed_record ? 1 : 0);
   add_mapping_pair(map, "owner_local_destructed_record_found", result.destructed_record ? 1 : 0);
   add_mapping_string(map, "owner_local_record_source",
-                     result.local_record ? "vm_object_shard.local_records"
-                                         : (result.destructed_record ? "vm_object_shard.destructed_records" : ""));
+                     result.local_record
+                         ? "vm_object_shard.local_records"
+                         : (result.destructed_record ? "vm_object_shard.destructed_records" : ""));
   add_mapping_pair(map, "owner_local_record_destructed", result.destructed_record ? 1 : 0);
   add_mapping_pair(map, "owner_local_cross_shard_record_found", result.cross_owner_record ? 1 : 0);
   add_mapping_string(map, "owner_local_cross_shard_record_source",
@@ -2533,8 +2649,9 @@ mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const 
                    result.global_record_scan_bridge_used ? 1 : 0);
   add_mapping_pair(map, "owner_local_global_record_scan_bridge_found",
                    result.global_record_scan_bridge_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_scan_bridge_source",
-                     result.global_record_scan_bridge_used ? result.global_record_scan_bridge_source.c_str() : "");
+  add_mapping_string(
+      map, "owner_local_global_record_scan_bridge_source",
+      result.global_record_scan_bridge_used ? result.global_record_scan_bridge_source.c_str() : "");
   add_mapping_pair(map, "owner_local_global_record_scan_bridge_skipped",
                    result.global_record_scan_bridge_skipped ? 1 : 0);
   add_mapping_string(map, "owner_local_global_record_scan_bridge_skip_reason",
@@ -2543,13 +2660,16 @@ mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const 
                          : "");
   add_mapping_pair(map, "owner_local_global_record_fallback_skipped",
                    result.global_record_fallback_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_fallback_reason",
-                     result.global_record_fallback_skipped ? result.global_record_fallback_reason.c_str() : "");
+  add_mapping_string(
+      map, "owner_local_global_record_fallback_reason",
+      result.global_record_fallback_skipped ? result.global_record_fallback_reason.c_str() : "");
   add_mapping_pair(map, "global_record_bridge_retirement_ready",
                    result.global_record_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_live_object_found", result.global_live_object_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_live_object_source",
-                     result.global_live_object_found ? result.global_live_object_source.c_str() : "");
+  add_mapping_pair(map, "owner_local_global_live_object_found",
+                   result.global_live_object_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_global_live_object_source",
+      result.global_live_object_found ? result.global_live_object_source.c_str() : "");
   add_mapping_pair(map, "global_live_object_bridge_retirement_ready",
                    result.global_live_object_bridge_retirement_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_global_live_object_fallback_skipped",
@@ -2561,21 +2681,27 @@ mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const 
   add_mapping_pair(map, "owner_local_object_ref_found", result.local_object_ref_found ? 1 : 0);
   add_mapping_string(map, "owner_local_object_ref_source",
                      result.local_object_ref_found ? "vm_object_shard.local_objects" : "");
-  add_mapping_pair(map, "owner_local_object_ref_index_found", result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_ref_index_source",
-                     result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
-  add_mapping_pair(map, "owner_local_object_pointer_index_found", result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_pointer_index_source",
-                     result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
+  add_mapping_pair(map, "owner_local_object_ref_index_found",
+                   result.local_object_ref_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_object_ref_index_source",
+      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
+  add_mapping_pair(map, "owner_local_object_pointer_index_found",
+                   result.local_object_ref_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_object_pointer_index_source",
+      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
   add_mapping_pair(map, "owner_local_resolve_found", result.resolved_object ? 1 : 0);
   add_mapping_string(map, "owner_local_resolve_source",
                      result.resolved_object ? "vm_object_shard.local_objects" : "");
   add_mapping_pair(map, "owner_local_path_index_found", result.live_path_index_found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_path_index_found", result.destructed_path_index_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_path_index_source",
-                     result.live_path_index_found
-                         ? "vm_object_shard.object_path_index"
-                         : (result.destructed_path_index_found ? "vm_object_shard.destructed_path_index" : ""));
+  add_mapping_pair(map, "owner_local_destructed_path_index_found",
+                   result.destructed_path_index_found ? 1 : 0);
+  add_mapping_string(
+      map, "owner_local_path_index_source",
+      result.live_path_index_found
+          ? "vm_object_shard.object_path_index"
+          : (result.destructed_path_index_found ? "vm_object_shard.destructed_path_index" : ""));
   add_mapping_pair(map, "owner_local_path_index_ready", 1);
   add_mapping_pair(map, "owner_local_directory_ready", 1);
   add_mapping_pair(map, "owner_local_canonical_record_ready",
@@ -2587,10 +2713,10 @@ mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const 
                                     result.global_live_object_bridge_retirement_ready;
   add_mapping_pair(map, "owner_local_store_ready", owner_local_store_ready ? 1 : 0);
   add_mapping_pair(map, "owner_local_store_complete", owner_local_store_complete ? 1 : 0);
-  add_mapping_string(map, "owner_local_store_complete_blocker",
-                     owner_local_store_complete_blocker(owner_local_store_complete,
-                                                        !owner_local_store_complete,
-                                                        !owner_local_store_complete));
+  add_mapping_string(
+      map, "owner_local_store_complete_blocker",
+      owner_local_store_complete_blocker(owner_local_store_complete, !owner_local_store_complete,
+                                         !owner_local_store_complete));
   add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
   return map;

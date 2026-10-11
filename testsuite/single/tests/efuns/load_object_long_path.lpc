@@ -4,21 +4,21 @@
 // driver uses MAX_OBJECT_NAME_SIZE (2048), so a legitimate long path was
 // rejected as "too long or invalid" long before any filesystem check ran.
 void do_tests() {
-    string long_name;
-    mixed err;
-    int i;
+  string long_name;
+  mixed err;
+  int i;
 
-    // Keep the raw LPC name above the historical 400-byte buffer while the
-    // normalized filesystem path stays short enough for Windows MAX_PATH.
-    long_name = "/";
-    for (i = 0; i < 250; i++) {
-        long_name += "./";
-    }
-    long_name += "missing";
+  // Keep the raw LPC name above the historical 400-byte buffer while the
+  // normalized filesystem path stays short enough for Windows MAX_PATH.
+  long_name = "/";
+  for (i = 0; i < 250; i++) {
+    long_name += "./";
+  }
+  long_name += "missing";
 
-    // The normalized path does not exist, so this must fail as a missing file
-    // -- never as a path that is "too long or invalid".
-    err = catch(load_object(long_name));
-    ASSERT(stringp(err));
-    ASSERT(strsrch(err, "too long or invalid") == -1);
+  // The normalized path does not exist, so this must fail as a missing file
+  // -- never as a path that is "too long or invalid".
+  err = catch(load_object(long_name));
+  ASSERT(stringp(err));
+  ASSERT(strsrch(err, "too long or invalid") == -1);
 }

@@ -51,8 +51,7 @@ void server_read(int fd, buffer message) {
   call_out("finish_test", 0);
 }
 
-void server_write(int fd) {
-}
+void server_write(int fd) {}
 
 void server_accept_ready(int fd) {
   accepted_fd = socket_accept(fd, "server_read", "server_write");

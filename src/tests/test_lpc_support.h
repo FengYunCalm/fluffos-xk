@@ -9,13 +9,14 @@
 #include <unicode/ucnv.h>
 #include <algorithm>
 #include <atomic>
-#include "packages/async/async.h"  // for check_reqs (backend wakeup drain)
-#include "compiler/internal/diagnostic.h"  // T3.2 structured compile diagnostics
+#include "packages/async/async.h"                 // for check_reqs (backend wakeup drain)
+#include "compiler/internal/diagnostic.h"         // T3.2 structured compile diagnostics
 #include "compiler/internal/diagnostic_render.h"  // T3.3 rendering
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <cctype>
 #include <exception>
 #include <fstream>
 #include <initializer_list>
@@ -25,6 +26,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -93,14 +95,16 @@
 #include "vm/worker.h"
 #include "test_mudlib.h"
 
-extern uint64_t vm_owner_enqueue_test_main_required_message(const char* owner_id, const char* task_key);
+extern uint64_t vm_owner_enqueue_test_main_required_message(const char* owner_id,
+                                                            const char* task_key);
 extern void vm_owner_test_support_reset_budget_yield_observations();
 extern uint64_t vm_owner_enqueue_command_frame_restore(object_t* target);
-extern bool vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(const char* owner_id,
-                                                                                    uint64_t object_id);
+extern bool vm_object_store_test_support_remove_live_object_ref_for_bridge_readiness(
+    const char* owner_id, uint64_t object_id);
 extern bool vm_call_out_test_support_run_handle(LPC_INT handle);
 extern int vm_call_out_test_support_priority(LPC_INT handle);
-extern bool vm_async_test_support_dispatch_read_callback(object_t* owner, const char* method, const char* payload);
+extern bool vm_async_test_support_dispatch_read_callback(object_t* owner, const char* method,
+                                                         const char* payload);
 
 #ifdef PACKAGE_SOCKETS
 extern void f_socket_get_option();
@@ -126,13 +130,17 @@ struct SocketPairGuard {
 // 收敛为单一定义）
 struct PathCleanupGuard {
   const char* path;
-  ~PathCleanupGuard() { std::remove(path); }
+  ~PathCleanupGuard() {
+    std::remove(path);
+  }
 };
 // 外部命令恢复守卫：析构时恢复 external_cmd[0]（原 2 份逐字节相同局部
 // FixtureGuard 收敛为单一定义）
 struct ExternalCommandGuard {
   char* saved_command;
-  ~ExternalCommandGuard() { external_cmd[0] = saved_command; }
+  ~ExternalCommandGuard() {
+    external_cmd[0] = saved_command;
+  }
 };
 object_t* load_object_for_test(const char* path);
 object_t* clone_object_for_test(const char* path);
@@ -143,22 +151,22 @@ void destruct_object_for_test(object_t* object);
   vm_context_set_current_program(vm_context(), nullptr);
   throw std::runtime_error("injected recompile create exception");
 }
-}
+}  // namespace
 extern bool vm_dns_test_support_dispatch_callback(object_t* owner, const char* method, LPC_INT key);
-extern bool vm_socket_test_support_dispatch_callback(object_t* owner, const char* method, LPC_INT fd);
+extern bool vm_socket_test_support_dispatch_callback(object_t* owner, const char* method,
+                                                     LPC_INT fd);
 extern int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2,
                           svalue_t* arg3);
 extern bool decode_mud_port_payload_length_for_test(const char* header, size_t header_size,
                                                     size_t* payload_length);
 extern int comm_reserve_input_space_for_test(interactive_t* ip, size_t reserve);
 extern int comm_append_input_for_test(interactive_t* ip, const unsigned char* data, int len);
-extern int replace_interactive(object_t *ob, object_t *obfrom);
-extern bool gateway_dispatch_message_for_test(int fd, const char *payload);
-extern int gateway_dispatch_buffered_frames_for_test(GatewayMaster *master, int budget);
-extern void gateway_set_read_dispatch_pending_for_test(GatewayMaster *master, bool pending);
+extern int replace_interactive(object_t* ob, object_t* obfrom);
+extern bool gateway_dispatch_message_for_test(int fd, const char* payload);
+extern int gateway_dispatch_buffered_frames_for_test(GatewayMaster* master, int budget);
+extern void gateway_set_read_dispatch_pending_for_test(GatewayMaster* master, bool pending);
 extern void gateway_service_admitted_receive_tasks_for_test();
-extern bool gateway_master_has_buffered_input_for_test(const GatewayMaster *master);
-
+extern bool gateway_master_has_buffered_input_for_test(const GatewayMaster* master);
 
 namespace {
 struct StringStatsSnapshot {
@@ -221,18 +229,20 @@ namespace {
  * free_mapping(). */
 class ScopedLpcMapping {
  public:
-  explicit ScopedLpcMapping(mapping_t *map) : map_(map) {}
+  explicit ScopedLpcMapping(mapping_t* map) : map_(map) {}
   ~ScopedLpcMapping() {
     if (map_) {
       free_mapping(map_);
     }
   }
-  ScopedLpcMapping(const ScopedLpcMapping &) = delete;
-  ScopedLpcMapping &operator=(const ScopedLpcMapping &) = delete;
-  mapping_t *get() const { return map_; }
+  ScopedLpcMapping(const ScopedLpcMapping&) = delete;
+  ScopedLpcMapping& operator=(const ScopedLpcMapping&) = delete;
+  mapping_t* get() const {
+    return map_;
+  }
 
  private:
-  mapping_t *map_;
+  mapping_t* map_;
 };
 }  // namespace
 
@@ -242,7 +252,7 @@ class DriverTest : public ::testing::Test {
     std::string mudlib;
     try {
       mudlib = fluffos_test_mudlib::root_string();
-    } catch (const std::exception &error) {
+    } catch (const std::exception& error) {
       FAIL() << "invalid FLUFFOS_TEST_MUDLIB: " << error.what();
       return;
     }
@@ -254,7 +264,9 @@ class DriverTest : public ::testing::Test {
   }
 
  protected:
-  void SetUp() override { clear_state(); }
+  void SetUp() override {
+    clear_state();
+  }
 
   void TearDown() override {
     vm_worker_stop();
@@ -263,14 +275,134 @@ class DriverTest : public ::testing::Test {
   }
 };
 
-
 namespace {
-std::string read_source_file_for_test(const char* path) {
+class SourceText {
+ public:
+  explicit SourceText(std::string text) : text_(normalize(std::move(text))) {}
+
+  bool empty() const {
+    return text_.empty();
+  }
+  size_t size() const {
+    return text_.size();
+  }
+  char operator[](size_t position) const {
+    return text_[position];
+  }
+
+  size_t find(std::string_view needle, size_t position = 0) const {
+    return text_.find(normalize(std::string(needle)), position);
+  }
+
+  size_t find(char needle, size_t position = 0) const {
+    return text_.find(needle == '\n' ? kSeparator : needle, position);
+  }
+
+  size_t rfind(std::string_view needle, size_t position = std::string::npos) const {
+    return text_.rfind(normalize(std::string(needle)), position);
+  }
+
+  size_t rfind(char needle, size_t position = std::string::npos) const {
+    return text_.rfind(needle == '\n' ? kSeparator : needle, position);
+  }
+
+  SourceText substr(size_t position = 0, size_t count = std::string::npos) const {
+    return SourceText(text_.substr(position, count), NormalizedText{});
+  }
+
+ private:
+  struct NormalizedText {};
+  static constexpr char kSeparator = '\x1f';
+
+  SourceText(std::string normalized, NormalizedText) : text_(std::move(normalized)) {}
+
+  static std::string normalize(std::string input) {
+    std::string output;
+    output.reserve(input.size());
+    bool have_token = false;
+    for (size_t i = 0; i < input.size();) {
+      const unsigned char current = static_cast<unsigned char>(input[i]);
+      if (std::isspace(current)) {
+        i++;
+        continue;
+      }
+      if (input[i] == '/' && i + 1 < input.size() && input[i + 1] == '/') {
+        if (have_token) {
+          output.push_back(kSeparator);
+        }
+        have_token = true;
+        const size_t token_start = i;
+        i += 2;
+        while (i < input.size() && input[i] != '\n') {
+          i++;
+        }
+        output.append(input, token_start, i - token_start);
+        continue;
+      }
+      if (input[i] == '/' && i + 1 < input.size() && input[i + 1] == '*') {
+        if (have_token) {
+          output.push_back(kSeparator);
+        }
+        have_token = true;
+        const size_t token_start = i;
+        i += 2;
+        while (i + 1 < input.size() && !(input[i] == '*' && input[i + 1] == '/')) {
+          i++;
+        }
+        i = std::min(i + 2, input.size());
+        output.append(input, token_start, i - token_start);
+        continue;
+      }
+
+      if (have_token) {
+        output.push_back(kSeparator);
+      }
+      have_token = true;
+      const size_t token_start = i;
+      if (input[i] == '"' || input[i] == '\'') {
+        const char quote = input[i++];
+        while (i < input.size()) {
+          if (input[i] == '\\') {
+            i = std::min(i + 2, input.size());
+          } else if (input[i++] == quote) {
+            break;
+          }
+        }
+      } else if ((std::isalpha(current) || input[i] == '_')) {
+        i++;
+        while (i < input.size()) {
+          const unsigned char character = static_cast<unsigned char>(input[i]);
+          if (!std::isalnum(character) && input[i] != '_') {
+            break;
+          }
+          i++;
+        }
+      } else if (std::isdigit(current)) {
+        i++;
+        while (i < input.size()) {
+          const unsigned char character = static_cast<unsigned char>(input[i]);
+          if (!std::isalnum(character) && input[i] != '\'' && input[i] != '.') {
+            break;
+          }
+          i++;
+        }
+      } else {
+        i++;
+      }
+      output.append(input, token_start, i - token_start);
+    }
+    return output;
+  }
+
+  std::string text_;
+};
+
+SourceText read_source_file_for_test(const char* path) {
   std::ifstream file(path);
   EXPECT_TRUE(file.is_open()) << "failed to open source file: " << path;
   std::ostringstream contents;
   contents << file.rdbuf();
-  return contents.str();
+  return SourceText(contents.str());
 }
 
 object_t* load_object_for_test(const char* path) {

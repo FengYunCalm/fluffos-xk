@@ -11,13 +11,13 @@
  * Ported from Amylaars LP 3.2 driver
  */
 
-replace_ob_t *obj_list_replace = nullptr;
+replace_ob_t* obj_list_replace = nullptr;
 
-static program_t *search_inherited_matching(char *str, program_t *prg, int *offpnt);
-static replace_ob_t *retrieve_replace_program_entry();
+static program_t* search_inherited_matching(char* str, program_t* prg, int* offpnt);
+static replace_ob_t* retrieve_replace_program_entry();
 
-int replace_program_pending(object_t *ob) {
-  replace_ob_t *r_ob;
+int replace_program_pending(object_t* ob) {
+  replace_ob_t* r_ob;
 
   for (r_ob = obj_list_replace; r_ob; r_ob = r_ob->next) {
     if (r_ob->ob == ob) {
@@ -31,12 +31,12 @@ int replace_program_pending(object_t *ob) {
 void replace_programs() {
   replace_ob_t *r_ob, *r_next;
   int i, num_fewer, offset;
-  svalue_t *svp;
+  svalue_t* svp;
 
   debug(d_flag, ("start of replace_programs"));
 
   for (r_ob = obj_list_replace; r_ob; r_ob = r_next) {
-    program_t *old_prog;
+    program_t* old_prog;
     ObjectVariableBlock new_block;
 
     // #1247 B-S1: the target program's variable layout gets a fresh,
@@ -126,15 +126,15 @@ void replace_programs() {
       r_ob->ob->shadowing = nullptr;
     }
 #endif
-    FREE((char *)r_ob);
+    FREE((char*)r_ob);
   }
-  obj_list_replace = (replace_ob_t *)nullptr;
+  obj_list_replace = (replace_ob_t*)nullptr;
   debug(d_flag, ("end of replace_programs"));
 }
 
 #ifdef F_REPLACE_PROGRAM
-static program_t *search_inherited_matching(char *str, program_t *prg, int *offpnt) {
-  program_t *tmp;
+static program_t* search_inherited_matching(char* str, program_t* prg, int* offpnt) {
+  program_t* tmp;
   int i;
 
   debug(d_flag, "search_inherited started");
@@ -163,11 +163,11 @@ static program_t *search_inherited_matching(char *str, program_t *prg, int *offp
   }
   debug(d_flag, "search_inherited failed");
 
-  return (program_t *)nullptr;
+  return (program_t*)nullptr;
 }
 
-static replace_ob_t *retrieve_replace_program_entry() {
-  replace_ob_t *r_ob;
+static replace_ob_t* retrieve_replace_program_entry() {
+  replace_ob_t* r_ob;
 
   for (r_ob = obj_list_replace; r_ob; r_ob = r_ob->next) {
     if (r_ob->ob == current_object) {
@@ -178,10 +178,10 @@ static replace_ob_t *retrieve_replace_program_entry() {
 }
 
 void f_replace_program() {
-  replace_ob_t *tmp;
+  replace_ob_t* tmp;
   int name_len;
   char *name, *xname;
-  program_t *new_prog;
+  program_t* new_prog;
   int var_offset;
 
   if (sp->type != T_STRING) {
@@ -205,7 +205,7 @@ void f_replace_program() {
   name_len = SVALUE_STRLEN(sp);
   // No ".c" append anymore (see search_inherited_matching / #1247 .lpc),
   // so the buffer only needs room for the string + NUL.
-  name = reinterpret_cast<char *>(DMALLOC(name_len + 1, TAG_TEMPORARY, "replace_program"));
+  name = reinterpret_cast<char*>(DMALLOC(name_len + 1, TAG_TEMPORARY, "replace_program"));
   xname = name;
   strcpy(name, sp->u.string);
   if (*name == '/') {
@@ -221,7 +221,7 @@ void f_replace_program() {
     error("program to replace the current with has to be inherited\n");
   }
   if (!(tmp = retrieve_replace_program_entry())) {
-    tmp = reinterpret_cast<replace_ob_t *>(
+    tmp = reinterpret_cast<replace_ob_t*>(
         DMALLOC(sizeof(replace_ob_t), TAG_REPLACE_OB, "replace_program"));
     tmp->ob = current_object;
     tmp->next = obj_list_replace;

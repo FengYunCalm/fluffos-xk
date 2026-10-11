@@ -75,15 +75,16 @@ char lex_ctype[256] = {
 
 #define is_wspace(c) lex_ctype[(unsigned char)(c)]
 
-#define SKIPWHITE \
-  while (is_wspace((unsigned char)*p) && (*p != '\n')) p++
+#define SKIPWHITE                                      \
+  while (is_wspace((unsigned char)*p) && (*p != '\n')) \
+  p++
 
 int current_line;       /* line number in this file */
 int current_line_base;  /* number of lines from other files */
 int current_line_saved; /* last line in this file where line num
                            info was saved */
 int total_lines;        /* Used to compute average compiled lines/s */
-const char *current_file;
+const char* current_file;
 int current_file_id;
 
 /* Bit flags for pragmas in effect */
@@ -91,19 +92,19 @@ int pragmas;
 
 int num_parse_error; /* Number of errors in the parser. */
 
-lpc_predef_t *lpc_predefs = nullptr;
+lpc_predef_t* lpc_predefs = nullptr;
 
 namespace {
 std::unique_ptr<LexStream> current_stream = nullptr;
 }  // namespace
 
 int lex_fatal;
-static const char **inc_list;  // global include path from runtime config
+static const char** inc_list;  // global include path from runtime config
 static int inc_list_size;
-static const char **inc_path;  // include path used for current compile
+static const char** inc_path;  // include path used for current compile
 static int inc_path_size;
 static int defines_need_freed = 0;
-static char *last_nl;
+static char* last_nl;
 static int nexpands = 0;
 
 #define EXPANDMAX 25000
@@ -112,9 +113,11 @@ static int nexpands = 0;
 static macro_expansion_frame_t expands[EXPANDMAX];
 static int expand_depth = 0;
 
-int macro_expansion_depth() { return expand_depth; }
+int macro_expansion_depth() {
+  return expand_depth;
+}
 
-const macro_expansion_frame_t *macro_expansion_frame(int index) {
+const macro_expansion_frame_t* macro_expansion_frame(int index) {
   if (index < 0 || index >= expand_depth) {
     return nullptr;
   }
@@ -155,7 +158,7 @@ static int expansion_span_head = -1;  // newest span index, -1 when empty
 static char last_expansion_name[kExpansionNameLength];
 static macro_expansion_frame_t last_expansion_frame{last_expansion_name, nullptr, 0, 0};
 
-static void note_completed_expansion(const macro_expansion_frame_t &frame) {
+static void note_completed_expansion(const macro_expansion_frame_t& frame) {
   last_expansion_name[0] = '\0';
   if (frame.name != nullptr) {
     // The macro name points into the input buffer, which is reused long before
@@ -169,7 +172,7 @@ static void note_completed_expansion(const macro_expansion_frame_t &frame) {
 }
 
 static void note_expansion_file_reset() {
-  for (auto &span : expansion_spans) {
+  for (auto& span : expansion_spans) {
     span = expansion_span_t{};
   }
   expansion_span_head = -1;
@@ -183,7 +186,7 @@ static int innermost_span_at(int line, int column) {
   for (int step = 0; step < kExpansionSpanCapacity; step++) {
     int const index =
         (expansion_span_head - step + kExpansionSpanCapacity * 2) % kExpansionSpanCapacity;
-    expansion_span_t const &span = expansion_spans[index];
+    expansion_span_t const& span = expansion_spans[index];
     if (!span.used) {
       break;
     }
@@ -195,7 +198,7 @@ static int innermost_span_at(int line, int column) {
 }
 
 // Records the text expand_define() just spliced for the last completed frame.
-static void note_expansion_span(const char *text) {
+static void note_expansion_span(const char* text) {
   if (text == nullptr || text[0] == '\0' || std::strchr(text, '\n') != nullptr) {
     return;
   }
@@ -203,7 +206,7 @@ static void note_expansion_span(const char *text) {
   int const parent = innermost_span_at(current_line, position);
   int const next = expansion_span_head < 0 ? 0 : (expansion_span_head + 1) % kExpansionSpanCapacity;
 
-  expansion_span_t &span = expansion_spans[next];
+  expansion_span_t& span = expansion_spans[next];
   span = expansion_span_t{};
   span.used = true;
   span.line = current_line;
@@ -221,7 +224,7 @@ static void note_expansion_span(const char *text) {
   expansion_span_head = next;
 }
 
-int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, int capacity) {
+int macro_expansion_chain(int line, int column, macro_expansion_frame_t* out, int capacity) {
   if (out == nullptr || capacity <= 0) {
     return 0;
   }
@@ -230,7 +233,7 @@ int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, in
   int index = innermost_span_at(line, column);
   int count = 0;
   while (index >= 0 && count < capacity) {
-    expansion_span_t const &span = expansion_spans[index];
+    expansion_span_t const& span = expansion_spans[index];
     out[count].name = span.name;
     out[count].file = span.file.empty() ? nullptr : span.file.c_str();
     out[count].line = span.site_line;
@@ -242,7 +245,7 @@ int macro_expansion_chain(int line, int column, macro_expansion_frame_t *out, in
 }
 
 char yytext[MAXLINE];
-char *outp;
+char* outp;
 
 // A logical preprocessor directive can span several physical lines. Keep its
 // normalized spelling separate from yytext: the latter remains the bounded
@@ -250,16 +253,16 @@ char *outp;
 static char directive_text[DEFMAX];
 
 typedef struct incstate_s {
-  struct incstate_s *next;
-  LexStream *stream;  // raw pointer because incstate_t is alloated using malloc
+  struct incstate_s* next;
+  LexStream* stream;  // raw pointer because incstate_t is alloated using malloc
   int line;
-  const char *file;
+  const char* file;
   int file_id;
-  char *last_nl;
-  char *outp;
+  char* last_nl;
+  char* outp;
 } incstate_t;
 
-static incstate_t *inctop = nullptr;
+static incstate_t* inctop = nullptr;
 
 /* prevent unbridled recursion */
 #define MAX_INCLUDE_DEPTH 32
@@ -270,7 +273,7 @@ static int incnum;
 
 static function_context_t function_context_stack[MAX_FUNCTION_DEPTH];
 static int last_function_context;
-function_context_t *current_function_context = nullptr;
+function_context_t* current_function_context = nullptr;
 
 int arrow_efun, evaluate_efun, this_efun, to_float_efun, to_int_efun, new_efun;
 
@@ -358,11 +361,11 @@ static keyword_t reswords[] = {
 // Used to determine valid ID chars (variable name function name etc)
 #define isalunum(c) (uisalnum(c) || (c) == '_')
 
-static ident_hash_elem_t **ident_hash_table;
-static ident_hash_elem_t **ident_hash_head;
-static ident_hash_elem_t **ident_hash_tail;
+static ident_hash_elem_t** ident_hash_table;
+static ident_hash_elem_t** ident_hash_head;
+static ident_hash_elem_t** ident_hash_tail;
 
-static ident_hash_elem_t *ident_dirty_list = nullptr;
+static ident_hash_elem_t* ident_dirty_list = nullptr;
 
 instr_t instrs[MAX_INSTRS];
 static_assert(NUM_OPCODES <= MAX_INSTRS, "MAX_INSTRS must cover generated opcode table");
@@ -373,47 +376,47 @@ static_assert(MAX_INSTRS <= F_ALIAS_FLAG, "MAX_INSTRS must stay below the alias-
 #define TERM_START 4
 
 typedef struct linked_buf_s {
-  struct linked_buf_s *prev;
+  struct linked_buf_s* prev;
   char term_type;
   char buf[DEFMAX];
-  char *buf_end;
-  char *outp;
-  char *last_nl;
+  char* buf_end;
+  char* outp;
+  char* last_nl;
 } linked_buf_t;
 
 static linked_buf_t head_lbuf = {nullptr, TERM_START};
-static linked_buf_t *cur_lbuf;
+static linked_buf_t* cur_lbuf;
 
-static void handle_define(char * /*yyt*/);
+static void handle_define(char* /*yyt*/);
 namespace {
-static void capture_directive(char *);
+static void capture_directive(char*);
 }
 static void free_defines(void);
-static void add_define(const char * /*name*/, int /*nargs*/, const char * /*exps*/);
-static void add_predefine(const char * /*name*/, int /*nargs*/, const char * /*exps*/);
+static void add_define(const char* /*name*/, int /*nargs*/, const char* /*exps*/);
+static void add_predefine(const char* /*name*/, int /*nargs*/, const char* /*exps*/);
 static int expand_define(void);
-static void add_input(const char * /*p*/);
+static void add_input(const char* /*p*/);
 static bool merge(const char* name, char* dest, size_t capacity);
-static void add_quoted_predefine(const char * /*def*/, const char * /*val*/);
-static void lexerror(const char * /*s*/);
-static int skip_to(const char * /*token*/, const char * /*atoken*/);
+static void add_quoted_predefine(const char* /*def*/, const char* /*val*/);
+static void lexerror(const char* /*s*/);
+static int skip_to(const char* /*token*/, const char* /*atoken*/);
 static int inc_open(char* buf, size_t capacity, const char* name, int check_local);
-static void include_error(const char * /*msg*/, int /*global*/);
-static void handle_include(char * /*name*/, int /*global*/);
-static int get_terminator(char * /*terminator*/);
-static int get_array_block(char * /*term*/);
-static int get_text_block(char * /*term*/);
+static void include_error(const char* /*msg*/, int /*global*/);
+static void handle_include(char* /*name*/, int /*global*/);
+static int get_terminator(char* /*terminator*/);
+static int get_array_block(char* /*term*/);
+static int get_text_block(char* /*term*/);
 static void skip_line(void);
 static void skip_comment(void);
-static void deltrail(char * /*sp*/);
-static void handle_pragma(char * /*str*/);
+static void deltrail(char* /*sp*/);
+static void handle_pragma(char* /*str*/);
 static int cmygetc(void);
 static void refill_on_continuation(void);
 static void refill_buffer(void);
-static int collect_string_body(std::string &out, bool count_lines);
+static int collect_string_body(std::string& out, bool count_lines);
 static char exgetc(void);
 static int old_func(void);
-static ident_hash_elem_t *quick_alloc_ident_entry(void);
+static ident_hash_elem_t* quick_alloc_ident_entry(void);
 
 #define LEXER
 
@@ -423,11 +426,11 @@ static void handle_cond(LPC_INT /*c*/);
 int parseStringLiteral(unsigned char c);
 int parseHexIntegerLiteral(unsigned char c);
 int parseBinaryIntegerLiteral(unsigned char c);
-static defn_t *defns[DEFHASH];
-static ifstate_t *iftop = nullptr;
+static defn_t* defns[DEFHASH];
+static ifstate_t* iftop = nullptr;
 
-static defn_t *lookup_definition(const char *s) {
-  defn_t *p;
+static defn_t* lookup_definition(const char* s) {
+  defn_t* p;
   int h;
 
   h = defhash(s);
@@ -439,8 +442,8 @@ static defn_t *lookup_definition(const char *s) {
   return nullptr;
 }
 
-defn_t *lookup_define(const char *s) {
-  defn_t *p = lookup_definition(s);
+defn_t* lookup_define(const char* s) {
+  defn_t* p = lookup_definition(s);
 
   if (p && (p->flags & DEF_IS_UNDEFINED)) {
     return nullptr;
@@ -449,8 +452,8 @@ defn_t *lookup_define(const char *s) {
   }
 }
 
-static void add_define(const char *name, int nargs, const char *exps) {
-  defn_t *p = lookup_definition(name);
+static void add_define(const char* name, int nargs, const char* exps) {
+  defn_t* p = lookup_definition(name);
   int h, len;
 
   /* trim off leading and trailing whitespace */
@@ -472,7 +475,7 @@ static void add_define(const char *name, int nargs, const char *exps) {
   if (p) {
     if (p->flags & DEF_IS_UNDEFINED) {
       p->exps =
-          reinterpret_cast<char *>(DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef"));
+          reinterpret_cast<char*>(DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef"));
       memcpy(p->exps, exps, len);
       p->exps[len] = 0;
       p->flags = 0;
@@ -486,7 +489,7 @@ static void add_define(const char *name, int nargs, const char *exps) {
         yywarn("redefinition of #define %s\n", name);
 
         p->exps =
-            reinterpret_cast<char *>(DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef"));
+            reinterpret_cast<char*>(DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef"));
         memcpy(p->exps, exps, len);
         p->exps[len] = 0;
         p->nargs = nargs;
@@ -496,11 +499,11 @@ static void add_define(const char *name, int nargs, const char *exps) {
 #endif
     }
   } else {
-    p = reinterpret_cast<defn_t *>(DMALLOC(sizeof(defn_t), TAG_COMPILER, "add_define: def"));
+    p = reinterpret_cast<defn_t*>(DMALLOC(sizeof(defn_t), TAG_COMPILER, "add_define: def"));
     p->name =
-        reinterpret_cast<char *>(DMALLOC(strlen(name) + 1, TAG_COMPILER, "add_define: def name"));
+        reinterpret_cast<char*>(DMALLOC(strlen(name) + 1, TAG_COMPILER, "add_define: def name"));
     strcpy(p->name, name);
-    p->exps = reinterpret_cast<char *>(DMALLOC(len + 1, TAG_COMPILER, "add_define: def exps"));
+    p->exps = reinterpret_cast<char*>(DMALLOC(len + 1, TAG_COMPILER, "add_define: def exps"));
     memcpy(p->exps, exps, len);
     p->exps[len] = 0;
     p->flags = 0;
@@ -512,7 +515,7 @@ static void add_define(const char *name, int nargs, const char *exps) {
 }
 
 #ifdef LEXER
-static void handle_elif(char *sp)
+static void handle_elif(char* sp)
 #else
 static void handle_elif()
 #endif
@@ -521,11 +524,11 @@ static void handle_elif()
     if (iftop->state == EXPECT_ELSE) {
       /* last cond was false... */
       long cond;
-      ifstate_t *p = iftop;
+      ifstate_t* p = iftop;
 
       /* pop previous condition */
       iftop = p->next;
-      FREE((char *)p);
+      FREE((char*)p);
 
 #ifdef LEXER
       *--outp = '\0';
@@ -550,7 +553,7 @@ static void handle_elif()
               * last cond was true...skip to end of
               * conditional
               */
-      skip_to("endif", (char *)nullptr);
+      skip_to("endif", (char*)nullptr);
     }
   } else {
     lexerror("Unexpected #elif");
@@ -562,7 +565,7 @@ static void handle_else(void) {
     if (iftop->state == EXPECT_ELSE) {
       iftop->state = EXPECT_ENDIF;
     } else {
-      skip_to("endif", (char *)nullptr);
+      skip_to("endif", (char*)nullptr);
     }
   } else {
     lexerror("Unexpected #endif");
@@ -571,10 +574,10 @@ static void handle_else(void) {
 
 static void handle_endif(void) {
   if (iftop && (iftop->state == EXPECT_ENDIF || iftop->state == EXPECT_ELSE)) {
-    ifstate_t *p = iftop;
+    ifstate_t* p = iftop;
 
     iftop = p->next;
-    FREE((char *)p);
+    FREE((char*)p);
   } else {
     lexerror("Unexpected #endif");
   }
@@ -870,18 +873,18 @@ static LPC_INT cond_get_exp_impl(int priority) {
 }
 
 static void handle_cond(LPC_INT c) {
-  ifstate_t *p;
+  ifstate_t* p;
 
   if (!c) {
     skip_to("else", "endif");
   }
-  p = reinterpret_cast<ifstate_t *>(DMALLOC(sizeof(ifstate_t), TAG_COMPILER, "handle_cond"));
+  p = reinterpret_cast<ifstate_t*>(DMALLOC(sizeof(ifstate_t), TAG_COMPILER, "handle_cond"));
   p->next = iftop;
   iftop = p;
   p->state = c ? EXPECT_ENDIF : EXPECT_ELSE;
 }
 
-int lookup_predef(const char *name) {
+int lookup_predef(const char* name) {
   unsigned int x;
 
   for (x = 0; x < size_of_predefs; x++) {
@@ -940,16 +943,16 @@ static bool merge(const char* name, char* dest, size_t capacity) {
   return true;
 }
 
-static void lexerror(const char *s) {
+static void lexerror(const char* s) {
   yyerror("%s", s);
   lex_fatal++;
 }
 
-static int skip_to(const char *token, const char *atoken) {
+static int skip_to(const char* token, const char* atoken) {
   char b[20] = {0}, *p;
   unsigned char c;
   char *yyp = outp, *startp;
-  char *b_end = b + 19;
+  char* b_end = b + 19;
   int nest;
 
   for (nest = 0;;) {
@@ -962,12 +965,14 @@ static int skip_to(const char *token, const char *atoken) {
         while (c != '\n' && is_wspace(c = *yyp++)) {
           ;
         }
-        if (c != '/' || *yyp != '*') break;
+        if (c != '/' || *yyp != '*')
+          break;
         yyp++;
         unsigned char previous = 0;
         for (;;) {
           c = *yyp++;
-          if (c == LEX_EOF) break;
+          if (c == LEX_EOF)
+            break;
           if (c == '\n') {
             current_line++;
             total_lines++;
@@ -979,10 +984,12 @@ static int skip_to(const char *token, const char *atoken) {
             }
             continue;
           }
-          if (previous == '*' && c == '/') break;
+          if (previous == '*' && c == '/')
+            break;
           previous = c;
         }
-        if (c == LEX_EOF) break;
+        if (c == LEX_EOF)
+          break;
       }
       startp = yyp - 1;
       for (p = b; !isspace(c) && c != LEX_EOF; c = *yyp++) {
@@ -1035,24 +1042,24 @@ static int skip_to(const char *token, const char *atoken) {
 
 void init_include_path() {
   push_malloced_string(add_slash(current_file));  // does master has an include path?
-  svalue_t *ret = safe_apply_master_ob(APPLY_GET_INCLUDE_PATH, 1);
+  svalue_t* ret = safe_apply_master_ob(APPLY_GET_INCLUDE_PATH, 1);
 
-  if (!ret || ret == (svalue_t *)-1) {  // either no or no master yet
-    return;                             // just use the runtime configuration
+  if (!ret || ret == (svalue_t*)-1) {  // either no or no master yet
+    return;                            // just use the runtime configuration
   }
   if (ret->type != T_ARRAY) {  // illegal return value
     debug_message("'master::get_include_path' must return 'string *'\n");
     return;  // we still have the runtime configuration
   }
-  array_t *arr = ret->u.arr;
+  array_t* arr = ret->u.arr;
   int size = arr->size;
 
   if (!size) {  // empty path?
     debug_message("got empty include path for 'master::get_include_path(%s)'\n", current_file);
     return;  // we still have the runtime configuration
   }
-  const char **path = static_cast<const char **>(
-      DMALLOC(sizeof(char *) * size, TAG_COMPILER, "compiler:init_include_path"));
+  const char** path = static_cast<const char**>(
+      DMALLOC(sizeof(char*) * size, TAG_COMPILER, "compiler:init_include_path"));
 
   // check elements and build working copy
   int i,                                  // index into returned array
@@ -1064,16 +1071,16 @@ void init_include_path() {
       goto init_include_path_cleanup;  // clean exit
     }
 
-    const char *elem;
+    const char* elem;
     if (!strcmp(elem = arr->item[i].u.string, ":DEFAULT:")) {  // replace with runtime configuration
       size += inc_list_size - 1;                               // get additional space
-      path = static_cast<const char **>(
-          DREALLOC(path, sizeof(char *) * size, TAG_COMPILER, "compiler:init_include_path"));
+      path = static_cast<const char**>(
+          DREALLOC(path, sizeof(char*) * size, TAG_COMPILER, "compiler:init_include_path"));
       for (k = 0; k < inc_list_size;) {  // and copy runtime configuration
         path[j++] = make_shared_string(inc_list[k++]);
       }
     } else {
-      const char *check = elem;
+      const char* check = elem;
       if (elem[0] == '/') {
         check = &elem[1];
       }
@@ -1152,7 +1159,7 @@ static int inc_open(char* buf, size_t capacity, const char* name, int check_loca
   return -1;
 }
 
-static void include_error(const char *msg, int global) {
+static void include_error(const char* msg, int global) {
   current_line--;
 
   if (global) {
@@ -1168,19 +1175,19 @@ static void include_error(const char *msg, int global) {
   current_line++;
 }
 
-static void handle_include(char *name, int global) {
-  char *p;
+static void handle_include(char* name, int global) {
+  char* p;
   static char buf[MAXLINE];
-  incstate_t *is;
+  incstate_t* is;
   int delim, f;
 
   symbol_record(OP_SYMBOL_INC, current_file, current_line, name);
 
   if (*name != '"' && *name != '<') {
-    defn_t *d;
+    defn_t* d;
 
     if ((d = lookup_define(name)) && d->nargs == -1) {
-      char *q;
+      char* q;
 
       q = d->exps;
       while (uisspace(*q)) {
@@ -1212,7 +1219,7 @@ static void handle_include(char *name, int global) {
   if (++incnum == MAX_INCLUDE_DEPTH) {
     include_error("Maximum include depth exceeded.", global);
   } else if ((f = inc_open(buf, sizeof(buf), name, delim == '"')) != -1) {
-    is = reinterpret_cast<incstate_t *>(
+    is = reinterpret_cast<incstate_t*>(
         DMALLOC(sizeof(incstate_t), TAG_COMPILER, "handle_include: 1"));
     is->stream = current_stream.release();
     is->line = current_line;
@@ -1247,7 +1254,7 @@ static void handle_include(char *name, int global) {
   pop_stack();
 }
 
-static int get_terminator(char *terminator) {
+static int get_terminator(char* terminator) {
   unsigned char c;
   int j = 0;
 
@@ -1280,32 +1287,32 @@ static int get_terminator(char *terminator) {
 #define MAXCHUNK (MAXLINE * 4)
 #define NUMCHUNKS (DEFMAX / MAXCHUNK)
 
-#define NEWCHUNK(line)                                                              \
-  if (len == MAXCHUNK - 1) {                                                        \
-    line[curchunk][MAXCHUNK - 1] = '\0';                                            \
-    if (curchunk == NUMCHUNKS - 1) {                                                \
-      res = -2;                                                                     \
-      break;                                                                        \
-    }                                                                               \
-    line[++curchunk] = (char *)DMALLOC(MAXCHUNK, TAG_COMPILER, "array/text chunk"); \
-    len = 0;                                                                        \
+#define NEWCHUNK(line)                                                             \
+  if (len == MAXCHUNK - 1) {                                                       \
+    line[curchunk][MAXCHUNK - 1] = '\0';                                           \
+    if (curchunk == NUMCHUNKS - 1) {                                               \
+      res = -2;                                                                    \
+      break;                                                                       \
+    }                                                                              \
+    line[++curchunk] = (char*)DMALLOC(MAXCHUNK, TAG_COMPILER, "array/text chunk"); \
+    len = 0;                                                                       \
   }
 
-static int get_array_block(char *term) {
+static int get_array_block(char* term) {
   unsigned int termlen;        /* length of terminator */
-  char *array_line[NUMCHUNKS]; /* allocate memory in chunks */
+  char* array_line[NUMCHUNKS]; /* allocate memory in chunks */
   int header, len;             /* header length; position in chunk */
   int startpos, startchunk;    /* start of line */
   int curchunk, res;           /* current chunk; this function's result */
   int i;                       /* an index counter */
   unsigned char c;             /* a char */
-  char *yyp = outp;
+  char* yyp = outp;
 
   /*
    * initialize
    */
   termlen = strlen(term);
-  array_line[0] = reinterpret_cast<char *>(DMALLOC(MAXCHUNK, TAG_COMPILER, "array_block"));
+  array_line[0] = reinterpret_cast<char*>(DMALLOC(MAXCHUNK, TAG_COMPILER, "array_block"));
   array_line[0][0] = '(';
   array_line[0][1] = '{';
   array_line[0][2] = '"';
@@ -1408,7 +1415,7 @@ static int get_array_block(char *term) {
           break;
         }
         array_line[++curchunk] =
-            reinterpret_cast<char *>(DMALLOC(MAXCHUNK, TAG_COMPILER, "array_block"));
+            reinterpret_cast<char*>(DMALLOC(MAXCHUNK, TAG_COMPILER, "array_block"));
         len = 0;
       }
       // Remove trailing CR
@@ -1441,21 +1448,21 @@ static int get_array_block(char *term) {
   return res;
 }
 
-static int get_text_block(char *term) {
+static int get_text_block(char* term) {
   unsigned int termlen;       /* length of terminator */
-  char *text_line[NUMCHUNKS]; /* allocate memory in chunks */
+  char* text_line[NUMCHUNKS]; /* allocate memory in chunks */
   int len;                    /* position in chunk */
   int startpos, startchunk;   /* start of line */
   int curchunk, res;          /* current chunk; this function's result */
   int i;                      /* an index counter */
   unsigned char c;            /* a char */
-  char *yyp = outp;
+  char* yyp = outp;
 
   /*
    * initialize
    */
   termlen = strlen(term);
-  text_line[0] = reinterpret_cast<char *>(DMALLOC(MAXCHUNK, TAG_COMPILER, "text_block"));
+  text_line[0] = reinterpret_cast<char*>(DMALLOC(MAXCHUNK, TAG_COMPILER, "text_block"));
   text_line[0][0] = '"';
   text_line[0][1] = '\0';
   len = 1;
@@ -1591,7 +1598,7 @@ static int get_text_block(char *term) {
           break;
         }
         text_line[++curchunk] =
-            reinterpret_cast<char *>(DMALLOC(MAXCHUNK, TAG_COMPILER, "text_block"));
+            reinterpret_cast<char*>(DMALLOC(MAXCHUNK, TAG_COMPILER, "text_block"));
         len = 0;
       }
       /*
@@ -1618,7 +1625,7 @@ static int get_text_block(char *term) {
 
 static void skip_line() {
   unsigned char c;
-  char *yyp = outp;
+  char* yyp = outp;
 
   while (((c = *yyp++) != '\n') && (c != LEX_EOF)) {
     ;
@@ -1633,7 +1640,7 @@ static void skip_line() {
 
 static void skip_comment() {
   unsigned char c = '*';
-  char *yyp = outp;
+  char* yyp = outp;
 
   for (;;) {
     while ((c = *yyp++) != '*') {
@@ -1673,8 +1680,8 @@ static void skip_comment() {
   }
 }
 
-static void deltrail(char *sp) {
-  char *p;
+static void deltrail(char* sp) {
+  char* p;
 
   p = sp;
   if (!*p) {
@@ -1696,7 +1703,7 @@ static void deltrail(char *sp) {
   }
 
 typedef struct {
-  const char *name;
+  const char* name;
   int value;
 } pragma_t;
 
@@ -1709,12 +1716,12 @@ static pragma_t our_pragmas[] = {{"strict_types", PRAGMA_STRICT_TYPES},
                                  {"strict_owner", PRAGMA_STRICT_OWNER},
                                  {nullptr, 0}};
 
-static void handle_pragma(char *str) {
+static void handle_pragma(char* str) {
   int i;
   int no_flag;
 
   // Ignore trailing whitespaces
-  char *p = &str[strlen(str) - 1];
+  char* p = &str[strlen(str) - 1];
   while (iswspace(*p)) {
     *p-- = '\0';
   }
@@ -1743,7 +1750,7 @@ static void handle_pragma(char *str) {
   yywarn("Unknown #pragma, ignored.");
 }
 
-char *show_error_context() {
+char* show_error_context() {
   static char buf[60];
   extern int yychar;
   char sub_context[25];
@@ -1788,11 +1795,11 @@ char *show_error_context() {
 /* Start of the source line the lexer is currently on, or nullptr at EOF (or
  * before the first character). Shared by the traditional error-context snippet
  * and the structured diagnostic position so both report the same column. */
-const char *current_line_start() {
+const char* current_line_start() {
   if (outp == nullptr || cur_lbuf == nullptr || static_cast<unsigned char>(outp[-1]) == LEX_EOF) {
     return nullptr;
   }
-  const char *start = outp;
+  const char* start = outp;
   while (start != &cur_lbuf->buf[0]) {
     if (start[-1] == '\n' || static_cast<unsigned char>(start[-1]) == LEX_EOF) {
       break;
@@ -1805,24 +1812,23 @@ const char *current_line_start() {
 /* 1-based column of the lexer's current position, 0 when it cannot be derived
  * (end of file, or no line buffer). */
 int current_source_column() {
-  const char *start = current_line_start();
+  const char* start = current_line_start();
   if (start == nullptr) {
     return 0;
   }
   return static_cast<int>(outp - start) + 1;
 }
 
-std::vector<std::string> prepare_logs(const char *error_file, int line, const char *what, int flag,
+std::vector<std::string> prepare_logs(const char* error_file, int line, const char* what, int flag,
                                       bool include_error_context) {
   std::vector<std::string> logs;
   logs.emplace_back(fmt::format(FMT_STRING("/{} line {}: {}{}\n"), error_file, line,
                                 flag ? "Warning: " : "", what));
 
   if (include_error_context) {
-    const char *start = current_line_start();
+    const char* start = current_line_start();
     if (start != nullptr) {
-
-      const char *end = outp;
+      const char* end = outp;
       while (end != cur_lbuf->buf_end && *end != LEX_EOF) {
         if (end[1] == '\n' || end[1] == LEX_EOF) {
           break;
@@ -1838,7 +1844,8 @@ std::vector<std::string> prepare_logs(const char *error_file, int line, const ch
           truncated = true;
         }
         std::string content{start, static_cast<std::string::size_type>(size)};
-        if (truncated) content += "...";
+        if (truncated)
+          content += "...";
         content = trim(content);
         logs.emplace_back(fmt::format(FMT_STRING("  {}\n"), content));
         logs.emplace_back(fmt::format(
@@ -1855,7 +1862,7 @@ static void refill_buffer() {
     if (outp >= cur_lbuf->buf_end && cur_lbuf->term_type == TERM_ADD_INPUT) {
       /* In this case it cur_lbuf cannot have been
          allocated due to #include */
-      linked_buf_t *prev_lbuf = cur_lbuf->prev;
+      linked_buf_t* prev_lbuf = cur_lbuf->prev;
 
       FREE(cur_lbuf);
       cur_lbuf = prev_lbuf;
@@ -1872,8 +1879,8 @@ static void refill_buffer() {
   /* or after an #include .... */
 
   {
-    char *end;
-    char *p;
+    char* end;
+    char* p;
     int size;
 
     if (!inctop) {
@@ -1932,10 +1939,10 @@ static void refill_buffer() {
         outp -= MAXLINE;
         p = outp + size - 1;
       } else { /* No space, need to allocate new buffer */
-        linked_buf_t *new_lbuf;
-        char *new_outp;
+        linked_buf_t* new_lbuf;
+        char* new_outp;
 
-        if (!(new_lbuf = reinterpret_cast<linked_buf_t *>(
+        if (!(new_lbuf = reinterpret_cast<linked_buf_t*>(
                   DMALLOC(sizeof(linked_buf_t), TAG_COMPILER, "refill_bufer")))) {
           lexerror("Out of memory when allocating new buffer.\n");
           return;
@@ -1985,8 +1992,8 @@ static void refill_buffer() {
 static int function_flag = 0;
 
 void push_function_context() {
-  function_context_t *fc;
-  parse_node_t *node;
+  function_context_t* fc;
+  parse_node_t* node;
 
   if (last_function_context == MAX_FUNCTION_DEPTH - 1) {
     lexerror("Function pointers nested too deep.");
@@ -2043,9 +2050,9 @@ int yylex() {
   static char partial[MAXLINE + 5]; /* extra 5 for safety buffer */
   static char terminator[MAXLINE + 5];
   int is_float;
-  char *partp;
+  char* partp;
 
-  char *yyp;
+  char* yyp;
   unsigned char c;
 
   yytext[0] = 0;
@@ -2060,7 +2067,7 @@ int yylex() {
     switch (c = *outp++) {
       case LEX_EOF:
         if (inctop) {
-          incstate_t *p;
+          incstate_t* p;
 
           p = inctop;
           current_stream->close();
@@ -2072,7 +2079,7 @@ int yylex() {
           free_string(current_file);
           nexpands = 0;
           if (outp >= cur_lbuf->buf_end) {
-            linked_buf_t *prev_lbuf;
+            linked_buf_t* prev_lbuf;
             if ((prev_lbuf = cur_lbuf->prev)) {
               FREE(cur_lbuf);
               cur_lbuf = prev_lbuf;
@@ -2089,7 +2096,7 @@ int yylex() {
           outp = p->outp;
           inctop = p->next;
           incnum--;
-          FREE((char *)p);
+          FREE((char*)p);
           outp[-1] = '\n';
           if (outp == last_nl + 1) {
             refill_buffer();
@@ -2097,13 +2104,13 @@ int yylex() {
           break;
         }
         if (iftop) {
-          ifstate_t *p = iftop;
+          ifstate_t* p = iftop;
 
           lexerror(p->state == EXPECT_ENDIF ? "Missing #endif" : "Missing #else/#elif");
           while (iftop) {
             p = iftop;
             iftop = p->next;
-            FREE((char *)p);
+            FREE((char*)p);
           }
         }
         outp--;
@@ -2437,7 +2444,7 @@ int yylex() {
         return L_DOT;
       case '#':
         if (*(outp - 2) == '\n') {
-          char *sp;
+          char* sp;
 
           // Capture and normalize a complete logical directive. The final
           // physical newline is consumed below to retain the old dispatch
@@ -2445,7 +2452,8 @@ int yylex() {
           // accounted for by capture_directive().
           capture_directive(directive_text);
           sp = directive_text;
-          while (is_wspace(*sp)) sp++;
+          while (is_wspace(*sp))
+            sp++;
 
           yyp = yytext;
           while (*sp && !is_wspace(*sp)) {
@@ -2456,7 +2464,8 @@ int yylex() {
             *yyp++ = *sp++;
           }
           *yyp = '\0';
-          while (is_wspace(*sp)) sp++;
+          while (is_wspace(*sp))
+            sp++;
 
           c = static_cast<unsigned char>(*outp);
           if (c != LEX_EOF) {
@@ -2501,7 +2510,7 @@ int yylex() {
           } else if (strcmp("endif", yytext) == 0) {
             handle_endif();
           } else if (strcmp("undef", yytext) == 0) {
-            defn_t *d;
+            defn_t* d;
 
             deltrail(sp);
             if ((d = lookup_define(sp))) {
@@ -2644,7 +2653,7 @@ int yylex() {
           rc = get_text_block(terminator);
 
           if (rc > 0) {
-            auto *p = outp;
+            auto* p = outp;
             if (!u8_validate(&p)) {
               lexerror("Bad UTF-8 string in string block");
               outp = p;
@@ -2662,7 +2671,8 @@ int yylex() {
               return YYerror;
             }
             yylval.string = compile_arena::alloc_string(out.size());
-            if (!out.empty()) memcpy(yylval.string, out.data(), out.size());
+            if (!out.empty())
+              memcpy(yylval.string, out.data(), out.size());
 
             outp++;  // skip the NUL get_text_block wrote after the closing quote
 
@@ -2683,10 +2693,10 @@ int yylex() {
         if (c == 'X' || c == 'x') {
           yyp = yytext;
           return parseHexIntegerLiteral(c);
-        } 
+        }
         if (c == 'B' || c == 'b') {
           yyp = yytext;
-          return parseBinaryIntegerLiteral(c);           
+          return parseBinaryIntegerLiteral(c);
         }
         outp--;
         c = '0';
@@ -2727,7 +2737,7 @@ int yylex() {
         }
         outp--;
         *yyp = 0;
-        char *endptr;
+        char* endptr;
         if (is_float) {
           yylval.real = strtod(yytext, &endptr);
           if (endptr != yyp) {
@@ -2790,7 +2800,7 @@ int yylex() {
           } else {
             outp--;
             if (!expand_define()) {
-              ident_hash_elem_t *ihe;
+              ident_hash_elem_t* ihe;
               if ((ihe = lookup_ident(yytext))) {
                 if (ihe->token & IHE_RESWORD) {
                   if (function_flag) {
@@ -2867,28 +2877,28 @@ badlex: {
 }
 
 int parseBinaryIntegerLiteral(unsigned char c) {
-  char *yyp = yytext;
+  char* yyp = yytext;
   for (;;) {
     c = *outp++;
     if (c == '_') {
-      switch(*outp) {
+      switch (*outp) {
         case '0':
-        case '1': 
+        case '1':
           continue;
         default:
           break;
       }
     }
     if (!(c == '0' || c == '1')) {
-        break;
+      break;
     }
     SAVEC;
   }
   outp--;
   *yyp = 0;
 
-  char *endptr;
-  yylval.number = strtol(reinterpret_cast<const char *>(yytext), &endptr, 2); 
+  char* endptr;
+  yylval.number = strtol(reinterpret_cast<const char*>(yytext), &endptr, 2);
   if (endptr != yyp) {
     yyerror("Invalid binary integer literal: %s", std::string(yytext, yyp - yytext).c_str());
     return YYerror;
@@ -2897,7 +2907,7 @@ int parseBinaryIntegerLiteral(unsigned char c) {
 }
 
 int parseHexIntegerLiteral(unsigned char c) {
-  char *yyp = yytext;
+  char* yyp = yytext;
   for (;;) {
     c = *outp++;
     if (c == '_') {
@@ -2914,7 +2924,7 @@ int parseHexIntegerLiteral(unsigned char c) {
   outp--;
   *yyp = 0;
 
-  char *endptr;
+  char* endptr;
   yylval.number = strtoll(yytext, &endptr, 16);
   if (endptr != yyp) {
     yyerror("Invalid hex integer literal: %s", std::string(yytext, yyp - yytext).c_str());
@@ -2929,7 +2939,7 @@ int parseHexIntegerLiteral(unsigned char c) {
 // string literals (embedded newlines advance the line counters); text
 // blocks already counted their newlines in get_text_block, so they pass
 // false. Returns 1 on success, 0 on EOF, -1 on error (lexerror called).
-static int collect_string_body(std::string &out, bool count_lines) {
+static int collect_string_body(std::string& out, bool count_lines) {
   for (;;) {
     unsigned char c = static_cast<unsigned char>(*outp++);
     switch (c) {
@@ -3149,8 +3159,9 @@ int parseStringLiteral(unsigned char c) {
     lexerror("Invalid UTF8 codepoint in string literal");
     return YYerror;
   }
-  char *res = compile_arena::alloc_string(out.size());
-  if (!out.empty()) memcpy(res, out.data(), out.size());
+  char* res = compile_arena::alloc_string(out.size());
+  if (!out.empty())
+    memcpy(res, out.data(), out.size());
   yylval.string = res;
   return L_STRING;
 }
@@ -3170,7 +3181,7 @@ void end_new_file() {
   nexpands = 0;
   expand_depth = 0;
   while (inctop) {
-    incstate_t *p;
+    incstate_t* p;
 
     p = inctop;
     current_stream->close();
@@ -3180,32 +3191,32 @@ void end_new_file() {
     current_stream.reset(p->stream);
     p->stream = nullptr;
     inctop = p->next;
-    FREE((char *)p);
+    FREE((char*)p);
   }
   inctop = nullptr;
   while (iftop) {
-    ifstate_t *p;
+    ifstate_t* p;
 
     p = iftop;
     iftop = p->next;
-    FREE((char *)p);
+    FREE((char*)p);
   }
   if (defines_need_freed) {
     free_defines();
     defines_need_freed = 0;
   }
   if (cur_lbuf != &head_lbuf) {
-    linked_buf_t *prev_lbuf;
+    linked_buf_t* prev_lbuf;
 
     while (cur_lbuf != &head_lbuf) {
       prev_lbuf = cur_lbuf->prev;
-      FREE((char *)cur_lbuf);
+      FREE((char*)cur_lbuf);
       cur_lbuf = prev_lbuf;
     }
   }
 }
 
-static void add_quoted_predefine(const char *def, const char *val) {
+static void add_quoted_predefine(const char* def, const char* val) {
   char save_buf[MAXLINE];
 
   strcpy(save_buf, "\"");
@@ -3217,7 +3228,7 @@ static void add_quoted_predefine(const char *def, const char *val) {
 void add_predefines() {
   char save_buf[1024];
   int i;
-  lpc_predef_t *tmpf;
+  lpc_predef_t* tmpf;
 
   add_predefine("MUDOS", -1, "");
   add_predefine("FLUFFOS", -1, "");
@@ -3254,7 +3265,7 @@ void add_predefines() {
 
   sprintf(save_buf, "%d", external_port[0].port);
   add_predefine("__PORT__", -1, save_buf);
-  for (i = 0; i < (sizeof(option_defs) / sizeof(const char *)); i += 2) {
+  for (i = 0; i < (sizeof(option_defs) / sizeof(const char*)); i += 2) {
     add_predefine(option_defs[i], -1, option_defs[i + 1]);
   }
   add_quoted_predefine("__ARCH__", ARCH);
@@ -3396,12 +3407,12 @@ void start_new_file(std::unique_ptr<LexStream> stream) {
   }
   defines_need_freed = 1;
   if (current_file) {
-    char *dir;
-    char *tmp;
+    char* dir;
+    char* tmp;
     int ln;
 
     ln = strlen(current_file);
-    dir = reinterpret_cast<char *>(DMALLOC(ln + 4, TAG_COMPILER, "start_new_file"));
+    dir = reinterpret_cast<char*>(DMALLOC(ln + 4, TAG_COMPILER, "start_new_file"));
     dir[0] = '"';
     dir[1] = '/';
     memcpy(dir + 2, current_file, ln);
@@ -3431,7 +3442,7 @@ void start_new_file(std::unique_ptr<LexStream> stream) {
 
   auto glf = CONFIG_STR(__GLOBAL_INCLUDE_FILE__);
   if (glf != nullptr && strlen(glf) > 0) {
-    char *gifile;
+    char* gifile;
 
     /* need a writable copy */
     gifile = alloc_cstring(glf, "global include");
@@ -3442,8 +3453,8 @@ void start_new_file(std::unique_ptr<LexStream> stream) {
   }
 }
 
-const char *query_instr_name(int instr) {
-  const char *name;
+const char* query_instr_name(int instr) {
+  const char* name;
   static char num_buf[20];
 
   // The param is clearly wrong, however to be safe, we just return something here.
@@ -3467,7 +3478,7 @@ const char *query_instr_name(int instr) {
 
 #define add_instr_name(w, x, y, z) int_add_instr_name(w, y, z)
 
-static void int_add_instr_name(const char *name, int n, lpc_type_t t) {
+static void int_add_instr_name(const char* name, int n, lpc_type_t t) {
   instrs[n].name = name;
   instrs[n].ret_type = t;
 }
@@ -3617,7 +3628,8 @@ static void init_instrs() {
   add_instr_name("parse_command", "c_parse_command(%i);\n", F_PARSE_COMMAND, T_NUMBER);
   add_instr_name("string", 0, F_STRING, T_STRING);
   add_instr_name("short_string", 0, F_SHORT_STRING, T_STRING);
-  add_instr_name("F_CALL_FUNCTION_BY_ADDRESS", "c_call(%i, %i);\n", F_CALL_FUNCTION_BY_ADDRESS, T_ANY);
+  add_instr_name("F_CALL_FUNCTION_BY_ADDRESS", "c_call(%i, %i);\n", F_CALL_FUNCTION_BY_ADDRESS,
+                 T_ANY);
   add_instr_name("call_inherited", "c_call_inherited(%i, %i, %i);\n", F_CALL_INHERITED, T_ANY);
   add_instr_name("aggregate_assoc", "C_AGGREGATE_ASSOC(%i);\n", F_AGGREGATE_ASSOC, T_MAPPING);
 #ifdef DEBUG
@@ -3664,8 +3676,9 @@ static void init_instrs() {
   add_instr_name("end_time_expression", 0, F_END_TIME_EXPRESSION, T_NUMBER);
 }
 
-#define get_next_char(c) \
-  if ((c = *outp++) == '\n' && outp == last_nl + 1) refill_buffer()
+#define get_next_char(c)                            \
+  if ((c = *outp++) == '\n' && outp == last_nl + 1) \
+  refill_buffer()
 
 #define GETALPHA(p, q, m, e)              \
   if (*p == '_' || uisalpha(*p)) {        \
@@ -3710,7 +3723,7 @@ static int cmygetc() {
 
 // Refill buffer for next line, used for dealing with macro continuation '\ '
 static void refill_on_continuation() {
-  char *p;
+  char* p;
   unsigned char c;
 
   p = yytext;
@@ -3757,11 +3770,12 @@ enum class directive_char_state_t {
 };
 
 bool directive_is_hex(int c) {
-  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
-bool directive_is_octal(int c) { return c >= '0' && c <= '7'; }
+bool directive_is_octal(int c) {
+  return c >= '0' && c <= '7';
+}
 
 // Capture one directive as a phase-2/phase-3 logical line. The old lexer
 // collected only through the first physical newline, so a block comment or a
@@ -3769,7 +3783,7 @@ bool directive_is_octal(int c) { return c >= '0' && c <= '7'; }
 // This small state machine keeps the old input-buffer architecture while
 // making splice-before-comment ordering explicit.
 struct directive_capture_t {
-  char *begin;
+  char* begin;
   size_t size = 0;
   directive_scan_state_t state = directive_scan_state_t::kCode;
   directive_char_state_t char_state = directive_char_state_t::kBody;
@@ -3780,7 +3794,9 @@ struct directive_capture_t {
   bool replaying_candidate = false;
   std::string char_candidate;
 
-  explicit directive_capture_t(char *buffer) : begin(buffer) { begin[0] = '\0'; }
+  explicit directive_capture_t(char* buffer) : begin(buffer) {
+    begin[0] = '\0';
+  }
 
   void append(char c) {
     if (size + 1 >= DEFMAX) {
@@ -3791,7 +3807,9 @@ struct directive_capture_t {
     begin[size] = '\0';
   }
 
-  void append_space() { append(' '); }
+  void append_space() {
+    append(' ');
+  }
 
   void process_code_char(char c);
 
@@ -3815,7 +3833,8 @@ struct directive_capture_t {
       }
       if (c == '\'') {
         char_candidate.push_back(c);
-        for (char candidate_char : char_candidate) append(candidate_char);
+        for (char candidate_char : char_candidate)
+          append(candidate_char);
         char_candidate.clear();
         state = directive_scan_state_t::kCode;
         char_state = directive_char_state_t::kBody;
@@ -3832,7 +3851,8 @@ struct directive_capture_t {
       }
       if (c == '\'') {
         char_candidate.push_back(c);
-        for (char candidate_char : char_candidate) append(candidate_char);
+        for (char candidate_char : char_candidate)
+          append(candidate_char);
         char_candidate.clear();
         state = directive_scan_state_t::kCode;
         char_state = directive_char_state_t::kBody;
@@ -3845,7 +3865,8 @@ struct directive_capture_t {
     if (char_state == directive_char_state_t::kClose) {
       if (c == '\'') {
         char_candidate.push_back(c);
-        for (char candidate_char : char_candidate) append(candidate_char);
+        for (char candidate_char : char_candidate)
+          append(candidate_char);
         char_candidate.clear();
         state = directive_scan_state_t::kCode;
         char_state = directive_char_state_t::kBody;
@@ -3858,8 +3879,7 @@ struct directive_capture_t {
 
     char_candidate.push_back(c);
     if (char_state == directive_char_state_t::kBody) {
-      char_state = c == '\\' ? directive_char_state_t::kEscape
-                              : directive_char_state_t::kClose;
+      char_state = c == '\\' ? directive_char_state_t::kEscape : directive_char_state_t::kClose;
     } else if (char_state == directive_char_state_t::kEscape) {
       if (c == 'x') {
         char_state = directive_char_state_t::kHex;
@@ -3900,8 +3920,7 @@ struct directive_capture_t {
     if (state == directive_scan_state_t::kLineComment) {
       return;
     }
-    if (state == directive_scan_state_t::kString ||
-        state == directive_scan_state_t::kTemplate) {
+    if (state == directive_scan_state_t::kString || state == directive_scan_state_t::kTemplate) {
       process_quote_char(c);
       return;
     }
@@ -3952,8 +3971,7 @@ void directive_capture_t::process_code_char(char c) {
     append(c);
     quote = c;
     escaped = false;
-    state = c == '"' ? directive_scan_state_t::kString
-                      : directive_scan_state_t::kTemplate;
+    state = c == '"' ? directive_scan_state_t::kString : directive_scan_state_t::kTemplate;
   } else if (c == '\'' && !replaying_candidate) {
     char_candidate.clear();
     char_candidate.push_back(c);
@@ -3966,25 +3984,26 @@ void directive_capture_t::process_code_char(char c) {
 // Read the directive after its leading '#'. The terminating physical newline
 // is deliberately left for yylex(), preserving its normal line accounting;
 // continuation and block-comment newlines are consumed and counted here.
-static void capture_directive(char *buffer) {
+static void capture_directive(char* buffer) {
   directive_capture_t capture(buffer);
 
   for (;;) {
-    char *line_start = outp;
-    char *line_end = line_start;
+    char* line_start = outp;
+    char* line_end = line_start;
     while (*line_end != '\n' && static_cast<unsigned char>(*line_end) != LEX_EOF) {
       line_end++;
     }
 
     bool has_newline = *line_end == '\n';
-    char *content_end = line_end;
+    char* content_end = line_end;
     if (content_end > line_start && content_end[-1] == '\r') {
       content_end--;
     }
     bool splice = content_end > line_start && content_end[-1] == '\\';
-    char *process_end = splice ? content_end - 1 : content_end;
-    for (char *p = line_start; p < process_end; p++) {
-      if (*p != '\r') capture.process(*p);
+    char* process_end = splice ? content_end - 1 : content_end;
+    for (char* p = line_start; p < process_end; p++) {
+      if (*p != '\r')
+        capture.process(*p);
     }
 
     if (!has_newline) {
@@ -3993,7 +4012,8 @@ static void capture_directive(char *buffer) {
       return;
     }
 
-    if (!splice) capture.finish_non_spliced_line();
+    if (!splice)
+      capture.finish_non_spliced_line();
     bool continue_directive = splice || capture.in_block_comment();
     if (!continue_directive) {
       // Do not consume the logical line terminator. The main lexer will
@@ -4005,12 +4025,13 @@ static void capture_directive(char *buffer) {
     outp = line_end + 1;
     current_line++;
     total_lines++;
-    if (outp == last_nl + 1) refill_buffer();
+    if (outp == last_nl + 1)
+      refill_buffer();
   }
 }
 }  // namespace
 
-static void handle_define(char *yyt) {
+static void handle_define(char* yyt) {
   char namebuf[NSIZE];
   char args[NARGS][NSIZE];
   char mtext[MLEN];
@@ -4025,7 +4046,7 @@ static void handle_define(char *yyt) {
     int squote, dquote;
     int arg;
     int inid;
-    char *ids = (char *)nullptr;
+    char* ids = (char*)nullptr;
 
     p++; /* skip '(' */
     SKIPWHITE;
@@ -4135,7 +4156,7 @@ static void handle_define(char *yyt) {
 }
 
 /* IDEA: linked buffers, to allow "unlimited" buffer expansion */
-static void add_input(const char *p) {
+static void add_input(const char* p) {
   int l = strlen(p);
 
   if (l >= DEFMAX - 10) {
@@ -4145,7 +4166,7 @@ static void add_input(const char *p) {
 
   if (outp < l + 5 + cur_lbuf->buf) {
     /* Not enough space, so let's move it up another linked_buf */
-    linked_buf_t *new_lbuf;
+    linked_buf_t* new_lbuf;
     char *q, *new_outp, *buf;
     int size;
 
@@ -4164,7 +4185,7 @@ static void add_input(const char *p) {
     cur_lbuf->last_nl = last_nl;
 
     new_lbuf =
-        reinterpret_cast<linked_buf_t *>(DMALLOC(sizeof(linked_buf_t), TAG_COMPILER, "add_input"));
+        reinterpret_cast<linked_buf_t*>(DMALLOC(sizeof(linked_buf_t), TAG_COMPILER, "add_input"));
     new_lbuf->term_type = TERM_ADD_INPUT;
     new_lbuf->prev = cur_lbuf;
     buf = new_lbuf->buf;
@@ -4185,7 +4206,7 @@ static void add_input(const char *p) {
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_all_defines() {
   int i;
-  defn_t *tmp;
+  defn_t* tmp;
 
   for (i = 0; i < inc_list_size; i++) {
     EXTRA_REF(BLOCK(inc_list[i]))++;
@@ -4204,7 +4225,7 @@ void mark_all_defines() {
 #endif
 
 void print_all_predefines() {
-  std::vector<defn_t *> results;
+  std::vector<defn_t*> results;
 
   for (auto tmp : defns) {
     while (tmp) {
@@ -4214,35 +4235,36 @@ void print_all_predefines() {
       tmp = tmp->next;
     }
   }
-  std::sort(results.begin(), results.end(),
-            [](defn_t *a, defn_t *b) { return strcmp(a->name, b->name) < 0; });
+  std::sort(results.begin(), results.end(), [](defn_t* a, defn_t* b) {
+    return strcmp(a->name, b->name) < 0;
+  });
 
-  for (auto &&item : results) {
+  for (auto&& item : results) {
     debug_message("#define %s %s\n", item->name, item->exps);
   }
 
   results.clear();
 }
 
-static void add_predefine(const char *name, int nargs, const char *exps) {
-  defn_t *p;
+static void add_predefine(const char* name, int nargs, const char* exps) {
+  defn_t* p;
   int h;
 
   if ((p = lookup_define(name))) {
     if (nargs != p->nargs || strcmp(exps, p->exps)) {
       yywarn("redefinition of #define %s\n", name);
     }
-    p->exps = reinterpret_cast<char *>(
+    p->exps = reinterpret_cast<char*>(
         DREALLOC(p->exps, strlen(exps) + 1, TAG_PREDEFINES, "add_define: redef"));
     strcpy(p->exps, exps);
     p->nargs = nargs;
   } else {
-    p = reinterpret_cast<defn_t *>(DMALLOC(sizeof(defn_t), TAG_PREDEFINES, "add_define: def"));
+    p = reinterpret_cast<defn_t*>(DMALLOC(sizeof(defn_t), TAG_PREDEFINES, "add_define: def"));
     p->name =
-        reinterpret_cast<char *>(DMALLOC(strlen(name) + 1, TAG_PREDEFINES, "add_define: def name"));
+        reinterpret_cast<char*>(DMALLOC(strlen(name) + 1, TAG_PREDEFINES, "add_define: def name"));
     strcpy(p->name, name);
     p->exps =
-        reinterpret_cast<char *>(DMALLOC(strlen(exps) + 1, TAG_PREDEFINES, "add_define: def exps"));
+        reinterpret_cast<char*>(DMALLOC(strlen(exps) + 1, TAG_PREDEFINES, "add_define: def exps"));
     strcpy(p->exps, exps);
     p->flags = DEF_IS_PREDEF;
     p->nargs = nargs;
@@ -4265,7 +4287,7 @@ static void free_defines() {
       q = p->next;
       FREE(p->name);
       FREE(p->exps);
-      FREE((char *)p);
+      FREE((char*)p);
     }
     defns[i] = p;
     /* in case they undefined a predef */
@@ -4282,9 +4304,9 @@ static void free_defines() {
     c = cmygetc(); \
   } while (is_wspace(c));
 
-static int extract_args(char **argv, char *argb) {
+static int extract_args(char** argv, char* argb) {
   int argc = 0, dquote = 0, parcnt = 0, squote = 0;
-  char *out;
+  char* out;
   unsigned char c;
 
   SKIPW;
@@ -4384,14 +4406,14 @@ static int extract_args(char **argv, char *argb) {
 }
 
 /* Check if yytext is a macro and expand if it is. */
-static char *expand_define2(char *text) {
+static char* expand_define2(char* text) {
   int argc = 0, i, paste = 0, pasting = 0;
-  defn_t *macro;
+  defn_t* macro;
   char expbuf[DEFMAX], *argv[NARGS], *expand_buffer, *in, *out, *freeme = nullptr;
 
   /* special handling for __LINE__ macro */
   if (!strcmp(text, "__LINE__")) {
-    expand_buffer = reinterpret_cast<char *>(DMALLOC(20, TAG_COMPILER, "expand_define2"));
+    expand_buffer = reinterpret_cast<char*>(DMALLOC(20, TAG_COMPILER, "expand_define2"));
     sprintf(expand_buffer, "%i", current_line);
     return expand_buffer;
   }
@@ -4437,7 +4459,7 @@ static char *expand_define2(char *text) {
 
   if (!argc) {
     expand_buffer =
-        reinterpret_cast<char *>(DMALLOC(strlen(macro->exps) + 1, TAG_COMPILER, "expand_define2"));
+        reinterpret_cast<char*>(DMALLOC(strlen(macro->exps) + 1, TAG_COMPILER, "expand_define2"));
     strcpy(expand_buffer, macro->exps);
     note_completed_expansion(completed_frame);
     expand_depth--;
@@ -4446,12 +4468,13 @@ static char *expand_define2(char *text) {
 
   /* Perform expansion with args */
   in = macro->exps;
-  out = expand_buffer = reinterpret_cast<char *>(DMALLOC(DEFMAX, TAG_COMPILER, "expand_define2"));
+  out = expand_buffer = reinterpret_cast<char*>(DMALLOC(DEFMAX, TAG_COMPILER, "expand_define2"));
 
 #define SAVECHAR(x)                                                  \
   SAFE(                                                              \
       if (out + 1 < expand_buffer + DEFMAX) { *out++ = (x); } else { \
-        if (freeme) FREE(freeme);                                    \
+        if (freeme)                                                  \
+          FREE(freeme);                                              \
         FREE(expand_buffer);                                         \
         lexerror("Macro expansion overflow");                        \
         expand_depth--;                                              \
@@ -4464,7 +4487,8 @@ static char *expand_define2(char *text) {
         memcpy(out, (x), (y));                  \
         out += (y);                             \
       } else {                                  \
-        if (freeme) FREE(freeme);               \
+        if (freeme)                             \
+          FREE(freeme);                         \
         FREE(expand_buffer);                    \
         lexerror("Macro expansion overflow");   \
         expand_depth--;                         \
@@ -4475,10 +4499,10 @@ static char *expand_define2(char *text) {
       })
 
   while (*in) {
-    char *skip = in + 1;
+    char* skip = in + 1;
 
     if (*in == MARKS && *++in != MARKS) {
-      char *exp;
+      char* exp;
 
       exp = argv[*in++ - MARKS - 1];
 
@@ -4548,7 +4572,7 @@ static char *expand_define2(char *text) {
 }
 
 int expand_define(void) {
-  char *expand_buffer;
+  char* expand_buffer;
 
   if ((expand_buffer = expand_define2(yytext)) != nullptr) {
     add_input(expand_buffer);
@@ -4571,7 +4595,7 @@ int expand_define(void) {
 
 static char exgetc() {
   unsigned char c;
-  char *yyp;
+  char* yyp;
 
   c = *outp++;
   while (isalpha(c) || c == '_') {
@@ -4612,7 +4636,7 @@ static char exgetc() {
       }
       SKPW;
       if (efund) {
-        ident_hash_elem_t *ihe = lookup_ident(yytext);
+        ident_hash_elem_t* ihe = lookup_ident(yytext);
         flag = (ihe && ihe->dn.efun_num != -1);
       } else {
         flag = (lookup_define(yytext) != nullptr);
@@ -4632,9 +4656,9 @@ static char exgetc() {
   return c;
 }
 
-void set_inc_list(char *list) {
+void set_inc_list(char* list) {
   int i, size;
-  char *p;
+  char* p;
 
   if (list == nullptr) {
     debug_message(
@@ -4654,7 +4678,7 @@ void set_inc_list(char *list) {
     p++;
   }
   inc_path = inc_list =
-      reinterpret_cast<const char **>(DCALLOC(size, sizeof(char *), TAG_INC_LIST, "set_inc_list"));
+      reinterpret_cast<const char**>(DCALLOC(size, sizeof(char*), TAG_INC_LIST, "set_inc_list"));
   inc_path_size = inc_list_size = size;
   for (i = size - 1; i >= 0; i--) {
     p = strrchr(list, ':');
@@ -4685,8 +4709,8 @@ void set_inc_list(char *list) {
   }
 }
 
-const char *main_file_name() {
-  incstate_t *is;
+const char* main_file_name() {
+  incstate_t* is;
 
   if (inctop == nullptr) {
     return current_file;
@@ -4730,7 +4754,7 @@ const char *main_file_name() {
       return 0;                                           \
   }
 
-ident_hash_elem_t *lookup_ident(const char *name) {
+ident_hash_elem_t* lookup_ident(const char* name) {
   int h = IdentHash(name);
   ident_hash_elem_t *hptr, *hptr2;
 
@@ -4745,14 +4769,14 @@ ident_hash_elem_t *lookup_ident(const char *name) {
   return nullptr;
 }
 
-ident_hash_elem_t *lookup_perm_ident(const char *name) {
+ident_hash_elem_t* lookup_perm_ident(const char* name) {
   int h = IdentHash(name);
-  ident_hash_elem_t *first = ident_hash_head[h];
+  ident_hash_elem_t* first = ident_hash_head[h];
   if (!first) {
     return nullptr;
   }
 
-  ident_hash_elem_t *hptr = first;
+  ident_hash_elem_t* hptr = first;
   do {
     if ((hptr->token & IHE_PERMANENT) && !strcmp(hptr->name, name)) {
       return hptr;
@@ -4762,19 +4786,18 @@ ident_hash_elem_t *lookup_perm_ident(const char *name) {
   return nullptr;
 }
 
-bool remove_perm_ident(ident_hash_elem_t *victim) {
-  if (!victim || victim->sem_value != 0 ||
-      (victim->token & (IHE_RESWORD | IHE_EFUN | IHE_SIMUL))) {
+bool remove_perm_ident(ident_hash_elem_t* victim) {
+  if (!victim || victim->sem_value != 0 || (victim->token & (IHE_RESWORD | IHE_EFUN | IHE_SIMUL))) {
     return false;
   }
 
   int h = IdentHash(victim->name);
-  ident_hash_elem_t *head = ident_hash_head[h];
+  ident_hash_elem_t* head = ident_hash_head[h];
   if (!head) {
     return false;
   }
 
-  ident_hash_elem_t *prev = head;
+  ident_hash_elem_t* prev = head;
   do {
     if (prev->next == victim) {
       break;
@@ -4808,7 +4831,7 @@ bool remove_perm_ident(ident_hash_elem_t *victim) {
   return true;
 }
 
-ident_hash_elem_t *find_or_add_perm_ident(const char *name) {
+ident_hash_elem_t* find_or_add_perm_ident(const char* name) {
   int h = IdentHash(name);
   ident_hash_elem_t *hptr, *hptr2;
 
@@ -4823,7 +4846,7 @@ ident_hash_elem_t *find_or_add_perm_ident(const char *name) {
       }
       hptr2 = hptr2->next;
     }
-    hptr = reinterpret_cast<ident_hash_elem_t *>(
+    hptr = reinterpret_cast<ident_hash_elem_t*>(
         DMALLOC(sizeof(ident_hash_elem_t), TAG_PERM_IDENT, "find_or_add_perm_ident:1"));
     hptr->next = ident_hash_head[h]->next;
     ident_hash_head[h]->next = hptr;
@@ -4831,7 +4854,7 @@ ident_hash_elem_t *find_or_add_perm_ident(const char *name) {
       ident_hash_tail[h] = hptr;
     }
   } else {
-    hptr = (ident_hash_table[h] = reinterpret_cast<ident_hash_elem_t *>(
+    hptr = (ident_hash_table[h] = reinterpret_cast<ident_hash_elem_t*>(
                 DMALLOC(sizeof(ident_hash_elem_t), TAG_PERM_IDENT, "find_or_add_perm_ident:2")));
     ident_hash_head[h] = hptr;
     ident_hash_tail[h] = hptr;
@@ -4850,21 +4873,21 @@ ident_hash_elem_t *find_or_add_perm_ident(const char *name) {
 }
 
 typedef struct lname_linked_buf_s {
-  struct lname_linked_buf_s *next;
+  struct lname_linked_buf_s* next;
   char block[4096];
 } lname_linked_buf_t;
 
-lname_linked_buf_t *lnamebuf = nullptr;
+lname_linked_buf_t* lnamebuf = nullptr;
 
 int lb_index = 4096;
 
-static char *alloc_local_name(const char *name) {
+static char* alloc_local_name(const char* name) {
   int len = strlen(name) + 1;
-  char *res;
+  char* res;
 
   if (lb_index + len > 4096) {
-    lname_linked_buf_t *new_buf;
-    new_buf = reinterpret_cast<lname_linked_buf_t *>(
+    lname_linked_buf_t* new_buf;
+    new_buf = reinterpret_cast<lname_linked_buf_t*>(
         DMALLOC(sizeof(lname_linked_buf_t), TAG_COMPILER, "alloc_local_name"));
     new_buf->next = lnamebuf;
     lnamebuf = new_buf;
@@ -4879,11 +4902,11 @@ static char *alloc_local_name(const char *name) {
 int num_free = 0;
 
 typedef struct ident_hash_elem_list_s {
-  struct ident_hash_elem_list_s *next;
+  struct ident_hash_elem_list_s* next;
   ident_hash_elem_t items[128];
 } ident_hash_elem_list_t;
 
-ident_hash_elem_list_t *ihe_list = nullptr;
+ident_hash_elem_list_t* ihe_list = nullptr;
 
 #if 0
 void dump_ihe(ident_hash_elem_t *ihe, int noisy)
@@ -4999,13 +5022,13 @@ void free_unused_identifiers() {
 #endif
 }
 
-static ident_hash_elem_t *quick_alloc_ident_entry() {
+static ident_hash_elem_t* quick_alloc_ident_entry() {
   if (num_free) {
     num_free--;
     return &(ihe_list->items[num_free]);
   } else {
-    ident_hash_elem_list_t *ihel;
-    ihel = reinterpret_cast<ident_hash_elem_list_t *>(
+    ident_hash_elem_list_t* ihel;
+    ihel = reinterpret_cast<ident_hash_elem_list_t*>(
         DMALLOC(sizeof(ident_hash_elem_list_t), TAG_COMPILER, "quick_alloc_ident_entry"));
     ihel->next = ihe_list;
     ihe_list = ihel;
@@ -5014,7 +5037,7 @@ static ident_hash_elem_t *quick_alloc_ident_entry() {
   }
 }
 
-ident_hash_elem_t *find_or_add_ident(const char *name, int flags) {
+ident_hash_elem_t* find_or_add_ident(const char* name, int flags) {
   int h = IdentHash(name);
   ident_hash_elem_t *hptr, *hptr2;
 
@@ -5068,33 +5091,33 @@ ident_hash_elem_t *find_or_add_ident(const char *name, int flags) {
   return hptr;
 }
 
-static void add_keyword_t(const char *name, keyword_t *entry) {
+static void add_keyword_t(const char* name, keyword_t* entry) {
   int h = IdentHash(name);
 
   if (ident_hash_table[h]) {
     entry->next = ident_hash_head[h]->next;
-    ident_hash_head[h]->next = reinterpret_cast<ident_hash_elem_t *>(entry);
+    ident_hash_head[h]->next = reinterpret_cast<ident_hash_elem_t*>(entry);
     if (ident_hash_head[h] == ident_hash_tail[h]) {
-      ident_hash_tail[h] = reinterpret_cast<ident_hash_elem_t *>(entry);
+      ident_hash_tail[h] = reinterpret_cast<ident_hash_elem_t*>(entry);
     }
   } else {
-    ident_hash_head[h] = reinterpret_cast<ident_hash_elem_t *>(entry);
-    ident_hash_tail[h] = reinterpret_cast<ident_hash_elem_t *>(entry);
-    ident_hash_table[h] = reinterpret_cast<ident_hash_elem_t *>(entry);
-    entry->next = reinterpret_cast<ident_hash_elem_t *>(entry);
+    ident_hash_head[h] = reinterpret_cast<ident_hash_elem_t*>(entry);
+    ident_hash_tail[h] = reinterpret_cast<ident_hash_elem_t*>(entry);
+    ident_hash_table[h] = reinterpret_cast<ident_hash_elem_t*>(entry);
+    entry->next = reinterpret_cast<ident_hash_elem_t*>(entry);
   }
   entry->token |= IHE_RESWORD;
 }
 
 void init_identifiers() {
   unsigned int i;
-  ident_hash_elem_t *ihe;
+  ident_hash_elem_t* ihe;
 
   init_instrs();
 
   /* allocate all three tables together */
-  ident_hash_table = reinterpret_cast<ident_hash_elem_t **>(DCALLOC(
-      IDENT_HASH_SIZE * 3, sizeof(ident_hash_elem_t *), TAG_IDENT_TABLE, "init_identifiers"));
+  ident_hash_table = reinterpret_cast<ident_hash_elem_t**>(DCALLOC(
+      IDENT_HASH_SIZE * 3, sizeof(ident_hash_elem_t*), TAG_IDENT_TABLE, "init_identifiers"));
   ident_hash_head = &ident_hash_table[IDENT_HASH_SIZE];
   ident_hash_tail = &ident_hash_table[2 * IDENT_HASH_SIZE];
 

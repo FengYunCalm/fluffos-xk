@@ -54,12 +54,12 @@ enum atypes { AREAD, AWRITE, AGETDIR, ADBEXEC, ADONE };
 enum astates { BUSY, DONE };
 
 struct Request;
-void free_async_request(Request *req);
-void free_async_request_cleanup(void *context) {
-  free_async_request(static_cast<Request *>(context));
+void free_async_request(Request* req);
+void free_async_request_cleanup(void* context) {
+  free_async_request(static_cast<Request*>(context));
 }
 std::mutex reqs_lock;
-std::set<struct Request *> live_requests;
+std::set<struct Request*> live_requests;
 
 struct Request {
   Request()
@@ -85,28 +85,28 @@ struct Request {
   int ret;
   int handle;
   std::string data;
-  function_to_call_t *fun;
+  function_to_call_t* fun;
   /* Bound args trailing the callback (async_db_exec's spec allows a trailing
      `...`), heap-copied off the VM stack -- mirrors call_out()'s cop->vs
      (call_out.cc), since this callback fires long after the registering stack
      frame is gone. fun->args/fun->narg point into this array; null when there
      are no bound args. */
-  array_t *bound_args;
-  promise_t *promise;
-  object_t *owner;
+  array_t* bound_args;
+  promise_t* promise;
+  object_t* owner;
   bool failed;
-  struct Request *next;
+  struct Request* next;
   enum atypes type;
   int status;
   VMOwnerCallbackCleanupRecord cleanup_record;
 };
 
 struct Work {
-  struct Request *data;
-  void *(*func)(struct Request *);
+  struct Request* data;
+  void* (*func)(struct Request*);
 };
 
-std::deque<struct Work *> reqs;
+std::deque<struct Work*> reqs;
 
 // #1247 ASYNC-2..4: works a worker thread is CURRENTLY processing: popped from
 // reqs but not yet moved to finished_reqs. Guarded by reqs_lock so
@@ -118,9 +118,9 @@ std::deque<struct Work *> reqs;
 // slow w->func() -- two or more workers can run at once; a single pointer only
 // tracked the last one and left the others' refs unaccounted (flaky "Bad ref
 // count" in Debug builds).
-std::set<struct Work *> current_works;
+std::set<struct Work*> current_works;
 
-std::deque<struct Request *> finished_reqs;
+std::deque<struct Request*> finished_reqs;
 std::mutex finished_reqs_lock;
 
 class ControlledLpcScope {
@@ -128,52 +128,57 @@ class ControlledLpcScope {
   ControlledLpcScope() : previous_(vm_context().owner.controlled_lpc_active) {
     vm_context().owner.controlled_lpc_active = true;
   }
-  ~ControlledLpcScope() { vm_context().owner.controlled_lpc_active = previous_; }
+  ~ControlledLpcScope() {
+    vm_context().owner.controlled_lpc_active = previous_;
+  }
 
  private:
   bool previous_;
 };
 
-object_t *callback_owner(function_to_call_t *fun) {
+object_t* callback_owner(function_to_call_t* fun) {
   if (!fun) {
     return nullptr;
   }
   return fun->ob ? fun->ob : fun->f.fp ? fun->f.fp->hdr.owner : nullptr;
 }
 
-object_t *request_owner(Request *req) {
+object_t* request_owner(Request* req) {
   return req->fun ? callback_owner(req->fun) : req->owner;
 }
 
-void bind_request_owner(Request *req) {
-  auto *owner = request_owner(req);
+void bind_request_owner(Request* req) {
+  auto* owner = request_owner(req);
   req->owner_id = vm_owner_id(owner);
   req->owner_epoch = vm_owner_epoch(owner);
-  req->cleanup_record.prepare(req->owner_id.c_str(), req->owner_epoch, "async_callback", "<pending>",
-                              free_async_request_cleanup, req);
+  req->cleanup_record.prepare(req->owner_id.c_str(), req->owner_epoch, "async_callback",
+                              "<pending>", free_async_request_cleanup, req);
 }
 
-svalue_t *safe_call_async_callback(Request *req, int narg, const char *operation) {
-  auto *owner = callback_owner(req->fun);
+svalue_t* safe_call_async_callback(Request* req, int narg, const char* operation) {
+  auto* owner = callback_owner(req->fun);
   if (owner && (owner->flags & O_DESTRUCTED)) {
-    vm_owner_record_task_trace(req->owner_id.c_str(), "async_callback", operation, req->owner_epoch, "destructed");
+    vm_owner_record_task_trace(req->owner_id.c_str(), "async_callback", operation, req->owner_epoch,
+                               "destructed");
     pop_n_elems(narg);
     return nullptr;
   }
   if (owner && (req->owner_id != vm_owner_id(owner) || req->owner_epoch != vm_owner_epoch(owner))) {
-    vm_owner_record_task_trace(vm_owner_id(owner), "async_callback", operation, vm_owner_epoch(owner), "stale");
+    vm_owner_record_task_trace(vm_owner_id(owner), "async_callback", operation,
+                               vm_owner_epoch(owner), "stale");
     pop_n_elems(narg);
     return nullptr;
   }
   VMOwnerScope owner_scope(vm_context(), owner ? vm_owner_id(owner) : req->owner_id.c_str(),
                            owner ? vm_owner_epoch(owner) : req->owner_epoch);
-  vm_owner_record_task_trace(owner ? vm_owner_id(owner) : req->owner_id.c_str(), "async_callback", operation,
-                             owner ? vm_owner_epoch(owner) : req->owner_epoch, "dispatched");
+  vm_owner_record_task_trace(owner ? vm_owner_id(owner) : req->owner_id.c_str(), "async_callback",
+                             operation, owner ? vm_owner_epoch(owner) : req->owner_epoch,
+                             "dispatched");
   ControlledLpcScope controlled_lpc;
   return safe_call_efun_callback(req->fun, narg);
 }
 
-const char *async_operation_name(enum atypes type) {
+const char* async_operation_name(enum atypes type) {
   switch (type) {
     case AREAD:
       return "async_read";
@@ -193,7 +198,7 @@ const char *async_operation_name(enum atypes type) {
   }
 }
 
-void free_async_request(Request *req) {
+void free_async_request(Request* req) {
   if (!req) {
     return;
   }
@@ -217,7 +222,7 @@ void free_async_request(Request *req) {
   delete req;
 }
 
-void cleanup_async_request(Request *req, const char *operation, bool main_required) {
+void cleanup_async_request(Request* req, const char* operation, bool main_required) {
   if (!req) {
     return;
   }
@@ -235,7 +240,7 @@ void thread_func() {
   ScopedTracer const tracer("Async thread loop");
 
   while (true) {
-    struct Work *w = nullptr;
+    struct Work* w = nullptr;
     {
       std::lock_guard<std::mutex> const lock(reqs_lock);
       if (reqs.empty()) {
@@ -278,43 +283,43 @@ void thread_func() {
   }
 }
 
-void do_stuff(void *(*func)(struct Request *), struct Request *data) {
+void do_stuff(void* (*func)(struct Request*), struct Request* data) {
   std::lock_guard<std::mutex> const lock(reqs_lock);
 
   if (reqs.empty()) {
     std::thread(thread_func).detach();
   }
 
-  auto *i = new Work;
+  auto* i = new Work;
   i->func = func;
   i->data = data;
 
   reqs.push_back(i);
 }
 
-void *gzreadthread(struct Request *req) {
+void* gzreadthread(struct Request* req) {
   gzFile file = gzopen(req->path.c_str(), "rb");
   if (!file) {
     req->ret = -1;
     req->status = DONE;
     return nullptr;
   }
-  req->ret = gzread(file, (void *)(req->data.data()), req->data.size());
+  req->ret = gzread(file, (void*)(req->data.data()), req->data.size());
   req->status = DONE;
   gzclose(file);
   return nullptr;
 }
 
-int aio_gzread(struct Request *req) {
+int aio_gzread(struct Request* req) {
   req->status = BUSY;
   do_stuff(gzreadthread, req);
   return 0;
 }
 
-void *gzwritethread(struct Request *req) {
-  int const fd =
-      open(req->path.c_str(), req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
-           S_IRWXU | S_IRWXG);
+void* gzwritethread(struct Request* req) {
+  int const fd = open(req->path.c_str(),
+                      req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
+                      S_IRWXU | S_IRWXG);
   if (fd < 0) {
     req->ret = -1;
     req->status = DONE;
@@ -327,22 +332,22 @@ void *gzwritethread(struct Request *req) {
     req->status = DONE;
     return nullptr;
   }
-  req->ret = gzwrite(file, (void *)(req->data.data()), req->data.size());
+  req->ret = gzwrite(file, (void*)(req->data.data()), req->data.size());
   req->status = DONE;
   gzclose(file);
   return nullptr;
 }
 
-int aio_gzwrite(struct Request *req) {
+int aio_gzwrite(struct Request* req) {
   req->status = BUSY;
   do_stuff(gzwritethread, req);
   return 0;
 }
 
-void *writethread(struct Request *req) {
-  int const fd =
-      open(req->path.c_str(), req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
-           S_IRWXU | S_IRWXG);
+void* writethread(struct Request* req) {
+  int const fd = open(req->path.c_str(),
+                      req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
+                      S_IRWXU | S_IRWXG);
 
   req->ret = fd < 0 ? -1 : write(fd, req->data.data(), req->data.size());
 
@@ -353,13 +358,13 @@ void *writethread(struct Request *req) {
   return nullptr;
 }
 
-int aio_write(struct Request *req) {
+int aio_write(struct Request* req) {
   req->status = BUSY;
   do_stuff(writethread, req);
   return 0;
 }
 
-void *readthread(struct Request *req) {
+void* readthread(struct Request* req) {
   int const fd = open(req->path.c_str(), O_RDONLY);
   if (fd < 0) {
     req->ret = -1;
@@ -370,7 +375,7 @@ void *readthread(struct Request *req) {
   // the caller sizes req->data before dispatching (mirror gzreadthread just
   // above, which correctly uses .size()). A short read shrinks the buffer;
   // a negative return leaves it untouched.
-  auto size = read(fd, (void *)(req->data.data()), req->data.size());
+  auto size = read(fd, (void*)(req->data.data()), req->data.size());
   close(fd);
   if (size >= 0) {
     req->data.resize(size);
@@ -380,22 +385,26 @@ void *readthread(struct Request *req) {
   return nullptr;
 }
 
-int aio_read(struct Request *req) {
+int aio_read(struct Request* req) {
   req->status = BUSY;
   do_stuff(readthread, req);
   return 0;
 }
 
-} // namespace
+}  // namespace
 
 #ifdef F_ASYNC_DB_EXEC
-void *dbexecthread(struct Request *req) {
-  ScopedTracer const work_tracer("db_exec", EventCategory::DEFAULT, [=] { return json{req->data}; });
+void* dbexecthread(struct Request* req) {
+  ScopedTracer const work_tracer("db_exec", EventCategory::DEFAULT, [=] {
+    return json{req->data};
+  });
 
   db_lock_mutex();
-  DEFER { db_unlock_mutex(); };
+  DEFER {
+    db_unlock_mutex();
+  };
   // see add_db_exec
-  db_t *db = find_db_conn(req->handle);
+  db_t* db = find_db_conn(req->handle);
   int ret = -1;
   if (db && db->type->execute) {
     if (db->type->cleanup) {
@@ -405,7 +414,7 @@ void *dbexecthread(struct Request *req) {
     ret = db->type->execute(&(db->c), req->data.c_str());
     if (ret == -1) {
       if (db->type->error) {
-        char *tmp = db->type->error(&(db->c));
+        char* tmp = db->type->error(&(db->c));
         req->path = std::string(tmp);
         FREE_MSTR(tmp);
       } else {
@@ -421,7 +430,7 @@ void *dbexecthread(struct Request *req) {
   return nullptr;
 }
 
-int aio_db_exec(struct Request *req) {
+int aio_db_exec(struct Request* req) {
   req->status = BUSY;
   do_stuff(dbexecthread, req);
   return 0;
@@ -429,10 +438,12 @@ int aio_db_exec(struct Request *req) {
 #endif
 
 #ifdef F_ASYNC_GETDIR
-void *getdirthread(struct Request *req) {
-  ScopedTracer const work_tracer("getdir", EventCategory::DEFAULT, [=] { return json{req->path}; });
+void* getdirthread(struct Request* req) {
+  ScopedTracer const work_tracer("getdir", EventCategory::DEFAULT, [=] {
+    return json{req->path};
+  });
 
-  DIR *dirp = nullptr;
+  DIR* dirp = nullptr;
   if ((dirp = opendir(req->path.c_str())) == nullptr) {
     req->failed = true;
     req->ret = 0;
@@ -443,15 +454,16 @@ void *getdirthread(struct Request *req) {
    * Count files
    */
   int i = 0;
-  for (auto *de = readdir(dirp); de; de = readdir(dirp)) {
-    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+  for (auto* de = readdir(dirp); de; de = readdir(dirp)) {
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+      continue;
     // #1247 ASYNC-5: the buffer is used as an array of `struct dirent`, indexed
     // by i, so it must grow by sizeof(dirent) per entry -- growing by
     // sizeof(dirent*) (a pointer, ~8 bytes) undersized it and memcpy of the
     // ~280-byte dirent overflowed the heap once a directory held enough
     // entries.
     req->data.resize(static_cast<size_t>(i + 1) * sizeof(struct dirent));
-    memcpy(&((dirent *)(req->data.data()))[i], de, sizeof(*de));
+    memcpy(&((dirent*)(req->data.data()))[i], de, sizeof(*de));
     i++;
   }
 
@@ -462,7 +474,7 @@ void *getdirthread(struct Request *req) {
   return nullptr;
 }
 
-int aio_getdir(struct Request *req) {
+int aio_getdir(struct Request* req) {
   req->status = BUSY;
   do_stuff(getdirthread, req);
   return 0;
@@ -470,11 +482,11 @@ int aio_getdir(struct Request *req) {
 
 #endif
 
-int add_read(const char *fname, function_to_call_t *fun) {
+int add_read(const char* fname, function_to_call_t* fun) {
   const auto read_file_max_size = CONFIG_INT(__MAX_READ_FILE_SIZE__);
 
   if (fname) {
-    auto *req = new Request();
+    auto* req = new Request();
     // printf("fname: %s\n", fname);
     req->data.resize(read_file_max_size);
     req->fun = fun;
@@ -494,12 +506,12 @@ int add_read(const char *fname, function_to_call_t *fun) {
 }
 
 #ifdef F_ASYNC_GETDIR
-int add_getdir(const char *fname, function_to_call_t *fun) {
+int add_getdir(const char* fname, function_to_call_t* fun) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
   if (fname) {
     // printf("fname: %s\n", fname);
-    auto *req = new Request();
+    auto* req = new Request();
     req->data.resize(max_array_size);
     req->fun = fun;
     req->type = AGETDIR;
@@ -517,7 +529,7 @@ int add_getdir(const char *fname, function_to_call_t *fun) {
 }
 #endif
 
-int add_write(const char *fname, const char *buf, int size, char flags, function_to_call_t *fun) {
+int add_write(const char* fname, const char* buf, int size, char flags, function_to_call_t* fun) {
   if (!fname) {
     // #1247 ASYNC-8: denied path: free the callback the efun already
     // ref-bumped and handed us.
@@ -526,7 +538,7 @@ int add_write(const char *fname, const char *buf, int size, char flags, function
     error("permission denied\n");
   }
 
-  auto *req = new Request();
+  auto* req = new Request();
   req->data = std::string(buf, size);
   req->fun = fun;
   req->type = AWRITE;
@@ -540,8 +552,8 @@ int add_write(const char *fname, const char *buf, int size, char flags, function
 }
 
 #ifdef F_ASYNC_DB_EXEC
-int add_db_exec(int handle, const char *sql, function_to_call_t *fun, array_t *bound_args) {
-  auto *req = new Request();
+int add_db_exec(int handle, const char* sql, function_to_call_t* fun, array_t* bound_args) {
+  auto* req = new Request();
   req->fun = fun;
   req->bound_args = bound_args;
   req->type = ADBEXEC;
@@ -552,8 +564,8 @@ int add_db_exec(int handle, const char *sql, function_to_call_t *fun, array_t *b
 }
 #endif
 
-Request *make_promise_request(int value_type) {
-  auto *req = new Request();
+Request* make_promise_request(int value_type) {
+  auto* req = new Request();
   req->promise = promise_alloc();
   req->promise->value_type = static_cast<unsigned short>(value_type);
   req->owner = current_object;
@@ -564,7 +576,7 @@ Request *make_promise_request(int value_type) {
   return req;
 }
 
-void settle_promise_request(Request *req, svalue_t *value, bool rejected) {
+void settle_promise_request(Request* req, svalue_t* value, bool rejected) {
   (void)promise_settle(req->promise, value, rejected);
   /* promise_settle() borrows value and assigns its own reference. The request
    * handlers construct owned temporary strings/arrays, so release that
@@ -572,7 +584,7 @@ void settle_promise_request(Request *req, svalue_t *value, bool rejected) {
   free_svalue(value, "async promise settlement");
 }
 
-void handle_read(struct Request *req) {
+void handle_read(struct Request* req) {
   if (req->promise) {
     svalue_t result{};
     if (req->ret < 0) {
@@ -583,7 +595,7 @@ void handle_read(struct Request *req) {
     }
     result.type = T_STRING;
     result.subtype = STRING_MALLOC;
-    char *file = new_string(req->ret, "read_file_async_promise: str");
+    char* file = new_string(req->ret, "read_file_async_promise: str");
     memcpy(file, req->data.data(), req->ret);
     file[req->ret] = 0;
     result.u.string = file;
@@ -597,8 +609,8 @@ void handle_read(struct Request *req) {
     safe_call_async_callback(req, 1, "async_read");
     return;
   }
-  char *file = new_string(val, "read_file_async: str");
-  memcpy(file, (char *)(req->data.data()), val);
+  char* file = new_string(val, "read_file_async: str");
+  memcpy(file, (char*)(req->data.data()), val);
   file[val] = 0;
   push_malloced_string(file);
   set_eval(max_eval_cost);
@@ -606,7 +618,7 @@ void handle_read(struct Request *req) {
 }
 
 #ifdef F_ASYNC_GETDIR
-void handle_getdir(struct Request *req) {
+void handle_getdir(struct Request* req) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
   if (req->promise && req->failed) {
@@ -621,20 +633,20 @@ void handle_getdir(struct Request *req) {
   if (ret_size > max_array_size) {
     ret_size = max_array_size;
   }
-  array_t *ret = allocate_empty_array(ret_size);
+  array_t* ret = allocate_empty_array(ret_size);
   if (ret_size > 0) {
     for (int i = 0; i < ret_size; i++) {
-      auto de = ((struct dirent *)req->data.data())[i];
-      svalue_t *vp = &(ret->item[i]);
+      auto de = ((struct dirent*)req->data.data())[i];
+      svalue_t* vp = &(ret->item[i]);
       vp->type = T_STRING;
       vp->subtype = STRING_MALLOC;
       vp->u.string = string_copy(de.d_name, "encode_stat");
     }
 
-    qsort((void *)ret->item, ret_size, sizeof ret->item[0],
-          [](const void *p1, const void *p2) -> int {
-            auto *x = (svalue_t *)p1;
-            auto *y = (svalue_t *)p2;
+    qsort((void*)ret->item, ret_size, sizeof ret->item[0],
+          [](const void* p1, const void* p2) -> int {
+            auto* x = (svalue_t*)p1;
+            auto* y = (svalue_t*)p2;
 
             return strcmp(x->u.string, y->u.string);
           });
@@ -654,7 +666,7 @@ void handle_getdir(struct Request *req) {
 }
 #endif
 
-void handle_write(struct Request *req) {
+void handle_write(struct Request* req) {
   int const val = req->ret;
   if (req->promise) {
     svalue_t result = const0u;
@@ -678,7 +690,7 @@ void handle_write(struct Request *req) {
   safe_call_async_callback(req, 1, "async_write");
 }
 
-void handle_db_exec(struct Request *req) {
+void handle_db_exec(struct Request* req) {
   int const val = req->ret;
   if (req->promise) {
     svalue_t result{};
@@ -703,7 +715,7 @@ void handle_db_exec(struct Request *req) {
   safe_call_async_callback(req, 1, "async_db_exec");
 }
 
-void handle_finished_request(Request *req, enum atypes type) {
+void handle_finished_request(Request* req, enum atypes type) {
   req->type = ADONE;
   switch (type) {
     case AREAD:
@@ -730,8 +742,8 @@ void handle_finished_request(Request *req, enum atypes type) {
   }
 }
 
-void dispatch_finished_request(Request *req, enum atypes type) {
-  auto *owner = request_owner(req);
+void dispatch_finished_request(Request* req, enum atypes type) {
+  auto* owner = request_owner(req);
   auto operation = std::string(async_operation_name(type));
   if (!owner || (owner->flags & O_DESTRUCTED)) {
     handle_finished_request(req, type);
@@ -750,7 +762,9 @@ void dispatch_finished_request(Request *req, enum atypes type) {
           handle_finished_request(req, type);
           cleanup_async_request(req, operation.c_str(), true);
         },
-        [req, operation] { cleanup_async_request(req, operation.c_str(), true); });
+        [req, operation] {
+          cleanup_async_request(req, operation.c_str(), true);
+        });
     if (task_id != 0) {
       return;
     }
@@ -762,7 +776,9 @@ void dispatch_finished_request(Request *req, enum atypes type) {
         handle_finished_request(req, type);
         free_async_request(req);
       },
-      [req] { free_async_request(req); },
+      [req] {
+        free_async_request(req);
+      },
       executor_available ? VM_OWNER_MAIN_TASK_EXPLICIT_FALLBACK
                          : VM_OWNER_MAIN_TASK_OFF_MODE_FALLBACK);
   if (task_id == 0) {
@@ -774,14 +790,14 @@ void dispatch_finished_request(Request *req, enum atypes type) {
 void check_reqs() {
   ScopedTracer const tracer("Async callback");
 
-  std::deque<struct Request *> ready;
+  std::deque<struct Request*> ready;
   {
     std::lock_guard<std::mutex> const lock(finished_reqs_lock);
     ready.swap(finished_reqs);
   }
 
   while (!ready.empty()) {
-    auto *req = ready.front();
+    auto* req = ready.front();
     ready.pop_front();
     auto const type = req->type;
     dispatch_finished_request(req, type);
@@ -820,12 +836,12 @@ void complete_all_asyncio() {
   }
 }
 
-int find_test_lfun_index(object_t *owner, const char *method) {
+int find_test_lfun_index(object_t* owner, const char* method) {
   if (!owner || !owner->prog || !method) {
     return -1;
   }
   for (int i = 0; i < owner->prog->num_functions_defined; i++) {
-    auto *entry = find_func_entry(owner->prog, i);
+    auto* entry = find_func_entry(owner->prog, i);
     if (entry && entry->funcname && std::strcmp(entry->funcname, method) == 0) {
       return i;
     }
@@ -833,14 +849,14 @@ int find_test_lfun_index(object_t *owner, const char *method) {
   return -1;
 }
 
-function_to_call_t *make_test_lfun_callback(object_t *owner, int function_index) {
+function_to_call_t* make_test_lfun_callback(object_t* owner, int function_index) {
   VMExecutionState execution;
   execution.current_object = owner;
   execution.current_prog = owner ? owner->prog : nullptr;
   VMExecutionScope execution_scope(vm_context(), execution);
   svalue_t no_args{};
   no_args.type = T_NUMBER;
-  auto *fun = new function_to_call_t;
+  auto* fun = new function_to_call_t;
   fun->ob = nullptr;
   fun->f.fp = make_lfun_funp(function_index, &no_args);
   fun->narg = 0;
@@ -848,12 +864,13 @@ function_to_call_t *make_test_lfun_callback(object_t *owner, int function_index)
   return fun;
 }
 
-bool vm_async_test_support_dispatch_read_callback(object_t *owner, const char *method, const char *payload) {
+bool vm_async_test_support_dispatch_read_callback(object_t* owner, const char* method,
+                                                  const char* payload) {
   auto function_index = find_test_lfun_index(owner, method);
   if (function_index < 0) {
     return false;
   }
-  auto *req = new Request();
+  auto* req = new Request();
   req->fun = make_test_lfun_callback(owner, function_index);
   req->type = AREAD;
   req->status = DONE;
@@ -887,10 +904,10 @@ void f_async_read() {
 
 #ifdef F_ASYNC_READ_PROMISE
 void f_async_read_promise() {
-  auto *req = make_promise_request(TYPE_STRING);
+  auto* req = make_promise_request(TYPE_STRING);
   req->type = AREAD;
   req->data.resize(CONFIG_INT(__MAX_READ_FILE_SIZE__));
-  auto *path = check_valid_path(sp->u.string, current_object, "read_file", 0);
+  auto* path = check_valid_path(sp->u.string, current_object, "read_file", 0);
 
   /* Keep one reference for the returned stack value and one for the request.
    * Start the request only after replacing the input argument so an immediate
@@ -927,9 +944,9 @@ void f_async_write() {
 
 #ifdef F_ASYNC_WRITE_PROMISE
 void f_async_write_promise() {
-  auto *req = make_promise_request(TYPE_NUMBER);
+  auto* req = make_promise_request(TYPE_NUMBER);
   req->type = AWRITE;
-  auto *path = check_valid_path((sp - 2)->u.string, current_object, "write_file", 1);
+  auto* path = check_valid_path((sp - 2)->u.string, current_object, "write_file", 1);
   req->data = std::string((sp - 1)->u.string, SVALUE_STRLEN(sp - 1));
   req->flags = static_cast<char>(sp->u.number);
 
@@ -968,9 +985,9 @@ void f_async_getdir() {
 
 #ifdef F_ASYNC_GETDIR_PROMISE
 void f_async_getdir_promise() {
-  auto *req = make_promise_request(TYPE_STRING | TYPE_MOD_ARRAY);
+  auto* req = make_promise_request(TYPE_STRING | TYPE_MOD_ARRAY);
   req->type = AGETDIR;
-  auto *path = check_valid_path(sp->u.string, current_object, "get_dir", 0);
+  auto* path = check_valid_path(sp->u.string, current_object, "get_dir", 0);
   req->promise->ref++;
   pop_stack();
   push_refed_promise(req->promise);
@@ -1001,7 +1018,7 @@ void f_async_db_exec() {
   // round trip on a worker thread, so the slots have to be moved off the stack
   // into an array (the bitwise copy IS the new owning reference, matching
   // call_out()'s cop->vs).
-  array_t *bound_args = nullptr;
+  array_t* bound_args = nullptr;
   if (cb->narg > 0) {
     bound_args = allocate_empty_array(cb->narg);
     memcpy(bound_args->item, cb->args, sizeof(svalue_t) * cb->narg);
@@ -1020,14 +1037,14 @@ void f_async_db_exec() {
   sp -= cb->narg;
   pop_stack();
 
-  array_t *info;
+  array_t* info;
   info = allocate_empty_array(1);
   info->item[0].type = T_STRING;
   info->item[0].subtype = STRING_MALLOC;
   info->item[0].u.string = string_copy(sp->u.string, "f_db_exec");
   valid_database("exec", info);
 
-  db_t *db;
+  db_t* db;
 #ifdef PACKAGE_ASYNC
   db_lock_mutex();
 #endif
@@ -1050,7 +1067,7 @@ void f_async_db_exec() {
 
 #ifdef F_ASYNC_DB_EXEC_PROMISE
 void f_async_db_exec_promise() {
-  array_t *info = allocate_empty_array(1);
+  array_t* info = allocate_empty_array(1);
   info->item[0].type = T_STRING;
   info->item[0].subtype = STRING_MALLOC;
   info->item[0].u.string = string_copy(sp->u.string, "f_db_exec_promise");
@@ -1059,7 +1076,7 @@ void f_async_db_exec_promise() {
 #ifdef PACKAGE_ASYNC
   db_lock_mutex();
 #endif
-  auto *db = find_db_conn((sp - 1)->u.number);
+  auto* db = find_db_conn((sp - 1)->u.number);
   if (!db) {
 #ifdef PACKAGE_ASYNC
     db_unlock_mutex();
@@ -1070,7 +1087,7 @@ void f_async_db_exec_promise() {
   db_unlock_mutex();
 #endif
 
-  auto *req = make_promise_request(TYPE_NUMBER);
+  auto* req = make_promise_request(TYPE_NUMBER);
   req->type = ADBEXEC;
   req->handle = static_cast<int>((sp - 1)->u.number);
   req->data = sp->u.string;
@@ -1083,7 +1100,7 @@ void f_async_db_exec_promise() {
 
 void async_mark_request() {
 #ifdef DEBUGMALLOC_EXTENSIONS
-  auto mark_request = [](Request *req) {
+  auto mark_request = [](Request* req) {
     if (req->fun != nullptr) {
       req->fun->f.fp->hdr.extra_ref++;
     }
@@ -1101,7 +1118,7 @@ void async_mark_request() {
   // Keep every live request visible to the debug allocator, including the
   // short interval after a worker moved it into an owner-admitted callback.
   std::lock_guard<std::mutex> const lock(reqs_lock);
-  for (auto *req : live_requests) {
+  for (auto* req : live_requests) {
     mark_request(req);
   }
 #endif

@@ -48,7 +48,7 @@ jobs:
           python3 tools/docs/test-evidence-gate.py
 
   style-and-lpc:
-    name: Style and LPC syntax pilot
+    name: Style and LPC syntax full corpus
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -84,31 +84,22 @@ jobs:
           CLANG_FORMAT: clang-format-18
         run: python3 tools/style/test-check-format.py
 
-      # U10g owns the existing 376-file backlog. Keep this gate on the
-      # accepted U10c pilot until that backlog is reviewed and written in
-      # module-scoped batches; do not turn a pilot into an accidental --all-native gate.
-      - name: Check native pilot
+      # U10g has reviewed and written the module-scoped native backlog.
+      # Keep this check read-only; CI must never rewrite the checkout.
+      - name: Check all native sources
         env:
           CLANG_FORMAT: clang-format-18
-        run: >-
-          python3 tools/style/check-format.py --paths
-          src/vm/internal/source_spelling.cc
-          src/vm/internal/source_spelling.h
-          src/packages/core/encoding.cc
+        run: python3 tools/style/check-format.py --all-native
 
       - name: Run LPC syntax self-tests
         run: |
           node tools/lpc-syntax/test.mjs
           node tools/lpc-syntax/test-format-corpus.mjs
 
-      # These are the three real-driver LPC entries accepted by U10d. The
-      # full legacy corpus remains an explicit U10g scope, not a hidden CI write.
-      - name: Check LPC formatter pilot
-        run: >-
-          bash testsuite/format.sh --check
-          testsuite/clone/bad_macro_params.lpc
-          testsuite/clone/completion_duplicate.lpc
-          testsuite/clone/completion_late_failure.lpc
+      # The full allowed corpus is read-only in CI; testsuite/format.sh owns
+      # the explicit exclusion list for raw and intentionally invalid fixtures.
+      - name: Check LPC formatter corpus
+        run: bash testsuite/format.sh --check
 
   docs-check:
     name: Docs Evidence & Links

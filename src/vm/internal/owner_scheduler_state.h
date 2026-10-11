@@ -51,7 +51,7 @@ struct OwnerMailboxTask {
   int scheduler_budget{0};
   int scheduler_max_queue_depth{0};
   std::vector<OwnerComputeResultField> compute_result_fields;
-  object_t *target{nullptr};
+  object_t* target{nullptr};
   bool has_target_handle{false};
   bool ordinary_lpc_explicit_open{false};
   std::shared_ptr<VMFrozenValue> payload;
@@ -77,7 +77,7 @@ struct OwnerMainTask {
   std::string execution_frame_policy;
   std::string execution_frame_restore_policy;
   std::string execution_frame_restore_blocker;
-  object_t *target{nullptr};
+  object_t* target{nullptr};
   bool has_target_handle{false};
   bool command_text_snapshot_ready{false};
   bool command_consume_snapshot_ready{false};
@@ -93,7 +93,7 @@ struct OwnerMainTask {
   std::function<void()> drop_callback;
 };
 
-using OwnerMailboxPredicate = bool (*)(const OwnerMailboxTask &task);
+using OwnerMailboxPredicate = bool (*)(const OwnerMailboxTask& task);
 
 struct OwnerSchedulerPopResult {
   bool found{false};
@@ -126,55 +126,60 @@ struct OwnerQueueFairnessSnapshot {
   int64_t max_owner_main_queue_depth{0};
 };
 
-int64_t owner_mailbox_queue_depth_if(const std::deque<OwnerMailboxTask> &queue, OwnerMailboxPredicate predicate);
-bool owner_mailbox_queue_has_task(const std::deque<OwnerMailboxTask> &queue, OwnerMailboxPredicate predicate);
+int64_t owner_mailbox_queue_depth_if(const std::deque<OwnerMailboxTask>& queue,
+                                     OwnerMailboxPredicate predicate);
+bool owner_mailbox_queue_has_task(const std::deque<OwnerMailboxTask>& queue,
+                                  OwnerMailboxPredicate predicate);
 
 class OwnerSchedulerState {
  public:
-  int64_t mailbox_depth(const std::string &owner_id) const;
+  int64_t mailbox_depth(const std::string& owner_id) const;
   int64_t mailbox_total_depth() const;
   int64_t main_queue_total_depth() const;
-  int64_t main_queue_depth(const std::string &owner_id) const;
+  int64_t main_queue_depth(const std::string& owner_id) const;
   int64_t mailbox_active_owners() const;
   int64_t active_owner_count() const;
   int64_t active_main_owner_count() const;
   int64_t active_claim_count() const;
   bool schedulable_empty() const;
 
-  int64_t mailbox_depth_if(const std::string &owner_id, OwnerMailboxPredicate predicate) const;
+  int64_t mailbox_depth_if(const std::string& owner_id, OwnerMailboxPredicate predicate) const;
   int64_t mailbox_total_depth_if(OwnerMailboxPredicate predicate) const;
   int64_t runnable_owner_count(OwnerMailboxPredicate runnable) const;
   int64_t main_runnable_owner_count() const;
-  bool owner_has_thread_task(const std::string &owner_id, OwnerMailboxPredicate runnable) const;
-  OwnerQueueFairnessSnapshot fairness_snapshot(OwnerMailboxPredicate runnable, OwnerMailboxPredicate safe,
+  bool owner_has_thread_task(const std::string& owner_id, OwnerMailboxPredicate runnable) const;
+  OwnerQueueFairnessSnapshot fairness_snapshot(OwnerMailboxPredicate runnable,
+                                               OwnerMailboxPredicate safe,
                                                OwnerMailboxPredicate main_required) const;
 
-  bool enqueue_owner_task(OwnerMailboxTask task, const std::string &owner_id, bool task_requires_main,
-                          OwnerMailboxPredicate runnable);
-  void push_front_owner_task(const std::string &owner_id, OwnerMailboxTask task);
+  bool enqueue_owner_task(OwnerMailboxTask task, const std::string& owner_id,
+                          bool task_requires_main, OwnerMailboxPredicate runnable);
+  void push_front_owner_task(const std::string& owner_id, OwnerMailboxTask task);
   bool enqueue_main_task(OwnerMainTask task);
 
-  OwnerSchedulerReleaseResult release_active_owner(const std::string &owner_id, OwnerMailboxPredicate runnable);
+  OwnerSchedulerReleaseResult release_active_owner(const std::string& owner_id,
+                                                   OwnerMailboxPredicate runnable);
   int64_t release_all_active_owners(OwnerMailboxPredicate runnable);
-  bool release_active_main_owner(const std::string &owner_id);
-  OwnerSchedulerPopResult pop_next_schedulable_task(OwnerMailboxTask *out, bool claim_owner,
+  bool release_active_main_owner(const std::string& owner_id);
+  OwnerSchedulerPopResult pop_next_schedulable_task(OwnerMailboxTask* out, bool claim_owner,
                                                     OwnerMailboxPredicate runnable);
-  bool pop_next_main_task(OwnerMainTask *out, bool claim_owner);
-  OwnerSchedulerPopResult pop_next_executor_task_for_owner(const std::string &owner_id, OwnerMailboxTask *out,
+  bool pop_next_main_task(OwnerMainTask* out, bool claim_owner);
+  OwnerSchedulerPopResult pop_next_executor_task_for_owner(const std::string& owner_id,
+                                                           OwnerMailboxTask* out,
                                                            OwnerMailboxPredicate runnable);
 
-  std::vector<OwnerMailboxTask> drain_owner_mailbox(const std::string &owner_id, size_t limit);
-  bool remove_owner_task(uint64_t task_id, OwnerMailboxTask *removed);
-  std::vector<OwnerMailboxTask> remove_owner_mailbox(const std::string &owner_id);
-  void erase_owner_mailbox(const std::string &owner_id);
+  std::vector<OwnerMailboxTask> drain_owner_mailbox(const std::string& owner_id, size_t limit);
+  bool remove_owner_task(uint64_t task_id, OwnerMailboxTask* removed);
+  std::vector<OwnerMailboxTask> remove_owner_mailbox(const std::string& owner_id);
+  void erase_owner_mailbox(const std::string& owner_id);
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-  void mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const;
+  void mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const;
 #endif
 
  private:
-  void mark_owner_schedulable(const std::string &owner_id);
-  void mark_main_owner_schedulable(const std::string &owner_id);
+  void mark_owner_schedulable(const std::string& owner_id);
+  void mark_main_owner_schedulable(const std::string& owner_id);
 
   std::unordered_map<std::string, std::deque<OwnerMailboxTask>> owner_mailboxes_;
   std::unordered_map<std::string, std::deque<OwnerMainTask>> owner_main_queues_;

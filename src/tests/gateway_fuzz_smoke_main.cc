@@ -6,14 +6,15 @@
 #include <cstdio>
 #include <cstring>
 
-int gateway_fuzz_smoke_main(int argc, char **argv);
+int gateway_fuzz_smoke_main(int argc, char** argv);
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     if (std::strcmp(argv[i], "--help") == 0) {
-      std::printf("usage: %s  (deterministic smoke; libFuzzer builds use "
-                  "gateway_fuzz with fuzzer flags and a corpus dir)\n",
-                  argv[0]);
+      std::printf(
+          "usage: %s  (deterministic smoke; libFuzzer builds use "
+          "gateway_fuzz with fuzzer flags and a corpus dir)\n",
+          argv[0]);
       return 0;
     }
   }

@@ -38,9 +38,9 @@ void do_tests() {
   ASSERT_EQ(book, trim(book, ideographic_space));
   ASSERT_EQ(book, trim(ideographic_space + book + ideographic_space, ideographic_space));
   ASSERT_EQ(book + ideographic_space,
-            ltrim(ideographic_space + book + ideographic_space, ideographic_space));
+    ltrim(ideographic_space + book + ideographic_space, ideographic_space));
   ASSERT_EQ(ideographic_space + book,
-            rtrim(ideographic_space + book + ideographic_space, ideographic_space));
+    rtrim(ideographic_space + book + ideographic_space, ideographic_space));
   ASSERT_EQ("三字经", trim(book, "《》"));
 
   // The package keeps its historical default when the optional argument is empty.

@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-char *save_variable(svalue_t *var);  // packages/core/save.cc
+char* save_variable(svalue_t* var);  // packages/core/save.cc
 
 #ifdef __AFL_HAVE_MANUAL_CONTROL
 #include <unistd.h>
@@ -110,7 +110,8 @@ void run_sequence(const std::vector<char>& raw) {
     ++g_restore_chunks;
     run_chunk(std::string(piece));
     chunks++;
-    if (next == std::string_view::npos) break;
+    if (next == std::string_view::npos)
+      break;
     pos = next + kDelim.size();
   }
 }
@@ -126,8 +127,7 @@ int main(int argc, char** argv) {
   auto config = get_argument(0, argc, argv);
   init_main(config);
   vm_start();
-    ScopedCurrentObjectAsMaster master_scope;
-
+  ScopedCurrentObjectAsMaster master_scope;
 
 #ifdef __AFL_HAVE_MANUAL_CONTROL
   __AFL_INIT();
@@ -153,9 +153,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  fprintf(stderr,
-          "HARNESS_OK target=restore executions=%d chunks=%zu success=%d diagnostic=%d\n",
-          g_restore_executions, g_restore_chunks, g_restore_success,
-          g_restore_diagnostic);
+  fprintf(stderr, "HARNESS_OK target=restore executions=%d chunks=%zu success=%d diagnostic=%d\n",
+          g_restore_executions, g_restore_chunks, g_restore_success, g_restore_diagnostic);
   return 0;
 }

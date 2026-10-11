@@ -18,43 +18,45 @@
 #include "compiler.h"
 #include "compile_arena.h"
 
-char *scratch_copy(const char *str) {
+char* scratch_copy(const char* str) {
   size_t len = strlen(str);
-  char *res = compile_arena::alloc_string(len);
-  if (len) memcpy(res, str, len);
+  char* res = compile_arena::alloc_string(len);
+  if (len)
+    memcpy(res, str, len);
   return res;
 }
 
-char *scratch_alloc(int size) {
+char* scratch_alloc(int size) {
   if (size < 0) {
     fatal("invalid scratchpad allocation size");
   }
   return compile_arena::alloc_string(static_cast<size_t>(size));
 }
 
-void scratch_free(char *) {
+void scratch_free(char*) {
   // no-op: the whole compile scope is reclaimed by compile_arena::end().
 }
 
-char *scratch_join(char *s1, char *s2) {
+char* scratch_join(char* s1, char* s2) {
   size_t l1 = strlen(s1);
   size_t l2 = strlen(s2);
-  char *res = compile_arena::alloc_string(l1 + l2);
-  if (l1) memcpy(res, s1, l1);
-  if (l2) memcpy(res + l1, s2, l2);
+  char* res = compile_arena::alloc_string(l1 + l2);
+  if (l1)
+    memcpy(res, s1, l1);
+  if (l2)
+    memcpy(res + l1, s2, l2);
   return res;
 }
 
-char *scratch_realloc(char *ptr, int size) {
+char* scratch_realloc(char* ptr, int size) {
   if (size < 0) {
     fatal("invalid scratchpad allocation size");
   }
   size_t len = strlen(ptr);
-  char *res = compile_arena::alloc_string(static_cast<size_t>(size));
+  char* res = compile_arena::alloc_string(static_cast<size_t>(size));
   // Copy the NUL terminator too: grammar.y's function_name shift idiom
   // (grammar.y:3579-3586) relies on the old NUL being moved along with
   // the payload, so the result must be NUL-terminated at [len].
   memcpy(res, ptr, len + 1);
   return res;
 }
-

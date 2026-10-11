@@ -55,11 +55,13 @@ class BreakIteratorPool {
   using item_type = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>;
 
   explicit BreakIteratorPool(int initial) : inner_(std::make_shared<BreakIteratorPoolInner>()) {
-    for (int i = 0; i < initial; i++) add();
+    for (int i = 0; i < initial; i++)
+      add();
   }
 
   item_type accquire() {
-    if (inner_->stack_.empty()) add();
+    if (inner_->stack_.empty())
+      add();
     auto res = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>(
         inner_->stack_.top().release(), ReturnToPool_Deleter(inner_));
     inner_->stack_.pop();
@@ -103,7 +105,8 @@ class EGCIterator {
   static bool all_ascii(const char* src, int32_t slen) {
     // Only -1 is the NUL-terminated convention; other negative lengths are
     // invalid and must not make the empty scan look like ASCII.
-    if (slen < 0) return false;
+    if (slen < 0)
+      return false;
     unsigned char acc = 0;
     unsigned char cr = 0;
     for (int32_t i = 0; i < slen; i++) {
@@ -142,19 +145,31 @@ class EGCIterator {
 
   // Materialize the ICU iterator for a string that skipped setup because it
   // is ASCII. Must be called before ANY use of brk_.
-  bool ensure_icu() { return icu_ready_ ? true : setup_icu(); }
+  bool ensure_icu() {
+    return icu_ready_ ? true : setup_icu();
+  }
 
  public:
-  [[nodiscard]] bool ok() const { return ok_; }
+  [[nodiscard]] bool ok() const {
+    return ok_;
+  }
   // A false result may also describe an ASCII subrange retaining the ICU path.
-  [[nodiscard]] bool is_ascii() const { return ascii_; }
+  [[nodiscard]] bool is_ascii() const {
+    return ascii_;
+  }
   // The raw predicate, WITHOUT constructing an iterator. Constructing one
   // acquires an ICU break iterator from the pool, which builds 32 of them on
   // first touch -- absurd overhead when all you want is a byte scan. Callers
   // that only need the answer (u8_string_is_ascii_cached) use this.
-  static bool scan_is_ascii(const char* src, int32_t slen) { return all_ascii(src, slen); }
-  [[nodiscard]] const char* data() const { return src_; }
-  [[nodiscard]] int32_t len() const { return len_; }
+  static bool scan_is_ascii(const char* src, int32_t slen) {
+    return all_ascii(src, slen);
+  }
+  [[nodiscard]] const char* data() const {
+    return src_;
+  }
+  [[nodiscard]] int32_t len() const {
+    return len_;
+  }
   // Virtual so derived iterators can invalidate cached cursor state when the
   // range changes. Base construction intentionally dispatches to this base
   // implementation, before derived members exist.
@@ -170,7 +185,8 @@ class EGCIterator {
     src_ = src;
     len_ = slen;
 
-    if (slen < -1) return;
+    if (slen < -1)
+      return;
 
     // A known subrange can retain either path without rescanning its bytes.
     // Compare integer addresses after checking lengths, not unrelated pointers.
@@ -200,7 +216,9 @@ class EGCIterator {
     return brk_.operator->();
   }
 
-  static BreakIteratorPool::item_type GetBreakIterator() { return pool()->accquire(); }
+  static BreakIteratorPool::item_type GetBreakIterator() {
+    return pool()->accquire();
+  }
 
   EGCIterator(const char* src, int32_t slen) : src_(src), len_(slen), brk_(GetBreakIterator()) {
     reset(src, slen);

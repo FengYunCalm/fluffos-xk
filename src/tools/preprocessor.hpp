@@ -48,14 +48,14 @@ typedef struct {
 } defined_name_t;
 
 typedef struct ifstate_s {
-  struct ifstate_s *next;
+  struct ifstate_s* next;
   int state;
 } ifstate_t;
 
 typedef struct defn_s {
-  struct defn_s *next;
-  char *name;
-  char *exps;
+  struct defn_s* next;
+  char* name;
+  char* exps;
   int flags;
   int nargs;
 } defn_t;
@@ -72,7 +72,7 @@ typedef struct defn_s {
 #define EXPECT_ELSE 1
 #define EXPECT_ENDIF 2
 
-char *outp;
+char* outp;
 static int buffered = 0;
 static int nexpands = 0;
 
@@ -87,7 +87,7 @@ char ppchar = '#';
 
 // Global directory to search for includes
 std::vector<fs::path> base_dirs;
-char *current_file = nullptr;
+char* current_file = nullptr;
 int current_line;
 
 int grammar_mode = 0; /* which section we're in for .y files */
@@ -97,74 +97,83 @@ char yytext[MAXLINE];
 static char defbuf[DEFMAX];
 
 typedef struct incstate_t {
-  struct incstate_t *next;
-  FILE *yyin;
+  struct incstate_t* next;
+  FILE* yyin;
   int line;
-  char *file;
+  char* file;
 } incstate;
 
-static incstate *inctop = nullptr;
+static incstate* inctop = nullptr;
 
 #define CHAR_QUOTE 1
 #define STRING_QUOTE 2
 
-static void add_define(const char *, int, const char *);
+static void add_define(const char*, int, const char*);
 
-defn_t *lookup_define(const char *);
+defn_t* lookup_define(const char*);
 
-void yyerror(const char *str) {
+void yyerror(const char* str) {
   fprintf(stderr, "%s:%d: %s\n", current_file, current_line, str);
   exit(1);
 }
 
-void yywarn(char *str) {
+void yywarn(char* str) {
   /* ignore errors :)  local_options generates redefinition warnings,
      which we don't want to see */
 }
 
-void yyerrorp(const char *str) {
+void yyerrorp(const char* str) {
   char buff[200];
   sprintf(buff, str, ppchar);
   fprintf(stderr, "%s:%d: %s\n", current_file, current_line, buff);
   exit(1);
 }
 
-static void add_input(const char *p) {
+static void add_input(const char* p) {
   size_t l = strlen(p);
 
-  if (outp - l < defbuf) yyerror("Macro expansion buffer overflow.\n");
+  if (outp - l < defbuf)
+    yyerror("Macro expansion buffer overflow.\n");
   strncpy(outp - l, p, l);
   outp -= l;
 }
 
-#define SKIPW(foo) \
-  while (isspace(*foo)) foo++;
+#define SKIPW(foo)      \
+  while (isspace(*foo)) \
+    foo++;
 
 static void refill();
 
-static char *skip_comment(char *tmp, int flag) {
+static char* skip_comment(char* tmp, int flag) {
   char c;
 
   for (;;) {
     while ((c = *++tmp) != '*') {
       if (c == YYLEX_EOF)
-          yyerror("End of file in a comment");
+        yyerror("End of file in a comment");
       if (c == '\n') {
         nexpands = 0;
         current_line++;
-        if (!fgets(yytext, MAXLINE - 1, yyin)) yyerror("End of file in a comment");
-        if (flag && yyout) fputs(yytext, yyout);
+        if (!fgets(yytext, MAXLINE - 1, yyin))
+          yyerror("End of file in a comment");
+        if (flag && yyout)
+          fputs(yytext, yyout);
         tmp = yytext;
       }
     }
     do {
-      if ((c = *tmp++) == '/') return tmp + 1;
-      if (c == '\r') { c = *tmp++; }
+      if ((c = *tmp++) == '/')
+        return tmp + 1;
+      if (c == '\r') {
+        c = *tmp++;
+      }
       if (c == '\n') {
         nexpands = 0;
         current_line++;
-        if (!fgets(yytext, MAXLINE - 1, yyin)) yyerror("End of file in a comment");
-        if (flag && yyout) fputs(yytext, yyout);
+        if (!fgets(yytext, MAXLINE - 1, yyin))
+          yyerror("End of file in a comment");
+        if (flag && yyout)
+          fputs(yytext, yyout);
         tmp = yytext;
       }
     } while (c == '*');
@@ -197,7 +206,7 @@ static void handle_define() {
   char namebuf[NSIZE];
   char args[NARGS][NSIZE];
   char mtext[MLEN];
-  char *end;
+  char* end;
   char *tmp = outp, *q;
 
   q = namebuf;
@@ -208,13 +217,15 @@ static void handle_define() {
     else
       yyerror("Name too long.\n");
   }
-  if (q == namebuf) yyerror("Macro name missing.\n");
-  if (*namebuf != '_' && !isalpha(*namebuf)) yyerror("Invalid macro name.\n");
+  if (q == namebuf)
+    yyerror("Macro name missing.\n");
+  if (*namebuf != '_' && !isalpha(*namebuf))
+    yyerror("Invalid macro name.\n");
   *q = 0;
   if (*tmp == '(') { /* if "function macro" */
     int arg;
     int inid;
-    char *ids = (char *)nullptr;
+    char* ids = (char*)nullptr;
 
     tmp++; /* skip '(' */
     SKIPW(tmp);
@@ -236,13 +247,15 @@ static void handle_define() {
         }
         arg++;
         SKIPW(tmp);
-        if (*tmp == ')') break;
+        if (*tmp == ')')
+          break;
         if (*tmp++ != ',') {
           yyerror("Missing ',' in #define parameter list");
         }
         SKIPW(tmp);
       }
-      if (arg == NARGS) yyerror("Too many macro arguments");
+      if (arg == NARGS)
+        yyerror("Too many macro arguments");
     }
     tmp++; /* skip ')' */
     end = mtext + MLEN - 2;
@@ -269,7 +282,8 @@ static void handle_define() {
           inid = 0;
         }
       }
-      if ((*q = *tmp++) == MARKS) *++q = MARKS;
+      if ((*q = *tmp++) == MARKS)
+        *++q = MARKS;
       if (q < end)
         q++;
       else
@@ -310,8 +324,9 @@ static void handle_define() {
   return;
 }
 
-#define SKPW \
-  while (isspace(*outp)) outp++
+#define SKPW             \
+  while (isspace(*outp)) \
+  outp++
 
 static char cmygetc() {
   char c;
@@ -331,14 +346,16 @@ static char cmygetc() {
 
 /* Check if yytext is a macro and expand if it is. */
 static int expand_define() {
-  defn_t *p;
+  defn_t* p;
   char expbuf[DEFMAX];
-  char *args[NARGS];
+  char* args[NARGS];
   char buf[DEFMAX];
   char *q, *e, *b;
 
-  if (nexpands++ > EXPANDMAX) yyerror("Too many macro expansions");
-  if (!(p = lookup_define(yytext))) return 0;
+  if (nexpands++ > EXPANDMAX)
+    yyerror("Too many macro expansions");
+  if (!(p = lookup_define(yytext)))
+    return 0;
   if (p->nargs == -1) {
     add_input(p->exps);
   } else {
@@ -347,7 +364,8 @@ static int expand_define() {
     int n;
 
     SKPW;
-    if (*outp++ != '(') yyerror("Missing '(' in macro call");
+    if (*outp++ != '(')
+      yyerror("Missing '(' in macro call");
     SKPW;
     if ((c = *outp++) == ')')
       n = 0;
@@ -357,21 +375,26 @@ static int expand_define() {
       for (n = 0; n < NARGS;) {
         switch (c) {
           case '"':
-            if (!squote) dquote ^= 1;
+            if (!squote)
+              dquote ^= 1;
             break;
           case '\'':
-            if (!dquote) squote ^= 1;
+            if (!dquote)
+              squote ^= 1;
             break;
           case '(':
-            if (!squote && !dquote) parcnt++;
+            if (!squote && !dquote)
+              parcnt++;
             break;
           case ')':
-            if (!squote && !dquote) parcnt--;
+            if (!squote && !dquote)
+              parcnt--;
             break;
           case '#':
             if (!squote && !dquote) {
               *q++ = c;
-              if (*outp++ != '#') yyerror("'#' expected");
+              if (*outp++ != '#')
+                yyerror("'#' expected");
             }
             break;
           case '\\':
@@ -381,7 +404,8 @@ static int expand_define() {
             }
             break;
           case '\n':
-            if (squote || dquote) yyerror("Newline in string");
+            if (squote || dquote)
+              yyerror("Newline in string");
             break;
         }
         if (c == ',' && !parcnt && !dquote && !squote) {
@@ -392,7 +416,8 @@ static int expand_define() {
           n++;
           break;
         } else {
-          if (c == YYLEX_EOF) yyerror("Unexpected end of file");
+          if (c == YYLEX_EOF)
+            yyerror("Unexpected end of file");
           if (q >= expbuf + DEFMAX - 5) {
             yyerror("Macro argument overflow");
           } else {
@@ -400,7 +425,8 @@ static int expand_define() {
           }
         }
         if (!squote && !dquote) {
-          if ((c = cmygetc()) < 0) yyerror("End of macro in // comment");
+          if ((c = cmygetc()) < 0)
+            yyerror("End of macro in // comment");
         } else
           c = *outp++;
       }
@@ -417,19 +443,22 @@ static int expand_define() {
     b = buf;
     e = p->exps;
     while (*e) {
-      if (*e == '#' && *(e + 1) == '#') e += 2;
+      if (*e == '#' && *(e + 1) == '#')
+        e += 2;
       if (*e == MARKS) {
         if (*++e == MARKS)
           *b++ = *e++;
         else {
           for (q = args[*e++ - MARKS - 1]; *q;) {
             *b++ = *q++;
-            if (b >= buf + DEFMAX) yyerror("Macro expansion overflow");
+            if (b >= buf + DEFMAX)
+              yyerror("Macro expansion overflow");
           }
         }
       } else {
         *b++ = *e++;
-        if (b >= buf + DEFMAX) yyerror("Macro expansion overflow");
+        if (b >= buf + DEFMAX)
+          yyerror("Macro expansion overflow");
       }
     }
     *b++ = 0;
@@ -451,7 +480,8 @@ static char exgetc() {
     if (!strcmp(yytext, "defined")) {
       /* handle the defined "function" in #/%if */
       SKPW;
-      if (*outp++ != '(') yyerror("Missing ( after 'defined'");
+      if (*outp++ != '(')
+        yyerror("Missing ( after 'defined'");
       SKPW;
       yyp = yytext;
       if (isalpha(c = *outp) || c == '_') {
@@ -462,7 +492,8 @@ static char exgetc() {
       } else
         yyerror("Incorrect definition macro after defined(\n");
       SKPW;
-      if (*outp != ')') yyerror("Missing ) in defined");
+      if (*outp != ')')
+        yyerror("Missing ) in defined");
       if (lookup_define(yytext))
         add_input("1 ");
       else
@@ -477,7 +508,7 @@ static char exgetc() {
   return c;
 }
 
-static int skip_to(const char *token, const char *atoken) {
+static int skip_to(const char* token, const char* atoken) {
   char b[20], *p, *end;
   char c;
   int nest;
@@ -488,16 +519,19 @@ static int skip_to(const char *token, const char *atoken) {
     }
     current_line++;
     if ((c = *outp++) == ppchar) {
-      while (isspace(*outp)) outp++;
+      while (isspace(*outp))
+        outp++;
       end = b + sizeof b - 1;
       for (p = b; (c = *outp++) != '\n' && !isspace(c) && c != YYLEX_EOF;) {
-        if (p < end) *p++ = c;
+        if (p < end)
+          *p++ = c;
       }
       *p = 0;
       if (!strcmp(b, "if") || !strcmp(b, "ifdef") || !strcmp(b, "ifndef")) {
         nest++;
       } else if (nest > 0) {
-        if (!strcmp(b, "endif")) nest--;
+        if (!strcmp(b, "endif"))
+          nest--;
       } else {
         if (!strcmp(b, token)) {
           *--outp = c;
@@ -529,7 +563,7 @@ static void handle_cond(int);
 
 #define DXALLOC(x, y, z) malloc(x)
 #define FREE(x) free(x)
-#define ALLOCATE(x, y, z) (x *)malloc(sizeof(x))
+#define ALLOCATE(x, y, z) (x*)malloc(sizeof(x))
 #define DREALLOC(w, x, y, z) realloc(w, x)
 
 /* must be a power of 4 */
@@ -541,21 +575,22 @@ static void handle_cond(int);
 /* used only in edit_source */
 #define DEF_IS_NOT_LOCAL 4
 
-static defn_t *defns[DEFHASH];
-static ifstate_t *iftop = nullptr;
+static defn_t* defns[DEFHASH];
+static ifstate_t* iftop = nullptr;
 
-static defn_t *lookup_definition(const char *s) {
-  defn_t *p;
+static defn_t* lookup_definition(const char* s) {
+  defn_t* p;
   int h;
 
   h = defhash(s);
   for (p = defns[h]; p; p = p->next)
-    if (strcmp(s, p->name) == 0) return p;
+    if (strcmp(s, p->name) == 0)
+      return p;
   return nullptr;
 }
 
-defn_t *lookup_define(const char *s) {
-  defn_t *p = lookup_definition(s);
+defn_t* lookup_define(const char* s) {
+  defn_t* p = lookup_definition(s);
 
   if (p && (p->flags & DEF_IS_UNDEFINED))
     return nullptr;
@@ -563,12 +598,13 @@ defn_t *lookup_define(const char *s) {
     return p;
 }
 
-static void add_define(const char *name, int nargs, const char *exps) {
-  defn_t *p = lookup_definition(name);
+static void add_define(const char* name, int nargs, const char* exps) {
+  defn_t* p = lookup_definition(name);
   int h, len;
 
   /* trim off leading and trailing whitespace */
-  while (uisspace(*exps)) exps++;
+  while (uisspace(*exps))
+    exps++;
   for (len = strlen(exps); len && uisspace(exps[len - 1]); len--)
     ;
   if (*exps == '#' && *(exps + 1) == '#') {
@@ -582,7 +618,7 @@ static void add_define(const char *name, int nargs, const char *exps) {
 
   if (p) {
     if (p->flags & DEF_IS_UNDEFINED) {
-      p->exps = (char *)DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef");
+      p->exps = (char*)DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef");
       memcpy(p->exps, exps, len);
       p->exps[len] = 0;
       p->flags = 0;
@@ -598,7 +634,7 @@ static void add_define(const char *name, int nargs, const char *exps) {
         sprintf(buf, "redefinition of #define %s\n", name);
         yywarn(buf);
 
-        p->exps = (char *)DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef");
+        p->exps = (char*)DREALLOC(p->exps, len + 1, TAG_COMPILER, "add_define: redef");
         memcpy(p->exps, exps, len);
         p->exps[len] = 0;
         p->nargs = nargs;
@@ -607,9 +643,9 @@ static void add_define(const char *name, int nargs, const char *exps) {
     }
   } else {
     p = ALLOCATE(defn_t, TAG_COMPILER, "add_define: def");
-    p->name = (char *)DXALLOC(strlen(name) + 1, TAG_COMPILER, "add_define: def name");
+    p->name = (char*)DXALLOC(strlen(name) + 1, TAG_COMPILER, "add_define: def name");
     strcpy(p->name, name);
-    p->exps = (char *)DXALLOC(len + 1, TAG_COMPILER, "add_define: def exps");
+    p->exps = (char*)DXALLOC(len + 1, TAG_COMPILER, "add_define: def exps");
     memcpy(p->exps, exps, len);
     p->exps[len] = 0;
     p->flags = 0;
@@ -620,17 +656,16 @@ static void add_define(const char *name, int nargs, const char *exps) {
   }
 }
 
-static void handle_elif()
-{
+static void handle_elif() {
   if (iftop) {
     if (iftop->state == EXPECT_ELSE) {
       /* last cond was false... */
       int cond;
-      ifstate_t *p = iftop;
+      ifstate_t* p = iftop;
 
       /* pop previous condition */
       iftop = p->next;
-      FREE((char *)p);
+      FREE((char*)p);
 
       cond = cond_get_exp(0);
       if (*outp != '\n') {
@@ -642,7 +677,7 @@ static void handle_elif()
        * last cond was true...skip to end of
        * conditional
        */
-      skip_to("endif", (char *)nullptr);
+      skip_to("endif", (char*)nullptr);
     }
   } else {
     yyerrorp("Unexpected %celif");
@@ -654,7 +689,7 @@ static void handle_else(void) {
     if (iftop->state == EXPECT_ELSE) {
       iftop->state = EXPECT_ENDIF;
     } else {
-      skip_to("endif", (char *)nullptr);
+      skip_to("endif", (char*)nullptr);
     }
   } else {
     yyerrorp("Unexpected %cendif");
@@ -663,10 +698,10 @@ static void handle_else(void) {
 
 static void handle_endif(void) {
   if (iftop && (iftop->state == EXPECT_ENDIF || iftop->state == EXPECT_ELSE)) {
-    ifstate_t *p = iftop;
+    ifstate_t* p = iftop;
 
     iftop = p->next;
-    FREE((char *)p);
+    FREE((char*)p);
   } else {
     yyerrorp("Unexpected %cendif");
   }
@@ -698,10 +733,10 @@ static void handle_endif(void) {
 #define QMARK 19
 
 static char optab[] = {0, 4, 0, 0, 0, 26, 56, 0, 0, 0,  18, 14, 0,  10, 0, 22, 0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 30, 50, 40, 74, 0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 70, 0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  63, 0, 1};
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 30, 50, 40, 74, 0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 70, 0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  63, 0, 1};
 static char optab2[] = {
     BNOT, 0,   0,   LNOT, '=', NEQ,  7, 0,   0,   UMINUS, 0, BMINUS, 10,   UPLUS, 0,   BPLUS,
     10,   0,   0,   MULT, 11,  0,    0, DIV, 11,  0,      0, MOD,    11,   0,     '<', LSHIFT,
@@ -729,7 +764,8 @@ static int cond_get_exp(int priority) {
 
   if ((c = exgetc()) == '(') {
     value = cond_get_exp(0);
-    if ((c = exgetc()) != ')') yyerrorp("bracket not paired in %cif");
+    if ((c = exgetc()) != ')')
+      yyerrorp("bracket not paired in %cif");
   } else if (ispunct(c)) {
     if (!(x = optab[c - ' '])) {
       yyerrorp("illegal character in %cif");
@@ -784,15 +820,18 @@ static int cond_get_exp(int priority) {
       else
         break;
       x += c;
-      if (x > base) break;
+      if (x > base)
+        break;
       value = value * base + x;
       c = *outp++;
     }
     outp--;
   }
   for (;;) {
-    if (!ispunct(c = exgetc())) break;
-    if (!(x = optab[c - ' '])) break;
+    if (!ispunct(c = exgetc()))
+      break;
+    if (!(x = optab[c - ' ']))
+      break;
     outp++;
     value2 = exgetc();
     for (;; x += 3) {
@@ -804,10 +843,12 @@ static int cond_get_exp(int priority) {
         }
         break;
       }
-      if (value2 == optab2[x]) break;
+      if (value2 == optab2[x])
+        break;
     }
     if (priority >= optab2[x + 2]) {
-      if (optab2[x]) *--outp = value2;
+      if (optab2[x])
+        *--outp = value2;
       break;
     }
     value2 = cond_get_exp(optab2[x + 2]);
@@ -873,7 +914,8 @@ static int cond_get_exp(int priority) {
         value = value || value2;
         break;
       case QMARK:
-        if ((c = exgetc()) != ':') yyerrorp("'?' without ':' in %cif");
+        if ((c = exgetc()) != ':')
+          yyerrorp("'?' without ':' in %cif");
         if (value) {
           cond_get_exp(1);
           value = value2;
@@ -888,34 +930,36 @@ static int cond_get_exp(int priority) {
 }
 
 static void handle_cond(int c) {
-  ifstate_t *p;
+  ifstate_t* p;
 
-  if (!c) skip_to("else", "endif");
+  if (!c)
+    skip_to("else", "endif");
   p = ALLOCATE(ifstate_t, TAG_COMPILER, "handle_cond");
   p->next = iftop;
   iftop = p;
   p->state = c ? EXPECT_ENDIF : EXPECT_ELSE;
 }
 
-static int maybe_open_input_file(char *fn) {
+static int maybe_open_input_file(char* fn) {
   if ((yyin = fopen(fn, "r")) == nullptr) {
     return 0;
   }
-  if (current_file) free((char *)current_file);
-  current_file = (char *)malloc(strlen(fn) + 1);
+  if (current_file)
+    free((char*)current_file);
+  current_file = (char*)malloc(strlen(fn) + 1);
   current_line = 0;
   strcpy(current_file, fn);
   return 1;
 }
 
-static void open_input_file(char *fn) {
+static void open_input_file(char* fn) {
   if (!maybe_open_input_file(fn)) {
     perror(fn);
     exit(-1);
   }
 }
 
-static void open_output_file(char *fn) {
+static void open_output_file(char* fn) {
   if ((yyout = fopen(fn, "w")) == nullptr) {
     perror(fn);
     exit(-1);
@@ -927,12 +971,13 @@ static void close_output_file() {
   yyout = nullptr;
 }
 
-static char *protect(char *p) {
+static char* protect(char* p) {
   static char buf[1024];
-  char *bufp = buf;
+  char* bufp = buf;
 
   while (*p) {
-    if (*p == '"' || *p == '\\') *bufp++ = '\\';
+    if (*p == '"' || *p == '\\')
+      *bufp++ = '\\';
     *bufp++ = *p++;
   }
   *bufp = 0;
@@ -940,7 +985,7 @@ static char *protect(char *p) {
 }
 
 static void deltrail() {
-  char *p;
+  char* p;
 
   p = outp;
   while (*p && !isspace(*p) && *p != '\n') {
@@ -949,20 +994,21 @@ static void deltrail() {
   *p = 0;
 }
 
-static void handle_include(char *name) {
-  char *p;
+static void handle_include(char* name) {
+  char* p;
   static char buf[1024];
-  FILE *f;
-  incstate *is;
+  FILE* f;
+  incstate* is;
 
   if (*name != '"') {
-    defn_t *d;
+    defn_t* d;
 
     if ((d = lookup_define(name)) && d->nargs == -1) {
-      char *q;
+      char* q;
 
       q = d->exps;
-      while (isspace(*q)) q++;
+      while (isspace(*q))
+        q++;
       handle_include(q);
     } else {
       yyerrorp("Missing leading \" in %cinclude");
@@ -971,13 +1017,14 @@ static void handle_include(char *name) {
   }
   for (p = ++name; *p && *p != '"'; p++)
     ;
-  if (!*p) yyerrorp("Missing trailing \" in %cinclude");
+  if (!*p)
+    yyerrorp("Missing trailing \" in %cinclude");
 
   *p = 0;
 
   bool found = false;
   fs::path include_file;
-  for(const auto& base_dir: base_dirs) {
+  for (const auto& base_dir : base_dirs) {
     include_file = base_dir / name;
     if (fs::exists(include_file)) {
       found = true;
@@ -992,14 +1039,14 @@ static void handle_include(char *name) {
 
   std::cerr << "Opening file: " << include_file << std::endl;
   if ((f = fopen(include_file.c_str(), "r")) != nullptr) {
-    is = (incstate *)malloc(sizeof(incstate) /*, 61, "handle_include: 1" */);
+    is = (incstate*)malloc(sizeof(incstate) /*, 61, "handle_include: 1" */);
     is->yyin = yyin;
     is->line = current_line;
     is->file = current_file;
     is->next = inctop;
     inctop = is;
     current_line = 0;
-    current_file = (char *)malloc(strlen(name) + 1 /*, 62, "handle_include: 2" */);
+    current_file = (char*)malloc(strlen(name) + 1 /*, 62, "handle_include: 2" */);
     strcpy(current_file, name);
     yyin = f;
   } else {
@@ -1008,7 +1055,7 @@ static void handle_include(char *name) {
   }
 }
 
-static void handle_pragma(char *name) {
+static void handle_pragma(char* name) {
   if (!strcmp(name, "auto_note_compiler_case_start"))
     pragmas |= PRAGMA_NOTE_CASE_START;
   else if (!strcmp(name, "no_auto_note_compiler_case_start"))
@@ -1030,14 +1077,17 @@ static void preprocess() {
       current_line++;
     else
       buffered = 0;
-    while (isspace(*yyp2)) yyp2++;
+    while (isspace(*yyp2))
+      yyp2++;
     if ((c = *yyp2) == ppchar) {
       int quote = 0;
       char sp_buf = 0, *oldoutp;
 
-      if (c == '%' && yyp2[1] == '%') grammar_mode++;
+      if (c == '%' && yyp2[1] == '%')
+        grammar_mode++;
       outp = nullptr;
-      if (yyp != yyp2) yyerrorp("Misplaced '%c'.\n");
+      if (yyp != yyp2)
+        yyerrorp("Misplaced '%c'.\n");
       while (isspace(*++yyp2))
         ;
       yyp++;
@@ -1052,16 +1102,20 @@ static void preprocess() {
             } else if (*yyp2 == '/')
               break;
           }
-          if (!outp && isspace(c)) outp = yyp;
-          if (c == '\n' || c == YYLEX_EOF) break;
+          if (!outp && isspace(c))
+            outp = yyp;
+          if (c == '\n' || c == YYLEX_EOF)
+            break;
         }
         *yyp++ = c;
       }
 
       if (outp) {
-        if (yyout) sp_buf = *(oldoutp = outp);
+        if (yyout)
+          sp_buf = *(oldoutp = outp);
         *outp++ = 0;
-        while (isspace(*outp)) outp++;
+        while (isspace(*outp))
+          outp++;
       } else
         outp = yyp;
       *yyp = 0;
@@ -1088,7 +1142,7 @@ static void preprocess() {
       } else if (!strcmp("endif", yyp)) {
         handle_endif();
       } else if (!strcmp("undef", yyp)) {
-        defn_t *d;
+        defn_t* d;
 
         deltrail();
         if ((d = lookup_definition(outp))) {
@@ -1110,20 +1164,23 @@ static void preprocess() {
         if (!strcmp("line", yyp)) {
           fprintf(yyout, "#line %d \"%s\"\n", current_line, current_file);
         } else {
-          if (sp_buf) *oldoutp = sp_buf;
+          if (sp_buf)
+            *oldoutp = sp_buf;
           if (pragmas & PRAGMA_NOTE_CASE_START) {
-            if (*yyp == '%') pragmas &= ~PRAGMA_NOTE_CASE_START;
+            if (*yyp == '%')
+              pragmas &= ~PRAGMA_NOTE_CASE_START;
           }
           fprintf(yyout, "%s\n", yyp - 1);
         }
       } else {
-        fprintf(stderr, "%s:%d: Unrecognised %c directive : %s\n\n", current_file,
-                current_line, ppchar, yyp);
+        fprintf(stderr, "%s:%d: Unrecognised %c directive : %s\n\n", current_file, current_line,
+                ppchar, yyp);
         exit(1);
       }
     } else if (c == '/') {
       if ((c = *++yyp2) == '*') {
-        if (yyout) fputs(yyp, yyout);
+        if (yyout)
+          fputs(yyp, yyout);
         yyp2 = skip_comment(yyp2, 1);
       } else if (c == '/' && !yyout)
         continue;
@@ -1138,8 +1195,10 @@ static void preprocess() {
         line_to_print = 0;
 
         if (!in_c_case) {
-          while (isalunum(*yyp2)) yyp2++;
-          while (isspace(*yyp2)) yyp2++;
+          while (isalunum(*yyp2))
+            yyp2++;
+          while (isspace(*yyp2))
+            yyp2++;
           if (*yyp2 == ':') {
             in_c_case = 1;
             yyp2++;
@@ -1150,27 +1209,32 @@ static void preprocess() {
           while ((c = *yyp2++)) {
             switch (c) {
               case '{': {
-                if (!cquote && (++block_nest == 1)) line_to_print = 1;
+                if (!cquote && (++block_nest == 1))
+                  line_to_print = 1;
                 break;
               }
 
               case '}': {
                 if (!cquote) {
-                  if (--block_nest < 0) yyerror("Too many }'s");
+                  if (--block_nest < 0)
+                    yyerror("Too many }'s");
                 }
                 break;
               }
 
               case '"':
-                if (!(cquote & CHAR_QUOTE)) cquote ^= STRING_QUOTE;
+                if (!(cquote & CHAR_QUOTE))
+                  cquote ^= STRING_QUOTE;
                 break;
 
               case '\'':
-                if (!(cquote & STRING_QUOTE)) cquote ^= CHAR_QUOTE;
+                if (!(cquote & STRING_QUOTE))
+                  cquote ^= CHAR_QUOTE;
                 break;
 
               case '\\':
-                if (cquote && *yyp2) yyp2++;
+                if (cquote && *yyp2)
+                  yyp2++;
                 break;
 
               case '/':
@@ -1190,22 +1254,24 @@ static void preprocess() {
                 break;
 
               case ';':
-                if (!cquote && !block_nest) in_c_case = 0;
+                if (!cquote && !block_nest)
+                  in_c_case = 0;
             }
           }
         }
 
-        if (line_to_print) fprintf(yyout, "#line %d \"%s\"\n", current_line + 1, current_file);
+        if (line_to_print)
+          fprintf(yyout, "#line %d \"%s\"\n", current_line + 1, current_file);
       }
     }
   }
   if (iftop) {
-    ifstate_t *p = iftop;
+    ifstate_t* p = iftop;
 
     while (iftop) {
       p = iftop;
       iftop = p->next;
-      free((char *)p);
+      free((char*)p);
     }
     yyerrorp("Missing %cendif");
   }
@@ -1214,37 +1280,35 @@ static void preprocess() {
   current_file = nullptr;
   nexpands = 0;
   if (inctop) {
-    incstate *p = inctop;
+    incstate* p = inctop;
 
     current_file = p->file;
     current_line = p->line;
     yyin = p->yyin;
     inctop = p->next;
-    free((char *)p);
+    free((char*)p);
     preprocess();
   } else
     yyin = nullptr;
 }
 
-void do_preprocess(int argc, char **argv) {
+void do_preprocess(int argc, char** argv) {
   if (argc < 3) {
-     fprintf(stderr, "Usage: preprocessor -I<base_dir> -I<base_dir> <global.h>\n");
-     exit(-1);
+    fprintf(stderr, "Usage: preprocessor -I<base_dir> -I<base_dir> <global.h>\n");
+    exit(-1);
   }
 
   auto i = 1;
-  for(; i < argc; i++) {
+  for (; i < argc; i++) {
     char* arg = argv[i];
     if (arg[0] == '-') {
-      switch(arg[1]) {
+      switch (arg[1]) {
         case 'i':
-        case 'I':
-        {
+        case 'I': {
           auto base_dir = fs::path(&arg[2]);
           base_dirs.push_back(base_dir);
           fprintf(stderr, "Adding search directory: %s\n", base_dir.c_str());
-        }
-          break;
+        } break;
         default:
           fprintf(stderr, "Unknown flag: %s.\n", arg);
           exit(-1);
@@ -1260,7 +1324,7 @@ void do_preprocess(int argc, char **argv) {
     exit(-1);
   }
 
-  char *global = argv[i];
+  char* global = argv[i];
   open_input_file(global);
   preprocess();
 }

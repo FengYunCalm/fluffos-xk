@@ -18,11 +18,15 @@
 #define SQUARE(n) ((n) * (n))
 
 #ifdef F_COS
-void f_cos() { sp->u.real = cos(sp->u.real); }
+void f_cos() {
+  sp->u.real = cos(sp->u.real);
+}
 #endif
 
 #ifdef F_SIN
-void f_sin() { sp->u.real = sin(sp->u.real); }
+void f_sin() {
+  sp->u.real = sin(sp->u.real);
+}
 #endif
 #ifdef F_TAN
 void f_tan() {
@@ -62,7 +66,9 @@ void f_acos() {
 #endif
 
 #ifdef F_ATAN
-void f_atan() { sp->u.real = atan(sp->u.real); }
+void f_atan() {
+  sp->u.real = atan(sp->u.real);
+}
 #endif
 
 #ifdef F_SQRT
@@ -155,19 +161,27 @@ void f_pow() {
 #endif
 
 #ifdef F_EXP
-void f_exp() { sp->u.real = exp(sp->u.real); }
+void f_exp() {
+  sp->u.real = exp(sp->u.real);
+}
 #endif
 
 #ifdef F_FLOOR
-void f_floor() { sp->u.real = floor(sp->u.real); }
+void f_floor() {
+  sp->u.real = floor(sp->u.real);
+}
 #endif
 
 #ifdef F_CEIL
-void f_ceil() { sp->u.real = ceil(sp->u.real); }
+void f_ceil() {
+  sp->u.real = ceil(sp->u.real);
+}
 #endif
 
 #ifdef F_ROUND
-void f_round() { sp->u.real = round(sp->u.real); }
+void f_round() {
+  sp->u.real = round(sp->u.real);
+}
 #endif
 
 #ifdef F_NORM
@@ -184,7 +198,7 @@ void f_round() { sp->u.real = round(sp->u.real); }
 // success/failure out of band instead.
 enum { VEC_OK = 0, VEC_ERR_SIZE_MISMATCH = -1, VEC_ERR_ARG1 = 1, VEC_ERR_ARG2 = 2 };
 
-static LPC_FLOAT norm(array_t *a, bool *ok) {
+static LPC_FLOAT norm(array_t* a, bool* ok) {
   // Length must come from the array we actually index (a): f_angle() calls
   // norm((sp-1)->u.arr), a different array, so using sp's size would read past
   // `a` if the two ever differed in length.
@@ -222,8 +236,8 @@ void f_norm() {
 #endif
 
 #if defined(F_DOTPROD) | defined(F_DISTANCE) | defined(F_ANGLE)
-static LPC_FLOAT vector_op(array_t *a, array_t *b,
-                           LPC_FLOAT (*func)(const LPC_FLOAT, const LPC_FLOAT), int *status) {
+static LPC_FLOAT vector_op(array_t* a, array_t* b,
+                           LPC_FLOAT (*func)(const LPC_FLOAT, const LPC_FLOAT), int* status) {
   LPC_INT len = a->size;  // #1247-equivalent MATH-1 (upstream: sp->u.arr->size -> a->size)
   LPC_FLOAT total = 0.0;
   *status = VEC_OK;
@@ -265,10 +279,12 @@ static LPC_FLOAT vector_op(array_t *a, array_t *b,
 #endif
 
 #ifdef F_DOTPROD
-static LPC_FLOAT dotprod_mult(const LPC_FLOAT a, const LPC_FLOAT b) { return a * b; }
+static LPC_FLOAT dotprod_mult(const LPC_FLOAT a, const LPC_FLOAT b) {
+  return a * b;
+}
 
 /* dot product of two vectors */
-static LPC_FLOAT dotprod(array_t *a, array_t *b, int *status) {
+static LPC_FLOAT dotprod(array_t* a, array_t* b, int* status) {
   return vector_op(a, b, dotprod_mult, status);
 }
 
@@ -294,7 +310,9 @@ void f_dotprod() {
 #endif
 
 #ifdef F_DISTANCE
-static LPC_FLOAT distance_mult(const LPC_FLOAT a, const LPC_FLOAT b) { return SQUARE(b - a); }
+static LPC_FLOAT distance_mult(const LPC_FLOAT a, const LPC_FLOAT b) {
+  return SQUARE(b - a);
+}
 
 /* The (Euclidian) distance between two points */
 void f_distance() {

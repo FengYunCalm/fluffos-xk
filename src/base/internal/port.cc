@@ -71,7 +71,7 @@ time_t get_current_time() {
 /*
  * Get a microsecond clock sample.
  */
-void get_usec_clock(long *sec, long *usec) {
+void get_usec_clock(long* sec, long* usec) {
   struct timeval tv {};
 
   gettimeofday(&tv, nullptr);
@@ -79,7 +79,7 @@ void get_usec_clock(long *sec, long *usec) {
   *usec = tv.tv_usec;
 }
 
-long get_cpu_times(unsigned long *secs, unsigned long *usecs) {
+long get_cpu_times(unsigned long* secs, unsigned long* usecs) {
   struct rusage rus {};
 
   if (getrusage(RUSAGE_SELF, &rus) < 0) {
@@ -110,9 +110,9 @@ int64_t get_current_performance_wall_time_ns() {
     return -1;
   }
   const auto remainder = counter.QuadPart % frequency.QuadPart;
-  const auto fractional_ns = static_cast<int64_t>(
-      static_cast<long double>(remainder) * kNanosecondsPerSecond /
-      static_cast<long double>(frequency.QuadPart));
+  const auto fractional_ns =
+      static_cast<int64_t>(static_cast<long double>(remainder) * kNanosecondsPerSecond /
+                           static_cast<long double>(frequency.QuadPart));
   return seconds * kNanosecondsPerSecond + fractional_ns;
 #elif defined(CLOCK_MONOTONIC_RAW)
   struct timespec ts {};
@@ -123,8 +123,8 @@ int64_t get_current_performance_wall_time_ns() {
 
   constexpr uint64_t kNanosecondsPerSecond = 1000000000ULL;
   const auto seconds = static_cast<uint64_t>(ts.tv_sec);
-  const auto max_seconds = static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) /
-                           kNanosecondsPerSecond;
+  const auto max_seconds =
+      static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / kNanosecondsPerSecond;
   if (seconds > max_seconds) {
     return -1;
   }
@@ -153,8 +153,8 @@ int64_t get_current_thread_cpu_time_ns() {
   user_ticks.HighPart = user.dwHighDateTime;
 
   constexpr uint64_t kNanosecondsPerFiletimeTick = 100;
-  const auto max_ticks = static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) /
-                         kNanosecondsPerFiletimeTick;
+  const auto max_ticks =
+      static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / kNanosecondsPerFiletimeTick;
   if (user_ticks.QuadPart > max_ticks || kernel_ticks.QuadPart > max_ticks - user_ticks.QuadPart) {
     return -1;
   }
@@ -169,8 +169,8 @@ int64_t get_current_thread_cpu_time_ns() {
 
   constexpr uint64_t kNanosecondsPerSecond = 1000000000ULL;
   const auto seconds = static_cast<uint64_t>(ts.tv_sec);
-  const auto max_seconds = static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) /
-                           kNanosecondsPerSecond;
+  const auto max_seconds =
+      static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / kNanosecondsPerSecond;
   if (seconds > max_seconds) {
     return -1;
   }
@@ -181,11 +181,13 @@ int64_t get_current_thread_cpu_time_ns() {
 }
 
 /* return the current working directory */
-char *get_current_dir(char *buf, int limit) { return getcwd(buf, limit); /* POSIX */ }
+char* get_current_dir(char* buf, int limit) {
+  return getcwd(buf, limit); /* POSIX */
+}
 
 /* jemalloc stub, this function can't otherwise be replaced */
 #ifdef HAVE_JEMALLOC
-char *strdup(const char *str) {
+char* strdup(const char* str) {
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnonnull-compare"
@@ -198,7 +200,7 @@ char *strdup(const char *str) {
 #pragma GCC diagnostic pop
 #endif
   size_t const ln = strlen(str);
-  void *p = malloc(ln + 1);
-  return static_cast<char *>(memcpy(p, str, ln + 1));
+  void* p = malloc(ln + 1);
+  return static_cast<char*>(memcpy(p, str, ln + 1));
 }
 #endif

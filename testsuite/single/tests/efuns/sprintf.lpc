@@ -108,7 +108,7 @@ mixed make_arg(int x, int trail) {
       case 1:
         ret[0] = "'xyzzy'" + tmp + ret[0];
         if (strlen(ret[1]) < tmp) {
-          ret[1] = mpad[0..((tmp - strlen(ret[1])) % strlen(mpad)) - 1] + ret[1];
+          ret[1] = mpad[0 ..((tmp - strlen(ret[1])) % strlen(mpad)) - 1] + ret[1];
           while (strlen(ret[1]) + strlen(mpad) <= tmp)
             ret[1] = mpad + ret[1];
         }
@@ -120,7 +120,7 @@ mixed make_arg(int x, int trail) {
           if ((n = strlen(ret[1])) < tmp) {
             ll = (tmp - n + 1) / 2;
             if (ll % strlen(mpad))
-              ret[1] = mpad[0..(ll % strlen(mpad)) - 1] + ret[1];
+              ret[1] = mpad[0 ..(ll % strlen(mpad)) - 1] + ret[1];
             ll = ll / strlen(mpad);
             while (ll--)
               ret[1] = mpad + ret[1];
@@ -131,7 +131,7 @@ mixed make_arg(int x, int trail) {
               while (rr--)
                 ret[1] += mpad;
               if (n)
-                ret[1] += mpad[0..n - 1];
+                ret[1] += mpad[0 ..n - 1];
             }
           }
         }
@@ -143,12 +143,12 @@ mixed make_arg(int x, int trail) {
           while (strlen(ret[1]) + strlen(mpad) <= tmp)
             ret[1] += mpad;
           if (n)
-            ret[1] += mpad[0..n - 1];
+            ret[1] += mpad[0 ..n - 1];
         }
         break;
       case 4:
         ret[0] = "-*" + tmp + ret[0];
-        ret = ret[0..1] + ({ tmp }) + ret[2..];
+        ret = ret[0 ..1] + ({ tmp }) + ret[2 ..];
         while (strlen(ret[1]) < tmp)
           ret[1] += rpad;
         break;
@@ -186,7 +186,7 @@ mixed make_arg(int x, int trail) {
         break;
       case 4:
         ret[0] = "-*" + tmp + ret[0];
-        ret = ret[0..1] + ({ tmp }) + ret[2..];
+        ret = ret[0 ..1] + ({ tmp }) + ret[2 ..];
         while (strlen(ret[1]) < tmp)
           ret[1] += lpad;
         break;
@@ -208,9 +208,9 @@ void do_tests() {
 
     format = "$" + mx[0] + "^";
     shouldbe = "$" + mx[1] + "^";
-    actual = sprintf(format, mx[2..]...);
+    actual = sprintf(format, mx[2 ..]...);
     if (shouldbe != actual) {
-      printf("FORMAT: '%s', ARG: '%O'\n", format, mx[2..]);
+      printf("FORMAT: '%s', ARG: '%O'\n", format, mx[2 ..]);
     }
     ASSERT_EQ(shouldbe, actual);
   }
@@ -346,4 +346,3 @@ TEXT;
     ASSERT_EQ("PROMISE( pending )", sprintf("%O", pp));
   }
 }
-

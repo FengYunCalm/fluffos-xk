@@ -289,9 +289,8 @@ void kill_handle_child(ExternalHandle* h) {
  * non-ephemeral handle can still collect leftover output + the wait status. */
 void on_external_cancel(void* data) {
   auto* h = static_cast<ExternalHandle*>(data);
-  if (!h || h->id < 1 || h->id > static_cast<int>(g_handles.size()) ||
-      g_handles[h->id - 1] != h || h->gen == 0 ||
-      g_handles[h->id - 1]->gen != h->gen || !h->prom) {
+  if (!h || h->id < 1 || h->id > static_cast<int>(g_handles.size()) || g_handles[h->id - 1] != h ||
+      h->gen == 0 || g_handles[h->id - 1]->gen != h->gen || !h->prom) {
     return;
   }
   promise_t* p = h->prom;
@@ -451,8 +450,9 @@ void post_child_exit(ChildExitNote note) {
       discard = true;
     } else {
       g_exit_notes.push_back(note);
-      add_walltime_event(std::chrono::milliseconds(0),
-                         TickEvent::callback_type([] { drain_child_exits(); }));
+      add_walltime_event(std::chrono::milliseconds(0), TickEvent::callback_type([] {
+                           drain_child_exits();
+                         }));
     }
   }
   if (discard) {
@@ -509,8 +509,7 @@ void on_handle_pipe_read(evutil_socket_t fd, short /*what*/, void* arg) {
 
 void arm_pipe_reader(ExternalHandle* h, int id, int stream, evutil_socket_t fd) {
   auto* watch = new PipeWatch{id, h->gen, stream};
-  struct event* ev =
-      event_new(g_event_base, fd, EV_READ | EV_PERSIST, on_handle_pipe_read, watch);
+  struct event* ev = event_new(g_event_base, fd, EV_READ | EV_PERSIST, on_handle_pipe_read, watch);
   if (stream == 0) {
     h->out_watch = watch;
     h->ev_out = ev;
@@ -581,7 +580,8 @@ void flush_stdin(ExternalHandle* h, int id) {
     while (!h->in_buf.empty()) {
       DWORD written = 0;
       size_t chunk = std::min(h->in_buf.size(), static_cast<size_t>(kPipeBuf));
-      if (!WriteFile(h->in_handle, h->in_buf.data(), static_cast<DWORD>(chunk), &written, nullptr)) {
+      if (!WriteFile(h->in_handle, h->in_buf.data(), static_cast<DWORD>(chunk), &written,
+                     nullptr)) {
         DWORD const err = GetLastError();
         /* PIPE_NOWAIT: buffer full. Retry on a short timer so the driver
          * event loop is not blocked by a synchronous WriteFile. */
@@ -590,19 +590,19 @@ void flush_stdin(ExternalHandle* h, int id) {
             h->stdin_retry_armed = true;
             int const retry_id = id;
             uint64_t const retry_gen = h->gen;
-            add_walltime_event(std::chrono::milliseconds(10), TickEvent::callback_type([retry_id,
-                                                                                       retry_gen] {
-              if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
-                  !g_handles[retry_id - 1]) {
-                return;
-              }
-              ExternalHandle* rh = g_handles[retry_id - 1];
-              if (rh->gen != retry_gen) {
-                return;
-              }
-              rh->stdin_retry_armed = false;
-              flush_stdin(rh, retry_id);
-            }));
+            add_walltime_event(
+                std::chrono::milliseconds(10), TickEvent::callback_type([retry_id, retry_gen] {
+                  if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
+                      !g_handles[retry_id - 1]) {
+                    return;
+                  }
+                  ExternalHandle* rh = g_handles[retry_id - 1];
+                  if (rh->gen != retry_gen) {
+                    return;
+                  }
+                  rh->stdin_retry_armed = false;
+                  flush_stdin(rh, retry_id);
+                }));
           }
           return;
         }
@@ -614,19 +614,19 @@ void flush_stdin(ExternalHandle* h, int id) {
           h->stdin_retry_armed = true;
           int const retry_id = id;
           uint64_t const retry_gen = h->gen;
-          add_walltime_event(std::chrono::milliseconds(10), TickEvent::callback_type([retry_id,
-                                                                                     retry_gen] {
-            if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
-                !g_handles[retry_id - 1]) {
-              return;
-            }
-            ExternalHandle* rh = g_handles[retry_id - 1];
-            if (rh->gen != retry_gen) {
-              return;
-            }
-            rh->stdin_retry_armed = false;
-            flush_stdin(rh, retry_id);
-          }));
+          add_walltime_event(std::chrono::milliseconds(10),
+                             TickEvent::callback_type([retry_id, retry_gen] {
+                               if (retry_id < 1 || retry_id > static_cast<int>(g_handles.size()) ||
+                                   !g_handles[retry_id - 1]) {
+                                 return;
+                               }
+                               ExternalHandle* rh = g_handles[retry_id - 1];
+                               if (rh->gen != retry_gen) {
+                                 return;
+                               }
+                               rh->stdin_retry_armed = false;
+                               flush_stdin(rh, retry_id);
+                             }));
         }
         return;
       }
@@ -692,8 +692,8 @@ int queue_stdin(ExternalHandle* h, int id, const char* data, size_t len) {
  * POSIX_SPAWN_USEVFORK (glibc) is the fast path: vfork/clone instead of
  * a full fork of the driver address space. Win32 has no posix_spawn;
  * see win32_create_process(). */
-int posix_spawn_fast(pid_t* pid, const char* path,
-                     const posix_spawn_file_actions_t* file_actions, char** argv, char** envp) {
+int posix_spawn_fast(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions,
+                     char** argv, char** envp) {
   posix_spawnattr_t attr;
   if (posix_spawnattr_init(&attr) != 0) {
     return posix_spawn(pid, path, file_actions, nullptr, argv, envp);
@@ -751,8 +751,8 @@ int open_stdin_pipe(int p[2]) {
 }
 
 int spawn_handle_posix(ExternalHandle* h, int id) {
-  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds ||
-      !external_cmd[h->cmd_index] || external_cmd[h->cmd_index][0] == '\0') {
+  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds || !external_cmd[h->cmd_index] ||
+      external_cmd[h->cmd_index][0] == '\0') {
     return EESOCKET;
   }
   std::vector<std::string> argv_data = {std::string(external_cmd[h->cmd_index])};
@@ -781,7 +781,9 @@ int spawn_handle_posix(ExternalHandle* h, int id) {
     close_pipe_pair(inp);
     return EESOCKET;
   }
-  DEFER { posix_spawn_file_actions_destroy(&file_actions); };
+  DEFER {
+    posix_spawn_file_actions_destroy(&file_actions);
+  };
 
   /* CLOEXEC drops the parent ends at exec; dup2 stdin/stdout/stderr. */
   ret = posix_spawn_file_actions_adddup2(&file_actions, outp[1], 1) ||
@@ -858,8 +860,7 @@ int win32_create_process(std::string* cmdline, HANDLE h_in, HANDLE h_out, HANDLE
     return 0;
   }
   for (SIZE_T i = 0; i < inherited_count; ++i) {
-    if (!SetHandleInformation(inherited_handles[i], HANDLE_FLAG_INHERIT,
-                              HANDLE_FLAG_INHERIT)) {
+    if (!SetHandleInformation(inherited_handles[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
       return 0;
     }
   }
@@ -872,15 +873,16 @@ int win32_create_process(std::string* cmdline, HANDLE h_in, HANDLE h_out, HANDLE
     return 0;
   }
   std::vector<unsigned char> attribute_storage(attribute_list_size);
-  auto* attribute_list =
-      reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attribute_storage.data());
+  auto* attribute_list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attribute_storage.data());
   if (!InitializeProcThreadAttributeList(attribute_list, 1, 0, &attribute_list_size)) {
     return 0;
   }
-  DEFER { DeleteProcThreadAttributeList(attribute_list); };
+  DEFER {
+    DeleteProcThreadAttributeList(attribute_list);
+  };
   if (!UpdateProcThreadAttribute(attribute_list, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                 inherited_handles,
-                                 inherited_count * sizeof(HANDLE), nullptr, nullptr)) {
+                                 inherited_handles, inherited_count * sizeof(HANDLE), nullptr,
+                                 nullptr)) {
     return 0;
   }
 
@@ -929,8 +931,7 @@ std::string quote_argument(const std::string& arg) {
 }
 
 int spawn_handle_win32(ExternalHandle* h, int id) {
-  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds ||
-      !external_cmd[h->cmd_index]) {
+  if (h->cmd_index < 0 || h->cmd_index >= g_num_external_cmds || !external_cmd[h->cmd_index]) {
     return EESOCKET;
   }
   std::string cmd = external_cmd[h->cmd_index];
@@ -1018,8 +1019,8 @@ int spawn_handle_win32(ExternalHandle* h, int id) {
      * so TerminateProcess cannot run on a recycled HANDLE. */
     shutdown(child_fd, SD_SEND);
     evutil_closesocket(child_fd);
-    post_child_exit(
-        ChildExitNote{id, gen, static_cast<LPC_INT>(exitCode), processInfo.hProcess, processInfo.hThread});
+    post_child_exit(ChildExitNote{id, gen, static_cast<LPC_INT>(exitCode), processInfo.hProcess,
+                                  processInfo.hThread});
   }).detach();
   return 0;
 }
@@ -1097,7 +1098,9 @@ int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2, sv
           strerror(ret));
     return EESOCKET;
   }
-  DEFER { posix_spawn_file_actions_destroy(&file_actions); };
+  DEFER {
+    posix_spawn_file_actions_destroy(&file_actions);
+  };
 
   evutil_socket_t sv[2];
   if (evutil_socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1) {
@@ -1111,10 +1114,8 @@ int external_start(int which, svalue_t* args, svalue_t* arg1, svalue_t* arg2, sv
       evutil_closesocket(sv[1]);
     }
   };
-  if (evutil_make_socket_nonblocking(sv[0]) == -1 ||
-      evutil_make_socket_nonblocking(sv[1]) == -1 ||
-      evutil_make_socket_closeonexec(sv[0]) == -1 ||
-      evutil_make_socket_closeonexec(sv[1]) == -1) {
+  if (evutil_make_socket_nonblocking(sv[0]) == -1 || evutil_make_socket_nonblocking(sv[1]) == -1 ||
+      evutil_make_socket_closeonexec(sv[0]) == -1 || evutil_make_socket_closeonexec(sv[1]) == -1) {
     return EESOCKET;
   }
   for (int target = 0; target < 3; ++target) {

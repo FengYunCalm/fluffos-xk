@@ -1,7 +1,7 @@
 #include "base/package_api.h"
 
 #ifdef F_EXEC
-int replace_interactive(object_t *ob, object_t *obfrom) {
+int replace_interactive(object_t* ob, object_t* obfrom) {
   if (ob->interactive) {
     error("Bad argument 1 to exec()\n");
   }
@@ -25,7 +25,7 @@ int replace_interactive(object_t *ob, object_t *obfrom) {
 
 #ifdef PACKAGE_GATEWAY
   if (ob->interactive && (ob->interactive->iflags & GATEWAY_SESSION)) {
-    extern void gateway_session_exec_update(object_t *new_ob, object_t *old_ob);
+    extern void gateway_session_exec_update(object_t * new_ob, object_t * old_ob);
     gateway_session_exec_update(ob, obfrom);
   }
 #endif

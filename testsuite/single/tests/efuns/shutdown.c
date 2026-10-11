@@ -1,7 +1,7 @@
 void do_the_nasty_deed() {
-    write("all tests finished, shutting down.\n");
-    shutdown(0);
-    ASSERT(0);
+  write("all tests finished, shutting down.\n");
+  shutdown(0);
+  ASSERT(0);
 }
 
 void do_tests() {

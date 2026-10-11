@@ -89,8 +89,12 @@ class Tracer {
 
   // Control and result collection run on the main thread; event producers may be workers.
   static void start(const char* file);
-  static inline void stop() { is_enabled.store(false, std::memory_order_relaxed); }
-  static inline bool enabled() { return is_enabled.load(std::memory_order_relaxed); }
+  static inline void stop() {
+    is_enabled.store(false, std::memory_order_relaxed);
+  }
+  static inline bool enabled() {
+    return is_enabled.load(std::memory_order_relaxed);
+  }
   static double timestamp();
   static void collect();
   static void drain();

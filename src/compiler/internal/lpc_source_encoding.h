@@ -14,7 +14,7 @@ struct LpcSourceEncodingResult {
   std::string error;
 };
 
-LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string &source);
+LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string& source);
 std::unique_ptr<LexStream> lpc_source_encoding_stream(std::unique_ptr<LexStream> source);
 
 #endif /* LPC_SOURCE_ENCODING_H */

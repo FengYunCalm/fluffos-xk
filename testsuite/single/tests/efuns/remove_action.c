@@ -5,28 +5,28 @@ void func() { called = 1; }
 
 void do_tests() {
 #ifndef __NO_ADD_ACTION__
-    object tp;
-    function f = (: fpcalled = 1 :);
-    function g = (: fpcalled = 2 :);
+  object tp;
+  function f = (: fpcalled = 1 :);
+  function g = (: fpcalled = 2 :);
 
-    SAVETP;
-    enable_commands();
-    add_action( "func", "bar" );
-    ASSERT(remove_action( "func", "bar" ));
-    RESTORETP;
-    command("bar");
-    ASSERT(!called);
+  SAVETP;
+  enable_commands();
+  add_action("func", "bar");
+  ASSERT(remove_action("func", "bar"));
+  RESTORETP;
+  command("bar");
+  ASSERT(!called);
 
-    // An action added as a function expression can be removed by passing the
-    // same function pointer; the pre-existing implementation skipped
-    // V_FUNCTION sentences entirely, so it could never be removed.
-    SAVETP;
-    enable_commands();
-    add_action( f, "baz" );
-    ASSERT(!remove_action( g, "baz" ));  // different function: no match
-    ASSERT(remove_action( f, "baz" ));
-    RESTORETP;
-    command("baz");
-    ASSERT(!fpcalled);
+  // An action added as a function expression can be removed by passing the
+  // same function pointer; the pre-existing implementation skipped
+  // V_FUNCTION sentences entirely, so it could never be removed.
+  SAVETP;
+  enable_commands();
+  add_action(f, "baz");
+  ASSERT(!remove_action(g, "baz"));  // different function: no match
+  ASSERT(remove_action(f, "baz"));
+  RESTORETP;
+  command("baz");
+  ASSERT(!fpcalled);
 #endif
 }

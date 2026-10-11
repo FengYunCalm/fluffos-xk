@@ -10,8 +10,8 @@
 struct mapping_t;
 struct object_t;
 
-constexpr const char *kVMObjectHandleCapabilityModelV1 = "object_handle_capability_v1";
-constexpr const char *kVMObjectHandleDefaultPermissionIntent = "owner_runtime";
+constexpr const char* kVMObjectHandleCapabilityModelV1 = "object_handle_capability_v1";
+constexpr const char* kVMObjectHandleDefaultPermissionIntent = "owner_runtime";
 
 struct VMObjectHandle {
   uint64_t object_id{0};
@@ -45,7 +45,7 @@ enum class VMObjectHandleResolveStatus {
 };
 
 struct VMObjectHandleResolveResult {
-  object_t *object{nullptr};
+  object_t* object{nullptr};
   VMObjectHandleResolveStatus status{VMObjectHandleResolveStatus::kInvalidHandle};
   bool resolved_via_owner_local_store{false};
   bool owner_local_fast_path_used{false};
@@ -77,25 +77,25 @@ struct VMObjectHandleResolveResult {
   bool resolved_via_global_index{false};
 };
 
-VMObjectHandle vm_object_handle(object_t *object);
-VMObjectHandle vm_object_handle_with_intent(object_t *object, const char *permission_intent);
-mapping_t *vm_object_handle_status(object_t *object);
-mapping_t *vm_object_handle_status_with_intent(object_t *object, const char *permission_intent);
-VMObjectHandleResolveResult vm_object_handle_resolve_status(const VMObjectHandle &handle);
+VMObjectHandle vm_object_handle(object_t* object);
+VMObjectHandle vm_object_handle_with_intent(object_t* object, const char* permission_intent);
+mapping_t* vm_object_handle_status(object_t* object);
+mapping_t* vm_object_handle_status_with_intent(object_t* object, const char* permission_intent);
+VMObjectHandleResolveResult vm_object_handle_resolve_status(const VMObjectHandle& handle);
 // Resolve only from the owner-local lifecycle record and pointer indexes.
 // This path never consults the compatibility/global object indexes and never
 // reads mutable object_t lifecycle fields, so owner workers can reject a
 // missing local record conservatively.
 VMObjectHandleResolveResult vm_object_handle_resolve_owner_local_status(
-    const VMObjectHandle &handle);
-const char *vm_object_handle_resolve_status_name(VMObjectHandleResolveStatus status);
-object_t *vm_object_handle_resolve(const VMObjectHandle &handle);
+    const VMObjectHandle& handle);
+const char* vm_object_handle_resolve_status_name(VMObjectHandleResolveStatus status);
+object_t* vm_object_handle_resolve(const VMObjectHandle& handle);
 // Result of a guarded acquire: the object pointer (when the admission was
 // performed on the main thread and the handle resolved current) plus the
 // exact admission status, so callers never guess whether a null pointer
 // means "stale handle" or "wrong thread".
 struct VMObjectHandleAcquireResult {
-  object_t *object{nullptr};
+  object_t* object{nullptr};
   VMObjectHandleResolveStatus status{VMObjectHandleResolveStatus::kInvalidHandle};
 };
 // Resolve a handle and, on kCurrent, acquire an owning reference to the
@@ -104,9 +104,9 @@ struct VMObjectHandleAcquireResult {
 // returns kMainThreadAdmissionRequired without touching the refcount; the
 // caller is responsible for releasing an acquired reference via
 // VMObjectRefGuard (or free_object) on the main thread.
-VMObjectHandleAcquireResult vm_object_handle_acquire_status(const VMObjectHandle &handle);
+VMObjectHandleAcquireResult vm_object_handle_acquire_status(const VMObjectHandle& handle);
 // Thin wrapper returning only the object pointer (nullptr on any rejection).
-object_t *vm_object_handle_acquire(const VMObjectHandle &handle);
+object_t* vm_object_handle_acquire(const VMObjectHandle& handle);
 // Low-frequency instrumentation for owner-target/object-handle reference
 // operations. It records only calls made off the main VM thread and is kept
 // out of the global add_ref/free_object hot paths.
@@ -122,14 +122,16 @@ void vm_object_store_test_support_reset_worker_ref_mutation_count();
 class VMObjectRefGuard {
  public:
   VMObjectRefGuard() = default;
-  explicit VMObjectRefGuard(object_t *obj) : object_(obj) {}
-  ~VMObjectRefGuard() { release_ref(); }
-  VMObjectRefGuard(const VMObjectRefGuard &) = delete;
-  VMObjectRefGuard &operator=(const VMObjectRefGuard &) = delete;
-  VMObjectRefGuard(VMObjectRefGuard &&other) noexcept : object_(other.object_) {
+  explicit VMObjectRefGuard(object_t* obj) : object_(obj) {}
+  ~VMObjectRefGuard() {
+    release_ref();
+  }
+  VMObjectRefGuard(const VMObjectRefGuard&) = delete;
+  VMObjectRefGuard& operator=(const VMObjectRefGuard&) = delete;
+  VMObjectRefGuard(VMObjectRefGuard&& other) noexcept : object_(other.object_) {
     other.object_ = nullptr;
   }
-  VMObjectRefGuard &operator=(VMObjectRefGuard &&other) noexcept {
+  VMObjectRefGuard& operator=(VMObjectRefGuard&& other) noexcept {
     if (this != &other) {
       release_ref();
       object_ = other.object_;
@@ -137,12 +139,14 @@ class VMObjectRefGuard {
     }
     return *this;
   }
-  object_t *get() const { return object_; }
+  object_t* get() const {
+    return object_;
+  }
   // Release the held reference. Never returns a pointer: after this call
   // the object may be freed, so returning the old pointer (the previous
   // mixed release() semantics) invited use-after-free.
   void release_ref() {
-    auto *obj = object_;
+    auto* obj = object_;
     object_ = nullptr;
     if (obj) {
 #ifndef NDEBUG
@@ -154,34 +158,34 @@ class VMObjectRefGuard {
   }
   // Detach the pointer WITHOUT releasing the reference; ownership transfers
   // to the caller (who must free_object it on the main thread).
-  object_t *detach() {
-    auto *obj = object_;
+  object_t* detach() {
+    auto* obj = object_;
     object_ = nullptr;
     return obj;
   }
 
  private:
-  object_t *object_{nullptr};
+  object_t* object_{nullptr};
 };
-bool vm_object_handle_is_current(const VMObjectHandle &handle);
-void vm_object_store_register(object_t *object);
-void vm_object_store_update_owner(object_t *object);
-void vm_object_store_mark_destructed(object_t *object);
-void vm_object_store_record_callout(object_t *object, uint64_t callout_id);
-void vm_object_store_remove_callout(const char *owner_id, uint64_t callout_id);
-void vm_object_store_record_heartbeat(object_t *object);
-void vm_object_store_remove_heartbeat(object_t *object);
-void vm_object_store_record_message(const char *owner_id, uint64_t task_id);
-void vm_object_store_remove_message(const char *owner_id, uint64_t task_id);
-mapping_t *vm_object_store_status();
-mapping_t *vm_object_store_owner_status(const char *owner_id);
-object_t *vm_object_store_owner_resolve(const char *owner_id, uint64_t object_id);
-object_t *vm_object_store_owner_path_resolve(const char *owner_id, const char *object_path);
+bool vm_object_handle_is_current(const VMObjectHandle& handle);
+void vm_object_store_register(object_t* object);
+void vm_object_store_update_owner(object_t* object);
+void vm_object_store_mark_destructed(object_t* object);
+void vm_object_store_record_callout(object_t* object, uint64_t callout_id);
+void vm_object_store_remove_callout(const char* owner_id, uint64_t callout_id);
+void vm_object_store_record_heartbeat(object_t* object);
+void vm_object_store_remove_heartbeat(object_t* object);
+void vm_object_store_record_message(const char* owner_id, uint64_t task_id);
+void vm_object_store_remove_message(const char* owner_id, uint64_t task_id);
+mapping_t* vm_object_store_status();
+mapping_t* vm_object_store_owner_status(const char* owner_id);
+object_t* vm_object_store_owner_resolve(const char* owner_id, uint64_t object_id);
+object_t* vm_object_store_owner_path_resolve(const char* owner_id, const char* object_path);
 // Main-thread normalized-name lookup from the owner-local live path indexes.
 // It never consults ObjectTable or reads mutable object_t lifecycle flags;
 // callers may use ObjectTable as a compatibility fallback when this returns nullptr.
-object_t *vm_object_store_find_live_by_path(const char *object_path);
-mapping_t *vm_object_store_owner_lookup_status(const char *owner_id, uint64_t object_id);
-mapping_t *vm_object_store_owner_path_lookup_status(const char *owner_id, const char *object_path);
+object_t* vm_object_store_find_live_by_path(const char* object_path);
+mapping_t* vm_object_store_owner_lookup_status(const char* owner_id, uint64_t object_id);
+mapping_t* vm_object_store_owner_path_lookup_status(const char* owner_id, const char* object_path);
 
 #endif /* SRC_VM_OBJECT_HANDLE_H_ */

@@ -93,11 +93,11 @@ void do_tests() {
   ASSERT2(stringp(err), "expected stale function pointer error");
   mixed functional_err = catch(old_functional_fp());
   ASSERT2(stringp(functional_err),
-          "expected stale functional pointer error");
+    "expected stale functional pointer error");
   function rebound_functional_fp = bind(old_functional_fp, this_object());
   mixed rebound_functional_err = catch(rebound_functional_fp());
   ASSERT2(stringp(rebound_functional_err),
-          "bind must preserve stale functional pointer state");
+    "bind must preserve stale functional pointer state");
 
   // A funptr created after the swap snapshots the new generation.
   function new_fp = clone_a->make_fp();
@@ -121,8 +121,8 @@ void do_tests() {
   // free the program that still owns the outer interpreter frame.
   mixed master_error = catch(recompile_object(master));
   ASSERT2(stringp(master_error) &&
-              strsrch(master_error, "target program is executing") != -1,
-          "master reload from the active master frame must be rejected");
+    strsrch(master_error, "target program is executing") != -1,
+    "master reload from the active master frame must be rejected");
 
   // Exercise the trace/error path after the rejection. The old implementation
   // freed the active master program and then failed here in get_svalue_trace().
@@ -146,7 +146,7 @@ void do_tests() {
     simul->set_recompile_simul_probe(mode);
     mixed lifecycle_error = catch(recompile_object(simul));
     ASSERT2(stringp(lifecycle_error),
-            "simul lifecycle mutation must be rejected");
+      "simul lifecycle mutation must be rejected");
     simul->set_recompile_simul_probe(0);
     ASSERT_EQ(1, simul->recompile_simul_lifecycle_alive());
   }

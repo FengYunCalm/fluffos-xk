@@ -110,11 +110,11 @@ void TraceWriter::drain(bool wait) {
     }
     job.thread.join();
     if (job.success) {
-      debug_message("Dump trace successfully to file %s, cost %lld ms.\n",
-                    job.filename.c_str(), job.milliseconds);
+      debug_message("Dump trace successfully to file %s, cost %lld ms.\n", job.filename.c_str(),
+                    job.milliseconds);
     } else {
-      debug_message("Error %s trace file %s: %s.\n", job.operation,
-                    job.filename.c_str(), job.error);
+      debug_message("Error %s trace file %s: %s.\n", job.operation, job.filename.c_str(),
+                    job.error);
     }
     it = dumps_.erase(it);
   }
@@ -188,7 +188,8 @@ void TraceWriter::flush(const std::string& filename) {
           std::snprintf(result->error, sizeof(result->error), "Unknown exception");
         }
         result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                   std::chrono::high_resolution_clock::now() - begin).count();
+                                   std::chrono::high_resolution_clock::now() - begin)
+                                   .count();
         events.reset();
         result->done.store(true, std::memory_order_release);
         backend_wakeup_event_loop();
@@ -238,8 +239,9 @@ double Tracer::timestamp() {
   elapsed *= 1000000;
   return elapsed / frequency.QuadPart;
 #else
-  return std::chrono::duration<double, std::micro>(
-             std::chrono::high_resolution_clock::now() - basetime).count();
+  return std::chrono::duration<double, std::micro>(std::chrono::high_resolution_clock::now() -
+                                                   basetime)
+      .count();
 #endif
 }
 
@@ -322,7 +324,8 @@ ScopedTracerInner::ScopedTracerInner(const std::string& name, const EventCategor
 }
 
 ScopedTracerInner::~ScopedTracerInner() {
-  if (!this->event) return;
+  if (!this->event)
+    return;
 
   this->event->duration = Tracer::timestamp() - this->event->timestamp;
   if (this->event->duration >= time_limit_usec) {

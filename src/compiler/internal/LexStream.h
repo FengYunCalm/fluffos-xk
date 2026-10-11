@@ -22,7 +22,9 @@ class LexStream {
 class FileLexStream : public LexStream {
  public:
   FileLexStream(int fd) : fd_(fd) {}
-  ~FileLexStream() override { close(); }
+  ~FileLexStream() override {
+    close();
+  }
 
   size_t read(char* buffer, size_t size) override {
     if (fd_ < 0) {
@@ -47,8 +49,12 @@ class IStreamLexStream : public LexStream {
   IStreamLexStream(std::istream& is) : is_(is) {}
   ~IStreamLexStream() override {}
 
-  size_t read(char* buffer, size_t size) override { return is_.readsome(buffer, size); }
-  void close() override { is_.clear(); };
+  size_t read(char* buffer, size_t size) override {
+    return is_.readsome(buffer, size);
+  }
+  void close() override {
+    is_.clear();
+  };
 
  private:
   std::istream& is_;

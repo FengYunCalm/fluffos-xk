@@ -1,7 +1,12 @@
 #include "test_lpc_support.h"
 
 TEST(StrUtilsTest, TrimCharsetMatchesUtf8Scalars) {
-  const std::string book = "\xE3\x80\x8A" "\xE4\xB8\x89" "\xE5\xAD\x97" "\xE7\xBB\x8F" "\xE3\x80\x8B";
+  const std::string book =
+      "\xE3\x80\x8A"
+      "\xE4\xB8\x89"
+      "\xE5\xAD\x97"
+      "\xE7\xBB\x8F"
+      "\xE3\x80\x8B";
   const std::string ideographic_space = "\xE3\x80\x80";
   const std::string wrapped = ideographic_space + book + ideographic_space;
 
@@ -9,8 +14,13 @@ TEST(StrUtilsTest, TrimCharsetMatchesUtf8Scalars) {
   EXPECT_EQ(book, trim(wrapped, ideographic_space));
   EXPECT_EQ(book + ideographic_space, ltrim(wrapped, ideographic_space));
   EXPECT_EQ(ideographic_space + book, rtrim(wrapped, ideographic_space));
-  EXPECT_EQ("\xE4\xB8\x89" "\xE5\xAD\x97" "\xE7\xBB\x8F",
-            trim(book, "\xE3\x80\x8A" "\xE3\x80\x8B"));
+  EXPECT_EQ(
+      "\xE4\xB8\x89"
+      "\xE5\xAD\x97"
+      "\xE7\xBB\x8F",
+      trim(book,
+           "\xE3\x80\x8A"
+           "\xE3\x80\x8B"));
 
   EXPECT_EQ(wrapped, trim(wrapped, ""));
   EXPECT_EQ(wrapped, trim(wrapped));
@@ -38,7 +48,7 @@ TEST(MudlibStatsTest, ArraySizeUpdatesAreAtomicAcrossVmThreads) {
       }
     });
   }
-  for (auto &worker : workers) {
+  for (auto& worker : workers) {
     worker.join();
   }
 
@@ -82,7 +92,7 @@ TEST(StrallocAccountingTest, UintMaxLengthPreservesWraparoundAndEvaluatesOnce) {
 TEST(StrallocAccountingTest, ShrinkingCountedStringSubtractsTheRemovedBytes) {
   StringStatsSnapshot snapshot;
 
-  char *value = new_string(8, "stralloc shrink accounting test");
+  char* value = new_string(8, "stralloc shrink accounting test");
   std::memset(value, 'x', 8);
   value[8] = '\0';
   EXPECT_EQ(bytes_distinct_strings.load(std::memory_order_relaxed),
@@ -109,7 +119,9 @@ TEST(OwnerFutureStoreTest, TtlReapsPayloadFreeTerminalRecords) {
   // Fake monotonic clock: TTL boundaries must be deterministic and must not
   // depend on the CI process uptime.
   uint64_t fake_now_ns = 1'000'000'000ULL;  // 1s
-  store.set_clock_for_test([&fake_now_ns]() { return fake_now_ns; });
+  store.set_clock_for_test([&fake_now_ns]() {
+    return fake_now_ns;
+  });
 
   auto record = owner_future_store_test_record(1, 101);
   store.admit_pending(record);
@@ -158,7 +170,9 @@ TEST(OwnerFutureStoreTest, TtlReapsPayloadFreeTerminalRecords) {
 TEST(OwnerFutureStoreTest, TtlKeepsPayloadBearingTerminalRecords) {
   OwnerFutureStore store;
   uint64_t fake_now_ns = 1'000'000'000ULL;
-  store.set_clock_for_test([&fake_now_ns]() { return fake_now_ns; });
+  store.set_clock_for_test([&fake_now_ns]() {
+    return fake_now_ns;
+  });
   auto record = owner_future_store_test_record(1, 101);
   store.admit_pending(record);
   auto completion = store.complete_for_task(101, "completed", "result", "");
@@ -246,8 +260,7 @@ TEST(OwnerFutureStoreTest, PendingCountTracksRecordTransitions) {
 
   store.admit_pending(owner_future_store_test_record(8, 909));
   ASSERT_EQ(store.pending_count(), 1);
-  ASSERT_TRUE(
-      store.complete_for_task(909, "completed", "result", "").has_value());
+  ASSERT_TRUE(store.complete_for_task(909, "completed", "result", "").has_value());
   ASSERT_EQ(store.pending_count(), 0);
 
   // A terminal id cannot be re-admitted as pending (its lifecycle slot is
@@ -278,8 +291,7 @@ TEST(OwnerFutureStoreTest, RejectsNonTerminalCompletionStateWithoutCounterDrift)
 
   OwnerFutureStore task_store;
   task_store.admit_pending(owner_future_store_test_record(10, 1010));
-  EXPECT_FALSE(
-      task_store.complete_for_task(1010, "cancelled", "", "invalid state").has_value());
+  EXPECT_FALSE(task_store.complete_for_task(1010, "cancelled", "", "invalid state").has_value());
   EXPECT_EQ(task_store.state(10), OwnerFutureState::kPending);
   EXPECT_EQ(task_store.pending_count(), 1);
   EXPECT_EQ(task_store.completed_count(), 0u);
@@ -330,8 +342,7 @@ TEST(OwnerFutureStoreTest, TerminalCapHoldsAcrossPendingToTerminalTransitions) {
     const auto state = store.state(future_id);
     ASSERT_NE(state, OwnerFutureState::kUnknown)
         << "future " << future_id << " must stay queryable after admission";
-    ASSERT_NE(state, OwnerFutureState::kPending)
-        << "future " << future_id << " must be terminal";
+    ASSERT_NE(state, OwnerFutureState::kPending) << "future " << future_id << " must be terminal";
   }
   // Every retained terminal record is consumable via take().
   size_t consumed = 0;
@@ -378,8 +389,7 @@ TEST(OwnerFutureStoreTest, PayloadByteCapsRejectDeterministically) {
   // Aggregate byte cap: fill retained payloads near the cap, then complete
   // one more record whose payload would cross the aggregate limit.
   const uint64_t chunk = 1024 * 1024;  // 1 MiB each
-  const uint64_t chunks_before =
-      (OwnerFutureStore::kMaxTotalPayloadBytes / chunk) - 1;
+  const uint64_t chunks_before = (OwnerFutureStore::kMaxTotalPayloadBytes / chunk) - 1;
   for (uint64_t i = 0; i < chunks_before; i++) {
     auto record = owner_future_store_test_record(i + 2, i + 1002);
     ASSERT_TRUE(store.admit_pending(record));
@@ -395,8 +405,7 @@ TEST(OwnerFutureStoreTest, PayloadByteCapsRejectDeterministically) {
   auto record = owner_future_store_test_record(9999, 19999);
   ASSERT_TRUE(store.admit_pending(record));
   std::string crossing(chunk * 2, 'z');
-  auto rejected =
-      store.complete_string_for_task(19999, "native_string", std::move(crossing));
+  auto rejected = store.complete_string_for_task(19999, "native_string", std::move(crossing));
   ASSERT_TRUE(rejected.has_value());
   ASSERT_TRUE(rejected->quota_rejected);
   ASSERT_STREQ(rejected->record.error.c_str(), "future_payload_total_byte_cap");
@@ -421,14 +430,15 @@ TEST(OwnerFutureStoreTest, PayloadByteCapsRejectDeterministically) {
 TEST(OwnerFutureStoreTest, TtlReapCountersSettleAfterMixedOperations) {
   OwnerFutureStore store;
   uint64_t fake_now_ns = 1'000'000'000ULL;
-  store.set_clock_for_test([&fake_now_ns]() { return fake_now_ns; });
+  store.set_clock_for_test([&fake_now_ns]() {
+    return fake_now_ns;
+  });
 
   // Three payload-free terminal records at three ages.
   for (uint64_t i = 0; i < 3; i++) {
     auto record = owner_future_store_test_record(i + 1, i + 101);
     ASSERT_TRUE(store.admit_pending(record));
-    ASSERT_TRUE(
-        store.complete_for_task(i + 101, "completed", "result", "").has_value());
+    ASSERT_TRUE(store.complete_for_task(i + 101, "completed", "result", "").has_value());
   }
   ASSERT_EQ(store.terminal_record_count(), 3u);
   fake_now_ns += OwnerFutureStore::kTerminalTtlNs + 1;
@@ -487,11 +497,12 @@ TEST(OwnerFutureStoreTest, TtlReapCountersSettleAfterMixedOperations) {
 TEST(OwnerFutureStoreTest, QuotaRejectedTombstoneQueryableUntilTakeOrTtl) {
   OwnerFutureStore store;
   uint64_t fake_now_ns = 1'000'000'000ULL;
-  store.set_clock_for_test([&fake_now_ns]() { return fake_now_ns; });
+  store.set_clock_for_test([&fake_now_ns]() {
+    return fake_now_ns;
+  });
   store.admit_pending(owner_future_store_test_record(1, 101));
   std::string huge(OwnerFutureStore::kMaxSinglePayloadBytes + 1, 'x');
-  auto completion =
-      store.complete_string_for_task(101, "native_string", std::move(huge));
+  auto completion = store.complete_string_for_task(101, "native_string", std::move(huge));
   ASSERT_TRUE(completion.has_value());
   ASSERT_TRUE(completion->quota_rejected);
   ASSERT_EQ(store.state(1), OwnerFutureState::kFailed);
@@ -563,15 +574,14 @@ TEST(OwnerFutureStoreTest, ConcurrentCompletionTakeReapKeepsCountersConsistent) 
       }
     });
   }
-  for (auto &th : threads) {
+  for (auto& th : threads) {
     th.join();
   }
   ASSERT_EQ(failures.load(), 0);
   ASSERT_EQ(store.size(), 0);
   ASSERT_EQ(store.pending_count(), 0);
   ASSERT_EQ(store.terminal_record_count(), 0u);
-  ASSERT_EQ(store.completed_count(),
-            static_cast<uint64_t>(kThreads * kPerThread));
+  ASSERT_EQ(store.completed_count(), static_cast<uint64_t>(kThreads * kPerThread));
 }
 
 TEST(OwnerTraceStoreTest, AssignsTraceIdToUnsequencedTaskTrace) {
@@ -591,7 +601,7 @@ TEST(OwnerTraceStoreTest, AssignsTraceIdToUnsequencedTaskTrace) {
 
 TEST(OwnerSchedulerStateTest, RemovesOneQueuedTaskWithoutDroppingNeighbors) {
   OwnerSchedulerState state;
-  const auto runnable = [](const OwnerMailboxTask &task) {
+  const auto runnable = [](const OwnerMailboxTask& task) {
     return task.task_type == "executor_probe";
   };
   OwnerMailboxTask first{};
@@ -606,15 +616,12 @@ TEST(OwnerSchedulerStateTest, RemovesOneQueuedTaskWithoutDroppingNeighbors) {
   last.task_id = 13;
   last.sequence = 3;
 
-  ASSERT_TRUE(state.enqueue_owner_task(std::move(first),
-                                       "owner/test/scheduler/remove-task",
-                                       false, runnable));
+  ASSERT_TRUE(state.enqueue_owner_task(std::move(first), "owner/test/scheduler/remove-task", false,
+                                       runnable));
   ASSERT_FALSE(state.enqueue_owner_task(std::move(removed_candidate),
-                                        "owner/test/scheduler/remove-task",
-                                        false, runnable));
-  ASSERT_FALSE(state.enqueue_owner_task(std::move(last),
-                                        "owner/test/scheduler/remove-task",
-                                        false, runnable));
+                                        "owner/test/scheduler/remove-task", false, runnable));
+  ASSERT_FALSE(state.enqueue_owner_task(std::move(last), "owner/test/scheduler/remove-task", false,
+                                        runnable));
 
   OwnerMailboxTask removed{};
   ASSERT_TRUE(state.remove_owner_task(12, &removed));
@@ -632,7 +639,7 @@ TEST(OwnerSchedulerStateTest, RemovesOneQueuedTaskWithoutDroppingNeighbors) {
 
 TEST(OwnerSchedulerStateTest, ForcedReleaseClearsClaimsAndRestoresRunnableOwner) {
   OwnerSchedulerState state;
-  const auto runnable = [](const OwnerMailboxTask &task) {
+  const auto runnable = [](const OwnerMailboxTask& task) {
     return task.task_type == "executor_probe";
   };
   OwnerMailboxTask first{};
@@ -645,15 +652,12 @@ TEST(OwnerSchedulerStateTest, ForcedReleaseClearsClaimsAndRestoresRunnableOwner)
   second.task_id = 2;
   second.sequence = 2;
 
-  ASSERT_TRUE(state.enqueue_owner_task(
-      std::move(first), second.owner_id, false, runnable));
-  ASSERT_FALSE(state.enqueue_owner_task(
-      std::move(second), "owner/test/scheduler/forced-release", false,
-      runnable));
+  ASSERT_TRUE(state.enqueue_owner_task(std::move(first), second.owner_id, false, runnable));
+  ASSERT_FALSE(state.enqueue_owner_task(std::move(second), "owner/test/scheduler/forced-release",
+                                        false, runnable));
 
   OwnerMailboxTask claimed{};
-  const auto claim = state.pop_next_schedulable_task(
-      &claimed, true, runnable);
+  const auto claim = state.pop_next_schedulable_task(&claimed, true, runnable);
   ASSERT_TRUE(claim.found);
   ASSERT_EQ(claimed.task_id, 1u);
   ASSERT_EQ(state.active_owner_count(), 1);
@@ -669,8 +673,7 @@ TEST(OwnerSchedulerStateTest, ForcedReleaseClearsClaimsAndRestoresRunnableOwner)
   ASSERT_EQ(state.runnable_owner_count(runnable), 1);
 
   OwnerMailboxTask restarted{};
-  const auto restarted_claim = state.pop_next_schedulable_task(
-      &restarted, true, runnable);
+  const auto restarted_claim = state.pop_next_schedulable_task(&restarted, true, runnable);
   ASSERT_TRUE(restarted_claim.found);
   ASSERT_EQ(restarted.task_id, 1u);
 }
@@ -678,7 +681,9 @@ TEST(OwnerSchedulerStateTest, ForcedReleaseClearsClaimsAndRestoresRunnableOwner)
 TEST_F(DriverTest, TestPromisePassThroughDeliveryIsDeferredAndRefcounted) {
   clear_tick_events();
   struct TickQueueGuard {
-    ~TickQueueGuard() { clear_tick_events(); }
+    ~TickQueueGuard() {
+      clear_tick_events();
+    }
   } tick_queue_guard;
 
   promise_t* source = promise_alloc();
@@ -798,8 +803,7 @@ TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
         ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
       }
-      if (tick_event_queue_size_for_test() == 0 &&
-          walltime_event_queue_size_for_test() == 0) {
+      if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0) {
         return;
       }
     }
@@ -882,8 +886,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineGeneration64AndProgramPin) {
 
   program_t* owner_program = object->prog;
   const unsigned int owner_program_ref_before = owner_program->ref;
-  object->prog_generation =
-      static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 17u;
+  object->prog_generation = static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) + 17u;
 
   auto* result = safe_apply("suspend_once", object, 0, ORIGIN_DRIVER);
   ASSERT_NE(result, nullptr);
@@ -903,8 +906,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineGeneration64AndProgramPin) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
     }
-    if (tick_event_queue_size_for_test() == 0 &&
-        walltime_event_queue_size_for_test() == 0 &&
+    if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0 &&
         promise->state == PROMISE_PENDING) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
@@ -959,8 +961,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsRecompile) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
     }
-    if (tick_event_queue_size_for_test() == 0 &&
-        walltime_event_queue_size_for_test() == 0 &&
+    if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0 &&
         promise->state == PROMISE_PENDING) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
@@ -968,8 +969,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsRecompile) {
 
   ASSERT_EQ(promise->state, PROMISE_REJECTED);
   ASSERT_EQ(promise->result.type, T_STRING);
-  ASSERT_STREQ(promise->result.u.string,
-               "*async function owner was recompiled while suspended");
+  ASSERT_STREQ(promise->result.u.string, "*async function owner was recompiled while suspended");
   promise->handled = true;
   free_promise(promise);
   destruct_object_for_test(object);
@@ -990,7 +990,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsReplaceProgram) {
   vm_apply_return_clear();
   ASSERT_EQ(promise->state, PROMISE_PENDING);
 
-  auto* entry = static_cast<replace_ob_t *>(
+  auto* entry = static_cast<replace_ob_t*>(
       DMALLOC(sizeof(replace_ob_t), TAG_TEMPORARY, "test_async_replace_program"));
   entry->ob = object;
   entry->new_prog = replacement->prog;
@@ -1008,8 +1008,7 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsReplaceProgram) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
       ASSERT_EQ(event_base_loop(g_event_base, EVLOOP_NONBLOCK), 0);
     }
-    if (tick_event_queue_size_for_test() == 0 &&
-        walltime_event_queue_size_for_test() == 0 &&
+    if (tick_event_queue_size_for_test() == 0 && walltime_event_queue_size_for_test() == 0 &&
         promise->state == PROMISE_PENDING) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }

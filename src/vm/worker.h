@@ -150,34 +150,24 @@ VMWorkerStats vm_worker_stats();
 VMWorkerBenchResult vm_worker_benchmark(int tasks, int millis);
 VMWorkerActorBenchResult vm_worker_actor_benchmark(int owners, int tasks_per_owner, int millis);
 VMWorkerSnapshotDigestResult vm_worker_snapshot_digest(std::string owner_key,
-                                                       std::string snapshot_text,
-                                                       int repeat);
+                                                       std::string snapshot_text, int repeat);
 VMWorkerActorScoreResult vm_worker_actor_score(std::string owner_key,
-                                                VMWorkerActorScoreInput input);
+                                               VMWorkerActorScoreInput input);
 VMWorkerCombatDamageResult vm_worker_combat_damage(std::string owner_key,
                                                    VMWorkerCombatDamageInput input);
 uint64_t vm_worker_submit_benchmark(int tasks, int millis);
 uint64_t vm_worker_submit_benchmark_v2(int tasks, int millis, int timeout_ms, int ttl_ms);
-uint64_t vm_worker_submit_snapshot_digest(std::string owner_key,
-                                           std::string snapshot_text,
-                                           int repeat);
-uint64_t vm_worker_submit_snapshot_digest_v2(std::string owner_key,
-                                             std::string snapshot_text,
-                                             int repeat,
-                                             int timeout_ms,
-                                             int ttl_ms);
-uint64_t vm_worker_submit_actor_score(std::string owner_key,
-                                       VMWorkerActorScoreInput input);
-uint64_t vm_worker_submit_actor_score_v2(std::string owner_key,
-                                          VMWorkerActorScoreInput input,
-                                          int timeout_ms,
-                                          int ttl_ms);
-uint64_t vm_worker_submit_combat_damage_v2(std::string owner_key,
-                                           VMWorkerCombatDamageInput input,
-                                           int timeout_ms,
-                                           int ttl_ms);
+uint64_t vm_worker_submit_snapshot_digest(std::string owner_key, std::string snapshot_text,
+                                          int repeat);
+uint64_t vm_worker_submit_snapshot_digest_v2(std::string owner_key, std::string snapshot_text,
+                                             int repeat, int timeout_ms, int ttl_ms);
+uint64_t vm_worker_submit_actor_score(std::string owner_key, VMWorkerActorScoreInput input);
+uint64_t vm_worker_submit_actor_score_v2(std::string owner_key, VMWorkerActorScoreInput input,
+                                         int timeout_ms, int ttl_ms);
+uint64_t vm_worker_submit_combat_damage_v2(std::string owner_key, VMWorkerCombatDamageInput input,
+                                           int timeout_ms, int ttl_ms);
 VMWorkerTaskResult vm_worker_poll_task(uint64_t task_id);
-std::vector<VMWorkerTaskResult> vm_worker_poll_tasks(const std::vector<uint64_t> &task_ids);
+std::vector<VMWorkerTaskResult> vm_worker_poll_tasks(const std::vector<uint64_t>& task_ids);
 uint64_t vm_worker_owner_future_id(uint64_t task_id);
 
 #endif /* SRC_VM_WORKER_H_ */

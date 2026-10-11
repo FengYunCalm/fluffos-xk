@@ -6,7 +6,7 @@
 
 #ifdef F_SYS_NETWORK_PORTS
 void f_sys_network_ports() {
-  array_t *info;
+  array_t* info;
   int i = 0, p = 0;
 
   // R2-F11: port 0 (OS-assigned) is a legal configuration; presence is
@@ -24,7 +24,7 @@ void f_sys_network_ports() {
     if (external_port[i].kind == PORT_TYPE_UNDEFINED) {
       continue;
     }
-    array_t *pInfo = allocate_empty_array(4);
+    array_t* pInfo = allocate_empty_array(4);
 
     pInfo->item[0].type = T_NUMBER;
     pInfo->item[0].subtype = 0;
@@ -56,7 +56,9 @@ void f_sys_network_ports() {
 void f_sys_reload_tls() {
   auto port_index_display = sp->u.number;
 
-  DEFER { pop_stack(); };
+  DEFER {
+    pop_stack();
+  };
   // R2-F12 management contract, fixed order: thread first, then
   // authorization, then index/TLS-type validation. A TLS listener context
   // is main-thread state: worker threads must never touch it, and an
@@ -67,8 +69,8 @@ void f_sys_reload_tls() {
   // Master-object authorization hook: valid_sys_reload_tls() on the master
   // object must return a truthy value. Fail-closed: a missing master or a
   // missing/erring hook rejects the call.
-  auto *authorized = safe_apply_master_ob(APPLY_VALID_SYS_RELOAD_TLS, 0);
-  if (authorized == nullptr || authorized == reinterpret_cast<svalue_t *>(-1) ||
+  auto* authorized = safe_apply_master_ob(APPLY_VALID_SYS_RELOAD_TLS, 0);
+  if (authorized == nullptr || authorized == reinterpret_cast<svalue_t*>(-1) ||
       (authorized->type == T_NUMBER && authorized->u.number == 0)) {
     error("sys_reload_tls requires master authorization\n");
   }
@@ -76,11 +78,14 @@ void f_sys_reload_tls() {
   // array index: subtracting 1 from INT64_MIN would be signed overflow, and
   // comparing against sizeof() (bytes, not elements) allowed out-of-bounds
   // indexes such as 6 to reach external_port[5].
-  if (port_index_display < 1 || port_index_display > static_cast<LPC_INT>(std::size(external_port))) {  // #1247-equivalent SYS-1 (upstream: sizeof-based bound)
+  if (port_index_display < 1 ||
+      port_index_display >
+          static_cast<LPC_INT>(
+              std::size(external_port))) {  // #1247-equivalent SYS-1 (upstream: sizeof-based bound)
     error("Invalid port index: %" LPC_INT_FMTSTR_P "\n", port_index_display);
   }
   auto port_index = static_cast<size_t>(port_index_display - 1);
-  auto *port = &external_port[port_index];
+  auto* port = &external_port[port_index];
   if (port->kind == PORT_TYPE_UNDEFINED) {
     error("Invalid port index: %" LPC_INT_FMTSTR_P "\n", port_index_display);
   }
@@ -90,14 +95,14 @@ void f_sys_reload_tls() {
     if (port->ssl == nullptr) {
       error("Port %" LPC_INT_FMTSTR_P " is not TLS enabled\n", port_index_display);
     }
-    auto *ctx = tls_server_init(port->tls_cert, port->tls_key);
+    auto* ctx = tls_server_init(port->tls_cert, port->tls_key);
     if (ctx == nullptr) {
       error("Failed to reload TLS context for port %d\n", port->port);
     }
     // The listener runs on the main thread only (enforced above), so the
     // old context is closed only after the new one is fully initialized:
     // a failed reload never destroys the old SSL_CTX.
-    auto *old_ctx = port->ssl;
+    auto* old_ctx = port->ssl;
     tls_server_close(old_ctx);
     port->ssl = ctx;
     debug_message("Reloading TLS config for port %d.\n", port->port);

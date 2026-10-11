@@ -32,11 +32,9 @@ constexpr int kBatchLimit = 128;
 constexpr int kScopeEpoch = 17;
 constexpr int kExpectedRoomReservations = 1020;
 constexpr int kExpectedAckFrames = kPlayers;
-constexpr int kExpectedWireFrames =
-    kExpectedRoomReservations + kExpectedAckFrames;
+constexpr int kExpectedWireFrames = kExpectedRoomReservations + kExpectedAckFrames;
 constexpr int kExpectedNativeSlices =
-    (kExpectedRoomReservations + kRecipientsPerSlice - 1) /
-    kRecipientsPerSlice;
+    (kExpectedRoomReservations + kRecipientsPerSlice - 1) / kRecipientsPerSlice;
 constexpr LPC_INT kRoomServerSeqBase = 1000000;
 constexpr LPC_INT kRoomMessageSeqBase = 2000000;
 constexpr LPC_INT kRoomSentAtBase = 3000000;
@@ -44,29 +42,26 @@ constexpr LPC_INT kAckSeqBase = 4000000;
 constexpr LPC_INT kAckServerSeqBase = 5000000;
 constexpr LPC_INT kAckSentAtBase = 6000000;
 
-void require(bool condition, const std::string &message) {
+void require(bool condition, const std::string& message) {
   if (!condition) {
     throw std::runtime_error(message);
   }
 }
 
 long long elapsed_ns(Clock::time_point start) {
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start)
-      .count();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count();
 }
 
 long long percentile(std::vector<long long> samples, double rank) {
   require(!samples.empty(), "percentile requires samples");
   std::sort(samples.begin(), samples.end());
-  const auto position = std::max(
-      0.0, std::ceil(rank * static_cast<double>(samples.size())) - 1.0);
+  const auto position = std::max(0.0, std::ceil(rank * static_cast<double>(samples.size())) - 1.0);
   return samples[std::min(static_cast<size_t>(position), samples.size() - 1)];
 }
 
 std::string session_id_for(int recipient) {
   std::ostringstream session_id;
-  session_id << "gw-full-wire-" << std::setw(3) << std::setfill('0')
-             << recipient;
+  session_id << "gw-full-wire-" << std::setw(3) << std::setfill('0') << recipient;
   return session_id.str();
 }
 
@@ -94,8 +89,7 @@ std::string stable_message_json(int producer) {
       {"collapse_key", ""},
       {"text", "full-wire room observer event " + std::to_string(producer)},
       {"payload",
-       {{"room_id", "room/full-wire"},
-        {"producer_id", "producer-" + std::to_string(producer)}}},
+       {{"room_id", "room/full-wire"}, {"producer_id", "producer-" + std::to_string(producer)}}},
   };
   return payload.dump();
 }
@@ -117,7 +111,7 @@ bool recipient_is_excluded(int producer, int recipient) {
 }
 
 struct WriterCapture {
-  evbuffer *output{evbuffer_new()};
+  evbuffer* output{evbuffer_new()};
   std::vector<int> fds;
   uint64_t payload_bytes{0};
 
@@ -131,13 +125,13 @@ struct WriterCapture {
       evbuffer_free(output);
     }
   }
-  WriterCapture(const WriterCapture &) = delete;
-  WriterCapture &operator=(const WriterCapture &) = delete;
-  WriterCapture(WriterCapture &&other) noexcept
+  WriterCapture(const WriterCapture&) = delete;
+  WriterCapture& operator=(const WriterCapture&) = delete;
+  WriterCapture(WriterCapture&& other) noexcept
       : output(std::exchange(other.output, nullptr)),
         fds(std::move(other.fds)),
         payload_bytes(other.payload_bytes) {}
-  WriterCapture &operator=(WriterCapture &&other) noexcept {
+  WriterCapture& operator=(WriterCapture&& other) noexcept {
     if (this != &other) {
       if (output) {
         evbuffer_free(output);
@@ -150,19 +144,18 @@ struct WriterCapture {
   }
 };
 
-WriterCapture *g_writer_capture = nullptr;
+WriterCapture* g_writer_capture = nullptr;
 
-int capture_writer(int fd, const char *data, size_t len) {
+int capture_writer(int fd, const char* data, size_t len) {
   if (!g_writer_capture || !g_writer_capture->output || !data || len == 0) {
     return 0;
   }
   try {
     g_writer_capture->fds.push_back(fd);
-  } catch (const std::exception &) {
+  } catch (const std::exception&) {
     return 0;
   }
-  if (!gateway_append_framed_output_for_test(g_writer_capture->output, data,
-                                              len)) {
+  if (!gateway_append_framed_output_for_test(g_writer_capture->output, data, len)) {
     g_writer_capture->fds.pop_back();
     return 0;
   }
@@ -172,20 +165,22 @@ int capture_writer(int fd, const char *data, size_t len) {
 
 class CaptureScope {
  public:
-  explicit CaptureScope(WriterCapture *capture) {
+  explicit CaptureScope(WriterCapture* capture) {
     require(capture && !g_writer_capture, "invalid nested writer capture");
     g_writer_capture = capture;
   }
-  ~CaptureScope() { g_writer_capture = nullptr; }
+  ~CaptureScope() {
+    g_writer_capture = nullptr;
+  }
 };
 
-std::string copy_evbuffer(const evbuffer *buffer) {
+std::string copy_evbuffer(const evbuffer* buffer) {
   require(buffer != nullptr, "evbuffer is null");
   const auto length = evbuffer_get_length(buffer);
   std::string bytes(length, '\0');
   if (length > 0) {
-    require(evbuffer_copyout(const_cast<evbuffer *>(buffer), bytes.data(),
-                             length) == static_cast<ev_ssize_t>(length),
+    require(evbuffer_copyout(const_cast<evbuffer*>(buffer), bytes.data(), length) ==
+                static_cast<ev_ssize_t>(length),
             "failed to copy framed evbuffer");
   }
   return bytes;
@@ -196,26 +191,21 @@ struct CapturedFrame {
   std::string payload;
 };
 
-std::vector<CapturedFrame> parse_capture(const WriterCapture &capture) {
+std::vector<CapturedFrame> parse_capture(const WriterCapture& capture) {
   const auto bytes = copy_evbuffer(capture.output);
   std::vector<CapturedFrame> frames;
   size_t offset = 0;
   frames.reserve(capture.fds.size());
   while (offset < bytes.size()) {
-    require(bytes.size() - offset >= sizeof(uint32_t),
-            "truncated evbuffer frame header");
-    const auto *head = reinterpret_cast<const unsigned char *>(bytes.data() + offset);
+    require(bytes.size() - offset >= sizeof(uint32_t), "truncated evbuffer frame header");
+    const auto* head = reinterpret_cast<const unsigned char*>(bytes.data() + offset);
     const auto length = (static_cast<uint32_t>(head[0]) << 24) |
                         (static_cast<uint32_t>(head[1]) << 16) |
-                        (static_cast<uint32_t>(head[2]) << 8) |
-                        static_cast<uint32_t>(head[3]);
+                        (static_cast<uint32_t>(head[2]) << 8) | static_cast<uint32_t>(head[3]);
     offset += sizeof(uint32_t);
-    require(length > 0 && bytes.size() - offset >= length,
-            "invalid evbuffer frame length");
-    require(frames.size() < capture.fds.size(),
-            "evbuffer contains more frames than writer calls");
-    frames.push_back(
-        {capture.fds[frames.size()], bytes.substr(offset, length)});
+    require(length > 0 && bytes.size() - offset >= length, "invalid evbuffer frame length");
+    require(frames.size() < capture.fds.size(), "evbuffer contains more frames than writer calls");
+    frames.push_back({capture.fds[frames.size()], bytes.substr(offset, length)});
     offset += length;
   }
   require(offset == bytes.size() && frames.size() == capture.fds.size(),
@@ -224,37 +214,32 @@ std::vector<CapturedFrame> parse_capture(const WriterCapture &capture) {
 }
 
 void validate_framing_contract() {
-  auto *buffer = evbuffer_new();
+  auto* buffer = evbuffer_new();
   require(buffer != nullptr, "failed to allocate framing contract buffer");
   const std::string seed = "seed";
   require(evbuffer_add(buffer, seed.data(), seed.size()) == 0,
           "failed to seed framing contract buffer");
   const auto before = copy_evbuffer(buffer);
-  require(evbuffer_freeze(buffer, 0) == 0,
-          "failed to freeze framing contract buffer");
+  require(evbuffer_freeze(buffer, 0) == 0, "failed to freeze framing contract buffer");
   require(gateway_append_framed_output_for_test(buffer, "blocked", 7) == 0,
           "framing append unexpectedly succeeded on frozen buffer");
-  require(copy_evbuffer(buffer) == before,
-          "failed framing append changed readable bytes");
-  require(evbuffer_unfreeze(buffer, 0) == 0,
-          "failed to unfreeze framing contract buffer");
+  require(copy_evbuffer(buffer) == before, "failed framing append changed readable bytes");
+  require(evbuffer_unfreeze(buffer, 0) == 0, "failed to unfreeze framing contract buffer");
   evbuffer_drain(buffer, evbuffer_get_length(buffer));
 
   const std::string payload{"wire\0bytes", 10};
-  require(gateway_append_framed_output_for_test(buffer, payload.data(),
-                                                payload.size()) == 1,
+  require(gateway_append_framed_output_for_test(buffer, payload.data(), payload.size()) == 1,
           "production framing append failed");
   const auto framed = copy_evbuffer(buffer);
   require(framed.size() == sizeof(uint32_t) + payload.size(),
           "production framing byte count mismatch");
-  const auto *head = reinterpret_cast<const unsigned char *>(framed.data());
+  const auto* head = reinterpret_cast<const unsigned char*>(framed.data());
   const auto length = (static_cast<uint32_t>(head[0]) << 24) |
                       (static_cast<uint32_t>(head[1]) << 16) |
-                      (static_cast<uint32_t>(head[2]) << 8) |
-                      static_cast<uint32_t>(head[3]);
-  require(length == payload.size() &&
-              framed.compare(sizeof(uint32_t), payload.size(), payload) == 0,
-          "production framing bytes are not length+payload exact");
+                      (static_cast<uint32_t>(head[2]) << 8) | static_cast<uint32_t>(head[3]);
+  require(
+      length == payload.size() && framed.compare(sizeof(uint32_t), payload.size(), payload) == 0,
+      "production framing bytes are not length+payload exact");
   evbuffer_free(buffer);
 }
 
@@ -286,7 +271,7 @@ struct ExpectedFrame {
 
 struct PreparedWorkload {
   std::vector<std::unique_ptr<GatewaySession>> owned_sessions;
-  std::vector<GatewaySession *> sessions;
+  std::vector<GatewaySession*> sessions;
   std::vector<RoomReservation> reservations;
   std::unordered_map<uint64_t, size_t> reservation_indices;
   std::vector<std::vector<ExpectedFrame>> expected_fifo;
@@ -294,19 +279,16 @@ struct PreparedWorkload {
   int ack_frames{0};
 };
 
-RoomReservation &reservation_for(PreparedWorkload *workload,
-                                 uint64_t reservation_id) {
+RoomReservation& reservation_for(PreparedWorkload* workload, uint64_t reservation_id) {
   const auto found = workload->reservation_indices.find(reservation_id);
-  require(found != workload->reservation_indices.end(),
-          "missing expected room reservation");
+  require(found != workload->reservation_indices.end(), "missing expected room reservation");
   return workload->reservations[found->second];
 }
 
-void record_wave(PreparedWorkload *workload, int producer,
-                 const std::vector<int> &recipients,
-                 const std::vector<uint64_t> &existing_ids) {
+void record_wave(PreparedWorkload* workload, int producer, const std::vector<int>& recipients,
+                 const std::vector<uint64_t>& existing_ids) {
   const auto count = recipients.size();
-  std::vector<GatewaySession *> sessions;
+  std::vector<GatewaySession*> sessions;
   std::vector<LPC_INT> epochs(count, kScopeEpoch);
   std::vector<LPC_INT> message_seqs;
   sessions.reserve(count);
@@ -321,10 +303,8 @@ void record_wave(PreparedWorkload *workload, int producer,
   GatewaySessionBatchReservationResult result;
   require(gateway_reserve_and_append_preencoded_message_event_wave(
               sessions, existing_ids, first_server_seq, epochs, message_seqs,
-              stable_message_json(producer), "room", sent_at, kBatchLimit,
-              &result),
-          "failed to reserve and append producer wave " +
-              std::to_string(producer));
+              stable_message_json(producer), "room", sent_at, kBatchLimit, &result),
+          "failed to reserve and append producer wave " + std::to_string(producer));
   require(result.reservation_ids.size() == count && result.reused.size() == count,
           "producer wave reservation shape mismatch");
 
@@ -338,33 +318,26 @@ void record_wave(PreparedWorkload *workload, int producer,
       record.reservation_id = reservation_id;
       record.scope_id = scope_id_for(recipient);
       record.slot_epoch = kScopeEpoch;
-      record.slot_server_seq =
-          first_server_seq + static_cast<LPC_INT>(index * 2);
+      record.slot_server_seq = first_server_seq + static_cast<LPC_INT>(index * 2);
       workload->reservations.push_back(std::move(record));
-      require(workload->reservation_indices
-                  .emplace(reservation_id, record_index)
-                  .second,
+      require(workload->reservation_indices.emplace(reservation_id, record_index).second,
               "duplicate room reservation id");
       workload->expected_fifo[recipient].push_back(
           {ExpectedFrameKind::kRoom, reservation_id, producer});
     }
-    auto &record = reservation_for(workload, reservation_id);
-    record.events.push_back(
-        {producer, recipient, message_seqs[index],
-         first_server_seq + static_cast<LPC_INT>(index * 2 + 1),
-         kScopeEpoch, sent_at});
-    require(record.events.size() <= kBatchLimit,
-            "room reservation exceeded native batch limit");
-    require(gateway_pending_message_event_count(
-                workload->sessions[recipient], reservation_id) ==
+    auto& record = reservation_for(workload, reservation_id);
+    record.events.push_back({producer, recipient, message_seqs[index],
+                             first_server_seq + static_cast<LPC_INT>(index * 2 + 1), kScopeEpoch,
+                             sent_at});
+    require(record.events.size() <= kBatchLimit, "room reservation exceeded native batch limit");
+    require(gateway_pending_message_event_count(workload->sessions[recipient], reservation_id) ==
                 record.events.size(),
             "pending room child conservation mismatch");
   }
 }
 
 PreparedWorkload prepare_slice(int event_count) {
-  require(event_count > 0 && event_count <= kBatchLimit,
-          "event count outside native batch limit");
+  require(event_count > 0 && event_count <= kBatchLimit, "event count outside native batch limit");
   PreparedWorkload workload;
   workload.owned_sessions.reserve(kRecipientsPerSlice);
   workload.sessions.reserve(kRecipientsPerSlice);
@@ -384,16 +357,14 @@ PreparedWorkload prepare_slice(int event_count) {
     std::vector<uint64_t> existing_ids(kRecipientsPerSlice, 0);
     for (int recipient = 0; recipient < kRecipientsPerSlice; ++recipient) {
       if (active_ids[recipient] > 0 &&
-          gateway_pending_message_event_count(workload.sessions[recipient],
-                                              active_ids[recipient]) <
+          gateway_pending_message_event_count(workload.sessions[recipient], active_ids[recipient]) <
               kBatchLimit) {
         existing_ids[recipient] = active_ids[recipient];
       }
     }
     record_wave(&workload, producer, recipients, existing_ids);
     for (int recipient = 0; recipient < kRecipientsPerSlice; ++recipient) {
-      active_ids[recipient] =
-          workload.expected_fifo[recipient].back().reservation_id;
+      active_ids[recipient] = workload.expected_fifo[recipient].back().reservation_id;
     }
   }
   require(workload.reservations.size() == kRecipientsPerSlice,
@@ -416,11 +387,10 @@ PreparedWorkload prepare_exact_wave() {
   std::vector<uint64_t> active_ids(kPlayers, 0);
   for (int producer = 0; producer < kPlayers; ++producer) {
     const auto ack = ack_protocol_frame(producer);
-    require(gateway_enqueue_session_protocol_output(
-                workload.sessions[producer], ack.data(), ack.size()) == 1,
+    require(gateway_enqueue_session_protocol_output(workload.sessions[producer], ack.data(),
+                                                    ack.size()) == 1,
             "failed to enqueue producer ACK " + std::to_string(producer));
-    workload.expected_fifo[producer].push_back(
-        {ExpectedFrameKind::kAck, 0, producer});
+    workload.expected_fifo[producer].push_back({ExpectedFrameKind::kAck, 0, producer});
     workload.ack_frames++;
 
     std::vector<int> recipients;
@@ -433,21 +403,18 @@ PreparedWorkload prepare_exact_wave() {
       }
       recipients.push_back(recipient);
       const auto active_id = active_ids[recipient];
-      existing_ids.push_back(
-          active_id > 0 &&
-                  gateway_pending_message_event_count(
-                      workload.sessions[recipient], active_id) < kBatchLimit
-              ? active_id
-              : 0);
+      existing_ids.push_back(active_id > 0 &&
+                                     gateway_pending_message_event_count(
+                                         workload.sessions[recipient], active_id) < kBatchLimit
+                                 ? active_id
+                                 : 0);
     }
-    require(recipients.size() == kRecipientsPerProducer,
-            "producer recipient count mismatch");
+    require(recipients.size() == kRecipientsPerProducer, "producer recipient count mismatch");
     record_wave(&workload, producer, recipients, existing_ids);
     for (size_t index = 0; index < recipients.size(); ++index) {
       active_ids[recipients[index]] =
           reservation_for(&workload,
-                          workload.expected_fifo[recipients[index]].back()
-                              .reservation_id)
+                          workload.expected_fifo[recipients[index]].back().reservation_id)
               .reservation_id;
     }
     workload.producer_waves++;
@@ -456,19 +423,16 @@ PreparedWorkload prepare_exact_wave() {
   for (int recipient = 0; recipient < kPlayers; ++recipient) {
     workload.sessions[recipient]->master_fd = 1000 + recipient;
   }
-  require(workload.producer_waves == kPlayers &&
-              workload.ack_frames == kExpectedAckFrames,
+  require(workload.producer_waves == kPlayers && workload.ack_frames == kExpectedAckFrames,
           "exact producer/ACK conservation mismatch");
   require(workload.reservations.size() == kExpectedRoomReservations,
-          "exact room reservation count is " +
-              std::to_string(workload.reservations.size()) + " not " +
-              std::to_string(kExpectedRoomReservations));
+          "exact room reservation count is " + std::to_string(workload.reservations.size()) +
+              " not " + std::to_string(kExpectedRoomReservations));
   uint64_t logical_messages = 0;
-  for (const auto &record : workload.reservations) {
+  for (const auto& record : workload.reservations) {
     logical_messages += record.events.size();
   }
-  require(logical_messages ==
-              static_cast<uint64_t>(kPlayers * kRecipientsPerProducer),
+  require(logical_messages == static_cast<uint64_t>(kPlayers * kRecipientsPerProducer),
           "exact logical room message conservation mismatch");
   return workload;
 }
@@ -479,17 +443,14 @@ struct FilledWorkload {
   WriterCapture capture;
 };
 
-FilledWorkload fill_workload(PreparedWorkload *workload) {
-  require(workload && !workload->reservations.empty(),
-          "cannot fill empty workload");
+FilledWorkload fill_workload(PreparedWorkload* workload) {
+  require(workload && !workload->reservations.empty(), "cannot fill empty workload");
   FilledWorkload filled;
   CaptureScope capture_scope(&filled.capture);
   const auto started = Clock::now();
-  for (size_t start = 0; start < workload->reservations.size();
-       start += kRecipientsPerSlice) {
-    const auto end =
-        std::min(start + kRecipientsPerSlice, workload->reservations.size());
-    std::vector<GatewaySession *> sessions;
+  for (size_t start = 0; start < workload->reservations.size(); start += kRecipientsPerSlice) {
+    const auto end = std::min(start + kRecipientsPerSlice, workload->reservations.size());
+    std::vector<GatewaySession*> sessions;
     std::vector<uint64_t> reservation_ids;
     std::vector<std::string> scope_ids;
     std::vector<LPC_INT> slot_epochs;
@@ -498,7 +459,7 @@ FilledWorkload fill_workload(PreparedWorkload *workload) {
     scope_ids.reserve(end - start);
     slot_epochs.reserve(end - start);
     for (size_t index = start; index < end; ++index) {
-      const auto &record = workload->reservations[index];
+      const auto& record = workload->reservations[index];
       sessions.push_back(workload->sessions[record.recipient]);
       reservation_ids.push_back(record.reservation_id);
       scope_ids.push_back(record.scope_id);
@@ -506,64 +467,52 @@ FilledWorkload fill_workload(PreparedWorkload *workload) {
     }
     GatewayPendingMessageEventBatchFillResult result;
     require(gateway_fill_pending_message_event_batches_with_writer(
-                sessions, reservation_ids, scope_ids, slot_epochs,
-                capture_writer, &result),
+                sessions, reservation_ids, scope_ids, slot_epochs, capture_writer, &result),
             "native full-wire batch fill failed");
-    require(result.filled.size() == end - start &&
-                result.event_counts.size() == end - start &&
+    require(result.filled.size() == end - start && result.event_counts.size() == end - start &&
                 result.slot_server_seqs.size() == end - start,
             "native full-wire fill result shape mismatch");
     for (size_t index = 0; index < end - start; ++index) {
-      const auto &record = workload->reservations[start + index];
+      const auto& record = workload->reservations[start + index];
       require(result.filled[index] &&
-                  result.event_counts[index] ==
-                      static_cast<LPC_INT>(record.events.size()) &&
+                  result.event_counts[index] == static_cast<LPC_INT>(record.events.size()) &&
                   result.slot_server_seqs[index] == record.slot_server_seq,
               "native full-wire fill result conservation mismatch");
     }
     filled.native_slices++;
   }
   filled.elapsed_ns = ::elapsed_ns(started);
-  for (const auto *session : workload->sessions) {
-    require(session->output_fifo.empty(),
-            "session FIFO did not drain after full-wire fill");
+  for (const auto* session : workload->sessions) {
+    require(session->output_fifo.empty(), "session FIFO did not drain after full-wire fill");
   }
   return filled;
 }
 
-std::string protocol_payload(const nlohmann::json &outer,
-                             const std::string &session_id) {
-  require(outer.is_object() && outer.size() == 3 &&
-              outer.value("type", "") == "output" &&
+std::string protocol_payload(const nlohmann::json& outer, const std::string& session_id) {
+  require(outer.is_object() && outer.size() == 3 && outer.value("type", "") == "output" &&
               outer.value("cid", "") == session_id && outer.contains("data") &&
               outer["data"].is_string(),
           "invalid southbound output envelope");
   return outer["data"].get<std::string>();
 }
 
-nlohmann::json parse_protocol_json(const std::string &data,
-                                   std::string_view prefix) {
+nlohmann::json parse_protocol_json(const std::string& data, std::string_view prefix) {
   constexpr std::string_view suffix = "\x1b\n";
   require(data.size() > prefix.size() + suffix.size() &&
               data.compare(0, prefix.size(), prefix) == 0 &&
-              data.compare(data.size() - suffix.size(), suffix.size(), suffix) ==
-                  0,
+              data.compare(data.size() - suffix.size(), suffix.size(), suffix) == 0,
           "invalid protocol frame boundary");
-  return nlohmann::json::parse(data.substr(
-      prefix.size(), data.size() - prefix.size() - suffix.size()));
+  return nlohmann::json::parse(
+      data.substr(prefix.size(), data.size() - prefix.size() - suffix.size()));
 }
 
-void validate_room_event(const nlohmann::json &event,
-                         const ExpectedRoomEvent &expected,
+void validate_room_event(const nlohmann::json& event, const ExpectedRoomEvent& expected,
                          LPC_INT expected_server_seq) {
   require(event.is_object() &&
               event.value("text", "") ==
-                  "full-wire room observer event " +
-                      std::to_string(expected.producer) &&
-              event.value("seq", static_cast<LPC_INT>(0)) ==
-                  expected.message_seq &&
-              event.value("timestamp", static_cast<LPC_INT>(0)) ==
-                  expected.sent_at,
+                  "full-wire room observer event " + std::to_string(expected.producer) &&
+              event.value("seq", static_cast<LPC_INT>(0)) == expected.message_seq &&
+              event.value("timestamp", static_cast<LPC_INT>(0)) == expected.sent_at,
           "room event stable/dynamic field mismatch");
   require(event.contains("payload") && event["payload"].is_object() &&
               event["payload"].value("room_id", "") == "room/full-wire" &&
@@ -572,22 +521,17 @@ void validate_room_event(const nlohmann::json &event,
           "room event producer payload mismatch");
   require(event.contains("scope") && event["scope"].is_object() &&
               event["scope"].value("type", "") == "room" &&
-              event["scope"].value("id", "") ==
-                  scope_id_for(expected.recipient),
+              event["scope"].value("id", "") == scope_id_for(expected.recipient),
           "room event scope mismatch");
   require(event.contains("meta") && event["meta"].is_object() &&
               event["meta"].value("stream", "") == "message" &&
-              event["meta"].value("server_seq", static_cast<LPC_INT>(0)) ==
-                  expected_server_seq &&
-              event["meta"].value("epoch", static_cast<LPC_INT>(-1)) ==
-                  expected.epoch &&
-              event["meta"].value("sent_at", static_cast<LPC_INT>(0)) ==
-                  expected.sent_at,
+              event["meta"].value("server_seq", static_cast<LPC_INT>(0)) == expected_server_seq &&
+              event["meta"].value("epoch", static_cast<LPC_INT>(-1)) == expected.epoch &&
+              event["meta"].value("sent_at", static_cast<LPC_INT>(0)) == expected.sent_at,
           "room event meta mismatch");
 }
 
-size_t validate_room_frame(const std::string &data,
-                           const RoomReservation &record) {
+size_t validate_room_frame(const std::string& data, const RoomReservation& record) {
   require(!record.events.empty(), "expected room reservation is empty");
   if (record.events.size() == 1) {
     const auto event = parse_protocol_json(data, "\x1bXKMSGE");
@@ -596,39 +540,31 @@ size_t validate_room_frame(const std::string &data,
   }
 
   const auto batch = parse_protocol_json(data, "\x1bXKBACH");
-  require(batch.is_object() && batch.contains("messages") &&
-              batch["messages"].is_array() &&
+  require(batch.is_object() && batch.contains("messages") && batch["messages"].is_array() &&
               batch["messages"].size() == record.events.size(),
           "room batch child conservation mismatch");
-  require(batch.contains("meta") && batch["meta"].is_object() &&
-              batch["meta"].value("server_seq", static_cast<LPC_INT>(0)) ==
-                  record.slot_server_seq &&
-              batch["meta"].value("epoch", static_cast<LPC_INT>(-1)) ==
-                  record.slot_epoch,
-          "room batch slot meta mismatch");
+  require(
+      batch.contains("meta") && batch["meta"].is_object() &&
+          batch["meta"].value("server_seq", static_cast<LPC_INT>(0)) == record.slot_server_seq &&
+          batch["meta"].value("epoch", static_cast<LPC_INT>(-1)) == record.slot_epoch,
+      "room batch slot meta mismatch");
   for (size_t index = 0; index < record.events.size(); ++index) {
-    const auto &child = batch["messages"][index];
-    require(child.is_object() && child.value("type", "") == "MSGE" &&
-                child.contains("payload") && child["payload"].is_object(),
+    const auto& child = batch["messages"][index];
+    require(child.is_object() && child.value("type", "") == "MSGE" && child.contains("payload") &&
+                child["payload"].is_object(),
             "room batch child shape mismatch");
-    validate_room_event(child["payload"], record.events[index],
-                        record.events[index].server_seq);
+    validate_room_event(child["payload"], record.events[index], record.events[index].server_seq);
   }
   return record.events.size();
 }
 
-void validate_ack_frame(const std::string &data, int producer) {
+void validate_ack_frame(const std::string& data, int producer) {
   const auto ack = parse_protocol_json(data, "\x1bXKACKN");
-  require(ack.is_object() &&
-              ack.value("producer", "") ==
-                  "producer-" + std::to_string(producer) &&
-              ack.value("seq", static_cast<LPC_INT>(0)) ==
-                  kAckSeqBase + producer &&
-              ack.value("server_seq", static_cast<LPC_INT>(0)) ==
-                  kAckServerSeqBase + producer &&
+  require(ack.is_object() && ack.value("producer", "") == "producer-" + std::to_string(producer) &&
+              ack.value("seq", static_cast<LPC_INT>(0)) == kAckSeqBase + producer &&
+              ack.value("server_seq", static_cast<LPC_INT>(0)) == kAckServerSeqBase + producer &&
               ack.value("epoch", static_cast<LPC_INT>(-1)) == kScopeEpoch &&
-              ack.value("sent_at", static_cast<LPC_INT>(0)) ==
-                  kAckSentAtBase + producer,
+              ack.value("sent_at", static_cast<LPC_INT>(0)) == kAckSentAtBase + producer,
           "ACK dynamic fields mismatch");
 }
 
@@ -638,35 +574,30 @@ struct ValidationCounts {
   uint64_t room_children{0};
 };
 
-ValidationCounts validate_workload(const PreparedWorkload &workload,
-                                   const FilledWorkload &filled) {
+ValidationCounts validate_workload(const PreparedWorkload& workload, const FilledWorkload& filled) {
   const auto frames = parse_capture(filled.capture);
-  std::vector<std::vector<const CapturedFrame *>> by_recipient(
-      workload.sessions.size());
-  for (const auto &frame : frames) {
+  std::vector<std::vector<const CapturedFrame*>> by_recipient(workload.sessions.size());
+  for (const auto& frame : frames) {
     const auto recipient = frame.fd - 1000;
-    require(recipient >= 0 &&
-                recipient < static_cast<int>(workload.sessions.size()),
+    require(recipient >= 0 && recipient < static_cast<int>(workload.sessions.size()),
             "writer fd is outside the workload session set");
     by_recipient[recipient].push_back(&frame);
   }
 
   ValidationCounts counts;
   for (size_t recipient = 0; recipient < workload.sessions.size(); ++recipient) {
-    const auto &expected = workload.expected_fifo[recipient];
-    const auto &actual = by_recipient[recipient];
-    require(actual.size() == expected.size(),
-            "per-session FIFO frame count mismatch for " +
-                session_id_for(static_cast<int>(recipient)));
+    const auto& expected = workload.expected_fifo[recipient];
+    const auto& actual = by_recipient[recipient];
+    require(actual.size() == expected.size(), "per-session FIFO frame count mismatch for " +
+                                                  session_id_for(static_cast<int>(recipient)));
     for (size_t index = 0; index < expected.size(); ++index) {
       const auto outer = nlohmann::json::parse(actual[index]->payload);
-      const auto data = protocol_payload(
-          outer, session_id_for(static_cast<int>(recipient)));
+      const auto data = protocol_payload(outer, session_id_for(static_cast<int>(recipient)));
       if (expected[index].kind == ExpectedFrameKind::kAck) {
         validate_ack_frame(data, expected[index].producer);
         counts.ack_frames++;
       } else {
-        const auto &record = workload.reservations.at(
+        const auto& record = workload.reservations.at(
             workload.reservation_indices.at(expected[index].reservation_id));
         counts.room_children += validate_room_frame(data, record);
         counts.room_frames++;
@@ -680,13 +611,10 @@ ValidationCounts validate_workload(const PreparedWorkload &workload,
   return counts;
 }
 
-void validate_lightweight(const PreparedWorkload &workload,
-                          const FilledWorkload &filled,
+void validate_lightweight(const PreparedWorkload& workload, const FilledWorkload& filled,
                           size_t expected_frames, int expected_native_slices) {
-  require(filled.capture.fds.size() == expected_frames,
-          "writer frame count mismatch");
-  require(filled.native_slices == expected_native_slices,
-          "native slice count mismatch");
+  require(filled.capture.fds.size() == expected_frames, "writer frame count mismatch");
+  require(filled.native_slices == expected_native_slices, "native slice count mismatch");
   for (size_t recipient = 0; recipient < workload.sessions.size(); ++recipient) {
     require(workload.sessions[recipient]->output_fifo.empty() &&
                 workload.sessions[recipient]->output_fifo_flushed ==
@@ -695,8 +623,7 @@ void validate_lightweight(const PreparedWorkload &workload,
   }
 }
 
-void write_capture(const std::filesystem::path &path,
-                   const WriterCapture &capture) {
+void write_capture(const std::filesystem::path& path, const WriterCapture& capture) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream output(path, std::ios::binary | std::ios::trunc);
   require(output.is_open(), "failed to create framed corpus: " + path.string());
@@ -705,7 +632,7 @@ void write_capture(const std::filesystem::path &path,
   require(output.good(), "failed to write framed corpus: " + path.string());
 }
 
-nlohmann::json samples_json(const std::vector<long long> &samples) {
+nlohmann::json samples_json(const std::vector<long long>& samples) {
   return nlohmann::json{
       {"count", samples.size()},
       {"p50_ns", percentile(samples, 0.50)},
@@ -717,7 +644,7 @@ nlohmann::json samples_json(const std::vector<long long> &samples) {
 }
 
 nlohmann::json run_slice_case(int event_count, int warmups, int samples,
-                              const std::filesystem::path &corpus_dir) {
+                              const std::filesystem::path& corpus_dir) {
   for (int index = 0; index < warmups; ++index) {
     auto prepared = prepare_slice(event_count);
     auto filled = fill_workload(&prepared);
@@ -740,13 +667,10 @@ nlohmann::json run_slice_case(int event_count, int warmups, int samples,
   auto corpus_prepared = prepare_slice(event_count);
   auto corpus_filled = fill_workload(&corpus_prepared);
   const auto validated = validate_workload(corpus_prepared, corpus_filled);
-  require(validated.room_frames == kRecipientsPerSlice &&
-              validated.ack_frames == 0 &&
-              validated.room_children ==
-                  static_cast<uint64_t>(kRecipientsPerSlice * event_count),
+  require(validated.room_frames == kRecipientsPerSlice && validated.ack_frames == 0 &&
+              validated.room_children == static_cast<uint64_t>(kRecipientsPerSlice * event_count),
           "slice deep validation conservation mismatch");
-  const auto corpus_path =
-      corpus_dir / (std::to_string(event_count) + ".frames");
+  const auto corpus_path = corpus_dir / (std::to_string(event_count) + ".frames");
   write_capture(corpus_path, corpus_filled.capture);
 
   return nlohmann::json{
@@ -762,13 +686,11 @@ nlohmann::json run_slice_case(int event_count, int warmups, int samples,
   };
 }
 
-nlohmann::json run_exact_wave(int warmups, int samples,
-                              const std::filesystem::path &corpus_dir) {
+nlohmann::json run_exact_wave(int warmups, int samples, const std::filesystem::path& corpus_dir) {
   for (int index = 0; index < warmups; ++index) {
     auto prepared = prepare_exact_wave();
     auto filled = fill_workload(&prepared);
-    validate_lightweight(prepared, filled, kExpectedWireFrames,
-                         kExpectedNativeSlices);
+    validate_lightweight(prepared, filled, kExpectedWireFrames, kExpectedNativeSlices);
   }
 
   std::vector<long long> sample_ns;
@@ -776,8 +698,7 @@ nlohmann::json run_exact_wave(int warmups, int samples,
   for (int index = 0; index < samples; ++index) {
     auto prepared = prepare_exact_wave();
     auto filled = fill_workload(&prepared);
-    validate_lightweight(prepared, filled, kExpectedWireFrames,
-                         kExpectedNativeSlices);
+    validate_lightweight(prepared, filled, kExpectedWireFrames, kExpectedNativeSlices);
     sample_ns.push_back(filled.elapsed_ns);
   }
 
@@ -786,8 +707,7 @@ nlohmann::json run_exact_wave(int warmups, int samples,
   const auto validated = validate_workload(corpus_prepared, corpus_filled);
   require(validated.room_frames == kExpectedRoomReservations &&
               validated.ack_frames == kExpectedAckFrames &&
-              validated.room_children ==
-                  static_cast<uint64_t>(kPlayers * kRecipientsPerProducer),
+              validated.room_children == static_cast<uint64_t>(kPlayers * kRecipientsPerProducer),
           "exact wave deep validation conservation mismatch");
   const auto corpus_path = corpus_dir / "exact-wave.frames";
   write_capture(corpus_path, corpus_filled.capture);
@@ -809,7 +729,7 @@ nlohmann::json run_exact_wave(int warmups, int samples,
   };
 }
 
-int parse_positive(const std::string &value, const char *name) {
+int parse_positive(const std::string& value, const char* name) {
   size_t consumed = 0;
   const auto parsed = std::stoi(value, &consumed);
   if (consumed != value.size() || parsed <= 0) {
@@ -820,7 +740,7 @@ int parse_positive(const std::string &value, const char *name) {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::filesystem::path json_path;
   std::filesystem::path corpus_dir;
   int warmups = 3;
@@ -841,9 +761,8 @@ int main(int argc, char **argv) {
       } else if (arg == "--wave-samples" && index + 1 < argc) {
         wave_samples = parse_positive(argv[++index], "wave samples");
       } else if (arg == "--help") {
-        std::cout
-            << "usage: gateway_full_wire_bench --json PATH --corpus-dir DIR "
-               "[--warmups N] [--slice-samples N] [--wave-samples N]\n";
+        std::cout << "usage: gateway_full_wire_bench --json PATH --corpus-dir DIR "
+                     "[--warmups N] [--slice-samples N] [--wave-samples N]\n";
         return 0;
       } else {
         throw std::runtime_error("unknown or incomplete argument: " + arg);
@@ -874,10 +793,8 @@ int main(int argc, char **argv) {
           {"length_and_payload_byte_exact", true}}},
         {"cases", nlohmann::json::array()},
     };
-    report["cases"].push_back(
-        run_slice_case(104, warmups, slice_samples, corpus_dir));
-    report["cases"].push_back(
-        run_slice_case(128, warmups, slice_samples, corpus_dir));
+    report["cases"].push_back(run_slice_case(104, warmups, slice_samples, corpus_dir));
+    report["cases"].push_back(run_slice_case(128, warmups, slice_samples, corpus_dir));
     report["exact_wave"] = run_exact_wave(warmups, wave_samples, corpus_dir);
 
     std::ofstream output(json_path, std::ios::trunc);
@@ -886,7 +803,7 @@ int main(int argc, char **argv) {
     require(output.good(), "failed to write C++ benchmark report");
     std::cout << report.dump() << '\n';
     return 0;
-  } catch (const std::exception &error) {
+  } catch (const std::exception& error) {
     g_writer_capture = nullptr;
     std::cerr << "gateway_full_wire_bench failed: " << error.what() << '\n';
     return 1;

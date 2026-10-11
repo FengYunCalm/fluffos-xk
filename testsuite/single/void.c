@@ -17,7 +17,7 @@ void virtual_start() {
 }
 
 int get_called() {
-   return called;
+  return called;
 }
 
 void heart_beat() {
@@ -123,17 +123,13 @@ void reset_socket_callback_probe() {
   socket_callback_fd = 0;
 }
 
-void dummy()
-{
-}
+void dummy() {}
 
-mixed call_target(object target)
-{
+mixed call_target(object target) {
   return call_other(target, "dummy");
 }
 
-mapping benchmark_representative_lpc_workload(int item_count, int iterations)
-{
+mapping benchmark_representative_lpc_workload(int item_count, int iterations) {
   mapping skills;
   mapping payload;
   mapping record;
@@ -210,16 +206,14 @@ mapping benchmark_representative_lpc_workload(int item_count, int iterations)
   ]);
 }
 
-mapping call_owner_async_echo(object target)
-{
+mapping call_owner_async_echo(object target) {
   return owner_call_async(target, "owner_async_echo", ([
     "payload_key": "cross-owner/echo/v1",
     "value": 41,
   ]));
 }
 
-mapping owner_lpc_probe()
-{
+mapping owner_lpc_probe() {
   return ([
     "off_main_thread": !vm_context_is_main_thread(),
     "main_thread": vm_context_is_main_thread(),
@@ -229,20 +223,27 @@ mapping owner_lpc_probe()
 // R2-F06 worker-nested submission probe: when this method runs ON the owner
 // worker, every object-target submission it attempts must be stably rejected
 // with main_thread_admission_required (no plain refcount mutation off-main).
-mapping owner_nested_submission()
-{
-    mapping result = ([]);
-    object me = this_object();
-    string owner = "owner/test/nested-submission";
-    result["owner_call_async"] =
-        owner_call_async(me, "owner_async_echo", (["payload_key": "nested/v1"]));
-    result["owner_async"] =
-        owner_async(me, (["type": "owner_async", "method": "owner_async_echo"]));
-    result["vm_owner_lpc_task"] =
-        vm_owner_lpc_task(me, owner, "owner_task_readonly");
-    result["vm_owner_ordinary_lpc_task"] =
-        vm_owner_ordinary_lpc_task(me, owner, "owner_task_player", 1);
-    return result;
+mapping owner_nested_submission() {
+  mapping result = ([]);
+  object me = this_object();
+  string owner = "owner/test/nested-submission";
+  result["owner_call_async"] = owner_call_async(
+    me,
+    "owner_async_echo",
+    ([ "payload_key": "nested/v1" ])
+  );
+  result["owner_async"] = owner_async(
+    me,
+    ([ "type": "owner_async", "method": "owner_async_echo" ])
+  );
+  result["vm_owner_lpc_task"] = vm_owner_lpc_task(me, owner, "owner_task_readonly");
+  result["vm_owner_ordinary_lpc_task"] = vm_owner_ordinary_lpc_task(
+    me,
+    owner,
+    "owner_task_player",
+    1
+  );
+  return result;
 }
 
 // R2-F12 probe: invoke sys_reload_tls() inside catch() and return the error
@@ -250,24 +251,21 @@ mapping owner_nested_submission()
 // rows: authorized/unauthorized x valid/invalid index x websocket/non-TLS)
 // and on the owner worker (matrix row: worker + authorized identity must
 // still be rejected before any listener state is touched).
-string call_sys_reload_tls(int port_index)
-{
-    mixed err = catch(sys_reload_tls(port_index));
-    if (err) {
-        return "error: " + err;
-    }
-    return "ok";
+string call_sys_reload_tls(int port_index) {
+  mixed err = catch(sys_reload_tls(port_index));
+  if (err) {
+    return "error: " + err;
+  }
+  return "ok";
 }
 
 // No-argument variant for the owner-worker matrix row: the ordinary LPC
 // route applies methods with zero arguments.
-string call_sys_reload_tls_probe()
-{
-    return call_sys_reload_tls(4);
+string call_sys_reload_tls_probe() {
+  return call_sys_reload_tls(4);
 }
 
-int owner_lpc_canary()
-{
+int owner_lpc_canary() {
   // Runs on the owner worker. Besides confirming the worker execution path
   // itself, this probes the T1 contract for process-global efun families:
   // get_os_env()/set_os_env() must be stably rejected there (contrib.cc
@@ -285,8 +283,7 @@ int owner_lpc_canary()
   return !vm_context_is_main_thread();
 }
 
-int owner_task_readonly()
-{
+int owner_task_readonly() {
   return !vm_context_is_main_thread();
 }
 

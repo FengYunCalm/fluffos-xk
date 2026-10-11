@@ -69,8 +69,8 @@ Json corpus_identity(const std::vector<fs::path>& files) {
     if (!input) {
       throw std::runtime_error("cannot read corpus: " + file.string());
     }
-    auto digest = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>(EVP_MD_CTX_new(),
-                                                                      EVP_MD_CTX_free);
+    auto digest =
+        std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>(EVP_MD_CTX_new(), EVP_MD_CTX_free);
     if (!digest || EVP_DigestInit_ex(digest.get(), EVP_sha256(), nullptr) != 1) {
       throw std::runtime_error("cannot initialize corpus digest");
     }
@@ -279,8 +279,7 @@ int run_benchmark(int argc, char** argv) {
     const size_t window = std::max<size_t>(1, round_secs.size() / 10);
     const double head =
         std::accumulate(round_secs.begin(), round_secs.begin() + window, 0.0) / window;
-    const double tail =
-        std::accumulate(round_secs.end() - window, round_secs.end(), 0.0) / window;
+    const double tail = std::accumulate(round_secs.end() - window, round_secs.end(), 0.0) / window;
     lifecycle = {{"window_rounds", window},
                  {"head_mean_secs", head},
                  {"tail_mean_secs", tail},
@@ -317,48 +316,48 @@ int run_benchmark(int argc, char** argv) {
   std::printf("per_file_last_round: head10_mean=%.6f tail10_mean=%.6f degradation=%.4f\n",
               head_mean, tail_mean, degradation);
   std::printf("peak_rss_kb: %ld\n", rss_kb);
-  std::printf("arena: warmup_chunk_mallocs=%zu final_chunk_mallocs=%zu delta=%zu\n",
-              warmup_mallocs, final_mallocs, final_mallocs - warmup_mallocs);
-  std::printf("arena: retained_chunks=%zu retained_heap_bytes=%zu cycle_bytes=%zu "
-              "peak_cycle_bytes=%zu resets=%zu\n",
-              compile_arena::retained_chunks(), compile_arena::retained_heap_bytes(),
-              compile_arena::cycle_bytes(), compile_arena::peak_cycle_bytes(),
-              compile_arena::reset_count());
+  std::printf("arena: warmup_chunk_mallocs=%zu final_chunk_mallocs=%zu delta=%zu\n", warmup_mallocs,
+              final_mallocs, final_mallocs - warmup_mallocs);
+  std::printf(
+      "arena: retained_chunks=%zu retained_heap_bytes=%zu cycle_bytes=%zu "
+      "peak_cycle_bytes=%zu resets=%zu\n",
+      compile_arena::retained_chunks(), compile_arena::retained_heap_bytes(),
+      compile_arena::cycle_bytes(), compile_arena::peak_cycle_bytes(),
+      compile_arena::reset_count());
   const auto count = operation_secs.size();
   const Json operation_stats = {{"sample_count", count},
-                               {"median", operation_secs[count / 2]},
-                               {"p95", operation_secs[static_cast<size_t>(count * 0.95)]},
-                               {"p99", operation_secs[static_cast<size_t>(count * 0.99)]}};
+                                {"median", operation_secs[count / 2]},
+                                {"p95", operation_secs[static_cast<size_t>(count * 0.95)]},
+                                {"p99", operation_secs[static_cast<size_t>(count * 0.99)]}};
   std::cout << "operation_secs: " << operation_stats.dump() << '\n';
   std::cout << "lifecycle: " << lifecycle.dump() << '\n';
-  const Json report = {
-      {"schema_version", 2},
-      {"files", files.size()},
-      {"rounds", rounds},
-      {"corpus", corpus_dir.string()},
-      {"corpus_files", identities},
-      {"warmup_success", warmup_success},
-      {"warmup_failures", warmup_failures},
-      {"successful_compiles", count - failures},
-      {"throughput_files_per_s", count / total_secs},
-      {"total_secs", total_secs},
-      {"round_secs", round_secs},
-      {"round_samples", std::move(round_samples)},
-      {"per_file_secs_last_round", per_file_secs},
-      {"failures", failures},
-      {"degradation", degradation},
-      {"lifecycle", lifecycle},
-      {"operation_secs", operation_stats},
-      {"peak_rss_kb", rss_kb},
-      {"arena",
-       {{"warmup_chunk_mallocs", warmup_mallocs},
-        {"final_chunk_mallocs", final_mallocs},
-        {"delta", final_mallocs - warmup_mallocs},
-        {"retained_chunks", compile_arena::retained_chunks()},
-        {"retained_heap_bytes", compile_arena::retained_heap_bytes()},
-        {"cycle_bytes", compile_arena::cycle_bytes()},
-        {"peak_cycle_bytes", compile_arena::peak_cycle_bytes()},
-        {"resets", compile_arena::reset_count()}}}};
+  const Json report = {{"schema_version", 2},
+                       {"files", files.size()},
+                       {"rounds", rounds},
+                       {"corpus", corpus_dir.string()},
+                       {"corpus_files", identities},
+                       {"warmup_success", warmup_success},
+                       {"warmup_failures", warmup_failures},
+                       {"successful_compiles", count - failures},
+                       {"throughput_files_per_s", count / total_secs},
+                       {"total_secs", total_secs},
+                       {"round_secs", round_secs},
+                       {"round_samples", std::move(round_samples)},
+                       {"per_file_secs_last_round", per_file_secs},
+                       {"failures", failures},
+                       {"degradation", degradation},
+                       {"lifecycle", lifecycle},
+                       {"operation_secs", operation_stats},
+                       {"peak_rss_kb", rss_kb},
+                       {"arena",
+                        {{"warmup_chunk_mallocs", warmup_mallocs},
+                         {"final_chunk_mallocs", final_mallocs},
+                         {"delta", final_mallocs - warmup_mallocs},
+                         {"retained_chunks", compile_arena::retained_chunks()},
+                         {"retained_heap_bytes", compile_arena::retained_heap_bytes()},
+                         {"cycle_bytes", compile_arena::cycle_bytes()},
+                         {"peak_cycle_bytes", compile_arena::peak_cycle_bytes()},
+                         {"resets", compile_arena::reset_count()}}}};
   if (!json_path.empty()) {
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);

@@ -37,11 +37,11 @@ enum : uint8_t {
 };
 
 struct promise_reaction_t {
-  struct funptr_t* on_fulfilled;    /* ref held; may be null (pass-through) */
-  struct funptr_t* on_rejected;     /* ref held; may be null (pass-through) */
-  struct promise_t* next;           /* ref held; chained promise to settle; may be null */
-  struct object_t* command_giver;   /* ref held; may be null */
-  struct lpc_coroutine_t* coro;     /* owned; a parked await to resume; may be null */
+  struct funptr_t* on_fulfilled;  /* ref held; may be null (pass-through) */
+  struct funptr_t* on_rejected;   /* ref held; may be null (pass-through) */
+  struct promise_t* next;         /* ref held; chained promise to settle; may be null */
+  struct object_t* command_giver; /* ref held; may be null */
+  struct lpc_coroutine_t* coro;   /* owned; a parked await to resume; may be null */
 };
 
 struct promise_t {
@@ -78,7 +78,7 @@ struct promise_t {
    * (async_info()'s mapping), so the same promise never renders two
    * different ways. */
   unsigned short value_type;
-  svalue_t result; /* valid when state != PROMISE_PENDING */
+  svalue_t result;                            /* valid when state != PROMISE_PENDING */
   std::vector<promise_reaction_t>* reactions; /* pending only; else null */
   /* Where this promise was REJECTED ("/obj/thing:42"), for the unhandled-
    * rejection report. Captured at rejection, not creation: an unhandled
@@ -156,15 +156,15 @@ struct lpc_coroutine_acatch_t {
 };
 
 struct lpc_coroutine_t {
-  uint64_t id;               /* stable identity for async_info() */
+  uint64_t id; /* stable identity for async_info() */
   /* the promise being awaited: NOT ref-held (it owns this coroutine, via
    * its reaction list or the microtask queue, so it always outlives it) */
   promise_t* awaiting;
-  promise_t* result_promise; /* ref held; settled when the body finishes */
-  struct object_t* ob;       /* ref held */
-  struct object_t* prev_ob;  /* ref held; may be null */
+  promise_t* result_promise;      /* ref held; settled when the body finishes */
+  struct object_t* ob;            /* ref held */
+  struct object_t* prev_ob;       /* ref held; may be null */
   struct object_t* command_giver; /* ref held; may be null */
-  struct program_t* prog;    /* reference_prog() held; the DEFINING program
+  struct program_t* prog;         /* reference_prog() held; the DEFINING program
                               * (setup_new_frame() points current_prog at the
                               * base for an inherited function), which is what
                               * pc_offset / the index offsets are relative to */
@@ -175,8 +175,8 @@ struct lpc_coroutine_t {
    * also makes the replace_program() pointer comparison safe after the old
    * owner program is detached from the object. */
   struct program_t* object_prog; /* reference_prog() held independently */
-  uint64_t prog_generation;  /* hot-reload guard (cf. funptr owner_gen) */
-  int pc_offset;             /* resume point, relative to prog->program */
+  uint64_t prog_generation;      /* hot-reload guard (cf. funptr owner_gen) */
+  int pc_offset;                 /* resume point, relative to prog->program */
   short caller_type;
   int function_index_offset;
   int variable_index_offset;
@@ -232,7 +232,6 @@ struct array_t* build_async_info();
  * -- wall-clock gaps cannot see it on a target whose host drives a virtual
  * clock, as the wasm test runner does. */
 struct mapping_t* build_async_scheduler_info();
-
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_coroutine(lpc_coroutine_t* coro);

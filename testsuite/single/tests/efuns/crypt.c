@@ -12,11 +12,11 @@ void test_crypt(string key) {
 
   // Legacy DES salts are no longer accepted by the default build.
   result = crypt("123", "123");
-  ASSERT_EQ("$6$", result[0..2]);
+  ASSERT_EQ("$6$", result[0 ..2]);
   ASSERT_EQ(result, crypt("123", result));
 
   result = crypt("deadbeef", "11");
-  ASSERT_EQ("$6$", result[0..2]);
+  ASSERT_EQ("$6$", result[0 ..2]);
   ASSERT_EQ(result, crypt("deadbeef", result));
 
   // Existing DES hashes remain verifiable only through the boolean migration
@@ -28,7 +28,7 @@ void test_crypt(string key) {
 
   // Make sure we use SHA512 as default
   result = crypt(key, "");
-  ASSERT_EQ("$6$", result[0..2]);
+  ASSERT_EQ("$6$", result[0 ..2]);
   ASSERT_EQ(result, crypt(key, result));
 
   // Make sure we support $1$, $2a$, $2x$, $2y$, $5$, $6$ etc
@@ -53,12 +53,15 @@ void test_crypt(string key) {
   ASSERT_EQ(result, crypt(key, result));
 
   result = crypt(key, "$6$DSVWtVeRU/71A");
-  ASSERT_EQ("$6$DSVWtVeRU/71A$GvRozPOkmWEd3wTR7wMMQhug5wM5rrEM/cle4VEZD1yDEGf1iq6JST0PDN1Ua6QaQslVK2jAzIBKOamxi5dt1.", result);
+  ASSERT_EQ(
+    "$6$DSVWtVeRU/71A$GvRozPOkmWEd3wTR7wMMQhug5wM5rrEM/cle4VEZD1yDEGf1iq6JST0PDN1Ua6QaQslVK2jAzIBKOamxi5dt1.",
+    result
+  );
   ASSERT_EQ(result, crypt(key, result));
 
   // $2$ on the other hand, is wrong format
   result = crypt(key, "$2$zsCyqpCmwWE2g");
-  ASSERT(result[0..2] != "$2");
+  ASSERT(result[0 ..2] != "$2");
   ASSERT_EQ(result, crypt(key, result));
 }
 

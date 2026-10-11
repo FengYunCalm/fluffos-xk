@@ -1,5 +1,5 @@
 void do_tests() {
-  float* m = id_matrix();
+  float *m = id_matrix();
   m = lookat_rotate2(m, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1);
 
   // #1247 MATRIX-1..7: every transform requires a 16-element array; a short

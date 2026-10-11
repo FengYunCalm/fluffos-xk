@@ -7,12 +7,12 @@ constexpr size_t kOwnerMessageTraceLimit = 256;
 constexpr size_t kOwnerCommitTraceLimit = 256;
 constexpr size_t kOwnerExecutorTraceLimit = 256;
 
-const char *normalize_trace_text(const char *text, const char *fallback) {
+const char* normalize_trace_text(const char* text, const char* fallback) {
   return text && text[0] != '\0' ? text : fallback;
 }
 
 template <typename Trace>
-void trim_trace_deque(std::deque<Trace> &events, size_t limit) {
+void trim_trace_deque(std::deque<Trace>& events, size_t limit) {
   while (events.size() > limit) {
     events.pop_front();
   }
@@ -86,11 +86,11 @@ uint64_t OwnerTraceStore::next_message_id() {
   return next_message_trace_id_.fetch_add(1, std::memory_order_relaxed);
 }
 
-bool OwnerTraceStore::update_message_state_for_task(uint64_t target_task_id, const char *state,
-                                                    const char *result_key, const char *error, bool frozen_result,
-                                                    VMObjectHandleResolveStatus target_handle_status) {
+bool OwnerTraceStore::update_message_state_for_task(
+    uint64_t target_task_id, const char* state, const char* result_key, const char* error,
+    bool frozen_result, VMObjectHandleResolveStatus target_handle_status) {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto &trace : message_traces_) {
+  for (auto& trace : message_traces_) {
     if (trace.target_task_id == target_task_id) {
       trace.state = normalize_trace_text(state, "completed");
       trace.result_key = normalize_trace_text(result_key, "");
@@ -105,11 +105,13 @@ bool OwnerTraceStore::update_message_state_for_task(uint64_t target_task_id, con
   return false;
 }
 
-bool OwnerTraceStore::update_message_route_for_task(uint64_t target_task_id, const char *target_handle_status,
-                                                    bool requires_owner_mailbox, bool requires_owner_main_queue,
+bool OwnerTraceStore::update_message_route_for_task(uint64_t target_task_id,
+                                                    const char* target_handle_status,
+                                                    bool requires_owner_mailbox,
+                                                    bool requires_owner_main_queue,
                                                     bool queued_on_main) {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto &trace : message_traces_) {
+  for (auto& trace : message_traces_) {
     if (trace.target_task_id == target_task_id) {
       trace.target_handle_status = normalize_trace_text(target_handle_status, "");
       trace.requires_owner_mailbox = requires_owner_mailbox;
@@ -122,11 +124,12 @@ bool OwnerTraceStore::update_message_route_for_task(uint64_t target_task_id, con
 }
 
 template <typename Trace>
-OwnerTraceSnapshot<Trace> OwnerTraceStore::snapshot_locked(const std::deque<Trace> &events, uint64_t total,
-                                                           int limit) const {
+OwnerTraceSnapshot<Trace> OwnerTraceStore::snapshot_locked(const std::deque<Trace>& events,
+                                                           uint64_t total, int limit) const {
   OwnerTraceSnapshot<Trace> snapshot;
   auto available = events.size();
-  auto requested = limit <= 0 || static_cast<size_t>(limit) > available ? available : static_cast<size_t>(limit);
+  auto requested =
+      limit <= 0 || static_cast<size_t>(limit) > available ? available : static_cast<size_t>(limit);
   auto start = available - requested;
   snapshot.events.reserve(requested);
   for (size_t i = 0; i < requested; i++) {
@@ -143,22 +146,26 @@ OwnerTraceSnapshot<OwnerTaskTrace> OwnerTraceStore::task_snapshot(int limit) con
 
 OwnerTraceSnapshot<OwnerExecutorTrace> OwnerTraceStore::executor_snapshot(int limit) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return snapshot_locked(executor_traces_, total_executor_traced_.load(std::memory_order_relaxed), limit);
+  return snapshot_locked(executor_traces_, total_executor_traced_.load(std::memory_order_relaxed),
+                         limit);
 }
 
 OwnerTraceSnapshot<OwnerAccessTrace> OwnerTraceStore::access_snapshot(int limit) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return snapshot_locked(access_traces_, total_access_traced_.load(std::memory_order_relaxed), limit);
+  return snapshot_locked(access_traces_, total_access_traced_.load(std::memory_order_relaxed),
+                         limit);
 }
 
 OwnerTraceSnapshot<OwnerMessageTrace> OwnerTraceStore::message_snapshot(int limit) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return snapshot_locked(message_traces_, total_message_traced_.load(std::memory_order_relaxed), limit);
+  return snapshot_locked(message_traces_, total_message_traced_.load(std::memory_order_relaxed),
+                         limit);
 }
 
 OwnerTraceSnapshot<OwnerCommitTrace> OwnerTraceStore::commit_snapshot(int limit) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return snapshot_locked(commit_traces_, total_commit_traced_.load(std::memory_order_relaxed), limit);
+  return snapshot_locked(commit_traces_, total_commit_traced_.load(std::memory_order_relaxed),
+                         limit);
 }
 
 uint64_t OwnerTraceStore::total_task_traced() const {
@@ -182,9 +189,9 @@ uint64_t OwnerTraceStore::total_commit_traced() const {
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS
-void OwnerTraceStore::mark_debug_refs(std::unordered_set<const VMFrozenValue *> &seen) const {
+void OwnerTraceStore::mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &trace : task_traces_) {
+  for (const auto& trace : task_traces_) {
     vm_mark_frozen_value_once(trace.payload, seen);
   }
 }
