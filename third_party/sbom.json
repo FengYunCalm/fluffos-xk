@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:b3c72a16-547e-562b-a638-abc2cae80820",
+  "serialNumber": "urn:uuid:07f69607-cc28-5d28-9501-0ffdb63237f0",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-08-10T00:00:00Z",
+    "timestamp": "2026-10-11T00:00:00Z",
     "tools": [
       {
         "vendor": "FluffOS",
@@ -411,11 +411,11 @@
     {
       "type": "operating-system",
       "name": "alpine-base-image",
-      "version": "3.18",
+      "version": "3.22",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7"
+          "content": "5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8"
         }
       ]
     },

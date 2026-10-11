@@ -1548,6 +1548,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **工具验收**：LPC syntax self-test `187` 项和 corpus self-test `11` 项全部通过；新增回归覆盖数字 range 左界不会被格式化为 `0..` 的错误 token 形状。证据位于 `build-modernization-evidence/u10g/`。未运行真实下游 mudlib；CI 已从 U10f pilot 切换为全量 native 与完整 LPC read-only gate。
 - **出口边界**：U10g 不改变可见字符串、LPC token/literal/directive 内容或运行时接口；任何未来新增源文件继续由 CI 全量只读门禁检查。U10 总体仍须结合 U11、U13–U17 的未完成单元，不因本项完成而宣称整个现代化方案闭环。
 
+### 11.69 U15：vendor、Alpine 构建与供应链记录
+
+- **状态**：`accepted/local-linux; Windows/external-platform`。本地可执行的 Alpine 固定镜像、静态依赖组合、SBOM/manifest 同步和已知 libevent UBSan 诊断已处置；未把 Windows、其他架构、registry 推送或发布流程写成通过。
+- **libwebsockets 对照**：相对 `1797eaaf` 逐文件核对，当前 vendor 只有两个本地 TLS 适配（`ssl_min_proto_version` 字段及 OpenSSL 应用逻辑）和 28 个执行位差异；4.5.8 基线 `8fe05a5d` 及其后的 ws-over-h2 上游修复不再误记为本地补丁。归属说明见 `docs/vendor-libwebsockets-manifest-2026-08.md`。
+- **Alpine 固定镜像**：`Dockerfile`、`third_party/manifest.yaml` 和 `third_party/sbom.json` 统一到 `alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8`。Alpine 3.22 的 `pcre2-static` 已纳入 builder 包清单，并保留头文件/静态库存在性检查；ICU/OpenSSL/数据库/压缩静态库组合实际完成配置。
+- **构建验收**：在固定 Alpine 3.22 amd64 根文件系统中，jemalloc `5.3.0` SHA-256 校验通过；`cmake -DMARCH_NATIVE=OFF -DSTATIC=ON -DENABLE_LTO=OFF` 配置成功，`driver` 与 `lpcc` 串行构建成功，产物为静态 ELF。runtime 根文件系统安装 `icu-data-full` 后，driver 启动并输出版本、jemalloc、ICU 和用法；缺少 config 的预期退出码为 `255`。证据位于 `build-modernization-evidence/u15/alpine-3.22-*.log`。
+- **供应链边界**：本单元没有升级第三方源码、改变 TLS 信任/SNI 或执行 registry 写入；action pin、manifest JSON/YAML 语法和 `git diff --check` 仍按本地门禁核验。Windows、非 amd64、长时压力、真实数据库和真实下游 mudlib 不属于本地通过证据，转入 U17/external-required。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

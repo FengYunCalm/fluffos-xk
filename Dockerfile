@@ -1,14 +1,13 @@
-FROM alpine:3.18@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS builder
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8 AS builder
 
 RUN apk add --no-progress --no-cache \
     linux-headers gcc g++ clang-dev make cmake bash \
     mariadb-dev mariadb-static postgresql-dev sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static zlib-dev zlib-static icu-dev icu-static \
-    pcre2-dev bison git musl-dev libelf-static elfutils-dev zstd-static bzip2-static xz-static
+    pcre2-dev pcre2-static bison git musl-dev libelf-static elfutils-dev zstd-static bzip2-static xz-static
 
-# Alpine 3.18's pcre2-dev package provides both the 8-bit header and static
-# archive; fail the builder if the pinned package no longer provides either.
-# pcre2-static is not an Alpine 3.18 package.
+# Fail the builder if the pinned PCRE2 packages no longer provide the required
+# header or static archive.
 RUN test -f /usr/lib/libpcre2-8.a \
     && test -f /usr/include/pcre2.h
 
@@ -36,7 +35,7 @@ WORKDIR /build/fluffos/build
 RUN cmake .. -DMARCH_NATIVE=OFF -DSTATIC=ON -DENABLE_LTO=OFF \
     && make install
 
-FROM alpine:3.18@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7
+FROM alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
 
 RUN apk add --no-progress --no-cache \
     icu-data-full

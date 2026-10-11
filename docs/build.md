@@ -17,7 +17,7 @@ The best platform to build FluffOS is Ubuntu 24.04+ (including WSL), macOS lates
 - **Ubuntu 24.04**: GCC and Clang with Debug/RelWithDebInfo builds
 - **macOS 14 (Apple Silicon)**: Clang with Debug/RelWithDebInfo builds
 - **Windows (MSYS2/MINGW64)**: GCC with Debug/RelWithDebInfo builds
-- **Alpine Linux 3.18**: Static builds for Docker containers
+- **Alpine Linux 3.22**: Static builds for Docker containers
 
 **System Library Requirements** (Must install):
 
@@ -399,7 +399,7 @@ See `.github/workflows/` for the exact CI configuration.
 
 ## Alpine Linux & Docker
 
-Alpine Linux is used for building static binaries suitable for Docker containers. The Docker image is based on Alpine 3.18.
+Alpine Linux is used for building static binaries suitable for Docker containers. The Docker image is based on Alpine 3.22.
 
 ### Installing Dependencies
 
@@ -459,7 +459,7 @@ $ docker run -it fluffos:local /path/to/config.cfg
 ```
 
 The Dockerfile uses a multi-stage build:
-1. **Builder stage**: Compiles FluffOS statically on Alpine 3.18
+1. **Builder stage**: Compiles FluffOS statically on Alpine 3.22
 2. **Runtime stage**: Creates minimal image with just the binary
 
 See the `Dockerfile` in the repository root for details.
