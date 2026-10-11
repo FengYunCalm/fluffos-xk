@@ -427,6 +427,18 @@ const char *normalize_task_text(const char *text, const char *fallback) {
   return text && text[0] != '\0' ? text : fallback;
 }
 
+template <typename Task>
+uint64_t initialize_owner_task_identity(Task &task, const char *owner_id, uint64_t owner_epoch,
+                                       const char *task_type, const char *task_key) {
+  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
+  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
+  task.owner_epoch = owner_epoch;
+  task.owner_id = normalize_owner_id(owner_id);
+  task.task_type = normalize_task_text(task_type, "generic");
+  task.task_key = normalize_task_text(task_key, "");
+  return task.task_id;
+}
+
 uint64_t owner_now_ms() {
   using namespace std::chrono;
   return static_cast<uint64_t>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
@@ -4051,13 +4063,7 @@ uint64_t vm_owner_enqueue_task_epoch(const char *owner_id, const char *task_type
   OwnerMailboxTask task;
   uint64_t task_id;
   bool notify_owner_thread = false;
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = owner_epoch;
-  task.owner_id = normalize_owner_id(owner_id);
-  task.task_type = normalize_task_text(task_type, "generic");
-  task.task_key = normalize_task_text(task_key, "");
-  task_id = task.task_id;
+  task_id = initialize_owner_task_identity(task, owner_id, owner_epoch, task_type, task_key);
   auto normalized_owner_id = task.owner_id;
   bool queued = false;
 
@@ -4091,12 +4097,9 @@ uint64_t vm_owner_enqueue_command_frame_restore(object_t *target) {
   uint64_t task_id;
   bool notify_owner_thread = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = vm_owner_epoch(target);
-  task.owner_id = normalize_owner_id(vm_owner_id(target));
-  task.task_type = "command_frame_restore";
-  task.task_key = "gateway-command-frame-restore";
+  task_id = initialize_owner_task_identity(task, vm_owner_id(target), vm_owner_epoch(target),
+                                           "command_frame_restore",
+                                           "gateway-command-frame-restore");
   task.target_object = owner_object_name(target);
   task.target = target;
   task.has_target_handle = true;
@@ -4160,12 +4163,8 @@ uint64_t vm_owner_enqueue_executor_task(object_t *target, const char *task_type,
   bool notify_owner_thread = false;
   bool queued = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = vm_owner_epoch(target);
-  task.owner_id = normalize_owner_id(vm_owner_id(target));
-  task.task_type = std::move(normalized_task_type);
-  task.task_key = normalize_task_text(task_key, "");
+  task_id = initialize_owner_task_identity(task, vm_owner_id(target), vm_owner_epoch(target),
+                                           normalized_task_type.c_str(), task_key);
   task.target_object = owner_object_name(target);
   task.target = target;
   task.has_target_handle = true;
@@ -4229,13 +4228,10 @@ VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(
   }
 
   OwnerMailboxTask task;
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
+  const auto *string_task_key = normalize_task_text(task_key, "native_string");
+  initialize_owner_task_identity(task, vm_owner_id(target), vm_owner_epoch(target),
+                                 normalized_task_type.c_str(), string_task_key);
   task.future_target_task_id = task.task_id;
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = vm_owner_epoch(target);
-  task.owner_id = normalize_owner_id(vm_owner_id(target));
-  task.task_type = normalized_task_type;
-  task.task_key = normalize_task_text(task_key, "native_string");
   task.target_object = owner_object_name(target);
   task.target = target;
   task.has_target_handle = true;
@@ -4347,14 +4343,11 @@ uint64_t vm_owner_enqueue_test_main_required_message(const char *owner_id, const
   uint64_t task_id;
   bool notify_owner_thread = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = 0;
-  task.owner_id = normalize_owner_id(owner_id);
-  task.task_type = "owner_message";
-  task.task_key = normalize_task_text(task_key, "test-main-required");
+  task_id = initialize_owner_task_identity(task, owner_id, 0, "owner_message", task_key);
+  if (task.task_key.empty()) {
+    task.task_key = "test-main-required";
+  }
   task.has_target_handle = true;
-  task_id = task.task_id;
   auto normalized_owner_id = task.owner_id;
   bool queued = false;
 
@@ -4373,14 +4366,12 @@ mapping_t *vm_owner_lpc_probe(object_t *target, const char *owner_id, const char
   uint64_t task_id;
   bool notify_owner_thread = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = target ? vm_owner_epoch(target) : 0;
-  task.owner_id = normalize_owner_id(owner_id);
-  task.task_type = "lpc_probe";
-  task.task_key = normalize_task_text(method, "owner_lpc_probe");
+  task_id = initialize_owner_task_identity(
+      task, owner_id, target ? vm_owner_epoch(target) : 0, "lpc_probe", method);
+  if (task.task_key.empty()) {
+    task.task_key = "owner_lpc_probe";
+  }
   task.target_object = owner_object_name(target);
-  task_id = task.task_id;
   auto normalized_owner_id = task.owner_id;
   auto target_name = task.target_object;
   bool queued = false;
@@ -4419,12 +4410,11 @@ mapping_t *vm_owner_lpc_canary(object_t *target, const char *owner_id, const cha
   uint64_t task_id;
   bool notify_owner_thread = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = target ? vm_owner_epoch(target) : 0;
-  task.owner_id = normalize_owner_id(owner_id);
-  task.task_type = "lpc_canary";
-  task.task_key = normalize_task_text(method, "owner_lpc_canary");
+  task_id = initialize_owner_task_identity(
+      task, owner_id, target ? vm_owner_epoch(target) : 0, "lpc_canary", method);
+  if (task.task_key.empty()) {
+    task.task_key = "owner_lpc_canary";
+  }
   task.target_object = owner_object_name(target);
   task.target = target;
   if (task.target) {
@@ -4522,12 +4512,9 @@ mapping_t *vm_owner_lpc_task(object_t *target, const char *owner_id, const char 
   bool notify_owner_thread = false;
   bool queued = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = target ? vm_owner_epoch(target) : 0;
-  task.owner_id = normalized_owner_id;
-  task.task_type = "lpc_task";
-  task.task_key = method_name;
+  task_id = initialize_owner_task_identity(
+      task, normalized_owner_id.c_str(), target ? vm_owner_epoch(target) : 0, "lpc_task",
+      method_name.c_str());
   task.target_object = target_name;
   task.target = target;
   if (task.target) {
@@ -4673,12 +4660,9 @@ mapping_t *vm_owner_ordinary_lpc_task(object_t *target, const char *owner_id, co
   bool notify_owner_thread = false;
   bool queued = false;
 
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = vm_owner_epoch(target);
-  task.owner_id = normalized_owner_id;
-  task.task_type = "ordinary_lpc";
-  task.task_key = method_name;
+  task_id = initialize_owner_task_identity(
+      task, normalized_owner_id.c_str(), vm_owner_epoch(target), "ordinary_lpc",
+      method_name.c_str());
   task.target_object = target_name;
   task.target = target;
   task.has_target_handle = true;
@@ -4808,12 +4792,8 @@ uint64_t enqueue_owner_main_task(object_t *target, const char *task_type, const 
   }
 
   OwnerMainTask task;
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_id = normalize_owner_id(vm_owner_id(target));
-  task.owner_epoch = vm_owner_epoch(target);
-  task.task_type = normalize_task_text(task_type, "main");
-  task.task_key = normalize_task_text(task_key, "");
+  initialize_owner_task_identity(task, vm_owner_id(target), vm_owner_epoch(target),
+                                 normalize_task_text(task_type, "main"), task_key);
   task.target_object = owner_object_name(target);
   task.payload_key = normalize_task_text(payload_key, "");
   task.command_text_snapshot_ready = command_text_snapshot != nullptr;
@@ -5492,12 +5472,9 @@ mapping_t *submit_owner_message(const char *source_owner_id, const char *target_
   auto message_id = owner_trace_store.next_message_id();
 
   OwnerMailboxTask task;
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_epoch = target_handle ? target_handle->owner_epoch : 0;
-  task.owner_id = target_owner;
-  task.task_type = "owner_message";
-  task.task_key = normalized_type;
+  initialize_owner_task_identity(task, target_owner.c_str(),
+                                 target_handle ? target_handle->owner_epoch : 0, "owner_message",
+                                 normalized_type.c_str());
   task.has_target_handle = target_handle != nullptr;
   task.payload = std::move(frozen_payload);
   if (target_handle) {
@@ -5690,12 +5667,10 @@ uint64_t vm_owner_enqueue_compute_result_fields(const char *owner_id, uint64_t w
                                                 const VMOwnerComputeResultField *fields, size_t field_count) {
   std::string normalized_owner = normalize_owner_id(owner_id);
   OwnerMailboxTask task;
-  task.task_id = next_mailbox_task_id.fetch_add(1, std::memory_order_relaxed);
+  const auto *compute_task_key = normalize_task_text(result_key, task_type);
+  initialize_owner_task_identity(task, normalized_owner.c_str(), 0, "compute_result",
+                                 compute_task_key ? compute_task_key : "");
   task.future_target_task_id = worker_task_id;
-  task.sequence = total_enqueued.fetch_add(1, std::memory_order_relaxed) + 1;
-  task.owner_id = normalized_owner;
-  task.task_type = "compute_result";
-  task.task_key = normalize_task_text(result_key, task_type);
   task.future_state = normalize_task_text(state, "completed");
   task.future_error = normalize_task_text(error, "");
   task.compute_result_fields.reserve(field_count);

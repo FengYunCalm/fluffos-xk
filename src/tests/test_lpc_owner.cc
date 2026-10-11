@@ -4977,6 +4977,24 @@ TEST_F(DriverTest, TestOwnerStatusSerializationUsesSharedFieldBuilder) {
             std::string::npos);
 }
 
+TEST_F(DriverTest, TestOwnerTaskConstructionUsesSharedIdentityInitializer) {
+  const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
+  const std::string initializer = "initialize_owner_task_identity(";
+  size_t initializer_count = 0;
+  for (size_t offset = owner_source.find(initializer); offset != std::string::npos;
+       offset = owner_source.find(initializer, offset + initializer.size())) {
+    initializer_count++;
+  }
+  EXPECT_EQ(initializer_count, 13u);
+
+  const std::string direct_task_id_init =
+      "task.task_id = next_mailbox_task_id.fetch_add";
+  const auto direct_init = owner_source.find(direct_task_id_init);
+  ASSERT_NE(direct_init, std::string::npos);
+  EXPECT_EQ(owner_source.find(direct_task_id_init, direct_init + direct_task_id_init.size()),
+            std::string::npos);
+}
+
 TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
   const auto gateway_source =
       read_source_file_for_test("../src/packages/gateway/gateway.cc");

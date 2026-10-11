@@ -1508,6 +1508,22 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **验收**：Debug、ASan、UBSan、TSan 的 4 个 focused tests 各 `4/4`，无 sanitizer 诊断；TSan 构建和测试均使用 `setarch x86_64 -R`。额外运行 `DriverTest.*Owner*` 时为 `165/169`，4 个跨测试状态污染用例在单独进程各 `1/1`，该非本项序列化路径的 suite-order 问题不计入本项通过，未宣称 owner 全集通过。
 - **未验边界**：clang-format 18.1.8 未安装，未执行格式工具；Windows、长时间 soak、真实下游 mudlib workload、U12 其余 scheduler/gateway 职责拆分和 U17 长稳门禁仍未覆盖。
 
+### 11.66 U12：owner 任务身份构造去重
+
+- **状态**：`accepted/focused-debug-asan-ubsan-tsan`。本项只合并 `OwnerMailboxTask` 与 `OwnerMainTask` 的身份字段构造，不改变准入、队列、owner claim、future、回调、完成清理或 main-required 分流。
+- **实现**：`src/vm/internal/owner.cc` 新增模板化 `initialize_owner_task_identity()`，统一生成 `task_id`、全局 `sequence`、`owner_epoch`、规范化 `owner_id`、`task_type` 和 `task_key`；12 个真实任务入口复用该 helper。各入口仍在 helper 后填充 target、payload、future、回调和任务专有字段；中央 `enqueue_owner_task_locked()` 仍是唯一准入点。`OwnerMainTask` 使用 `main` 默认类型，native string、compute result、LPC probe/canary 等原有 key fallback 保持不变。
+- **回归**：新增 `TestOwnerTaskConstructionUsesSharedIdentityInitializer`，确认身份初始化调用数和 `next_mailbox_task_id` 的唯一直接写入点；既有 owner task、gateway command、future、stale epoch 与 cleanup 测试继续覆盖运行时路径。
+- **验收**：Debug、ASan、UBSan、TSan focused identity/status/contract tests 各 `4/4`；四种配置无 sanitizer 诊断。`owner-runtime-v4` smoke 通过，same-owner `32/32`、different-owner `32/32`、future pending backlog `0`、owner claim conflict `0`；LPC `owner_executor_contract` 通过。真实 loopback gateway/WebSocket 组合 `19/19`，无失败、错误或跳过。TSan 构建和测试均使用 `setarch x86_64 -R`。专项证据位于 `build-modernization-evidence/u12/owner-task-identity-final-v1/`、`build-modernization-evidence/u12/owner-runtime-task-refactor/` 和 `build-modernization-evidence/u12/gateway-task-refactor-websocket-v1/`。
+- **未验边界**：clang-format 18.1.8 未安装，格式工具未执行；Windows、长时间 soak 和真实下游 mudlib workload 不由本项虚报覆盖。
+
+### 11.67 U12：职责边界与状态模型最终审计
+
+- **状态**：`complete-local/external-required`。U12 在 Linux 本地范围闭合；Windows、长时间 soak、真实下游 mudlib workload 和 U17 集成门禁仍为外部/后续边界，不能写成全平台完成。
+- **状态表**：admission 由 `owner.cc::enqueue_owner_task_locked()` 写入并由 scheduler/coordinator 的 enqueue、claim、backpressure 与 quiescence 路径读取，任务完成或拒绝时写 trace/future 并释放 target；mailbox 由 `owner_scheduler_state` 写入/弹出，worker 与 main drain 读取，owner release 和 shutdown purge 结束生命周期；future 由 `owner_future_store` admission/settle/cancel/poll 管理，Promise/owner callback 读取，terminal settle 或 shutdown 清理；reservation 由 `gateway_reserve_session_outputs()` 写入 session FIFO 并由 seal/stage/release/rollback 读取，flush、destruct 或取消关闭；session attach/detach 由 gateway session registry 与 concrete-session cleanup 写入，object/session lookup、net-dead 和 shutdown 读取，generation/destruct 后移除；retry wave 由 `g_gateway_room_output_waves` 与 `g_gateway_room_output_retry_schedule` 写入，timer budget、publish/retry/abort 读取，成功、超时、失效 handle 或 shutdown 删除；cleanup 由 owner target release、future cancellation、gateway reservation/wave cancellation 和 event finalizer 写入，引用释放、回调取消与最终 drain 读取。各表项复用既有 scheduler/coordinator/registry，没有新增全局 manager。
+- **结构结论**：owner 状态映射已经由 `add_owner_runtime_status_fields()` 统一序列化；任务身份由 11.66 helper 统一构造；gateway wire 已由 `GatewayWireOutputFactory`、validated projection encoder 和 session FIFO writer 分层，retry 已由独立 bounded schedule/wave 状态机管理。`terminal`、`completed`、`inline_fallback`、`reservation_closed`、`notification_finalized` 表达不同生命周期维度，实测存在组合状态，不能安全压成一个 enum；公开 mapping 字段继续由这些内部状态推导。未发现可证明无消费者且可安全删除的 wrapper；owner safety checks、锁域边界和回调后复核均保留。
+- **验收**：11.63–11.66 的失败回归、status mapping、object-store lifecycle、owner-runtime smoke、gateway wire/session loopback 证据均已复核；gateway 19 个真实 transport/proxy/callback case 全执行且全通过，owner benchmark 的必要零值指标为 `normal_path_main_fallback_count=0`、`executor_context_cleanup_leaks=0`、`executor_same_owner_claim_conflicts=0`、`object_resolve_global_fallback_count=0`。本审计不改变消息顺序、序列号、deadline、队列上限、计数、TLS/代理规则或 main-required 策略。
+- **出口**：U12 不再有本地可执行但未处置的 scheduler/gateway 结构整理项；剩余限制转入 U15/U16/U17 的对应验收，不以本地 Linux 回归推断 Windows、长期容量或任意下游 mudlib。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
