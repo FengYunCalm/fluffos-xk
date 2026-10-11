@@ -134,7 +134,7 @@
 | F11 | P2 | ws_ascii/ws_telnet 重复代理地址、建连/关闭处理；matrix 重复参数读取/变换计算 | 可借上游 helper 消除重复，但必须保留本地 output queue、TLS payload drain 和编码路径 | U09 |
 | F12 | P2 | test_lpc.cc 28415 行；gateway_session.cc 7476 行；owner.cc 6551 行；lex.cc 5141 行 | 说明职责集中，不证明慢或错误；按职责和测试依赖拆分，不按行数配额拆分 | U10/U12/U13 |
 | F13 | P2 | 本地手写 lexer/pull parser；上游已有 Flex、CompileState、拆分规则和 staged output | 存在实质现代化差距，也有本地语义和 arena 差异；不能整包 cherry-pick | U13/U14 |
-| F14 | P1 | src/CMakeLists.txt 对 ENABLE_UBSAN 无条件附加 -fno-sanitize=null；注释解释的是特定 GCC/TLS 问题 | 当前条件比解释范围宽，Clang 也受影响；必须用工具链复现实验证明最小排除范围 | U06c |
+| F14 | P1 | 历史上 src/CMakeLists.txt 对 ENABLE_UBSAN 无条件附加 -fno-sanitize=null；注释解释的是特定 GCC/TLS 问题 | U06c 已以 GCC/Clang 最小矩阵复现并收窄为 GNU 编译器条件；Clang 已恢复检查。bundled libevent 的独立函数指针 UBSan 诊断仍归 U15 | U06c/U15 |
 | F15 | P2 | third_party/manifest.yaml 写 lws 4.2.1；vendor 专项文档称基于 4.5.8 系列，且留下待补精确提交项 | 清单与归属证据矛盾；先核真实树/版本/哈希，不直接升级或宣称有 CVE | U15 |
 | F16 | P2 | src/.clang-format 的说明与实际值不符，且本地尚未固定指针对齐；clang-tidy 允许任意函数大小写；CONTRIBUTING 要求随文件风格 | 不仅是排版差异，还缺统一规范、版本和执行入口；U10 按独立代码规范对齐，不运行全 cwd 的旧格式脚本 | U10 |
 | F17 | P1 | run-targeted.py::run_binary 只拒绝全跳过，未核发现/执行集合相等；run_driver 在全量无 C> 时补 passed=1；run_ctest 先判 Not Run 再判 timeout/非零退出 | 当前 runner 不满足本文非空、无跳过的验收合同；不能直接拿其 exit=0 签收单元 | U00a |
@@ -1085,7 +1085,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 
 - 证据前缀：/tmp/fluffos-xk-u06b-73b50b41。before-contract 的 9 项实际启动/编译测试中 3 项反例失败：缺省、空值和纯空格被 rc 补成双引号字符串，产生无意义警告，get_config 不返回空串。原版仍能启动，不能将此问题描述为已经复现的启动失败。
 - 仅在非空值上补引号，保留引号、尖括号、未加引号路径及错误诊断行为。新增 test-global-include.py，以最小 master/simul 和探针验证宏确实自动包含、空配置返回值及三种错误输入。首轮缺失 creator_file 的夹具错误单列；误填不存在的 ASan 构建目录未执行构建，均不计生产失败。
-- Debug、ASan、Release 的 driver 定向构建及各 9/9 运行测试通过，0 跳过；after-debug、after-asan、after-release 保留原始进程与身份记录。未更改 lexer、grammar 或配置键编号。Windows 未验证；U06c–d 仍待实施。
+- Debug、ASan、Release 的 driver 定向构建及各 9/9 运行测试通过，0 跳过；after-debug、after-asan、after-release 保留原始进程与身份记录。未更改 lexer、grammar 或配置键编号。Windows 未验证；U06c、U06d 的后续结果分别见本节记录。
+
+### 11.13c U06c：UBSan null 检查的工具链边界
+
+- 持久证据位于 `build-modernization-evidence/u06c/`。矩阵固定为 GCC 13.3.0 与 Clang 18.1.3，分别保留/移除 `-fno-sanitize=null`；四个构建目录均独立配置，`driver`、`lpc_tests`、`lpcc`、`lpcshell` 均以 `--parallel 1` 串行构建，编译命令与工具链身份留档。
+- GCC 有/无 null 检查均通过完整 `lpc_tests` 的 `509/509`；VM 代表性用例、socket text accumulator 与 TLS/VM 最小集合均通过，四个 GCC/Clang 矩阵项的 `socket_tls_text_fragments` 定向 driver 运行均通过，日志没有 `runtime error:` 或 sanitizer 诊断。GCC null-on 复核表明当前版本和当前源码不再重现历史 TLS false positive。
+- Clang 有/无 null 检查的最小集合均为 `6/6`，包含 VM 初始化、TLS client/minimum-protocol、TLS reload 权限线程矩阵和 socket text accumulator；Clang 两种构建的 TLS 分片 driver 入口均通过。Clang 的一次全量 `lpc_tests` 额外试跑在既有 bundled libevent `bufferevent_ssl.c:932` 函数指针类型不匹配处触发 UBSan，原始记录保留在 `clang-off-full-lpc-tests.log`，不把该 vendor 诊断伪装成 U06c 的 null 检查结果，归入 U15 vendor 处理边界。
+- `src/CMakeLists.txt` 现仅对 GNU 编译器保留历史 `-fno-sanitize=null` 例外；Clang 恢复 null 检查。U06c 的 Linux 工具链边界完成；vendor libevent 诊断、Windows 和其他平台仍不在本项通过声明内。
 
 ### 11.13 U06d：生成链与增量依赖
 
@@ -1094,7 +1101,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 首次私有配置缺少 PCRE2 开发头，复用已验证依赖路径后配置成功；首轮 after 的一项失败伴随 WSL 时钟偏移。保留原日志，夹具增加时间间隔并断言输入时间戳严格晚于输出，再分别复跑未修复与修复版本：仍为 5 项真实反例，修复后 7/7。没有继续叠加源码修复来掩盖环境问题。
 - 持久回归 tools/build/test_generated_dependencies.py 使用独立源码快照、输入哈希与既有进程树监督器；首轮证据 /tmp/fluffos-xk-u06d-acf0980d-incremental 为 7/7。随后扩充条件 spec 夹具，要求四种 options 输入同时更新 options 和 efun 表；/tmp/fluffos-xk-u06d-acf0980d-fullspec-before 再现 5 项失败，fullspec-after 为 7/7。只修改快照并恢复，不改工作树或既有构建目录；运行矩阵的原快照已按全部文件哈希复核恢复。
 - 同一快照的 Bison/fallback × Debug/Release 四个独立目录均构建 driver、lpcc。四组分别通过 positive_compilation、private_inherit_alias_chain、include_paths、modernization_compat 共四个 LPC 入口及 global include 9/9；没有跳过。每种构建类型的七个 options/spec/efun/applies 产物逐字节一致，见 generated-comparison.json。源码快照无提交身份，来源与每个文件哈希由 source-snapshot.json 记录；运行证据另含实际二进制、构建缓存和动态库身份。
-- U06d 的 Linux 门禁完成；未声明全量测试或跨平台验证。U06c 当前缺少 Clang，尚不能满足 GCC/Clang 对照，未修改 null 抑制；新式 ed/gateway、数据库与真实下游仍待后续独立门禁。继续其他不受阻塞的单元。
+- U06d 的 Linux 门禁完成；未声明全量测试或跨平台验证。U06c 已在上方单独记录 GCC/Clang 对照；新式 ed/gateway、数据库与真实下游仍待后续独立门禁。继续其他不受阻塞的单元。
 
 ### 11.14 U07：Unicode explode 分类扫描
 
