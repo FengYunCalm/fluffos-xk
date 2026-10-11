@@ -653,6 +653,7 @@ std::string gateway_encode_preencoded_message_event_batch_for_test(
     const std::vector<LPC_INT> &sent_ats, LPC_INT slot_server_seq,
     LPC_INT slot_epoch, LPC_INT slot_sent_at);
 void gateway_clear_message_event_template_cache_for_test();
+void gateway_fail_next_command_event_for_test();
 
 GatewaySession *gateway_find_session(const char *session_id);
 GatewaySession *gateway_find_session_by_object(object_t *ob);

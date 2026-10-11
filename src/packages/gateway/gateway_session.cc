@@ -155,6 +155,7 @@ constexpr LPC_INT kGatewayOwnerRoomOutputMaxEvents = 128;
 std::unordered_multimap<size_t, GatewayMessageEventTemplate>
     g_gateway_message_event_template_cache;
 size_t g_gateway_message_event_template_cache_bytes = 0;
+bool g_gateway_fail_next_command_event_for_test = false;
 
 class GatewayWireOutput;
 bool gateway_dispatch_future_output_notification(
@@ -1744,11 +1745,11 @@ svalue_t gateway_command_task_payload(interactive_t *user, bool snapshot_ready, 
   return payload;
 }
 
-void cleanup_temp_gateway_interactive(object_t *owner) {
-  auto *ip = owner ? owner->interactive : nullptr;
+void cleanup_temp_gateway_interactive(interactive_t *ip) {
   if (!ip) {
     return;
   }
+  auto *owner = ip->ob;
 
   cancel_user_logon(ip);
   if (ip->ev_command) {
@@ -1766,8 +1767,11 @@ void cleanup_temp_gateway_interactive(object_t *owner) {
   }
 
   user_del(ip);
+  if (owner && owner->interactive == ip) {
+    owner->interactive = nullptr;
+  }
+  ip->ob = nullptr;
   FREE(ip);
-  owner->interactive = nullptr;
 }
 
 void gateway_command_callback(evutil_socket_t /*fd*/, short /*what*/, void *arg) {
@@ -6138,6 +6142,10 @@ void gateway_clear_message_event_template_cache_for_test() {
   g_gateway_message_event_template_cache_bytes = 0;
 }
 
+void gateway_fail_next_command_event_for_test() {
+  g_gateway_fail_next_command_event_for_test = true;
+}
+
 object_t *gateway_create_session_internal(const char *session_id, svalue_t *data_val,
                                           const char *ip, int port, int master_fd) {
   object_t *ob;
@@ -6176,9 +6184,14 @@ object_t *gateway_create_session_internal(const char *session_id, svalue_t *data
   user->gateway_real_ip = string_copy(ip ? ip : "", "gateway_real_ip");
   user->gateway_real_port = port;
   user->gateway_master_fd = master_fd;
-  user->ev_command = evtimer_new(g_event_base, gateway_command_callback, user);
+  if (g_gateway_fail_next_command_event_for_test) {
+    g_gateway_fail_next_command_event_for_test = false;
+    user->ev_command = nullptr;
+  } else {
+    user->ev_command = evtimer_new(g_event_base, gateway_command_callback, user);
+  }
   if (!user->ev_command) {
-    cleanup_temp_gateway_interactive(master_ob);
+    cleanup_temp_gateway_interactive(user);
     master_ob->flags &= ~O_ONCE_INTERACTIVE;
     restore_command_giver();
     return nullptr;
@@ -6189,7 +6202,7 @@ object_t *gateway_create_session_internal(const char *session_id, svalue_t *data
   ret = safe_apply_master_ob(APPLY_CONNECT, 0);
   restore_command_giver();
   if (!ret || ret == (svalue_t *)-1 || ret->type != T_OBJECT) {
-    cleanup_temp_gateway_interactive(master_ob);
+    cleanup_temp_gateway_interactive(master_ob->interactive);
     master_ob->flags &= ~O_ONCE_INTERACTIVE;
     return nullptr;
   }

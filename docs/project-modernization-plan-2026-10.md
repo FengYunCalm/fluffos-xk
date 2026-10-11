@@ -1483,6 +1483,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **验收**：修复后 Debug、ASan、UBSan、TSan 各一个入口，合计 `4/4`，均为 `selected=1,passed=1,failed=0,skipped=0`；证据目录为 `async-inherit-current-v2/`、`async-inherit-asan-v1/`、`async-inherit-ubsan-v1/`、`async-inherit-tsan-v1/`，日志无 timeout、skip、assertion、SIGSEGV 或 sanitizer 诊断；TSan 使用 `setarch x86_64 -R`。修复后的 `driver` 已在四个构建目录重新定向构建。
 - **出口边界**：`async_inherit` 从 E 类移到 A 类；本项不声称完成 async replace_program、重编译事务、owner 生命周期或其他 inherited async 专项。
 
+### 11.63 U12：gateway 创建会话的命令事件失败清理
+
+- **状态**：`accepted/debug-asan-tsan`。新增 `TestGatewayCreateSessionEventFailureCleansPendingUser`，对命令事件创建失败分别验证 master 未绑定会话和 master 已绑定另一会话；断言 pending user 从全局用户表移除、既有 interactive 保留、`O_ONCE_INTERACTIVE` 清除、引用计数恢复。
+- **失败优先与根因**：`gateway_create_session_internal()` 先由 `user_add()` 创建并填充新 `interactive_t`，再调用 `evtimer_new()`，此时新 user 尚未写入 `master_ob->interactive`。旧路径把 `master_ob` 传给 `cleanup_temp_gateway_interactive()`，helper 只读取 `owner->interactive`：未绑定时漏清理新 user；已有另一绑定时错误释放旧 interactive，同时留下新 user 和对象引用。Debug fail-first 证据保留于 `build-modernization-evidence/u12/gateway-create-event-failure-before/`。
+- **修复边界**：`cleanup_temp_gateway_interactive()` 现在接收待清理的 `interactive_t*`，仅当其仍是 `ip->ob->interactive` 时清除 owner 指针，并在释放前清空借用的 `ob`；命令事件失败直接清理新 user，APPLY_CONNECT 失败仍按当前 master interactive 清理。新增的事件失败注入仅为 C++ 回归测试 hook，不进入 LPC/runtime API；不改变成功路径、协议、事件顺序、序列号、deadline、队列上限或 main-required 策略。
+- **验收**：Debug、ASan、TSan 的 focused case 各 `1/1`；三种配置的 `DriverTest.*Gateway*` 各 `175/175`，均 `failed=0,skipped=0`，无 timeout、assertion 或 sanitizer 诊断；TSan 构建和整个 runner 使用 `setarch x86_64 -R`。证据目录为 `gateway-create-event-failure-after-debug/`、`gateway-create-event-failure-asan-v1/`、`gateway-create-event-failure-tsan-v1/`、`gateway-debug-v1/`、`gateway-asan-v1/`、`gateway-tsan-v1/`。
+- **出口边界**：仅关闭 gateway 创建早期命令事件失败的具体会话清理缺陷；U12 其余 owner/gateway 状态拆分、结构去重和端到端容量测量仍按主计划独立验收。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。

@@ -24,6 +24,59 @@ object_t *create_gateway_session_for_test(const char *session_id, const char *lo
   return ob;
 }
 
+TEST_F(DriverTest, TestGatewayCreateSessionEventFailureCleansPendingUser) {
+  ASSERT_NE(master_ob, nullptr);
+  ASSERT_EQ(master_ob->interactive, nullptr);
+
+  const auto master_refs = master_ob->ref;
+  const std::vector<interactive_t*> users_before(users().begin(), users().end());
+
+  for (bool another_session : {false, true}) {
+    SCOPED_TRACE(another_session);
+    interactive_t* attached = nullptr;
+    if (another_session) {
+      attached = user_add();
+      ASSERT_NE(attached, nullptr);
+      attached->ob = master_ob;
+      attached->connection_type = PORT_TYPE_GATEWAY;
+      attached->iflags = GATEWAY_SESSION;
+      master_ob->interactive = attached;
+      add_ref(master_ob, "gateway create failure test attached user");
+    }
+
+    const std::string session_id = another_session
+                                       ? "gw-test-create-event-failure-attached"
+                                       : "gw-test-create-event-failure-unbound";
+    gateway_fail_next_command_event_for_test();
+    EXPECT_EQ(gateway_create_session_internal(session_id.c_str(), nullptr,
+                                              "127.0.0.1", 6040, -1),
+              nullptr);
+    EXPECT_EQ(users().size(), users_before.size() + (another_session ? 1 : 0));
+    EXPECT_EQ(master_ob->interactive, attached);
+    EXPECT_EQ(master_ob->flags & O_ONCE_INTERACTIVE, 0);
+
+    std::vector<interactive_t*> unexpected_users;
+    for (auto* candidate : users()) {
+      if (std::find(users_before.begin(), users_before.end(), candidate) ==
+          users_before.end() && candidate != attached) {
+        unexpected_users.push_back(candidate);
+      }
+    }
+    for (auto* candidate : unexpected_users) {
+      cancel_user_logon(candidate);
+      user_del(candidate);
+      FREE(candidate);
+    }
+
+    if (master_ob->interactive == attached && attached) {
+      remove_interactive(master_ob, 1);
+    }
+    EXPECT_EQ(users().size(), users_before.size());
+    EXPECT_EQ(master_ob->interactive, nullptr);
+    EXPECT_EQ(master_ob->ref, master_refs);
+  }
+}
+
 TEST_F(DriverTest, TestGatewayQueryIpNumberUsesForwardedClientAddress) {
   const char *session_id = "gw-test-query-ip-number";
   auto *ob = create_gateway_session_for_test(session_id, "/clone/gateway_login_example");
