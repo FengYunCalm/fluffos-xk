@@ -4942,6 +4942,41 @@ TEST_F(DriverTest, TestOwnerStatusMappingsUseLpcIntegerWidth) {
       "#ifdef DEBUGMALLOC_EXTENSIONS");
 }
 
+TEST_F(DriverTest, TestOwnerStatusSerializationUsesSharedFieldBuilder) {
+  const auto owner_source = read_source_file_for_test("../src/vm/internal/owner.cc");
+  const auto helper_start = owner_source.find(
+      "void add_owner_runtime_status_fields(");
+  const auto thread_start = owner_source.find(
+      "mapping_t *vm_owner_thread_status()");
+  const auto runtime_start = owner_source.find(
+      "mapping_t *vm_owner_runtime_status()");
+  const auto debugmalloc_start = owner_source.find(
+      "#ifdef DEBUGMALLOC_EXTENSIONS", runtime_start);
+
+  ASSERT_NE(helper_start, std::string::npos);
+  ASSERT_NE(thread_start, std::string::npos);
+  ASSERT_NE(runtime_start, std::string::npos);
+  ASSERT_NE(debugmalloc_start, std::string::npos);
+  ASSERT_LT(helper_start, thread_start);
+  ASSERT_LT(thread_start, runtime_start);
+  ASSERT_LT(runtime_start, debugmalloc_start);
+
+  const auto helper_body = owner_source.substr(helper_start, thread_start - helper_start);
+  const auto thread_body = owner_source.substr(thread_start, runtime_start - thread_start);
+  const auto runtime_body = owner_source.substr(runtime_start, debugmalloc_start - runtime_start);
+
+  EXPECT_NE(helper_body.find("add_mapping_pair(map, \"queue_depth\""),
+            std::string::npos);
+  EXPECT_EQ(thread_body.find("add_mapping_pair(map, \"queue_depth\""),
+            std::string::npos);
+  EXPECT_EQ(runtime_body.find("add_mapping_pair(map, \"queue_depth\""),
+            std::string::npos);
+  EXPECT_NE(thread_body.find("add_owner_runtime_status_fields(map, status);"),
+            std::string::npos);
+  EXPECT_NE(runtime_body.find("add_owner_runtime_status_fields(map, status);"),
+            std::string::npos);
+}
+
 TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
   const auto gateway_source =
       read_source_file_for_test("../src/packages/gateway/gateway.cc");

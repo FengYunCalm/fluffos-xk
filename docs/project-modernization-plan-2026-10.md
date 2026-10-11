@@ -1500,6 +1500,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - **验收**：`ObjectStoreSummaryTest.*` 在 Debug、ASan、UBSan、TSan 各 `14/14`；TSan 使用 `setarch x86_64 -R`。`test_object_store_bench.py` 在四配置各 `8/8`，默认 v1 输出、失败写入、非法参数和 1000 对象生命周期报告均通过；Release 规模测量 15/15 case 通过，报告保留独立资源记录。`git diff --check` 通过。
 - **未验边界**：clang-format 18.1.8 未安装，未执行格式工具；Windows、长时间 soak、真实下游 mudlib workload 和 U17 长稳门禁仍未覆盖。生命周期准备时间包含创建/销毁 fixture，不计入 `elapsed_ns` 查询延迟。
 
+### 11.65 U12：owner 状态映射序列化去重
+
+- **状态**：`accepted/focused-debug-asan-ubsan-tsan`。本项只拆出 owner 状态映射的共同序列化职责，不改变状态采集、锁边界、字段名、字段值、映射容量提示或公共 LPC 返回合同。
+- **实现**：`src/vm/internal/owner.cc` 新增 `add_owner_runtime_status_fields()`，由 `vm_owner_thread_status()` 和 `vm_owner_runtime_status()` 共同调用；线程专有字段和 runtime 专有字段仍由各自入口追加。共同字段集合保持原有键和值：thread status 为 `184` 个映射键，runtime status 为 `177` 个映射键；提交前脚本逐键对照基线，缺失、额外和表达式差异均为 `0`。
+- **回归**：新增 `TestOwnerStatusSerializationUsesSharedFieldBuilder`，验证共同字段只在单一 helper 中构造、两个入口均调用 helper；既有 status mapping、runtime layering 和 contract 测试继续覆盖真实 driver 路径。
+- **验收**：Debug、ASan、UBSan、TSan 的 4 个 focused tests 各 `4/4`，无 sanitizer 诊断；TSan 构建和测试均使用 `setarch x86_64 -R`。额外运行 `DriverTest.*Owner*` 时为 `165/169`，4 个跨测试状态污染用例在单独进程各 `1/1`，该非本项序列化路径的 suite-order 问题不计入本项通过，未宣称 owner 全集通过。
+- **未验边界**：clang-format 18.1.8 未安装，未执行格式工具；Windows、长时间 soak、真实下游 mudlib workload、U12 其余 scheduler/gateway 职责拆分和 U17 长稳门禁仍未覆盖。
+
 ## 附录 A：生产源码差异逐文件索引
 
 这是本次固定快照的精确路径对照，不是删除清单。状态 M=两侧存在但内容不同，L=仅本地，U=仅上游；行数按换行字节计，不作为质量评分。相同文件不重复列出。权限位、符号链接、vendor/tests/docs/tools 的余项分别交 U11/U15/U16；本表只覆盖 §2.2 定义的 325 项。
