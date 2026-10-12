@@ -1,8 +1,8 @@
 # FluffOS_XK 审计发现
 
 > 对象：用户自行改造的 **FluffOS_XK fork**，不是上游官方 FluffOS。
-> 状态：全仓静态取证与关键路径审查报告；**不等于逐文件逐路径深审全部闭合，也不等于动态安全验收通过**。
-> 本轮只交付本文件与 [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md)。没有实施下列修复，没有构建、启动、重启或停止 driver。
+> 状态：静态审查与隔离动态验证的续审报告；**逐文件逐路径深审、完整 LPC 与原生跨平台验收尚未全部闭合**。
+> 本轮只交付本文件与 [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md)。列出的 69 项均未实施修复；续审已构建并运行本任务的隔离测试进程，未操作机器上既有 driver 或其构建目录。
 
 ## 1. 元信息与证据口径
 
@@ -11,8 +11,9 @@
 | Fork / 分支 | FluffOS_XK / `main` |
 | Fork URL | `https://github.com/<fork-owner>/fluffos-xk`；账户段脱敏，精确连接配置留在本地 `.git/config`，不复制账号或私有 SSH 参数 |
 | 上游 URL / 本地引用 | https://github.com/fluffos/fluffos / `upstream/master` |
-| 审计源码 Commit | `a4475b1afe998bb03a37bdb0596b64ab01042ed3` |
-| 审计源码说明 | a4475b1a 2026-10-12 Finalize local modernization audit |
+| 最初审计源码 Commit | `a4475b1afe998bb03a37bdb0596b64ab01042ed3` |
+| 续审 Commit | `55c7360bdbd81ef717290c8cd3b233da42d67724`；相对最初基线只新增两份报告，产品源码相同 |
+| 审计源码说明 | a4475b1a 2026-10-12 Finalize local modernization audit；后续证据按各记录的 source_git_head 与二进制摘要归属 |
 | 当前本地上游快照 | `79548f86f66af19f61e03a0cca1aadc95f1e8973`（2026-10-07） |
 | merge-base / 可证明的分叉基线 | `277d0b1cbc4350844d9aff07a604dfa519650d9e`（2026-01-18） |
 | 基线最近 tag | `v2025.1205.0`；不是说基线提交恰好等于该 tag |
@@ -22,16 +23,19 @@
 | 本轮工作区基线 | 已跟踪未提交差异 0；暂存差异 0；非忽略未跟踪文件 0；本地 main 与 origin/main 同 SHA |
 | 技术栈 | C++17 / C11（src/CMakeLists.txt:47）；根 CMake 最低 3.22；LPC、Bison、libevent、OpenSSL、ICU、PCRE、jemalloc、zlib、可选数据库后端 |
 | 当前目标 | driver、lpcc、lpcshell、symbol、o2json、json2o；原生跨平台能力以实际配置/验证为准 |
-| 审计执行 | 单一代理承担多类技术视角；没有独立第二审计人，不虚构联合审计签字 |
-| 审计方法 | 禁用 Git 可选索引写入和惰性抓取；全文件清单、逐文件分段读取、规则扫描、关键调用链/上游 hunk 对照、文档合同核对 |
+| 审计执行 | 主代理交叉核验并汇总并行审读分片；最终波次 63/63 返回，没有虚构独立人工会签 |
+| 审计方法 | 全文件清单/分段读取、A–P 检查点、直接调用链与上游对照；续审增加隔离构建、原生/LPC/Sanitizer 验证与失败调查 |
+| 续审证据根 | `build-modernization-evidence/audit-deep-55c7360b-20261012T072825Z/`；持久本地证据，不把忽略目录或运行产物提交入库 |
 
-**“确认”的含义：**下列 24 项均有当前源码/配置证据。内存、并发和运行时结论属于静态可达性或逻辑判断；未运行本轮 fail-first、Sanitizer、fuzz、真实慢读/数据库/跨平台实验。P0 表示优先按内存安全问题处理，不表示已取得 RCE。所有性能、资源上限及工时建议均不冒充实测。
+**“确认”的含义：**正文共 69 项源码、配置或测试合同问题。动态事实只按 §10 的原始记录声明；未新增逐 ID 回归的项仍是源码确认，不能由通用套件通过补成已复现。P0 表示内存安全等高优先级，不表示已取得 RCE。未运行的性能、容量、修复后结果与工时估计不冒充实测。
 
-**来源分类：**上游继承问题、fork 引入问题、fork 未同步上游修复、不确定来源。第三类中仅明确涉及安全的修复才列为安全缺口；字符交付等功能修复不能伪称 CVE。来源归因基于本地可读 Git 对象和实际残余代码，不用“缺少提交 hash”替代代码比较。
+**来源分类：**15 项上游继承、17 项 fork 引入、3 项 fork 未同步上游修复、34 项引入来源不确定。来源不确定不等于根因未核对。只有明确属于安全修复的上游差异才列入安全缺口；功能修复不伪称 CVE，缺少 commit hash 不等于代码未吸收。
 
-上游当前在线状态核验遇到 GitHub API 403 rate limit；其他外部取证也未形成可用公告证据。未执行会更新 refs/对象库的 fetch，**最新上游安全公告、未公开漏洞及 79548f86 之后的修复不在已确认范围**。
+最初在线查询受 403 等限制；续审已取得上游 `a2902952d74a53b5b031aa2d98633bec5fba6e55` 与本地快照之后的 6 个提交缓存。公开公告、依赖身份与本地 patch 的适用性尚未逐条闭合，不能据此宣称没有未修漏洞。未执行 fetch/merge，在线新提交不混入冻结的本地 366 个提交台账。
 
 ## 2. Fork 基线与差异报告
+
+本节与附录 B–D 固定在最初 a4475b1a / 79548f86 的取证时点；后续只新增/修订两份报告，产品源码未变。续审身份和在线增量另见 §10，不将新增文档倒灌成旧差异或覆盖率。
 
 ### 2.1 Git 侦察结果
 
@@ -66,16 +70,18 @@
 
 ## 3. 执行摘要
 
-当前 fork 有较完整的运行时合同、定向 runner、生成物和风格工具，但不能据此推断所有遗留入口安全。主要风险集中在**会话回调后的裸指针、未界定的资源生产、异步连接身份、跨平台预算以及全局回收**。
+**当前不能给出全仓安全通过结论。** 共确认 69 项问题/缺口，均未实施修复；重点包括内存边界、网络关闭/续写、编译器和 parser 状态、原生循环预算，以及验收本身的失真。
 
-- P0：1 项，ASCII 回调关闭会话后的 UAF（AUD-001），须连同相邻边界/游标问题一起回归。
-- P1：7 项，输出/异步资源无界、数据库 ABA、隐藏输入日志、非 Linux 求值限制缺失、共享图回收开销和信号处理。
-- P2：14 项，编译器/输入/数据库/构建/证据身份等确定的静态缺口。
-- P3：2 项，权威风格范围和构建指南失配。
-- 未把历史 392/392、旧压力数字、源码中的 ready=1 或本次规则扫描零命中作为当前通过数据。
-- 未把缺少正式 Release 签名、registry 推广、分支保护或公开发布容量门禁单独报成缺陷；本 fork 的自用范围以 [docs/project-scope.md](docs/project-scope.md) 为准。
+- **P0 5 项：**AUD-001、AUD-029、AUD-032、AUD-062、AUD-066。优先处理内存安全，不夸大为已证明远程利用。
+- **P1 22 项、P2 40 项、P3 2 项。** 详表分别给出触发前提、根因、来源与风险。
+- Debug、ASan+UBSan、TSan 的原生套件各有 **629 项通过记录**；三配置完整 LPC 均未通过，不能相互替代。逐项 LPC 记录为 **415/419 通过、4 项失败**。
+- 隔离 GCC 优化构建复现 file_io_tests **94/96、2 失败**，根因是 FORTIFY 的 __fprintf_chk 绕过现有测试注入，不是已经证明产品漏报写失败。
+- 测试/证据缺口 AUD-037/038/041/042/044 与产品缺陷分列；零断言、未完成异步、skip 或缺失日志不能补记通过。
+- 未把历史成绩、ready=1、分片返回数或扫描零命中当作当前安全证明。公开发布、签名、registry 推广等不作为本 fork 普通交付的额外门禁；范围仍以 [docs/project-scope.md](docs/project-scope.md) 为准。
 
 ## 4. 审计覆盖率与未覆盖清单
+
+文件/字节/物理目录计数是最初 a4475b1a 的冻结台账，不是新增构建后的实时目录大小；续审工作与结果另列 §10。
 
 | 层次 | 覆盖/分母 | 可证明的含义 | 不能推出的结论 |
 | --- | --- | --- | --- |
@@ -84,8 +90,8 @@
 | 文本通道完整分段读取 | 3843/3843，4509 段，1177913 行，44100899 字节 | 使用工具返回的 next offset 继续读取；不是只取每文件开头 | 不等于模型对每一行完成语义证明 |
 | 严格 UTF-8 且无 NUL 的文本 | 3836/3836 | 都包含于上述读取集合 | 不等于所有 Unicode/语言输入已动态验证 |
 | 原始字节文件 | 46/46 的尺寸、类型及 SHA-256 | 包括图片/字体/fuzz/raw UTF-8 fixture 和含非 UTF-8 的历史日志；附录 A.2 | 未解压执行、反汇编或验证二进制行为 |
-| 关键证据交叉核验 | 24 项；证据定位涉及 25 个现有文件 | 正文逐项给出调用链/片段与待验证方法 | 该文件数不是“完整人工深审通过数” |
-| 当前动态测试/平台/性能 | 0 项本轮执行 | 本轮保持只读调查 | 不能报告测试/Sanitizer/fuzz/容量已通过 |
+| 关键证据交叉核验 | 69 项；新增 45 项与原 24 项统一编号 | 逐项给出源码/上下文、调用关系、证据边界与验证方法 | 问题数量不等于完成安全证明的文件数 |
+| 续审动态记录 | 三配置各 629 原生通过；逐项 LPC 415/419；完整 LPC、CTest、优化 file_io 未通过 | 原始目录、失败原因及适用范围见 §10 | 不等于全量安全、原生跨平台、性能或容量验收通过 |
 
 文本通道中的 7 个路径同时属于原始字节类：6 份历史日志及 `src/tests/fuzz/corpus/gateway/oversized_header`。它们可以被工具展示，但不能当作无损 Unicode 文本处理。另有 39 个原始字节文件只作元数据审查。因此 3843 与 46 有交集，不能相加当分母。
 
@@ -95,11 +101,11 @@
 
 1. VM **每条指令的全部操作数/栈/异常路径**、所有编译器语法/错误恢复分支、所有 efun 的逐元素和权限组合，没有完整逐项人工签字矩阵。
 2. 2710 条 fork 文件差异已经完整列出，但没有为每个 hunk 提供独立语义论证。696 个提交不能只靠提交说明认定安全。
-3. 366 个非祖先上游提交均已列出；只有正文/§8 明确对照的残余修复获得归因。其他提交的代码等价性及最新在线安全公告仍待核验。
+3. 本地快照的 366 个非祖先上游提交均已列出；在线另取得 6 个新增提交缓存（§10.3）。只有明确对照的残余修复获得归因，其余代码等价性和安全公告适用性仍待核验。
 4. `src/thirdparty/**` 文本已读取；复杂第三方内部协议/密码学实现未做逐行安全证明。未用版本号代替 CVE 命中验证。
 5. `build-*/**`、`build-modernization-evidence/**`、`Testing/**`、`docs` 下忽略依赖/构建物、`testsuite` 运行日志、`tools` 缓存、`.pi/**`、`.git/**` 只做物理元数据清点；它们是重复构建/历史/工具状态，未作为当前源码再次深审。具体计数见附录 F。
 6. 没有证明 main-thread reclaim 与活动 owner claim 的并发隔离完全闭合；AUD-007 的实施必须先做控制屏障验证，不能未经证明跨 owner 写变量。
-7. Windows/macOS/WASM 实机、真实慢读/TLS、外部数据库、性能/费用/容量及运行实例均未验证；没有触碰现有 driver。
+7. Windows/macOS/WASM 实机、真实部署的持续慢读/TLS 压力、外部数据库、性能/费用/容量与运行实例没有完整对应证据；已跑的隔离 Linux 用例不能代替这些验证，没有触碰既有 driver。
 
 **覆盖结论：文件触达与基础读取完整；“全仓所有文件均已深度人工审计、无遗漏”这个更强目标尚未完成。** 附录 A 的 R、R-raw、M、E 是取证层次，不是安全通过标记。本报告提供已能证明的发现和可执行的后续工作，不伪造全量验收。
 
@@ -309,6 +315,51 @@ VM 调用通常经 apply/函数查询建立控制帧，解释器读取 opcode �
 | AUD-022 | P2 | K O P | fork 引入问题 | owner 状态把历史验收写死为当前 ready | src/vm/internal/owner.cc:1602–1631；docs/multicore-production-gate.md:6–15；docs/multicore-production-gate.md:124–127 | `add_mapping_pair(map, "production_gate_ready", 1);` | 调用方可能把历史实现/测试记录误认成当前二进制的有效运行验收。它不是本轮测试通过的证据。 | 状态字段脱离当前 commit、构建配置及原始证据有效性；权威合同要求失效时回到 incomplete/blocked，但代码没有该判断。 | 无证据、历史证据、commit 不符、原始日志摘要损坏和当前有效 envelope；验证 API 状态不能仅凭常量报告 ready。 | 立即停止无条件 current-ready 声明；历史说明与当前可证明状态分离，只有绑定当前构建的真实验证结果才能置 ready。 | `tools/docs/check-evidence.py`、`docs/evidence/manifest.schema.json`、`src/tests/test_lpc_owner.cc` | 8–16 小时 | 静态确认；未修复 |
 | AUD-023 | P3 | L M O P | fork 引入问题 | 权威排版说明仍描述已被 CI 扩大的 pilot 范围 | docs/coding-standard.md:29–29；.github/workflows/ci.yml:87–104 | `&#124; [CI][up-ci] &#124; 运行 LPC syntax 测试和 testsuite/format.sh --check &#124; 本地 U10f 已接入固定 pilot；完整 native/LPC 存量门禁仍由 U10g 按模块收口，不能把 pilot 写成全库通过 &#124;` | 文档写 pilot 子集，而 CI 已运行 --all-native，贡献者无法按权威说明复现检查范围。它不是新增运行时漏洞。 | 格式门禁扩大后，权威说明和过渡状态未同步。 | 逐字对照 check-format.py 的 --all-native 发现/排除规则、CI 调用与文档，确认 generated/thirdparty/raw-byte fixture 的边界一致。 | 仅更新实际归属文档的范围和命令，去除失效过渡语句；不再次全仓重排代码。 | `tools/style/check-format.py`、`src/.clang-tidy`、`docs/project-modernization-plan-2026-10.md` | 2–4 小时 | 静态确认；未修复 |
 | AUD-024 | P3 | I M O | 上游继承问题 | 构建手册混淆数据库编号，并给出失配的测试/并行命令 | docs/build.md:285–288；docs/build.md:292–301；docs/build.md:312–318；src/CMakeLists.txt:19–23 | `- =2 enables SQLite3 API version 2 (recommended, includes newer features)` | 把后端 ID 误当 SQLite API 版本，会选择与其他后端/默认后端冲突的编号；测试块从 build 直接 cd testsuite 指向错误目录；不限并行的示例与项目 WSL 构建约束冲突。没有声称本轮实际发生 OOM。 | 上游遗留构建说明没有按真实 CMake 参数语义、当前目录和 fork 的资源约束同步校准。 | 静态对照 src/CMakeLists.txt、src/packages/db/CMakeLists.txt、docs/efun/db/db_connect.md 和 AGENTS §4.2；按命令序列推导 cwd；不实际 configure、安装或启动 driver。 | 把 SQLite 参数解释改为唯一后端编号；给出 SQLite-only 与多后端的完整有效编号/默认值示例；修正测试 cwd，并把该页不限并行示例按项目规则改为明确上限。 | `docs/build.md`、`docs/efun/db/db_connect.md`、`src/CMakeLists.txt`、`src/packages/db/CMakeLists.txt`、`AGENTS.md` | 2–4 小时 | 静态确认；未修复 |
+| AUD-025 | P1 | B D H | fork 引入问题 | 冷启动 ScratchArenaBinding 留下空 current_ | src/compiler/internal/compile_arena.cc:174–208、220–240、285–324 | current_ = chunk; // chunk 为空而 base_ 已存在 | 合法内部调用顺序导致崩溃及 live/cycle 计量失真；未证实普通 LPC 直接控制该顺序。 | 冷 binding 记录空 chunk。首次分配建立 base_，回退仍把 current_ 置空，且漏减 base_ 使用量。下一次 alloc 因 base_ 非空而解引用空 current_。 | 退出冷 binding 后计量归零且可再次分配；内层回退不破坏外层数据；次序/代际错误仍拒绝。 | 空起始 mark 回退时归还新 base_ 的 used，并把 current_ 恢复到可复用 base_；保留 retained/live 链。 保持 generation 和严格 LIFO 拒绝逻辑；bytes_released、cycle_bytes、bytes_live 同步回退。 补冷/嵌套 binding、oversize、异常退出和下一次 begin/reset。 | `src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-026 | P2 | B D P | fork 引入问题 | ScratchArena 尺寸运算可回绕 | src/compiler/internal/compile_arena.cc:32–45、174–216 | need=align_up(size); if(used+need>capacity) | 内部分配合同缺口，不能据此宣称远程可利用。 | align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。 | 0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。 | 分配/游标变化前检查 len+1、对齐加数、header+size；非法尺寸抛 std::bad_alloc，不返回可用指针。 用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。 只验证极值被拒绝和状态不变，不实际申请巨量内存；成功分配继续验证无重叠。 | `src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-027 | P1 | D G | 不确定 | 编译永久改变进程 locale | src/compiler/internal/compiler.cc:2215–2220 | 保存 setlocale(...,"C") 的返回值 | 后续数值转换、格式和并发线程的 locale 行为改变。 | setlocale(LC_ALL,"C") 返回修改后的值而不是原值，DEFER 恢复的仍是 C；切换本身也影响其他线程。 | 非 C locale 下 LPC 小数语义稳定，前后 locale 相同，观察线程不受影响；缺平台记 external-required。 | 移除进程全局 LC_ALL 切换，改为编译器内部线程局部 C-locale 作用域。 POSIX 用 newlocale/uselocale；Windows 用 CRT 线程局部模式；恢复先前线程 locale/模式，失败报告。 覆盖成功、错误和嵌套退出；并行观察线程不得看到 locale 改变。 | `src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-028 | P2 | B D | 不确定 | 内建预定义字符串构造无容量边界 | src/compiler/internal/lex.cc:3219–3225、3263–3276 | 固定数组 strcat；版本先 sprintf 到 1024 字节数组 | 元数据长度合同缺失；未证明玩家输入可达。 | 加引号值由 strcpy/strcat 拼入 MAXLINE，版本先 sprintf 到 1024 字节数组；这些内建构建元数据构造路径实际可达。 | 短值逐字保持；长构建元数据安全构造或按既有宏长度上界明确拒绝；版本不经过固定 sprintf 缓冲。 | 版本和加引号值改为单一动态字符串构造，保持内容不变，直接把 PROJECT_VERSION 传入加引号构造。 只改这条实际使用的构造路径；lpc_predefs 无生产写入者，不恢复 -D，不把旧列表的 sscanf 顺手纳入本单元。 让测试调用同一内部生产构造函数，验证短值、长值及邻界；不新增 LPC 接口。 | `src/compiler/internal/lex.cc`、`src/compiler/internal/lex.h`、`src/tests/test_lpc_compiler.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-029 | P0 | B D | 不确定 | 宏实参采集先越界再报错 | src/compiler/internal/lex.cc:4307–4406、4410–4413 | uisspace(*(out-1)); argv[++argc]=out; | 编译期边界前读和栈越界写，后续诊断不能撤销写入。 | extract_args 的空首参数读 out-1；逗号分支 argv[++argc] 可先写 argv[NARGS]，下一轮才到数量上限检查。调用者传栈数组。 | 合法输入不回归，超量先拒绝；ASan/UBSan 无越界，下一次正常编译成功。 | 收尾先确认 out>argv[argc]；空实参直接写终止符，不读前字节。 递增 argc 和写下一槽前检查槽边界，保留宏形参数量错误语义。 覆盖空首/中/末参数、嵌套括号/引号、数量边界及错误后再次编译。 | `src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-030 | P1 | B D F P | fork 引入问题 | 字符候选绕过预处理指令长度上限 | src/compiler/internal/lex.cc:3783–3893、3987–4028 | char_candidate.push_back 不受 append 上限保护 | 编译期内存和 CPU 放大；受限输出数组不等于受限临时存储。 | append 限制 DEFMAX，十六/八进制候选却先无限追加 char_candidate。续行可在回放到受限输出前占用任意候选内存。 | 候选峰值受限；超长有确定诊断；边界内源码、位置映射及下一次编译一致。 | 每次候选追加前按已输出+待决候选总量检查 DEFMAX，保持单一追加规则。 超限锁存原超长诊断并终止该编译，不截断后当合法源；保留正确行号与下次编译状态。 覆盖十六/八进制、缺结束引号、LF/CRLF 续行和字符/注释歧义。 | `src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-031 | P2 | D | 不确定 | case 常量移位漏掉低六位合同 | src/compiler/internal/grammar.y:1235–1242 | $$=$1<<$3; $$=$1>>$3; | 编译结果偏离 LPC 模 64 语义。 | constant 左右移直接使用 $3，未按运行时合同取低六位；负数或不小于 64 的计数触发 C++ UB/构建差异。 | -1/0/63/64/65、极值计数和符号边界结果一致，UBSan 无 shift 报告。 | 复用安全 LPC 移位实现，计数取低六位；左移用无符号位运算，不拒绝合同允许的计数。 同步 Bison fallback 和 generate_ebnf 输出，不手改生成物。 比对运行时、普通折叠、case 常量三条路径。 | `src/compiler/internal/grammar.y`、`src/tests/test_lpc_compiler.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-032 | P0 | B E | 不确定 | replace_string 跳表复制漏记目标长度 | src/packages/core/efuns_main.cc:2261–2318 | skip 只推进 dst2，后续用旧 dlen | 可写过按最大字符串长度分配的缓冲。 | 增长分支的 skip_table 复制推进 src/dst2，却不增加 dlen，也不检查目标剩余容量。后续检查使用偏小 dlen。 | 参考结果逐字节一致，越界在复制前拒绝；ASan/清理检查全部路径。 | skip、替换、单字节及尾段共用实际已写长度，所有路径复制前检查剩余容量。 保持超限失败返回、弹栈和释放合同，不以写后检查代替。 覆盖 first/last 范围、连续跳过、缩短/增长及容量邻界。 | `src/packages/core/efuns_main.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-033 | P1 | B C E H | 不确定 | TLS 重试把负返回值当发送偏移 | src/packages/sockets/socket_efuns.cc:1145–1226 | 重试保留 off<0，随后 w_off=off | 后续可从缓冲起点之前读取，队列和网络统计错误；未证实代码执行。 | SSL_write 的 WANT 等负返回被判可继续，off 却未归零，写入 w_off 与 len-off。 | 0<=w_off<=总长度、剩余长度正确；无前缀泄漏/重发/漏发，统计不负增。 | 可重试错误归一为消费 0 字节；只有正返回值推进偏移和统计。 按 WANT_READ/WANT_WRITE 等待正确事件，遵守同一数据重试要求。 注入 WANT、EINTR、部分成功、致命错误并检查生产队列。 | `src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-034 | P1 | B E | 不确定 | sscanf 的 %s%x 搜索越过终止符 | src/vm/internal/base/interpret.cc:5400–5414 | 非前缀尾部 0 仍 tmp+=2 后解引用 | 越界读取和不可信匹配结果。 | 尾部单个 0 无 x 前缀时仍 tmp+=2，循环随后读取终止符之后的位置。 | 空输入、尾部 0、完整/不完整前缀、合法十六进制和多转换；ASan 无越界。 | 后继字符存在才检查前缀；无前缀按仍在字符串内的步幅推进。 前缀完整且第三字节存在才检查该字节。 保留匹配计数、未匹配参数和其他转换语义。 | `src/vm/internal/base/interpret.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-035 | P1 | B C E H | 不确定 | TLS 延迟刷新前已释放并清空 SSL | src/packages/sockets/socket_efuns.cc:2031–2074 | SSL_free → ssl=null → STATE_FLUSHING | 向 SSL_write 传入空 SSL，可能崩溃；不是 UAF，也不是 comm.cc interactive 清理。 | socket_close 在判断 S_BLOCKED 延迟关闭前 SSL_free 并置空；刷新仍按 TLS 模式调用 SSL_write。 | 普通待发按合同完成后恰好释放一次；强制/致命关闭不续写、不传空 SSL。 | 先决定 flush/final；普通关闭需刷新时保留 SSL/CTX 到最终关闭。 最终路径一次释放 TLS/事件/队列，回调只通知一次并保留身份重查。 与 AUD-060 共核完整关闭状态机。 | `src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-036 | P1 | B C E H | 不确定 | TLS accept 早失败遗漏事件资源 | src/packages/sockets/socket_efuns.cc:748–783 | close(accept_fd); clear_socket(i,1); | 事件/上下文反复泄漏及旧事件关联；fd 已关闭，不能报 fd 泄漏。 | 事件和 ev_data 已分配，SSL_CTX 缺失/SSL_new 失败却只 close fd 再 clear_socket，资源指针被清掉。 | 重复失败后事件/上下文/fd 回基线；槽复用不接受旧回调；正常 accept 不回归。 | 早失败汇入完整新槽撤销，释放事件/上下文再清槽，fd 只关闭一次。 不交付半初始化槽，不绕过身份/回调约束。 注入两处失败，推进夹具 event_base 后检查资源。 | `src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-037 | P2 | I J | fork 引入问题 | runner 拒绝合法百分号文件名 | tools/testsuite/run-targeted.py:746–759 | /[A-Za-z0-9_.-]+ 白名单 | 用例不能通过定向入口执行，不是编译失败。 | validate_case 字符白名单排除 %，拒绝已有 warn_%s 和 warn_%s_a，driver 尚未启动。 | 两项真实执行且身份一致；越根启动前拒绝；少跑/异步门禁不放宽。 | 按组件和根归属校验；拒绝 NUL/控制字符、反斜杠、空组件与 ./..，允许语料合法字符。 确认实际 .c/.lpc 文件位于隔离 mudlib，继续 argv 传参、不经 shell。 补现有 %/Unicode 文件名与穿越/符号链接越根负例，再重跑两项。 | `tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py` | 4–8 小时 | 执行/测试缺口确认；未修复 |
+| AUD-038 | P2 | E J | fork 引入问题 | SQLite 异步回归未接完成屏障 | testsuite/single/tests/efuns/async_db_exec_bound_args.lpc:17–44；testsuite/single/tests/efuns/db.c:93–108；testsuite/etc/test-scopes.tsv:10、36 | do_tests 返回时没有登记未完成 token | 回归覆盖和完成时序失真；单例超时后端根因未另证，不能猜成 DB 锁。 | 两项虽为 runtime，却未登记异步 token。do_tests 返回即完成；全量报 assertion after case completion，单例先结束后约 183 秒超时。 | 完成标记晚于最终回调，两项不超时；禁止回调/故意失败必须失败；仍挂起则另追 shutdown。 | 保持现有 runtime 角色及已正确声明的 async/db/sqlite 能力依赖，不改分类/门禁。 在 do_tests 返回前调用 /command/tests->begin_async() 并保存 token；最后一个回调完成断言及 db_close 后调用 complete_async(token)。 用真实 DB 回调推进，替代固定延时；保留 bound args 与拒绝 string callback 的既有回归。 | `testsuite/single/tests/efuns/async_db_exec_bound_args.lpc`、`testsuite/single/tests/efuns/db.c` | 8–16 小时 | 执行/测试缺口确认；未修复 |
+| AUD-039 | P1 | E F H N P | fork 引入问题 | 无执行权限对象可占满外部句柄池 | src/packages/external/external.cc:152–166、1340–1357、1363–1388 | alloc_handle_id 先于权限检查 | 其他对象无法创建；不等于绕过权限启动进程。 | external_create 分配全局持久配额，权限仅在 external_run 检查；被拒绝执行的对象仍可长期占满槽。 | 拒绝对象重复 create 不影响授权对象；回调重入/销毁安全；创建后撤权仍不能 run。 | 复用 external_run/start 的 check_valid_socket("external", -1, current_object, "N/A", -1)，在 external_create 占用槽位以及建立参数 vector 前检查；不新增 efun、clone 入口或 master 操作名。 先保存 st_num_arg，权限回调返回后恢复；拒绝时抛既有风格的工厂调用错误，不预留槽。回调可销毁调用对象，授权后必须重新验证 owner 的存活与 epoch，不能沿用回调前的裸状态。 保留 kMaxHandles 上界与 run 时再次鉴权。测试拒绝对象重复申请、允许对象达到上限、释放后再申请，以及权限回调抛错/重入/销毁；此项改变原先明确允许的非特权分配政策，须随方案批准。 | `src/packages/external/external.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-040 | P2 | E P | fork 引入问题 | external_write 截断 stdin 却返回成功 | src/packages/external/external.cc:124–135、679–687、1524–1533 | append_capped(...); return 1; | 子进程收到残缺输入，LPC 却得到成功。 | queue_stdin 复用 append_capped 静默丢超容量字节，随后仍返回 1。 | 超限返回 0 且逻辑队列不变；成功字节完全一致，无丢弃/重复。 | 以当前 h->in_buf.size() 和 __MAX_STRING_LENGTH__ 计算剩余容量；flush_stdin 已通过 erase 移除已消费前缀，不另设冗余游标。 在追加/flush 改变状态前判断整次输入能否容纳；超限直接返回 0 且队列不变，能容纳才完整追加。保留 boolean 合同 1=本次全部接收、0=未接收，不改成字节数，也不改变 stdout/stderr 的截断策略。 保留 Created/Running、EOF/close、空输入行为；用有界管道模拟部分写与 EAGAIN，验证满额拒绝、随后重试、逐字节完整和清理。 | `src/packages/external/external.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-041 | P2 | I J | fork 引入问题 | 非 Debug 零断言用例未预分类 | testsuite/single/tests/compiler/constant_expr.c:1–39；testsuite/etc/test-scopes.tsv；.github/workflows/ci.yml | 条件体 + 默认 runtime | CI 分类缺口，不是缺语言模块；不能改门禁伪通过。 | constant_expr 的断言全受 __DEBUG__ 保护，优化配置没有对应的预执行能力排除，严格门禁因此拒绝零断言。 | Debug 有实际断言；优化配置预排除；其他运行用例故意零断言仍失败。 | 既有能力清单增加准确 debug 条件，为该测试声明依赖，不加假断言。 非 Debug 预列配置不支持并保留原因；Debug 必须真实执行。 同步能力生产者、分类校验、自测和 discovered/executed 对账。 | `testsuite/etc/test-scopes.tsv`、`testsuite/command/tests.c`、`tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py` | 4–8 小时 | 执行/测试缺口确认；未修复 |
+| AUD-042 | P2 | I J K O | fork 引入问题 | CI 定向失败详细日志未持久归档 | .github/workflows/ci.yml；tools/testsuite/run-targeted.py:1000–1039；src/tests/CMakeLists.txt | 只剩临时路径，原日志未上传 | 根因核验被迫另行同型复跑；日志缺失不代表产品有错。 | 嵌套 runner 只打印 /tmp 证据路径，CI 未归档该目录完整失败日志；file_io 的具体断言无法从现有 CI 恢复。 | 已知失败可从 artifact 恢复断言与身份，job 仍失败；成功/中断可追踪且敏感文件不归档。 | 每次 runner/嵌套 CTest 显式使用工作区下唯一 evidence-dir。 always 上传受控 summary、有界完整日志和身份元数据；不上传凭据、环境或任意 /tmp。 保留失败码，用受控失败确认 artifact 可定位具体断言。 | `.github/workflows/ci.yml`、`src/tests/CMakeLists.txt`、`tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py` | 8–16 小时 | 执行/测试缺口确认；未修复 |
+| AUD-043 | P2 | B D | 不确定 | 空输入尾裁剪形成起点之前的指针 | src/compiler/internal/lex.cc:handle_pragma；src/packages/core/add_action.cc:325–333 | start + strlen(start) - 1 | C++ 指针形成/比较超界 UB；未证明当前构建会崩溃。 | handle_pragma 的 strlen-1 与 user_parser 初始/末轮指针可越过起点。后者 p>=buff 会阻止解引用，不能报成已证实前读。 | 正常结果/诊断不变；边界夹具确认无非法指针；不伪造 sanitizer 可观察性。 | 两处用非负长度索引，仅 length>0 才访问 length-1。 保留 pragma 诊断和空命令返回 0，不扩大空白定义。 覆盖空串、全空格、单字符、普通尾空格和参数修改边界。 | `src/compiler/internal/lex.cc`、`src/packages/core/add_action.cc`、`src/tests/test_lpc_compiler.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-044 | P2 | I J | fork 引入问题 | FORTIFY 绕过 fprintf 故障注入 | src/tests/test_file_io.cc:308、602–642；src/symbol.cc；src/packages/mudlib_stats/mudlib_stats.cc:532；src/tests/CMakeLists.txt | 仅 --wrap=fprintf / __wrap_fprintf | 两个写失败回归失效并导致 CI 失败；不是已证实的产品输出丢失。 | GCC 优化/FORTIFY 把两处 fprintf 降成 __fprintf_chk，测试仅 wrap fprintf，故障钩子未执行。 | 同型优化配置 96/96 且钩子命中；Debug 不回归，正常 fortified 输出不被屏蔽。 | 保留 FORTIFY，在同一故障状态机接入 __fprintf_chk 包装；正常转发保留 flag/varargs。 CMake 仅在平台/编译器支持该符号时启用对应 wrap。 继续要求 hits>=1，验证正常写和两个 printf 变体的故障上报。 | `src/tests/test_file_io.cc`、`src/tests/CMakeLists.txt` | 4–8 小时 | 优化构建 94/96；2 失败；未修复 |
+| AUD-045 | P2 | A E | 不确定 | member_array 下标窄化及逆向失败哨兵错误 | src/packages/core/efuns_main.cc:1092–1108、1243–1253 | i=(int)start；i=-1 后仍 size-i-1 | 返回错误位置，甚至把未找到报告成非负下标。 | 起点先从 LPC_INT 窄化为 int 再校验；逆向搜索把未找到的 -1 再映射成 size。 | 正反向未找到均 -1；实际命中下标正确；大起点不回绕成有效下标；负起点仍拒绝。 | 在 LPC_INT 中按容器规则验证起点，再作有证明的窄化；保留字符串越界报错与数组未找到语义。 只有命中时才进行反向下标映射，-1 始终保留。 覆盖普通、前缀及谓词组合和极值起点。 | `src/packages/core/efuns_main.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-046 | P1 | E F G | 不确定 | 原生骰子与编辑距离循环不响应预算 | src/packages/contrib/contrib.cc:2835–2853、2874–2910；src/vm/internal/base/interpret.cc:2478–2484 | 原生循环无预算轮询 | 事件循环被长时间占用；不把 WSL 结果推广为各平台计时器验收。 | roll_MdN 的 O(rolls) 与 string_difference 的 O(mn) 循环不轮询 outoftime，解释器只在回到 opcode 分派后处理超时。 | 正常结果一致；注入耗尽可预测中止且释放内存；真实隔离 driver 的有界输入验证响应时间，无负载外推。 | 把解释器现有超时处理提为同一内部检查函数，保留 max_eval_error/catch 不能吞掉超时的合同。 两循环以固定小批量轮询，预处理/初始化长循环也检查；不修改结果算法。 编辑距离工作表改为异常安全所有权，使预算 error 释放临时内存；接入 AUD-006 的平台计时合同。 | `src/packages/contrib/contrib.cc`、`src/vm/internal/base/interpret.cc`、`src/vm/internal/base/interpret.h`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-047 | P1 | B E H | 不确定 | get_dir 两遍扫描遇提前 EOF 解引用空目录项 | src/packages/core/file.cc:311–328、345–384 | for(...; i<count; de=readdir(...)) 直接用 de | 空指针解引用；第一遍也未区分 EOF 与错误。 | 第一遍计数后 rewinddir；第二遍只判断 i<count，不判断 readdir 是否为空。目录变化或读取错误可使其提前结束。 | 确定性注入提前 EOF/错误及匹配变化；无空槽/空解引用/泄漏，正常排序与限制不变。 | 每次 readdir 前清 errno，返回空后先区分正常 EOF 与错误，任何 d_name 访问前检查目录项。 正常提前 EOF 按实际填充 i 收缩数组并仅排序有效项；错误释放数组/关闭目录并返回既有失败值。 保留最大数组限制、通配符与排序；不用第一遍计数证明第二遍一定有项目。 | `src/packages/core/file.cc`、`src/tests/test_file_io.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-048 | P2 | B E K | 不确定 | get_dir 忽略元数据读取失败 | src/packages/core/file.cc:354–375 | large_file_stat(...); // assume it works | 输出看似有效但属于其他对象或虚构的大小/时间。 | 逐项 large_file_stat 返回值被忽略，失败后 encode_stat 使用之前目录/文件的 st；过长路径还伪造全零元数据。 | 第二项 stat 失败不会得到第一项元数据；不泄漏、不返回伪零；正常/目录/长路径边界覆盖。 | metadata 模式检查 stat 成功，不复用旧 st；路径不容纳也明确失败。 失败释放中间结果、关闭目录，按 get_dir 已有失败约定返回 0，不造元数据哨兵。 保持成功路径的 file_size/时间定义，文档说明元数据失败不返回部分伪结果。 | `src/packages/core/file.cc`、`src/tests/test_file_io.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-049 | P2 | E I | 不确定 | link 的 EXDEV 符号链接目标与返回值错误 | src/packages/core/file.cc:895–905、938–946 | symlink(from,to)；失败仍 return 0 | 返回成功但链接损坏，或根本没有创建。不是复制回退。 | 回退 symlink(from,to) 直接使用相对当前目录的 from，实际会相对目标目录解释；symlink 失败仍落到 return 0。 | 回退目标实际可读且与源一致；失败不成功；权限拒绝无副作用，既有目标不被覆盖。 | 仅 EXDEV 分支按目标父目录计算词法相对源目标，不改变权限回调原始输入和次数，不 canonicalize 跟随源链接。 symlink 失败走既有错误/失败合同，不能落到成功返回。 保留正常硬链接与目标存在处理；使用私有夹具注入 EXDEV。 F_LINK 的 symlink 失败分支返回 1，不能落到函数末尾的成功值 0；F_RENAME 分支不改。 | `src/packages/core/file.cc`、`src/tests/test_file_io.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-050 | P2 | E | 不确定 | sprintf 数组 %O 转换只作用于首元素 | src/packages/core/sprintf.cc:1075–1103、数组迭代尾部 | 首元素永久改写 finfo 类型 | 合法格式输出错误或抛错。 | 首元素把 finfo 从 INFO_T_LPC 改成 INFO_T_STRING，后续迭代不恢复原转换；后面的数值可报字符串类型错，字符串失去 %O 表示。 | 空/单/多元素、混合类型和嵌套值结果正确；ASan/引用检查无泄漏，后续调用不受影响。 | 保留原转换类型，每个元素重新执行 %O 转换，其他格式标志不丢。 每轮沿用已有 clean 释放，下一轮恢复原转换类型；保持列/表其他 flags 和缓冲寿命，不引入新的临时池。 比对逐元素 sprintf("%O") 拼接，并验证宽度、精度、列/表及错误后的状态。 | `src/packages/core/sprintf.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-051 | P1 | B E | 不确定 | parse_command 默认介词表可为空 | src/packages/ops/parse.cc:1154–1167 | parr=gPrepos_list; for(...parr->size) | 合法的缺省/未配置场景可崩溃。 | 未传有效显式表时使用可空 gPrepos_list，随即访问 parr->size。 | 缺省缺表返回未匹配不崩溃；有效单词/多词表正常。 | 介词表为空时按未匹配返回，设置 fail 和返回槽；不制造新默认词表。 空数组、含非字符串项和显式数组保持现有选择及交换规则。 验证 master 缺 apply/错误类型和后续可用调用。 | `src/packages/ops/parse.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-052 | P2 | B E H | 不确定 | living_parse 压缩候选却复用原下标缓存 | src/packages/ops/parse.cc:1050–1083；load_lpc_info/match_object | live[tix++]=obarr[obix]，缓存却按 obix | 错误匹配、漏匹配或把另一个对象的 ID 用到 living 对象。 | live 按 tix 压缩排列，gId_list/gPluid_list/gAdjid_list 仍按原 obarr 下标缓存；item_parse 用压缩下标查这些缓存。 | 冷/热缓存一致，混合数组不串对象；destruct 和非对象仍安全。 | living 临时数组用 allocate_array(obarr->size) 初始化为零，保留原数组长度。 仅把 living 对象复制到原 obix 槽位，不再压紧到 tix，也不缩短数组；复用 item_parse 跳过非对象的既有分支。 gId_list/gPluid_list/gAdjid_list 仍以原 obix 查找；对象引用计数按既有 assign/free 合同配对，不引入第二套缓存。 | `src/packages/ops/parse.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-053 | P2 | B E | 不确定 | 多词 ID 游标在调用者处多推进一词 | src/packages/ops/parse.cc:1119–1131、1294–1347 | 多词返回词后；调用者又 +1 | 跳过后一词，导致错误匹配/失败。 | find_string 单词命中留下当前词，多词命中却留下词后位置；single_parse/item_parse 都再加一。 | 只消费实际匹配词数；多词后下一词保留，单词行为不变。 | find_string 多词匹配成功后仅把输出参数 *cix_in 退回最后消费词；返回值 fpos 仍是匹配起点。 split 为空或零词时走不匹配分支；调用者继续按既有约定递增词游标。 核对 item_parse、adjectiv_parse、prepos_parse 对起点返回值与输出词游标的不同用法。 | `src/packages/ops/parse.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-054 | P2 | E | 不确定 | living_parse 回退成功仍保留失败标志 | src/packages/ops/parse.cc:1075–1105 | 回退 return 成功对象，但 fail 仍为 1 | 调用者丢弃正确回退结果。 | item_parse 失败置 fail=1；find_player/find_living 回退找到对象后返回值和游标成功，但未清 fail。 | 回退成功能继续匹配，失败仍失败；引用和游标无泄漏/多推进。 | 仅在回退实际找到并持有对象后设置 fail=0，再提交返回值及游标。 保留两种查找顺序和对象引用，不在未找到时清失败。 覆盖候选为空/非空、成功/失败以及相邻格式项。 | `src/packages/ops/parse.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-055 | P2 | E K | 不确定 | SQLite 执行失败没有更新错误文本 | src/packages/db/db.cc:1028–1053 | get_table 失败只 finalize/return | 调用方收到错误/陈旧诊断，妨碍处理和定位。 | prepare 失败会写 errormsg，sqlite3_get_table 执行失败却只清结果并返回 0，错误缓存为空或仍是上次错误。 | 实际约束失败有相应非空诊断，不带上次错误；句柄随后可正常执行，资源回基线。 | 执行失败时在清理前复制 sqlite3_errmsg 到同一有界错误缓存并终止。 清理 results 与状态一次，成功/下一次失败不能复用无关旧错误。 不改变同步/异步结果协议或重复执行策略。 | `src/packages/db/db.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-056 | P2 | B E H | 不确定 | query_multiple_short 缺回退对象时漏掉结果缓冲 | src/packages/dwlib/dwlib.cc:184–229 | 缺回退分支丢失 res | 重复调用泄漏原生字符串；不推断其他回调路径已经安全。 | res 已分配；no_dollars 下既无 command_giver 又无 /global/player 的分支 pop 参数并 push_undefined，却未交出或释放 res。 | 缺回退重复调用引用/分配回基线；成功输出不变，无双重释放。 | 让 res 在创建后由同一 RAII/作用域守卫持有，只有 push_malloced_string 真正移交时释放守卫。 缺回退对象与异常路径都释放；保留返回 undefined 和转换回调顺序。 覆盖有/无 command_giver、回退存在/缺失及回调错误。 | `src/packages/dwlib/dwlib.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-057 | P2 | B E H N | 不确定 | parse_refresh 清标志导致旧缓存不释放 | src/packages/parser/parser.cc:563–617、918–942 | 清 SETUP 后，释放函数又要求 SETUP | ID/复数/形容词数组和字符串引用泄漏。 | refresh 清 PI_SETUP、设 PI_REFRESH；remove_ids 却仅在 PI_SETUP 时释放。再次 refresh 还会抹掉 PI_REFRESH，旧数组随后被覆盖。 | 单次/多次刷新、错误及销毁后引用回基线；活动解析不悬垂，新 ID 下一次生效。 | remove_ids 按 PI_SETUP&#124;PI_REFRESH 识别仍拥有的缓存，释放后归零；不读从未初始化的字段。 重复 refresh 保留 PI_REFRESH，只有实际重建/清理完成才结束待刷新状态。 维持正在解析时延迟释放的约束，核对 remove_parser_info 和 interrogate_object。 | `src/packages/parser/parser.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-058 | P2 | A E | 不确定 | roll_MdN 把 64 位参数窄化成 int | src/packages/contrib/contrib.cc:2835–2853 | int rolls,sides,bonus = LPC_INT 实参 | 合法 64 位值变成负数/其他数，结果偏离合同。 | rolls/sides/bonus 使用 int，LPC_INT 实参在验证和运算前已截断；roll 本身已是 LPC_INT，不能误报累加器是 int。 | 小值不回归；大 bonus、受控 RNG 的大 sides 保持值；极大 rolls 被预算正常终止。 | 三种参数保持 LPC_INT，边界/正数判断在原宽度进行，检查 random_number 的参数宽度。 累加沿用项目 LPC 64 位整数溢出合同，避免引入 C++ UB。 与 AUD-046 共用有界循环，不能把窄化修复变成不受限长循环。 | `src/packages/contrib/contrib.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-059 | P2 | C E | 不确定 | socket_status 混用状态枚举和 flags 位图 | src/packages/sockets/socket_efuns.cc:2394–2402 | flags & STATE_FLUSHING | 状态 API 返回错误 owner；不据此推断权限提升。 | 用 flags & STATE_FLUSHING 判断刷新状态，实际应读取 state；无关位值可错误隐藏/暴露 owner 槽。 | 刷新时 owner 槽为 0，合法活动 socket 为相应对象，独立 flags 不改变结果。 | 改为 state != STATE_FLUSHING；保留 owner 存活检查和引用计数。 用枚举状态和独立 flags 组合验证，不靠当前数字巧合。 不改变返回数组形状和其他字段。 | `src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc` | 2–4 小时 | 源码确认；定向回归待实施 |
+| AUD-060 | P1 | B C H | 不确定 | SC_FINAL_CLOSE 仍可进入延迟刷新 | src/packages/sockets/socket_efuns.cc:2038–2074、2449–2467 | FINAL 之后仍按 S_BLOCKED 进入 FLUSHING | 描述符、事件、队列可能未最终回收，TLS 生命周期与 AUD-035 交叉。 | FINAL 只跳过已有 FLUSHING 的前置拒绝；后续 S_BLOCKED 分支不检查 FINAL，强制清理可再次返回 FLUSHING。 | FINAL 返回后推进夹具事件即可资源归零，不续写/重复回调；普通关闭仍按合同排空。 | FINAL 必须绕过排空，回收全部资源；普通关闭才可进入 FLUSHING。 核对所有 FINAL 调用者、回调重入与槽 generation；不能只在调用者清 S_BLOCKED。 与 AUD-035 合并验证正常排空和强制丢弃两种不同合同。 | `src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-061 | P1 | E F N P | fork 引入问题 | parser 递归预算跨请求累计 | src/packages/parser/parser.cc:3171–3192、3300–3361 | static int parse_recurse_steps=0 | 正常解析逐渐失效，预算不是本次请求的资源边界。 | parse_recurse_steps 是函数 static，初始化一次且无重置。正常请求累计到 1000000 后，后续解析立即返回。 | 总历史工作量超过阈值不影响下一请求；单请求仍受原阈值限制，临时词/引用清理正确。 | 计数改为最外层本次解析入口的局部值，传到 parse_recurse 及所有递归调用。 同一请求所有规则/起点共享原阈值；不要每层/每规则重置；超限沿正常清理链退出。 验证正常重复请求、单次耗尽、错误后新请求及所有解析入口。 | `src/packages/parser/parser.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-062 | P0 | B E | 不确定 | PCRE2 合法前瞻捕获使替换长度下溢 | src/packages/pcre/pcre.cc:1235–1340；调用者 f_pcre_replace/f_pcre_replace_callback | tail=match_end-last_capture_end | 巨大复制长度和内存破坏；未运行可执行攻击样本。 | 捕获只验证在 subject 内；最终尾段却用 group 0 的 match_end 减去捕获的 last_end。前瞻捕获可超过整体匹配终点，差值下溢后进入 memcpy。 | 前瞻/后瞻、零宽、嵌套/可选捕获、空替换及上限，输出正确且 ASan 无越界。 | 用 subject 范围和唯一源游标拼装非重叠捕获替换：游标从 0 开始、最终尾段为 subject_length-cursor。 保留外层捕获优先的重叠规则；支持合法前瞻/后瞻，不通过拒绝合法模式绕过根因。 复核总输出长度与实际复制一致；两个 replace 入口共享同一实现。 | `src/packages/pcre/pcre.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-063 | P1 | B E | 不确定 | pcre_assoc 空匹配推进越尾且余量失真 | src/packages/pcre/pcre.cc:1015–1069 | tmp++，used 不变，下一轮 while(*tmp) | 越界读、错误匹配/UTF 错误；不是已具边界辅助函数的 match_all 路径。 | 空匹配直接 tmp++，未验证终点且未同步 used；下一轮可解引用尾后，并向 PCRE2 声明过长剩余 subject。也可能落到 UTF-8 续字节。 | 空串/空模式、开头/中间/末尾空匹配、UTF-8 和非 UTF 模式均有界；拼接还原输入，无重复丢字。 | 用唯一字节 offset 推导剩余长度，每次执行匹配使用真实 suffix 长度。 空匹配在终点停止，否则复用 UTF/非 UTF 模式相应的有界推进，保持字节拼接不遗漏。 保留模式优先级、tokens/default、嵌套返回数组和正常 suffix 锚点语义。 | `src/packages/pcre/pcre.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-064 | P2 | A B E | 不确定 | 运行时浮点转整数未检查可表示范围 | src/packages/core/efuns_main.cc:3132–3140；src/packages/core/sprintf.cc:1357–1366 | LPC_INT temp = floating_value | 结果依编译器/平台变化；未证明内存破坏。 | f__to_int 直接把 LPC_FLOAT 赋给 LPC_INT；非有限或超出整数可表示范围时是 C++ UB。 sprintf 的浮点 %d 分支先 floor 后直接赋整数，同样未校验。 | 零/负小数、上下界邻点、NaN/无穷都确定；正常值与旧输出一致，越界在 cast 前拒绝。 同时覆盖 sprintf %d 的既有 floor 语义和异常边界。 | 建立编译器与运行时共用的内部检查转换：有限且处于 [-2^63,2^63) 才截向零转换。 上界不能用四舍五入后的 double(INT64_MAX) 作包含边界；失败走 LPC 数值范围错误。 to_int 保持截向零；sprintf %d 保持先 floor 再转换。仅这些 float 路径复用检查，string/buffer 合同不改。 | `src/packages/core/efuns_main.cc`、`src/vm/internal/base/svalue.h`、`src/tests/test_lpc.cc`、`src/packages/core/sprintf.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-065 | P2 | A B D | 不确定 | 常量浮点转整数绕过运行时范围合同 | src/compiler/internal/compiler.cc:1825–1832、1912、2090 | 先设 NODE_NUMBER，再直接窄化 | 同一表达式常量和运行时结果/诊断不一致。 | promote_to_int 在 NODE_REAL 上直接窄化并先改节点类型，越界常量在编译器内发生同类 C++ UB。 | 常量/运行时边界语义一致，失败后下一次编译正常；含 float-cast-overflow 的专项插桩验证。 | 复用 AUD-064 的同一转换规则；确认可表示后才改节点 kind/type/value。 失败生成编译期范围诊断，不发布损坏 program，也不静默推迟规避验证。 核对赋值、显式转换及所有 promote_to_int 调用路径。 | `src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-066 | P0 | B E | 不确定 | replace_dollars 消费游标不一致导致负复制长度 | src/packages/dwlib/dwlib.cc:819–882 | currentold 前进而 i 不跳过；跨分配指针算尾长 | 负 len 转无符号大长度进入 strncpy；空替换结果错误。现有 replacement-length 修复未覆盖这些路径。 | 匹配后 currentold 前进但扫描 i 仍逐字递增，可重新匹配已消费范围得到负 len；尾检查还有跨分配指针相减。零长度产出还被误判未发生替换。 | 重叠/内嵌标记、空 key/空替换、多规则和边界；对照结果正确，ASan 无负长度/越界。 | 用源 offset、扫描 offset、输出长度统一所有计算；消费非空模式后跳到其末尾，禁止再扫已消费范围。 空模式保证扫描至少推进一个字节但保留未消费源字符；用独立 matched 标志区分零产出与未匹配。 复制前检查剩余源/目标容量，尾段只在同一字符串内计算；保持规则顺序和返回类型。 | `src/packages/dwlib/dwlib.cc`、`src/tests/test_lpc.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-067 | P1 | D F | 不确定 | include 宏展开直接递归且无预算 | src/compiler/internal/lex.cc:1181–1199 | return handle_include(def->exps) | 编译期栈耗尽/不可控展开；不提供可执行危险源。 | handle_include 在文件包含深度检查之前对宏值递归调用自身，未走普通宏展开预算；循环宏或长链可耗尽原生栈。 | 普通/间接链正确，循环/超限有界拒绝；之后正常编译成功，无原生栈增长。 | 改为迭代解析宏链，复用现有宏展开上限，不另设随意的小兼容阈值。 每一步计预算，循环/超限输出编译诊断；正常定界符后才进入原文件包含路径。 保留符号记录、源码行号和已验证的权限回调原始拼写。 | `src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
+| AUD-068 | P2 | E | 不确定 | uncompress 注册 string 输入却无实现 | src/packages/compress/compress.spec:10；src/packages/compress/compress.cc:338–352 | 非 T_BUFFER 直接 undefined | 编译可通过而已声明重载始终不工作。 | 签名为 buffer uncompress(string&#124;buffer)，运行时却只接受 T_BUFFER，所有 string 在 inflate 前直接返回 undefined。 | 两种输入同字节得到同 buffer；嵌入 NUL、截断、空数据及解压上限，清理正确。 | string/buffer 都先取得借用字节区间与精确长度，共用现有 inflate 和输出上限。 字符串用 SVALUE_STRLEN，不用 strlen；输入保持存活直到解压结束，返回仍是 buffer。 保留非法压缩数据的 undefined 与输出超限错误，完善现有归属文档，不删注册重载。 | `src/packages/compress/compress.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-069 | P2 | E | 不确定 | sprintf 数组数值转换原地修改输入元素 | src/packages/core/sprintf.cc:1075–1081、1357–1369、1404–1405 | carg 指向数组元素，适配时直接改 type/u | 本应格式化的调用改变后续业务可见的数组类型和值；未把此现象扩张成已证跨 owner 写入。 | INFO_ARRAY 的 carg 指向调用方数组元素；%f/%d 的数字类型适配直接改 carg->type/u，从而修改共享输入数组。 | %@f/%@d 输出不变，输入及其别名的 tag/value 前后相同；中途范围/类型错误也不产生部分修改。 | 数值适配在当前迭代的局部 svalue副本上完成，格式化只读取原元素，禁止改写 carg 指向的输入。 沿用 AUD-064 的范围检查及原 floor/浮点规则；局部数字不增加引用所有权或堆分配。 验证别名数组、多元素、失败中途和后续调用；与 AUD-050 分别保留回归。 | `src/packages/core/sprintf.cc`、`src/tests/test_lpc.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
 
 ## 7. 详细发现
 
@@ -1797,44 +1848,1659 @@ set(PACKAGE_DB_DEFAULT_DB "1" CACHE STRING "Default DB Handle")
 - **工时：**2–4 小时。
 - **状态：**静态确认；代码项未做本轮动态复现；未修复。验收与执行步骤见修复方案同 ID。
 
+### AUD-025 · 冷启动 ScratchArenaBinding 留下空 current_
+
+- **级别 / 类别 / 来源：**P1 / B D H / fork 引入问题。
+- **审读视角 / 性质：**C++ / 内存与编译器；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/compile_arena.cc:174–208、220–240、285–324。
+
+**源码摘录：**`src/compiler/internal/compile_arena.cc:288–290`
+
+```cpp
+  arena_.binding_marks_.push_back(
+      {arena_.current_, arena_.current_ ? arena_.current_->used : 0, arena_.live_});
+  arena_.bindings_active_++;
+```
+
+**源码摘录：**`src/compiler/internal/compile_arena.cc:316–319`
+
+```cpp
+  ScratchArena::BindingMark const mark = arena_.binding_marks_[mark_index_];
+  size_t const before = arena_.bytes_live_;
+  arena_.rewind_to(mark.chunk, mark.used, mark.live_head);
+  bytes_released_ = before - arena_.bytes_live_;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**arena 回退或溢出拒绝可能破坏嵌套 scope、代际和统计；保留 LIFO 合同，并验证拒绝后用量与原有绑定仍有效。
+- **触发前提：**非静态 arena 首次分配发生在 binding 内；退出 binding 后再次分配。
+- **影响：**合法内部调用顺序导致崩溃及 live/cycle 计量失真；未证实普通 LPC 直接控制该顺序。
+- **根因：**冷 binding 记录空 chunk。首次分配建立 base_，回退仍把 current_ 置空，且漏减 base_ 使用量。下一次 alloc 因 base_ 非空而解引用空 current_。
+- **现有上下文（控制流摘要，非逐字代码引用）：**current_ = chunk; // chunk 为空而 base_ 已存在。
+- **证据与确认边界：**源码闭环；arena-debug-binding 与 arena-asan-ubsan-binding 的同源探针均退出 -11，日志保留。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**空起始 mark 回退时归还新 base_ 的 used，并把 current_ 恢复到可复用 base_；保留 retained/live 链。 保持 generation 和严格 LIFO 拒绝逻辑；bytes_released、cycle_bytes、bytes_live 同步回退。 补冷/嵌套 binding、oversize、异常退出和下一次 begin/reset。
+- **验证方式：**退出冷 binding 后计量归零且可再次分配；内层回退不破坏外层数据；次序/代际错误仍拒绝。
+- **关联源码/测试：**`src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc`。
+- **文档归属：**`src/compiler/internal/compile_arena.h`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-025)。
+
+### AUD-026 · ScratchArena 尺寸运算可回绕
+
+- **级别 / 类别 / 来源：**P2 / B D P / fork 引入问题。
+- **审读视角 / 性质：**C++ / 内存与编译器；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/compile_arena.cc:32–45、174–216。
+
+**源码摘录：**`src/compiler/internal/compile_arena.cc:32–39`
+
+```cpp
+size_t align_up(size_t n) {
+  constexpr size_t kAlign = alignof(max_align_t);
+  return (n + kAlign - 1) & ~(kAlign - 1);
+}
+
+Chunk* new_chunk(size_t size, bool oversize, size_t* chunk_mallocs, int tag, const char* desc) {
+  void* mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
+  (*chunk_mallocs)++;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**arena 回退或溢出拒绝可能破坏嵌套 scope、代际和统计；保留 LIFO 合同，并验证拒绝后用量与原有绑定仍有效。
+- **触发前提：**内部 API 接收接近 SIZE_MAX 的尺寸；普通 LPC 到该极值的路径未证实。
+- **影响：**内部分配合同缺口，不能据此宣称远程可利用。
+- **根因：**align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。
+- **现有上下文（控制流摘要，非逐字代码引用）：**need=align_up(size); if(used+need>capacity)。
+- **证据与确认边界：**源码闭环；Debug/ASan-UBSan oversize 探针均以 86 报告非法长度未被拒绝；未做巨大内存写入。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**分配/游标变化前检查 len+1、对齐加数、header+size；非法尺寸抛 std::bad_alloc，不返回可用指针。 用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。 只验证极值被拒绝和状态不变，不实际申请巨量内存；成功分配继续验证无重叠。
+- **验证方式：**0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。
+- **关联源码/测试：**`src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc`。
+- **文档归属：**`src/compiler/internal/compile_arena.h`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-026)。
+
+### AUD-027 · 编译永久改变进程 locale
+
+- **级别 / 类别 / 来源：**P1 / D G / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/compiler.cc:2215–2220。
+
+**源码摘录：**`src/compiler/internal/compiler.cc:2215–2220`
+
+```cpp
+  {
+    // make sure we use the C locale during parsing
+    auto* current_locale = setlocale(LC_ALL, "C");
+    DEFER {
+      setlocale(LC_ALL, current_locale);
+    };
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**非 C locale 下编译，正常或异常退出。
+- **影响：**后续数值转换、格式和并发线程的 locale 行为改变。
+- **根因：**setlocale(LC_ALL,"C") 返回修改后的值而不是原值，DEFER 恢复的仍是 C；切换本身也影响其他线程。
+- **现有上下文（控制流摘要，非逐字代码引用）：**保存 setlocale(...,"C") 的返回值。
+- **证据与确认边界：**compiler-locale-debug 的同源 GTest 探针退出 1，保留具体 locale 前后断言；非仅推测。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**移除进程全局 LC_ALL 切换，改为编译器内部线程局部 C-locale 作用域。 POSIX 用 newlocale/uselocale；Windows 用 CRT 线程局部模式；恢复先前线程 locale/模式，失败报告。 覆盖成功、错误和嵌套退出；并行观察线程不得看到 locale 改变。
+- **验证方式：**非 C locale 下 LPC 小数语义稳定，前后 locale 相同，观察线程不受影响；缺平台记 external-required。
+- **关联源码/测试：**`src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/compiler.cc`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-027)。
+
+### AUD-028 · 内建预定义字符串构造无容量边界
+
+- **级别 / 类别 / 来源：**P2 / B D / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/lex.cc:3219–3225、3263–3276。
+
+**源码摘录：**`src/compiler/internal/lex.cc:3219–3225`
+
+```cpp
+static void add_quoted_predefine(const char* def, const char* val) {
+  char save_buf[MAXLINE];
+
+  strcpy(save_buf, "\"");
+  strcat(save_buf, val);
+  strcat(save_buf, "\"");
+  add_predefine(def, -1, save_buf);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**构建元数据超过固定容量。lpc_predefs 当前无生产写入者，旧分支不能报成 -D 可达。
+- **影响：**元数据长度合同缺失；未证明玩家输入可达。
+- **根因：**加引号值由 strcpy/strcat 拼入 MAXLINE，版本先 sprintf 到 1024 字节数组；这些内建构建元数据构造路径实际可达。
+- **现有上下文（控制流摘要，非逐字代码引用）：**固定数组 strcat；版本先 sprintf 到 1024 字节数组。
+- **证据与确认边界：**当前调用者及全仓 lpc_predefs 引用核对，撤回启动 -D 可达推断。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**版本和加引号值改为单一动态字符串构造，保持内容不变，直接把 PROJECT_VERSION 传入加引号构造。 只改这条实际使用的构造路径；lpc_predefs 无生产写入者，不恢复 -D，不把旧列表的 sscanf 顺手纳入本单元。 让测试调用同一内部生产构造函数，验证短值、长值及邻界；不新增 LPC 接口。
+- **验证方式：**短值逐字保持；长构建元数据安全构造或按既有宏长度上界明确拒绝；版本不经过固定 sprintf 缓冲。
+- **关联源码/测试：**`src/compiler/internal/lex.cc`、`src/compiler/internal/lex.h`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/lex.h`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-028)。
+
+### AUD-029 · 宏实参采集先越界再报错
+
+- **级别 / 类别 / 来源：**P0 / B D / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/lex.cc:4307–4406、4410–4413。
+
+**源码摘录：**`src/compiler/internal/lex.cc:4374–4384`
+
+```cpp
+    if (parcnt < 0 || (c == ',' && !parcnt && !dquote && !squote)) {
+      /* strip off trailing whitespace char if there was one */
+      if (uisspace(*(out - 1))) {
+        *(out - 1) = 0;
+      } else {
+        *out++ = 0;
+      }
+      if (parcnt < 0) {
+        return argc + 1;
+      }
+      argv[++argc] = out;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**空首实参或超出 NARGS 的分隔数量；报告不提供可执行恶意源。
+- **影响：**编译期边界前读和栈越界写，后续诊断不能撤销写入。
+- **根因：**extract_args 的空首参数读 out-1；逗号分支 argv[++argc] 可先写 argv[NARGS]，下一轮才到数量上限检查。调用者传栈数组。
+- **现有上下文（控制流摘要，非逐字代码引用）：**uisspace(*(out-1)); argv[++argc]=out;。
+- **证据与确认边界：**调用者栈数组及两处访问顺序确认，未运行危险样本。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**收尾先确认 out>argv[argc]；空实参直接写终止符，不读前字节。 递增 argc 和写下一槽前检查槽边界，保留宏形参数量错误语义。 覆盖空首/中/末参数、嵌套括号/引号、数量边界及错误后再次编译。
+- **验证方式：**合法输入不回归，超量先拒绝；ASan/UBSan 无越界，下一次正常编译成功。
+- **关联源码/测试：**`src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/lex.cc`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-029)。
+
+### AUD-030 · 字符候选绕过预处理指令长度上限
+
+- **级别 / 类别 / 来源：**P1 / B D F P / fork 引入问题。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/lex.cc:3783–3893、3987–4028。
+
+**源码摘录：**`src/compiler/internal/lex.cc:3847–3850`
+
+```cpp
+    if (char_state == directive_char_state_t::kOctal) {
+      if (directive_is_octal(static_cast<unsigned char>(c))) {
+        char_candidate.push_back(c);
+        return;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**跨续行的长字符候选，尚未进入回放。
+- **影响：**编译期内存和 CPU 放大；受限输出数组不等于受限临时存储。
+- **根因：**append 限制 DEFMAX，十六/八进制候选却先无限追加 char_candidate。续行可在回放到受限输出前占用任意候选内存。
+- **现有上下文（控制流摘要，非逐字代码引用）：**char_candidate.push_back 不受 append 上限保护。
+- **证据与确认边界：**待决 std::string 与受限 append 的分离路径确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**每次候选追加前按已输出+待决候选总量检查 DEFMAX，保持单一追加规则。 超限锁存原超长诊断并终止该编译，不截断后当合法源；保留正确行号与下次编译状态。 覆盖十六/八进制、缺结束引号、LF/CRLF 续行和字符/注释歧义。
+- **验证方式：**候选峰值受限；超长有确定诊断；边界内源码、位置映射及下一次编译一致。
+- **关联源码/测试：**`src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/lex.cc`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-030)。
+
+### AUD-031 · case 常量移位漏掉低六位合同
+
+- **级别 / 类别 / 来源：**P2 / D / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/grammar.y:1235–1242。
+
+**源码摘录：**`src/compiler/internal/grammar.y:1235–1242`
+
+```cpp
+  | constant L_LSH constant
+    {
+      $$ = $1 << $3;
+    }
+  | constant L_RSH constant
+    {
+      $$ = $1 >> $3;
+    }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**case 等 constant 文法中的非常规移位计数。
+- **影响：**编译结果偏离 LPC 模 64 语义。
+- **根因：**constant 左右移直接使用 $3，未按运行时合同取低六位；负数或不小于 64 的计数触发 C++ UB/构建差异。
+- **现有上下文（控制流摘要，非逐字代码引用）：**$$=$1<<$3; $$=$1>>$3;。
+- **证据与确认边界：**文法动作和既有低六位合同直接比对。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**复用安全 LPC 移位实现，计数取低六位；左移用无符号位运算，不拒绝合同允许的计数。 同步 Bison fallback 和 generate_ebnf 输出，不手改生成物。 比对运行时、普通折叠、case 常量三条路径。
+- **验证方式：**-1/0/63/64/65、极值计数和符号边界结果一致，UBSan 无 shift 报告。
+- **关联源码/测试：**`src/compiler/internal/grammar.y`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/grammar.y`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-031)。
+
+### AUD-032 · replace_string 跳表复制漏记目标长度
+
+- **级别 / 类别 / 来源：**P0 / B E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/core/efuns_main.cc:2261–2318。
+
+**源码摘录：**`src/packages/core/efuns_main.cc:2261–2268`
+
+```cpp
+    dst2 = dst1 = new_string(max_string_length, "f_replace_string: 2");
+
+    if (plen > 1) {
+      while (src < flimit) {
+        if ((skip = skip_table[static_cast<unsigned char>(src[probe])])) {
+          for (climit = dst2 + skip; dst2 < climit; *dst2++ = *src++) {
+            ;
+          }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**多字节模式、非匹配跳过和增长替换组合，输出接近上限。
+- **影响：**可写过按最大字符串长度分配的缓冲。
+- **根因：**增长分支的 skip_table 复制推进 src/dst2，却不增加 dlen，也不检查目标剩余容量。后续检查使用偏小 dlen。
+- **现有上下文（控制流摘要，非逐字代码引用）：**skip 只推进 dst2，后续用旧 dlen。
+- **证据与确认边界：**跳表分支、分配容量和后续检查链确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**skip、替换、单字节及尾段共用实际已写长度，所有路径复制前检查剩余容量。 保持超限失败返回、弹栈和释放合同，不以写后检查代替。 覆盖 first/last 范围、连续跳过、缩短/增长及容量邻界。
+- **验证方式：**参考结果逐字节一致，越界在复制前拒绝；ASan/清理检查全部路径。
+- **关联源码/测试：**`src/packages/core/efuns_main.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/strings/replace_string.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-032)。
+
+### AUD-033 · TLS 重试把负返回值当发送偏移
+
+- **级别 / 类别 / 来源：**P1 / B C E H / 不确定。
+- **审读视角 / 性质：**网络 / TLS / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/sockets/socket_efuns.cc:1145–1226。
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:1153–1166`
+
+```cpp
+  if (off > 0) {
+    should_continue = true;
+  } else if (off <= 0) {
+    if (is_tls) {
+      auto e = SSL_get_error(lpc_socks[fd].ssl, off);
+      switch (e) {
+        case SSL_ERROR_WANT_READ:
+          debug(sockets, "socket_write: SSL_ERROR_WANT_READ.\n");
+          should_continue = true;
+          break;
+        case SSL_ERROR_WANT_WRITE:
+          debug(sockets, "socket_write: SSL_ERROR_WANT_WRITE.\n");
+          should_continue = true;
+          break;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**清理顺序改变可能产生重复释放或 stale callback；保留 TLS 校验与 session/owner 归属，推进本夹具 event_base 后核对 fd、事件和 SSL 资源。
+- **触发前提：**TLS 初次非阻塞写需要重试。
+- **影响：**后续可从缓冲起点之前读取，队列和网络统计错误；未证实代码执行。
+- **根因：**SSL_write 的 WANT 等负返回被判可继续，off 却未归零，写入 w_off 与 len-off。
+- **现有上下文（控制流摘要，非逐字代码引用）：**重试保留 off<0，随后 w_off=off。
+- **证据与确认边界：**SSL 返回分类到偏移/长度的数据流确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**可重试错误归一为消费 0 字节；只有正返回值推进偏移和统计。 按 WANT_READ/WANT_WRITE 等待正确事件，遵守同一数据重试要求。 注入 WANT、EINTR、部分成功、致命错误并检查生产队列。
+- **验证方式：**0<=w_off<=总长度、剩余长度正确；无前缀泄漏/重发/漏发，统计不负增。
+- **关联源码/测试：**`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/sockets/socket_write.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-033)。
+
+### AUD-034 · sscanf 的 %s%x 搜索越过终止符
+
+- **级别 / 类别 / 来源：**P1 / B E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/vm/internal/base/interpret.cc:5400–5414。
+
+**源码摘录：**`src/vm/internal/base/interpret.cc:5402–5413`
+
+```cpp
+        case 'x':
+          do {
+            while (*tmp && (*tmp != '0')) {
+              tmp++;
+            }
+            if (*tmp == '0') {
+              if ((tmp[1] == 'x' || tmp[1] == 'X') && uisxdigit(tmp[2])) {
+                break;
+              }
+              tmp += 2;
+            }
+          } while (*tmp);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**%s 后跟 %x，剩余输入以单个 0 结束。
+- **影响：**越界读取和不可信匹配结果。
+- **根因：**尾部单个 0 无 x 前缀时仍 tmp+=2，循环随后读取终止符之后的位置。
+- **现有上下文（控制流摘要，非逐字代码引用）：**非前缀尾部 0 仍 tmp+=2 后解引用。
+- **证据与确认边界：**短路条件和下一轮读取位置确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**后继字符存在才检查前缀；无前缀按仍在字符串内的步幅推进。 前缀完整且第三字节存在才检查该字节。 保留匹配计数、未匹配参数和其他转换语义。
+- **验证方式：**空输入、尾部 0、完整/不完整前缀、合法十六进制和多转换；ASan 无越界。
+- **关联源码/测试：**`src/vm/internal/base/interpret.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/strings/sscanf.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-034)。
+
+### AUD-035 · TLS 延迟刷新前已释放并清空 SSL
+
+- **级别 / 类别 / 来源：**P1 / B C E H / 不确定。
+- **审读视角 / 性质：**网络 / TLS / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/sockets/socket_efuns.cc:2031–2074。
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:2051–2056`
+
+```cpp
+  if (lpc_socks[fd].ssl != nullptr) {
+    SSL_shutdown(lpc_socks[fd].ssl);
+    // TODO: process write
+    SSL_free(lpc_socks[fd].ssl);
+    lpc_socks[fd].ssl = nullptr;
+  }
+```
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:2067–2074`
+
+```cpp
+  /* if we're linkdead, we'll never flush, so don't even try :-) */
+  if ((lpc_socks[fd].flags & S_BLOCKED) && !(lpc_socks[fd].flags & S_LINKDEAD)) {
+    /* Can't close now; we still have data to write.  Tell the mudlib
+     * it is closed, but we really finish up later.
+     */
+    lpc_socks[fd].state = STATE_FLUSHING;
+    return EESUCCESS;
+  }
+```
+
+- **依赖：**AUD-060。
+- **修复风险与缓解：**清理顺序改变可能产生重复释放或 stale callback；保留 TLS 校验与 session/owner 归属，推进本夹具 event_base 后核对 fd、事件和 SSL 资源。
+- **触发前提：**TLS 队列有待发数据时普通关闭。
+- **影响：**向 SSL_write 传入空 SSL，可能崩溃；不是 UAF，也不是 comm.cc interactive 清理。
+- **根因：**socket_close 在判断 S_BLOCKED 延迟关闭前 SSL_free 并置空；刷新仍按 TLS 模式调用 SSL_write。
+- **现有上下文（控制流摘要，非逐字代码引用）：**SSL_free → ssl=null → STATE_FLUSHING。
+- **证据与确认边界：**直接清空时序确认；纠正 UAF 和 comm.cc 归因。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**先决定 flush/final；普通关闭需刷新时保留 SSL/CTX 到最终关闭。 最终路径一次释放 TLS/事件/队列，回调只通知一次并保留身份重查。 与 AUD-060 共核完整关闭状态机。
+- **验证方式：**普通待发按合同完成后恰好释放一次；强制/致命关闭不续写、不传空 SSL。
+- **关联源码/测试：**`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/sockets/socket_close.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-035)。
+
+### AUD-036 · TLS accept 早失败遗漏事件资源
+
+- **级别 / 类别 / 来源：**P1 / B C E H / 不确定。
+- **审读视角 / 性质：**网络 / TLS / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/sockets/socket_efuns.cc:748–783。
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:770–776`
+
+```cpp
+    // If parent socket has TLS enabled, initialize SSL for accepted connection
+    if (lpc_socks[i].flags & S_TLS_SUPPORT) {
+      if (lpc_socks[fd].ssl_ctx == nullptr) {
+        debug(sockets, "socket_accept: parent socket has no SSL_CTX.\n");
+        evutil_closesocket(accept_fd);
+        clear_socket(i, 1);
+        return EEACCEPT;
+```
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:748–750`
+
+```cpp
+  if (i >= 0) {
+    new_lpc_socket_event_listener(i, &lpc_socks[i], accept_fd);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**清理顺序改变可能产生重复释放或 stale callback；保留 TLS 校验与 session/owner 归属，推进本夹具 event_base 后核对 fd、事件和 SSL 资源。
+- **触发前提：**接受 TLS 连接后初始化失败。
+- **影响：**事件/上下文反复泄漏及旧事件关联；fd 已关闭，不能报 fd 泄漏。
+- **根因：**事件和 ev_data 已分配，SSL_CTX 缺失/SSL_new 失败却只 close fd 再 clear_socket，资源指针被清掉。
+- **现有上下文（控制流摘要，非逐字代码引用）：**close(accept_fd); clear_socket(i,1);。
+- **证据与确认边界：**分配/关闭/清槽顺序确认；撤回 fd 泄漏说法。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**早失败汇入完整新槽撤销，释放事件/上下文再清槽，fd 只关闭一次。 不交付半初始化槽，不绕过身份/回调约束。 注入两处失败，推进夹具 event_base 后检查资源。
+- **验证方式：**重复失败后事件/上下文/fd 回基线；槽复用不接受旧回调；正常 accept 不回归。
+- **关联源码/测试：**`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/sockets/socket_accept.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-036)。
+
+### AUD-037 · runner 拒绝合法百分号文件名
+
+- **级别 / 类别 / 来源：**P2 / I J / fork 引入问题。
+- **审读视角 / 性质：**测试工具 / CI / 证据；测试或验收证据缺口，不冒称产品缺陷。
+- **位置：**tools/testsuite/run-targeted.py:746–759。
+
+**源码摘录：**`tools/testsuite/run-targeted.py:746–749`
+
+```python
+def validate_case(case: str) -> str:
+    if not re.fullmatch(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", case):
+        raise RunnerError(f"invalid LPC case path: {case!r}")
+    return case
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**不能通过放宽路径边界、降低证据身份或静默跳过解决门禁失败；负向自测必须继续拒绝路径逃逸、零断言、字节被替换和异步未完成。
+- **触发前提：**选择两个现有格式串回归。
+- **影响：**用例不能通过定向入口执行，不是编译失败。
+- **根因：**validate_case 字符白名单排除 %，拒绝已有 warn_%s 和 warn_%s_a，driver 尚未启动。
+- **现有上下文（控制流摘要，非逐字代码引用）：**/[A-Za-z0-9_.-]+ 白名单。
+- **证据与确认边界：**lpc-individual-040/041 invalid LPC case path，各约 0.22 秒，driver 未运行。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**按组件和根归属校验；拒绝 NUL/控制字符、反斜杠、空组件与 ./..，允许语料合法字符。 确认实际 .c/.lpc 文件位于隔离 mudlib，继续 argv 传参、不经 shell。 补现有 %/Unicode 文件名与穿越/符号链接越根负例，再重跑两项。
+- **验证方式：**两项真实执行且身份一致；越根启动前拒绝；少跑/异步门禁不放宽。
+- **关联源码/测试：**`tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py`。
+- **文档归属：**`tools/testsuite/README.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-037)。
+
+### AUD-038 · SQLite 异步回归未接完成屏障
+
+- **级别 / 类别 / 来源：**P2 / E J / fork 引入问题。
+- **审读视角 / 性质：**LPC / 测试合同；测试或验收证据缺口，不冒称产品缺陷。
+- **位置：**testsuite/single/tests/efuns/async_db_exec_bound_args.lpc:17–44；testsuite/single/tests/efuns/db.c:93–108；testsuite/etc/test-scopes.tsv:10、36。
+
+**源码摘录：**`testsuite/single/tests/efuns/async_db_exec_bound_args.lpc:31–41`
+
+```cpp
+  // A trailing bound arg must survive to the callback, delivered after the
+  // primary result, and not read stale/garbage stack memory.
+  async_db_exec(conn, "insert into async_bound_tbl values('x');",
+    (: bound_arg_cb :), "hello-bound-arg");
+
+  call_out(function() {
+    ASSERT_EQ(1, got_string_cb_error);
+    ASSERT_EQ(1, got_bound_arg);
+    db_close(conn);
+  }, 1);
+#else
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**分类和完成协议会改变统计；能力必须来自被测 driver，排除项单列且不计通过，真实异步回调完成前不能归还 token。
+- **触发前提：**async/db/sqlite 配置运行两项。
+- **影响：**回归覆盖和完成时序失真；单例超时后端根因未另证，不能猜成 DB 锁。
+- **根因：**两项虽为 runtime，却未登记异步 token。do_tests 返回即完成；全量报 assertion after case completion，单例先结束后约 183 秒超时。
+- **现有上下文（控制流摘要，非逐字代码引用）：**do_tests 返回时没有登记未完成 token。
+- **证据与确认边界：**三配置全量都明确报该用例完成后断言；单例仅 2/18 断言先结束，各约 183 秒失败。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**保持现有 runtime 角色及已正确声明的 async/db/sqlite 能力依赖，不改分类/门禁。 在 do_tests 返回前调用 /command/tests->begin_async() 并保存 token；最后一个回调完成断言及 db_close 后调用 complete_async(token)。 用真实 DB 回调推进，替代固定延时；保留 bound args 与拒绝 string callback 的既有回归。
+- **验证方式：**完成标记晚于最终回调，两项不超时；禁止回调/故意失败必须失败；仍挂起则另追 shutdown。
+- **关联源码/测试：**`testsuite/single/tests/efuns/async_db_exec_bound_args.lpc`、`testsuite/single/tests/efuns/db.c`。
+- **文档归属：**`tools/testsuite/README.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-038)。
+
+### AUD-039 · 无执行权限对象可占满外部句柄池
+
+- **级别 / 类别 / 来源：**P1 / E F H N P / fork 引入问题。
+- **审读视角 / 性质：**外部进程 / 权限 / 资源；全局资源准入缺口；修复涉及原有非特权分配政策。
+- **位置：**src/packages/external/external.cc:152–166、1340–1357、1363–1388。
+
+**源码摘录：**`src/packages/external/external.cc:1340–1352`
+
+```cpp
+  svalue_t* arg = sp - num_arg + 1;
+
+  /* Allocation is not privileged; valid_socket is checked at run. */
+  int const cmd = validate_cmd_index(arg[0].u.number);
+  std::vector<std::string> extra;
+  parse_cmd_args(arg + 1, &extra);
+
+  int const id = alloc_handle_id();
+  auto* h = new ExternalHandle{};
+  h->id = id;
+  h->owner = current_object;
+  h->owner_id = vm_owner_id(current_object);
+  h->owner_epoch = vm_owner_epoch(current_object);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**create 鉴权将收紧源码明确允许的非特权分配政策，须随方案批准；复用已有权限操作并验证回调重入/销毁与 arity 恢复，不改变 run 时检查。
+- **触发前提：**可运行 LPC 但无 external 权限的对象重复 create，不 run/close。
+- **影响：**其他对象无法创建；不等于绕过权限启动进程。
+- **根因：**external_create 分配全局持久配额，权限仅在 external_run 检查；被拒绝执行的对象仍可长期占满槽。
+- **现有上下文（控制流摘要，非逐字代码引用）：**alloc_handle_id 先于权限检查。
+- **证据与确认边界：**配额与权限入口确认；此项为待批准的权限语义调整。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**复用 external_run/start 的 check_valid_socket("external", -1, current_object, "N/A", -1)，在 external_create 占用槽位以及建立参数 vector 前检查；不新增 efun、clone 入口或 master 操作名。 先保存 st_num_arg，权限回调返回后恢复；拒绝时抛既有风格的工厂调用错误，不预留槽。回调可销毁调用对象，授权后必须重新验证 owner 的存活与 epoch，不能沿用回调前的裸状态。 保留 kMaxHandles 上界与 run 时再次鉴权。测试拒绝对象重复申请、允许对象达到上限、释放后再申请，以及权限回调抛错/重入/销毁；此项改变原先明确允许的非特权分配政策，须随方案批准。
+- **验证方式：**拒绝对象重复 create 不影响授权对象；回调重入/销毁安全；创建后撤权仍不能 run。
+- **关联源码/测试：**`src/packages/external/external.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/external/external_create.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-039)。
+
+### AUD-040 · external_write 截断 stdin 却返回成功
+
+- **级别 / 类别 / 来源：**P2 / E P / fork 引入问题。
+- **审读视角 / 性质：**外部进程 / 权限 / 资源；产品或工具实现缺陷。
+- **位置：**src/packages/external/external.cc:124–135、679–687、1524–1533。
+
+**源码摘录：**`src/packages/external/external.cc:1525–1533`
+
+```cpp
+void f_external_write() {
+  int const num_arg = st_num_arg;
+  svalue_t* arg = sp - num_arg + 1;
+  int const id = static_cast<int>(arg[0].u.number);
+  ExternalHandle* h = lookup_handle(id, /*require_owner=*/1);
+  int const ok = queue_stdin(h, id, arg[1].u.string, SVALUE_STRLEN(arg + 1));
+  pop_n_elems(num_arg);
+  push_number(ok);
+}
+```
+
+**源码摘录：**`src/packages/external/external.cc:679–698`
+
+```cpp
+int queue_stdin(ExternalHandle* h, int id, const char* data, size_t len) {
+  if (h->in_closed || h->close_stdin_after_flush || h->state == HandleState::Done) {
+    return 0;
+  }
+  append_capped(h->in_buf, data, len);
+  if (h->state == HandleState::Running) {
+    flush_stdin(h, id);
+  }
+  return 1;
+}
+
+#ifndef _WIN32
+/* Shared by the classic callback form and the handle/promise form.
+ * POSIX_SPAWN_USEVFORK (glibc) is the fast path: vfork/clone instead of
+ * a full fork of the driver address space. Win32 has no posix_spawn;
+ * see win32_create_process(). */
+int posix_spawn_fast(pid_t* pid, const char* path, const posix_spawn_file_actions_t* file_actions,
+                     char** argv, char** envp) {
+  posix_spawnattr_t attr;
+  if (posix_spawnattr_init(&attr) != 0) {
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保留 boolean 返回值；超限整次拒绝且队列不变，不改成字节数、不改变 stdout/stderr 截断策略。
+- **触发前提：**待发 stdin 加新输入超过上限。
+- **影响：**子进程收到残缺输入，LPC 却得到成功。
+- **根因：**queue_stdin 复用 append_capped 静默丢超容量字节，随后仍返回 1。
+- **现有上下文（控制流摘要，非逐字代码引用）：**append_capped(...); return 1;。
+- **证据与确认边界：**queue_stdin 唯一调用者及读写共用截断 helper 确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**以当前 h->in_buf.size() 和 __MAX_STRING_LENGTH__ 计算剩余容量；flush_stdin 已通过 erase 移除已消费前缀，不另设冗余游标。 在追加/flush 改变状态前判断整次输入能否容纳；超限直接返回 0 且队列不变，能容纳才完整追加。保留 boolean 合同 1=本次全部接收、0=未接收，不改成字节数，也不改变 stdout/stderr 的截断策略。 保留 Created/Running、EOF/close、空输入行为；用有界管道模拟部分写与 EAGAIN，验证满额拒绝、随后重试、逐字节完整和清理。
+- **验证方式：**超限返回 0 且逻辑队列不变；成功字节完全一致，无丢弃/重复。
+- **关联源码/测试：**`src/packages/external/external.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/external/external_write.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-040)。
+
+### AUD-041 · 非 Debug 零断言用例未预分类
+
+- **级别 / 类别 / 来源：**P2 / I J / fork 引入问题。
+- **审读视角 / 性质：**LPC / 测试合同；测试或验收证据缺口，不冒称产品缺陷。
+- **位置：**testsuite/single/tests/compiler/constant_expr.c:1–39；testsuite/etc/test-scopes.tsv；.github/workflows/ci.yml。
+
+**源码摘录：**`testsuite/single/tests/compiler/constant_expr.c:1–8`
+
+```cpp
+void do_tests() {
+  mixed code;
+
+#ifdef __DEBUG__
+  // array constants
+  code = __TREE__ (sizeof(({ 1, 3, 3 })));
+  ASSERT(same(code, ({ "number", 3 })));
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**分类和完成协议会改变统计；能力必须来自被测 driver，排除项单列且不计通过，真实异步回调完成前不能归还 token。
+- **触发前提：**Release/RelWithDebInfo LPC 测试。
+- **影响：**CI 分类缺口，不是缺语言模块；不能改门禁伪通过。
+- **根因：**constant_expr 的断言全受 __DEBUG__ 保护，优化配置没有对应的预执行能力排除，严格门禁因此拒绝零断言。
+- **现有上下文（控制流摘要，非逐字代码引用）：**条件体 + 默认 runtime。
+- **证据与确认边界：**CI 原始 zero-assert runtime test: constant_expr.c 与源码条件一致。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**既有能力清单增加准确 debug 条件，为该测试声明依赖，不加假断言。 非 Debug 预列配置不支持并保留原因；Debug 必须真实执行。 同步能力生产者、分类校验、自测和 discovered/executed 对账。
+- **验证方式：**Debug 有实际断言；优化配置预排除；其他运行用例故意零断言仍失败。
+- **关联源码/测试：**`testsuite/etc/test-scopes.tsv`、`testsuite/command/tests.c`、`tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py`。
+- **文档归属：**`tools/testsuite/README.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-041)。
+
+### AUD-042 · CI 定向失败详细日志未持久归档
+
+- **级别 / 类别 / 来源：**P2 / I J K O / fork 引入问题。
+- **审读视角 / 性质：**测试工具 / CI / 证据；测试或验收证据缺口，不冒称产品缺陷。
+- **位置：**.github/workflows/ci.yml；tools/testsuite/run-targeted.py:1000–1039；src/tests/CMakeLists.txt。
+
+**源码摘录：**`tools/testsuite/run-targeted.py:647–651`
+
+```python
+    run_count, passed, failed, skipped = gtest_result_counts(result.output)
+    if result.timed_out:
+        raise RunnerError(f"GTest execution timed out after {timeout}s; inspect {result.log_path}")
+    if result.returncode != 0 or run_count == 0 or passed + failed + skipped == 0:
+        raise RunnerError(f"GTest execution failed; inspect {result.log_path}")
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**不能通过放宽路径边界、降低证据身份或静默跳过解决门禁失败；负向自测必须继续拒绝路径逃逸、零断言、字节被替换和异步未完成。
+- **触发前提：**CI CTest/runner 子调用失败。
+- **影响：**根因核验被迫另行同型复跑；日志缺失不代表产品有错。
+- **根因：**嵌套 runner 只打印 /tmp 证据路径，CI 未归档该目录完整失败日志；file_io 的具体断言无法从现有 CI 恢复。
+- **现有上下文（控制流摘要，非逐字代码引用）：**只剩临时路径，原日志未上传。
+- **证据与确认边界：**CI run 38214721157 GCC RelWithDebInfo file_io 只剩临时路径；audit44 复跑得到两项具体失败。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**每次 runner/嵌套 CTest 显式使用工作区下唯一 evidence-dir。 always 上传受控 summary、有界完整日志和身份元数据；不上传凭据、环境或任意 /tmp。 保留失败码，用受控失败确认 artifact 可定位具体断言。
+- **验证方式：**已知失败可从 artifact 恢复断言与身份，job 仍失败；成功/中断可追踪且敏感文件不归档。
+- **关联源码/测试：**`.github/workflows/ci.yml`、`src/tests/CMakeLists.txt`、`tools/testsuite/run-targeted.py`、`tools/testsuite/test-run-targeted.py`。
+- **文档归属：**`tools/testsuite/README.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-042)。
+
+### AUD-043 · 空输入尾裁剪形成起点之前的指针
+
+- **级别 / 类别 / 来源：**P2 / B D / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/lex.cc:handle_pragma；src/packages/core/add_action.cc:325–333。
+
+**源码摘录：**`src/compiler/internal/lex.cc:1723–1727`
+
+```cpp
+  // Ignore trailing whitespaces
+  char* p = &str[strlen(str) - 1];
+  while (iswspace(*p)) {
+    *p-- = '\0';
+  }
+```
+
+**源码摘录：**`src/packages/core/add_action.cc:325–333`
+
+```cpp
+  /* strip trailing spaces. */
+  for (p = buff + strlen(buff) - 1; p >= buff; p--) {
+    if (*p != ' ') {
+      break;
+    }
+    *p = '\0';
+  }
+  if (buff[0] == '\0') {
+    return 0;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**空 pragma、空命令或全空格命令。
+- **影响：**C++ 指针形成/比较超界 UB；未证明当前构建会崩溃。
+- **根因：**handle_pragma 的 strlen-1 与 user_parser 初始/末轮指针可越过起点。后者 p>=buff 会阻止解引用，不能报成已证实前读。
+- **现有上下文（控制流摘要，非逐字代码引用）：**start + strlen(start) - 1。
+- **证据与确认边界：**循环保护条件确认，限定为指针 UB，不夸大物理越界读取。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**两处用非负长度索引，仅 length>0 才访问 length-1。 保留 pragma 诊断和空命令返回 0，不扩大空白定义。 覆盖空串、全空格、单字符、普通尾空格和参数修改边界。
+- **验证方式：**正常结果/诊断不变；边界夹具确认无非法指针；不伪造 sanitizer 可观察性。
+- **关联源码/测试：**`src/compiler/internal/lex.cc`、`src/packages/core/add_action.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`docs/efun/interactive/command.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-043)。
+
+### AUD-044 · FORTIFY 绕过 fprintf 故障注入
+
+- **级别 / 类别 / 来源：**P2 / I J / fork 引入问题。
+- **审读视角 / 性质：**文件 IO / 错误传播；测试或验收证据缺口，不冒称产品缺陷。
+- **位置：**src/tests/test_file_io.cc:308、602–642；src/symbol.cc；src/packages/mudlib_stats/mudlib_stats.cc:532；src/tests/CMakeLists.txt。
+
+**源码摘录：**`src/tests/test_file_io.cc:308–317`
+
+```cpp
+int __wrap_fprintf(FILE* stream, const char* format, ...) {
+  if (stream == fault.stream && reject_write(FaultPoint::kWrite)) {
+    return -1;
+  }
+  va_list arguments;
+  va_start(arguments, format);
+  const int result = vfprintf(stream, format, arguments);
+  va_end(arguments);
+  return result;
+}
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**不要伪造成功或丢掉首个系统错误；只操作夹具目录，保留权限检查及既有成功/失败返回值，覆盖 EOF、EIO、消失路径和跨设备失败。
+- **触发前提：**GCC RelWithDebInfo、FORTIFY 启用。
+- **影响：**两个写失败回归失效并导致 CI 失败；不是已证实的产品输出丢失。
+- **根因：**GCC 优化/FORTIFY 把两处 fprintf 降成 __fprintf_chk，测试仅 wrap fprintf，故障钩子未执行。
+- **现有上下文（控制流摘要，非逐字代码引用）：**仅 --wrap=fprintf / __wrap_fprintf。
+- **证据与确认边界：**audit44：96 项中 94 通过、2 失败，fault.hits=0；禁止关闭 FORTIFY 或放宽断言。 隔离 GCC RelWithDebInfo 的原始记录见 §10；不得关闭 FORTIFY 使测试通过。
+- **修复方向：**保留 FORTIFY，在同一故障状态机接入 __fprintf_chk 包装；正常转发保留 flag/varargs。 CMake 仅在平台/编译器支持该符号时启用对应 wrap。 继续要求 hits>=1，验证正常写和两个 printf 变体的故障上报。
+- **验证方式：**同型优化配置 96/96 且钩子命中；Debug 不回归，正常 fortified 输出不被屏蔽。
+- **关联源码/测试：**`src/tests/test_file_io.cc`、`src/tests/CMakeLists.txt`。
+- **文档归属：**`tools/testsuite/README.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-044)。
+
+### AUD-045 · member_array 下标窄化及逆向失败哨兵错误
+
+- **级别 / 类别 / 来源：**P2 / A E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/core/efuns_main.cc:1092–1108、1243–1253。
+
+**源码摘录：**`src/packages/core/efuns_main.cc:1105–1108`
+
+```cpp
+    i = (sp--)->u.number;
+    if (i < 0) {
+      bad_arg(3, F_MEMBER_ARRAY);
+    }
+```
+
+**源码摘录：**`src/packages/core/efuns_main.cc:1119–1120`
+
+```cpp
+    if (i > SVALUE_STRLEN(sp)) {
+      error("Index to start search from in member_array() is > string length.\n");
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**大整数起点，或逆向空数组/未匹配/谓词全假。
+- **影响：**返回错误位置，甚至把未找到报告成非负下标。
+- **根因：**起点先从 LPC_INT 窄化为 int 再校验；逆向搜索把未找到的 -1 再映射成 size。
+- **现有上下文（控制流摘要，非逐字代码引用）：**i=(int)start；i=-1 后仍 size-i-1。
+- **证据与确认边界：**起点转换和退出后无条件映射均已确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**在 LPC_INT 中按容器规则验证起点，再作有证明的窄化；保留字符串越界报错与数组未找到语义。 只有命中时才进行反向下标映射，-1 始终保留。 覆盖普通、前缀及谓词组合和极值起点。
+- **验证方式：**正反向未找到均 -1；实际命中下标正确；大起点不回绕成有效下标；负起点仍拒绝。
+- **关联源码/测试：**`src/packages/core/efuns_main.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/arrays/member_array.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-045)。
+
+### AUD-046 · 原生骰子与编辑距离循环不响应预算
+
+- **级别 / 类别 / 来源：**P1 / E F G / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/contrib/contrib.cc:2835–2853、2874–2910；src/vm/internal/base/interpret.cc:2478–2484。
+
+**源码摘录：**`src/packages/contrib/contrib.cc:2844–2849`
+
+```cpp
+  if (rolls > 0 && sides > 0) {
+    while (rolls--) {
+      roll += 1 + random_number(sides);
+    }
+    roll += bonus;
+  }
+```
+
+- **依赖：**AUD-006。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**合法但成本高的参数，原生循环期间预算耗尽。
+- **影响：**事件循环被长时间占用；不把 WSL 结果推广为各平台计时器验收。
+- **根因：**roll_MdN 的 O(rolls) 与 string_difference 的 O(mn) 循环不轮询 outoftime，解释器只在回到 opcode 分派后处理超时。
+- **现有上下文（控制流摘要，非逐字代码引用）：**原生循环无预算轮询。
+- **证据与确认边界：**循环与解释器超时路径直接比对；跨平台部分仍受 AUD-006 约束。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**把解释器现有超时处理提为同一内部检查函数，保留 max_eval_error/catch 不能吞掉超时的合同。 两循环以固定小批量轮询，预处理/初始化长循环也检查；不修改结果算法。 编辑距离工作表改为异常安全所有权，使预算 error 释放临时内存；接入 AUD-006 的平台计时合同。
+- **验证方式：**正常结果一致；注入耗尽可预测中止且释放内存；真实隔离 driver 的有界输入验证响应时间，无负载外推。
+- **关联源码/测试：**`src/packages/contrib/contrib.cc`、`src/vm/internal/base/interpret.cc`、`src/vm/internal/base/interpret.h`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/contrib/roll_MdN.md`、`docs/efun/contrib/string_difference.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-046)。
+
+### AUD-047 · get_dir 两遍扫描遇提前 EOF 解引用空目录项
+
+- **级别 / 类别 / 来源：**P1 / B E H / 不确定。
+- **审读视角 / 性质：**文件 IO / 错误传播；产品或工具实现缺陷。
+- **位置：**src/packages/core/file.cc:311–328、345–384。
+
+**源码摘录：**`src/packages/core/file.cc:345–352`
+
+```cpp
+  for (i = 0, de = readdir(dirp); i < count; de = readdir(dirp)) {
+    namelen = strlen(de->d_name);
+    if (!do_match && (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)) {
+      continue;
+    }
+    if (do_match && !match_string(regexppath, de->d_name)) {
+      continue;
+    }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**不要伪造成功或丢掉首个系统错误；只操作夹具目录，保留权限检查及既有成功/失败返回值，覆盖 EOF、EIO、消失路径和跨设备失败。
+- **触发前提：**两遍之间项目消失、匹配集合缩小或 readdir 错误。
+- **影响：**空指针解引用；第一遍也未区分 EOF 与错误。
+- **根因：**第一遍计数后 rewinddir；第二遍只判断 i<count，不判断 readdir 是否为空。目录变化或读取错误可使其提前结束。
+- **现有上下文（控制流摘要，非逐字代码引用）：**for(...; i<count; de=readdir(...)) 直接用 de。
+- **证据与确认边界：**两轮循环条件确认；不需假定特定文件系统。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**每次 readdir 前清 errno，返回空后先区分正常 EOF 与错误，任何 d_name 访问前检查目录项。 正常提前 EOF 按实际填充 i 收缩数组并仅排序有效项；错误释放数组/关闭目录并返回既有失败值。 保留最大数组限制、通配符与排序；不用第一遍计数证明第二遍一定有项目。
+- **验证方式：**确定性注入提前 EOF/错误及匹配变化；无空槽/空解引用/泄漏，正常排序与限制不变。
+- **关联源码/测试：**`src/packages/core/file.cc`、`src/tests/test_file_io.cc`。
+- **文档归属：**`docs/efun/filesystem/get_dir.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-047)。
+
+### AUD-048 · get_dir 忽略元数据读取失败
+
+- **级别 / 类别 / 来源：**P2 / B E K / 不确定。
+- **审读视角 / 性质：**文件 IO / 错误传播；产品或工具实现缺陷。
+- **位置：**src/packages/core/file.cc:354–375。
+
+**源码摘录：**`src/packages/core/file.cc:361–369`
+
+```cpp
+      size_t const avail = sizeof(temppath) - (size_t)(endtemp - temppath);
+      if (namelen < avail) {
+        memcpy(endtemp, de->d_name, namelen + 1);
+        large_file_stat(temppath, &st); /* We assume it works. */
+      } else {
+        memset(&st, 0, sizeof(st));
+      }
+    }
+    encode_stat(&v->item[i], flags, de->d_name, &st);
+```
+
+- **依赖：**AUD-047。
+- **修复风险与缓解：**不要伪造成功或丢掉首个系统错误；只操作夹具目录，保留权限检查及既有成功/失败返回值，覆盖 EOF、EIO、消失路径和跨设备失败。
+- **触发前提：**目录项消失、权限/IO 错误，或组合路径无法容纳。
+- **影响：**输出看似有效但属于其他对象或虚构的大小/时间。
+- **根因：**逐项 large_file_stat 返回值被忽略，失败后 encode_stat 使用之前目录/文件的 st；过长路径还伪造全零元数据。
+- **现有上下文（控制流摘要，非逐字代码引用）：**large_file_stat(...); // assume it works。
+- **证据与确认边界：**st 在两轮和不同项目之间复用，错误与过长路径分支已核。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**metadata 模式检查 stat 成功，不复用旧 st；路径不容纳也明确失败。 失败释放中间结果、关闭目录，按 get_dir 已有失败约定返回 0，不造元数据哨兵。 保持成功路径的 file_size/时间定义，文档说明元数据失败不返回部分伪结果。
+- **验证方式：**第二项 stat 失败不会得到第一项元数据；不泄漏、不返回伪零；正常/目录/长路径边界覆盖。
+- **关联源码/测试：**`src/packages/core/file.cc`、`src/tests/test_file_io.cc`。
+- **文档归属：**`docs/efun/filesystem/get_dir.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-048)。
+
+### AUD-049 · link 的 EXDEV 符号链接目标与返回值错误
+
+- **级别 / 类别 / 来源：**P2 / E I / 不确定。
+- **审读视角 / 性质：**文件 IO / 错误传播；产品或工具实现缺陷。
+- **位置：**src/packages/core/file.cc:895–905、938–946。
+
+**源码摘录：**`src/packages/core/file.cc:938–945`
+
+```cpp
+#ifdef F_LINK
+  else if (flag == F_LINK) {
+    if (symlink(from, to) == 0) { /* symbolic link */
+      return 0;
+    }
+  }
+#endif
+  return 0;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**不要伪造成功或丢掉首个系统错误；只操作夹具目录，保留权限检查及既有成功/失败返回值，覆盖 EOF、EIO、消失路径和跨设备失败。
+- **触发前提：**跨设备 link，目标在另一目录，或 symlink 本身失败。
+- **影响：**返回成功但链接损坏，或根本没有创建。不是复制回退。
+- **根因：**回退 symlink(from,to) 直接使用相对当前目录的 from，实际会相对目标目录解释；symlink 失败仍落到 return 0。
+- **现有上下文（控制流摘要，非逐字代码引用）：**symlink(from,to)；失败仍 return 0。
+- **证据与确认边界：**硬链接失败分支及函数末尾返回直接确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**仅 EXDEV 分支按目标父目录计算词法相对源目标，不改变权限回调原始输入和次数，不 canonicalize 跟随源链接。 symlink 失败走既有错误/失败合同，不能落到成功返回。 保留正常硬链接与目标存在处理；使用私有夹具注入 EXDEV。 F_LINK 的 symlink 失败分支返回 1，不能落到函数末尾的成功值 0；F_RENAME 分支不改。
+- **验证方式：**回退目标实际可读且与源一致；失败不成功；权限拒绝无副作用，既有目标不被覆盖。
+- **关联源码/测试：**`src/packages/core/file.cc`、`src/tests/test_file_io.cc`。
+- **文档归属：**`docs/efun/filesystem/link.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-049)。
+
+### AUD-050 · sprintf 数组 %O 转换只作用于首元素
+
+- **级别 / 类别 / 来源：**P2 / E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/core/sprintf.cc:1075–1103、数组迭代尾部。
+
+**源码摘录：**`src/packages/core/sprintf.cc:1075–1086`
+
+```cpp
+      if (finfo & INFO_ARRAY) {
+        if (carg->type != T_ARRAY) {
+          SPRINTF_ERROR(ERR_ARRAY_EXPECTED);
+        }
+        if (carg->u.arr->size == 0) {
+          last = fpos;
+          fpos--; /* 'bout to get incremented */
+          continue;
+        }
+        carg = (argv + sprintf_state->cur_arg)->u.arr->item;
+        nelemno = 1; /* next element number */
+      }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**%@O 处理多个元素。
+- **影响：**合法格式输出错误或抛错。
+- **根因：**首元素把 finfo 从 INFO_T_LPC 改成 INFO_T_STRING，后续迭代不恢复原转换；后面的数值可报字符串类型错，字符串失去 %O 表示。
+- **现有上下文（控制流摘要，非逐字代码引用）：**首元素永久改写 finfo 类型。
+- **证据与确认边界：**数组入口、%O 改写及后续类型判断确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**保留原转换类型，每个元素重新执行 %O 转换，其他格式标志不丢。 每轮沿用已有 clean 释放，下一轮恢复原转换类型；保持列/表其他 flags 和缓冲寿命，不引入新的临时池。 比对逐元素 sprintf("%O") 拼接，并验证宽度、精度、列/表及错误后的状态。
+- **验证方式：**空/单/多元素、混合类型和嵌套值结果正确；ASan/引用检查无泄漏，后续调用不受影响。
+- **关联源码/测试：**`src/packages/core/sprintf.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/strings/sprintf.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-050)。
+
+### AUD-051 · parse_command 默认介词表可为空
+
+- **级别 / 类别 / 来源：**P1 / B E / 不确定。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/ops/parse.cc:1154–1167。
+
+**源码摘录：**`src/packages/ops/parse.cc:1154–1167`
+
+```cpp
+static svalue_t* prepos_parse(array_t* warr, int* cix_in, int* fail, svalue_t* prepos) {
+  array_t *parr, *tarr;
+  const char* tmp;
+  int pix, tix;
+
+  if ((!prepos) || (prepos->type != T_ARRAY)) {
+    parr = gPrepos_list;
+  } else {
+    parr = prepos->u.arr;
+  }
+
+  for (pix = 0; pix < parr->size; pix++) {
+    if (parr->item[pix].type != T_STRING) {
+      continue;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**master 未提供有效默认介词数组而解析 %p。
+- **影响：**合法的缺省/未配置场景可崩溃。
+- **根因：**未传有效显式表时使用可空 gPrepos_list，随即访问 parr->size。
+- **现有上下文（控制流摘要，非逐字代码引用）：**parr=gPrepos_list; for(...parr->size)。
+- **证据与确认边界：**可空默认表与无保护访问直接闭环。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**介词表为空时按未匹配返回，设置 fail 和返回槽；不制造新默认词表。 空数组、含非字符串项和显式数组保持现有选择及交换规则。 验证 master 缺 apply/错误类型和后续可用调用。
+- **验证方式：**缺省缺表返回未匹配不崩溃；有效单词/多词表正常。
+- **关联源码/测试：**`src/packages/ops/parse.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_command.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-051)。
+
+### AUD-052 · living_parse 压缩候选却复用原下标缓存
+
+- **级别 / 类别 / 来源：**P2 / B E H / 不确定。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/ops/parse.cc:1050–1083；load_lpc_info/match_object。
+
+**源码摘录：**`src/packages/ops/parse.cc:1069–1075`
+
+```cpp
+    if (obarr->item[obix].u.ob->flags & O_ENABLE_COMMANDS) {
+      assign_svalue_no_free(&live->item[tix++], &obarr->item[obix]);
+    }
+  }
+
+  if (tix) {
+    pval = item_parse(live, warr, cix_in, fail);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**原数组混有非 living/非对象项，且前序格式项已预热缓存。
+- **影响：**错误匹配、漏匹配或把另一个对象的 ID 用到 living 对象。
+- **根因：**live 按 tix 压缩排列，gId_list/gPluid_list/gAdjid_list 仍按原 obarr 下标缓存；item_parse 用压缩下标查这些缓存。
+- **现有上下文（控制流摘要，非逐字代码引用）：**live[tix++]=obarr[obix]，缓存却按 obix。
+- **证据与确认边界：**压缩代码和全局缓存下标语义已核；不是已修复的非对象解引用。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**living 临时数组用 allocate_array(obarr->size) 初始化为零，保留原数组长度。 仅把 living 对象复制到原 obix 槽位，不再压紧到 tix，也不缩短数组；复用 item_parse 跳过非对象的既有分支。 gId_list/gPluid_list/gAdjid_list 仍以原 obix 查找；对象引用计数按既有 assign/free 合同配对，不引入第二套缓存。
+- **验证方式：**冷/热缓存一致，混合数组不串对象；destruct 和非对象仍安全。
+- **关联源码/测试：**`src/packages/ops/parse.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_command.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-052)。
+
+### AUD-053 · 多词 ID 游标在调用者处多推进一词
+
+- **级别 / 类别 / 来源：**P2 / B E / 不确定。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/ops/parse.cc:1119–1131、1294–1347。
+
+**源码摘录：**`src/packages/ops/parse.cc:1128–1132`
+
+```cpp
+    plur_flag = 0;
+    if (match_object(obix, warr, &cix, &plur_flag)) {
+      *cix_in = cix + 1;
+      assign_svalue_no_free(&parse_ret, &obarr->item[obix]);
+      return &parse_ret;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**多词 ID 后还有格式字面量或参数。
+- **影响：**跳过后一词，导致错误匹配/失败。
+- **根因：**find_string 单词命中留下当前词，多词命中却留下词后位置；single_parse/item_parse 都再加一。
+- **现有上下文（控制流摘要，非逐字代码引用）：**多词返回词后；调用者又 +1。
+- **证据与确认边界：**find_string 两分支与调用者加一直接比对，修正了旧的相反归因。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**find_string 多词匹配成功后仅把输出参数 *cix_in 退回最后消费词；返回值 fpos 仍是匹配起点。 split 为空或零词时走不匹配分支；调用者继续按既有约定递增词游标。 核对 item_parse、adjectiv_parse、prepos_parse 对起点返回值与输出词游标的不同用法。
+- **验证方式：**只消费实际匹配词数；多词后下一词保留，单词行为不变。
+- **关联源码/测试：**`src/packages/ops/parse.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_command.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-053)。
+
+### AUD-054 · living_parse 回退成功仍保留失败标志
+
+- **级别 / 类别 / 来源：**P2 / E / 不确定。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/ops/parse.cc:1075–1105。
+
+**源码摘录：**`src/packages/ops/parse.cc:1097–1105`
+
+```cpp
+  if (ob) {
+    parse_ret.type = T_OBJECT;
+    parse_ret.u.ob = ob;
+    add_ref(ob, "living_parse");
+    (*cix_in)++;
+    return &parse_ret;
+  }
+  *fail = 1;
+  return nullptr;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**候选 living 匹配失败，按名称回退成功。
+- **影响：**调用者丢弃正确回退结果。
+- **根因：**item_parse 失败置 fail=1；find_player/find_living 回退找到对象后返回值和游标成功，但未清 fail。
+- **现有上下文（控制流摘要，非逐字代码引用）：**回退 return 成功对象，但 fail 仍为 1。
+- **证据与确认边界：**item_parse 的失败状态与两个回退返回值闭环。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**仅在回退实际找到并持有对象后设置 fail=0，再提交返回值及游标。 保留两种查找顺序和对象引用，不在未找到时清失败。 覆盖候选为空/非空、成功/失败以及相邻格式项。
+- **验证方式：**回退成功能继续匹配，失败仍失败；引用和游标无泄漏/多推进。
+- **关联源码/测试：**`src/packages/ops/parse.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_command.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-054)。
+
+### AUD-055 · SQLite 执行失败没有更新错误文本
+
+- **级别 / 类别 / 来源：**P2 / E K / 不确定。
+- **审读视角 / 性质：**数据库 / 错误合同；产品或工具实现缺陷。
+- **位置：**src/packages/db/db.cc:1028–1053。
+
+**源码摘录：**`src/packages/db/db.cc:1047–1053`
+
+```cpp
+  if (c->SQLite3.results) {
+    if (sqlite3_get_table(c->SQLite3.handle, s, &result, &c->SQLite3.nrows, &c->SQLite3.ncolumns,
+                          NULL) != SQLITE_OK) {
+      sqlite3_free_table(result);
+      sqlite3_finalize(c->SQLite3.results);
+      c->SQLite3.results = 0;
+      return 0;
+```
+
+- **依赖：**AUD-038。
+- **修复风险与缓解：**错误文本与句柄资源必须对应同一次操作；保留现有错误类型，不能把其他连接的诊断或旧 statement 当作当前结果。
+- **触发前提：**prepare 成功但执行失败，例如受控约束失败。
+- **影响：**调用方收到错误/陈旧诊断，妨碍处理和定位。
+- **根因：**prepare 失败会写 errormsg，sqlite3_get_table 执行失败却只清结果并返回 0，错误缓存为空或仍是上次错误。
+- **现有上下文（控制流摘要，非逐字代码引用）：**get_table 失败只 finalize/return。
+- **证据与确认边界：**两种失败分支对 errormsg 的处理差异确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**执行失败时在清理前复制 sqlite3_errmsg 到同一有界错误缓存并终止。 清理 results 与状态一次，成功/下一次失败不能复用无关旧错误。 不改变同步/异步结果协议或重复执行策略。
+- **验证方式：**实际约束失败有相应非空诊断，不带上次错误；句柄随后可正常执行，资源回基线。
+- **关联源码/测试：**`src/packages/db/db.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/db/db_exec.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-055)。
+
+### AUD-056 · query_multiple_short 缺回退对象时漏掉结果缓冲
+
+- **级别 / 类别 / 来源：**P2 / B E H / 不确定。
+- **审读视角 / 性质：**dwlib / 值语义；产品或工具实现缺陷。
+- **位置：**src/packages/dwlib/dwlib.cc:184–229。
+
+**源码摘录：**`src/packages/dwlib/dwlib.cc:208–227`
+
+```cpp
+    } else {
+      /* We need to find /global/player. */
+      /* Does this work? Seems not to. */
+      ob = find_object("/global/player");
+
+      if (ob) {
+        push_malloced_string(res);
+        v = apply("convert_message", ob, 1, ORIGIN_EFUN);
+
+        /* Return the result! */
+        if (v && v->type == T_STRING) {
+          pop_n_elems(num_arg);
+          share_and_push_string(v->u.string);
+        } else {
+          pop_n_elems(num_arg);
+          push_undefined();
+        }
+      } else {
+        pop_n_elems(num_arg);
+        push_undefined();
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**格式化及替换不能更改调用者共享值或泄漏部分结果；保留输出语义，异常时清理，测试重复调用与别名输入。
+- **触发前提：**可选 dwlib 包、该回退对象不存在。
+- **影响：**重复调用泄漏原生字符串；不推断其他回调路径已经安全。
+- **根因：**res 已分配；no_dollars 下既无 command_giver 又无 /global/player 的分支 pop 参数并 push_undefined，却未交出或释放 res。
+- **现有上下文（控制流摘要，非逐字代码引用）：**缺回退分支丢失 res。
+- **证据与确认边界：**分配点、两次移交与缺失释放分支已核；归属文档需新建。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**让 res 在创建后由同一 RAII/作用域守卫持有，只有 push_malloced_string 真正移交时释放守卫。 缺回退对象与异常路径都释放；保留返回 undefined 和转换回调顺序。 覆盖有/无 command_giver、回退存在/缺失及回调错误。
+- **验证方式：**缺回退重复调用引用/分配回基线；成功输出不变，无双重释放。
+- **关联源码/测试：**`src/packages/dwlib/dwlib.cc`、`src/tests/test_lpc.cc`。
+- **文档归属（拟新增）：**`docs/efun/contrib/query_multiple_short.md`。当前没有此页；沿用同包 query_num 的 contrib 归属，在本卡实施时补充，不声称现有文档已经存在。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-056)。
+
+### AUD-057 · parse_refresh 清标志导致旧缓存不释放
+
+- **级别 / 类别 / 来源：**P2 / B E H N / 不确定。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/parser/parser.cc:563–617、918–942。
+
+**源码摘录：**`src/packages/parser/parser.cc:611–616`
+
+```cpp
+  if (pi->flags & PI_SETUP) {
+    pi->flags &= PI_VERB_HANDLER;
+    pi->flags |= PI_REFRESH;
+  } else {
+    pi->flags &= PI_VERB_HANDLER;
+  }
+```
+
+**源码摘录：**`src/packages/parser/parser.cc:563–567`
+
+```cpp
+static void remove_ids(parse_info_t* pinfo) {
+  int i;
+
+  if (pinfo->flags & PI_SETUP) {
+    if (pinfo->num_ids) {
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**已建立缓存的对象刷新、重复刷新或刷新后 destruct。
+- **影响：**ID/复数/形容词数组和字符串引用泄漏。
+- **根因：**refresh 清 PI_SETUP、设 PI_REFRESH；remove_ids 却仅在 PI_SETUP 时释放。再次 refresh 还会抹掉 PI_REFRESH，旧数组随后被覆盖。
+- **现有上下文（控制流摘要，非逐字代码引用）：**清 SETUP 后，释放函数又要求 SETUP。
+- **证据与确认边界：**flags 转移与清理条件确认；不是已否定的 PI_LIVING 不重置说法。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**remove_ids 按 PI_SETUP|PI_REFRESH 识别仍拥有的缓存，释放后归零；不读从未初始化的字段。 重复 refresh 保留 PI_REFRESH，只有实际重建/清理完成才结束待刷新状态。 维持正在解析时延迟释放的约束，核对 remove_parser_info 和 interrogate_object。
+- **验证方式：**单次/多次刷新、错误及销毁后引用回基线；活动解析不悬垂，新 ID 下一次生效。
+- **关联源码/测试：**`src/packages/parser/parser.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_refresh.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-057)。
+
+### AUD-058 · roll_MdN 把 64 位参数窄化成 int
+
+- **级别 / 类别 / 来源：**P2 / A E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/contrib/contrib.cc:2835–2853。
+
+**源码摘录：**`src/packages/contrib/contrib.cc:2835–2842`
+
+```cpp
+void f_roll_MdN() {
+  int const num_arg = st_num_arg;
+  int sides, rolls, bonus;
+  LPC_INT roll = 0;
+
+  rolls = (sp - 2)->u.number;
+  sides = (sp - 1)->u.number;
+  bonus = sp->u.number;
+```
+
+- **依赖：**AUD-046。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**大于 int 范围的参数，尤其单次投掷或大 bonus。
+- **影响：**合法 64 位值变成负数/其他数，结果偏离合同。
+- **根因：**rolls/sides/bonus 使用 int，LPC_INT 实参在验证和运算前已截断；roll 本身已是 LPC_INT，不能误报累加器是 int。
+- **现有上下文（控制流摘要，非逐字代码引用）：**int rolls,sides,bonus = LPC_INT 实参。
+- **证据与确认边界：**三次实参窄化确认，累加器类型已交叉纠正。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**三种参数保持 LPC_INT，边界/正数判断在原宽度进行，检查 random_number 的参数宽度。 累加沿用项目 LPC 64 位整数溢出合同，避免引入 C++ UB。 与 AUD-046 共用有界循环，不能把窄化修复变成不受限长循环。
+- **验证方式：**小值不回归；大 bonus、受控 RNG 的大 sides 保持值；极大 rolls 被预算正常终止。
+- **关联源码/测试：**`src/packages/contrib/contrib.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/contrib/roll_MdN.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-058)。
+
+### AUD-059 · socket_status 混用状态枚举和 flags 位图
+
+- **级别 / 类别 / 来源：**P2 / C E / 不确定。
+- **审读视角 / 性质：**网络 / TLS / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/sockets/socket_efuns.cc:2394–2402。
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:2394–2401`
+
+```cpp
+  if (!(lpc_socks[which].flags & STATE_FLUSHING) && lpc_socks[which].owner_ob &&
+      !(lpc_socks[which].owner_ob->flags & O_DESTRUCTED)) {
+    ret->item[5].type = T_OBJECT;
+    ret->item[5].u.ob = lpc_socks[which].owner_ob;
+    add_ref(lpc_socks[which].owner_ob, "socket_status");
+  } else {
+    ret->item[5] = const0u;
+  }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**清理顺序改变可能产生重复释放或 stale callback；保留 TLS 校验与 session/owner 归属，推进本夹具 event_base 后核对 fd、事件和 SSL 资源。
+- **触发前提：**刷新状态或 flags 恰与枚举值重叠。
+- **影响：**状态 API 返回错误 owner；不据此推断权限提升。
+- **根因：**用 flags & STATE_FLUSHING 判断刷新状态，实际应读取 state；无关位值可错误隐藏/暴露 owner 槽。
+- **现有上下文（控制流摘要，非逐字代码引用）：**flags & STATE_FLUSHING。
+- **证据与确认边界：**两个字段的类型/用途与返回槽直接确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**改为 state != STATE_FLUSHING；保留 owner 存活检查和引用计数。 用枚举状态和独立 flags 组合验证，不靠当前数字巧合。 不改变返回数组形状和其他字段。
+- **验证方式：**刷新时 owner 槽为 0，合法活动 socket 为相应对象，独立 flags 不改变结果。
+- **关联源码/测试：**`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/sockets/socket_status.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**2–4 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-059)。
+
+### AUD-060 · SC_FINAL_CLOSE 仍可进入延迟刷新
+
+- **级别 / 类别 / 来源：**P1 / B C H / 不确定。
+- **审读视角 / 性质：**网络 / TLS / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/sockets/socket_efuns.cc:2038–2074、2449–2467。
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:2067–2074`
+
+```cpp
+  /* if we're linkdead, we'll never flush, so don't even try :-) */
+  if ((lpc_socks[fd].flags & S_BLOCKED) && !(lpc_socks[fd].flags & S_LINKDEAD)) {
+    /* Can't close now; we still have data to write.  Tell the mudlib
+     * it is closed, but we really finish up later.
+     */
+    lpc_socks[fd].state = STATE_FLUSHING;
+    return EESUCCESS;
+  }
+```
+
+**源码摘录：**`src/packages/sockets/socket_efuns.cc:2038–2040`
+
+```cpp
+  if (lpc_socks[fd].state == STATE_FLUSHING && !(flags & SC_FINAL_CLOSE)) {
+    return EEBADF;
+  }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**清理顺序改变可能产生重复释放或 stale callback；保留 TLS 校验与 session/owner 归属，推进本夹具 event_base 后核对 fd、事件和 SSL 资源。
+- **触发前提：**shutdown/destruct/fatal 路径要求最终关闭，队列仍 blocked 且未 linkdead。
+- **影响：**描述符、事件、队列可能未最终回收，TLS 生命周期与 AUD-035 交叉。
+- **根因：**FINAL 只跳过已有 FLUSHING 的前置拒绝；后续 S_BLOCKED 分支不检查 FINAL，强制清理可再次返回 FLUSHING。
+- **现有上下文（控制流摘要，非逐字代码引用）：**FINAL 之后仍按 S_BLOCKED 进入 FLUSHING。
+- **证据与确认边界：**中央判断与 shutdown 调用者意图不一致；应在风险发生路径修复。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**FINAL 必须绕过排空，回收全部资源；普通关闭才可进入 FLUSHING。 核对所有 FINAL 调用者、回调重入与槽 generation；不能只在调用者清 S_BLOCKED。 与 AUD-035 合并验证正常排空和强制丢弃两种不同合同。
+- **验证方式：**FINAL 返回后推进夹具事件即可资源归零，不续写/重复回调；普通关闭仍按合同排空。
+- **关联源码/测试：**`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/sockets/socket_close.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-060)。
+
+### AUD-061 · parser 递归预算跨请求累计
+
+- **级别 / 类别 / 来源：**P1 / E F N P / fork 引入问题。
+- **审读视角 / 性质：**LPC parser / 缓存与生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/parser/parser.cc:3171–3192、3300–3361。
+
+**源码摘录：**`src/packages/parser/parser.cc:3188–3192`
+
+```cpp
+  static int parse_recurse_steps = 0;
+  constexpr int kMaxParseRecurseSteps = 1000000;
+  if (++parse_recurse_steps > kMaxParseRecurseSteps) {
+    return;
+  }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**缓存/索引修复可能改变匹配优先级或引用生命周期；保留合法输入匹配语义，失败分支恢复状态，测试共享引用、刷新及析构。
+- **触发前提：**长时间服务或多次有分词分支的正常请求。
+- **影响：**正常解析逐渐失效，预算不是本次请求的资源边界。
+- **根因：**parse_recurse_steps 是函数 static，初始化一次且无重置。正常请求累计到 1000000 后，后续解析立即返回。
+- **现有上下文（控制流摘要，非逐字代码引用）：**static int parse_recurse_steps=0。
+- **证据与确认边界：**专用 fork 预算注释、static 计数及唯一入口调用确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
+- **修复方向：**计数改为最外层本次解析入口的局部值，传到 parse_recurse 及所有递归调用。 同一请求所有规则/起点共享原阈值；不要每层/每规则重置；超限沿正常清理链退出。 验证正常重复请求、单次耗尽、错误后新请求及所有解析入口。
+- **验证方式：**总历史工作量超过阈值不影响下一请求；单请求仍受原阈值限制，临时词/引用清理正确。
+- **关联源码/测试：**`src/packages/parser/parser.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/parsing/parse_sentence.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-061)。
+
+### AUD-062 · PCRE2 合法前瞻捕获使替换长度下溢
+
+- **级别 / 类别 / 来源：**P0 / B E / 不确定。
+- **审读视角 / 性质：**正则 / 内存与字符串；产品或工具实现缺陷。
+- **位置：**src/packages/pcre/pcre.cc:1235–1340；调用者 f_pcre_replace/f_pcre_replace_callback。
+
+**源码摘录：**`src/packages/pcre/pcre.cc:1268–1280`
+
+```cpp
+  }
+
+  size_t const matched_tail_length = static_cast<size_t>(match_end) - subject_pos;
+  if (matched_tail_length > 0) {
+    memcpy(ret + ret_pos, run->subject + subject_pos, matched_tail_length);
+    ret_pos += matched_tail_length;
+  }
+
+  size_t const suffix_length = static_cast<size_t>(run->s_length) - match_end;
+  if (suffix_length > 0) {
+    memcpy(ret + ret_pos, run->subject + match_end, suffix_length);
+    ret_pos += suffix_length;
+  }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**前瞻/后顾与零宽捕获本身是合法语法；不能一概拒绝以掩盖越界。按真实 subject 坐标重建输出，保留既有外层捕获优先的重叠处理规则。
+- **触发前提：**合法零宽/短整体匹配含更长前瞻捕获。
+- **影响：**巨大复制长度和内存破坏；未运行可执行攻击样本。
+- **根因：**捕获只验证在 subject 内；最终尾段却用 group 0 的 match_end 减去捕获的 last_end。前瞻捕获可超过整体匹配终点，差值下溢后进入 memcpy。
+- **现有上下文（控制流摘要，非逐字代码引用）：**tail=match_end-last_capture_end。
+- **证据与确认边界：**PCRE2 捕获范围合同与本地尾段算术闭环。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**用 subject 范围和唯一源游标拼装非重叠捕获替换：游标从 0 开始、最终尾段为 subject_length-cursor。 保留外层捕获优先的重叠规则；支持合法前瞻/后瞻，不通过拒绝合法模式绕过根因。 复核总输出长度与实际复制一致；两个 replace 入口共享同一实现。
+- **验证方式：**前瞻/后瞻、零宽、嵌套/可选捕获、空替换及上限，输出正确且 ASan 无越界。
+- **关联源码/测试：**`src/packages/pcre/pcre.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/pcre/pcre_replace.md`、`docs/efun/pcre/pcre_replace_callback.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-062)。
+
+### AUD-063 · pcre_assoc 空匹配推进越尾且余量失真
+
+- **级别 / 类别 / 来源：**P1 / B E / 不确定。
+- **审读视角 / 性质：**正则 / 内存与字符串；产品或工具实现缺陷。
+- **位置：**src/packages/pcre/pcre.cc:1015–1069。
+
+**源码摘录：**`src/packages/pcre/pcre.cc:1060–1071`
+
+```cpp
+        rmp->begin = rmpb_tmp;
+        rmp->end = tmp = rmpe_tmp;
+        used += tmpreg->ovector[1];
+        rmp->tok_i = regindex;
+        rmp->next = (struct RegMatch*)nullptr;
+      } else {
+        break;
+      }
+
+      if (rmp->begin == tmp && (!*++tmp)) {
+        break;
+      }
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**零宽匹配推进不能越过终点或拆开 UTF-8 码点；同步实际源游标与剩余字节数，保留既有 token/default 结果，不误改已单独处理空匹配的 match_all 路径。
+- **触发前提：**空匹配位于末尾或多字节字符前。
+- **影响：**越界读、错误匹配/UTF 错误；不是已具边界辅助函数的 match_all 路径。
+- **根因：**空匹配直接 tmp++，未验证终点且未同步 used；下一轮可解引用尾后，并向 PCRE2 声明过长剩余 subject。也可能落到 UTF-8 续字节。
+- **现有上下文（控制流摘要，非逐字代码引用）：**tmp++，used 不变，下一轮 while(*tmp)。
+- **证据与确认边界：**空匹配分支与下一次长度赋值确认。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**用唯一字节 offset 推导剩余长度，每次执行匹配使用真实 suffix 长度。 空匹配在终点停止，否则复用 UTF/非 UTF 模式相应的有界推进，保持字节拼接不遗漏。 保留模式优先级、tokens/default、嵌套返回数组和正常 suffix 锚点语义。
+- **验证方式：**空串/空模式、开头/中间/末尾空匹配、UTF-8 和非 UTF 模式均有界；拼接还原输入，无重复丢字。
+- **关联源码/测试：**`src/packages/pcre/pcre.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/pcre/pcre_assoc.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-063)。
+
+### AUD-064 · 运行时浮点转整数未检查可表示范围
+
+- **级别 / 类别 / 来源：**P2 / A B E / 不确定。
+- **审读视角 / 性质：**VM / 编译器数值语义；产品或工具实现缺陷。
+- **位置：**src/packages/core/efuns_main.cc:3132–3140；src/packages/core/sprintf.cc:1357–1366。
+
+**源码摘录：**`src/packages/core/efuns_main.cc:3132–3139`
+
+```cpp
+void f__to_int() {
+  LPC_INT temp = 0;
+  switch (sp->type) {
+    case T_REAL:
+      temp = sp->u.real;
+      sp->type = T_NUMBER;
+      sp->u.number = temp;
+      break;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**越界浮点转换的失败语义必须与 VM/编译期一致；保留合法端点、截断方向和已有整数行为，不靠关闭 sanitizer 规避 UB。
+- **触发前提：**运行时数值转换输入 NaN、无穷或越界有限浮点。
+- **影响：**结果依编译器/平台变化；未证明内存破坏。
+- **根因：**f__to_int 直接把 LPC_FLOAT 赋给 LPC_INT；非有限或超出整数可表示范围时是 C++ UB。 sprintf 的浮点 %d 分支先 floor 后直接赋整数，同样未校验。
+- **现有上下文（控制流摘要，非逐字代码引用）：**LPC_INT temp = floating_value。
+- **证据与确认边界：**原生转换直接确认；具体诊断属待批准的错误路径合同，不声称已修复。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**建立编译器与运行时共用的内部检查转换：有限且处于 [-2^63,2^63) 才截向零转换。 上界不能用四舍五入后的 double(INT64_MAX) 作包含边界；失败走 LPC 数值范围错误。 to_int 保持截向零；sprintf %d 保持先 floor 再转换。仅这些 float 路径复用检查，string/buffer 合同不改。
+- **验证方式：**零/负小数、上下界邻点、NaN/无穷都确定；正常值与旧输出一致，越界在 cast 前拒绝。 同时覆盖 sprintf %d 的既有 floor 语义和异常边界。
+- **关联源码/测试：**`src/packages/core/efuns_main.cc`、`src/vm/internal/base/svalue.h`、`src/tests/test_lpc.cc`、`src/packages/core/sprintf.cc`。
+- **文档归属：**`docs/efun/floats/to_int.md`、`docs/efun/strings/sprintf.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-064)。
+
+### AUD-065 · 常量浮点转整数绕过运行时范围合同
+
+- **级别 / 类别 / 来源：**P2 / A B D / 不确定。
+- **审读视角 / 性质：**VM / 编译器数值语义；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/compiler.cc:1825–1832、1912、2090。
+
+**源码摘录：**`src/compiler/internal/compiler.cc:1825–1832`
+
+```cpp
+parse_node_t* promote_to_int(parse_node_t* node) {
+  parse_node_t* expr;
+  if (node->kind == NODE_REAL) {
+    node->kind = NODE_NUMBER;
+    decltype(node->v.number) tmp = node->v.real;
+    node->v.number = tmp;
+    return node;
+  }
+```
+
+- **依赖：**AUD-064。
+- **修复风险与缓解：**越界浮点转换的失败语义必须与 VM/编译期一致；保留合法端点、截断方向和已有整数行为，不靠关闭 sanitizer 规避 UB。
+- **触发前提：**常量折叠/类型提升走 promote_to_int，值在 LPC_INT 范围外。
+- **影响：**同一表达式常量和运行时结果/诊断不一致。
+- **根因：**promote_to_int 在 NODE_REAL 上直接窄化并先改节点类型，越界常量在编译器内发生同类 C++ UB。
+- **现有上下文（控制流摘要，非逐字代码引用）：**先设 NODE_NUMBER，再直接窄化。
+- **证据与确认边界：**直接常量分支及非常量转为 to_int efun 的分歧已核。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**复用 AUD-064 的同一转换规则；确认可表示后才改节点 kind/type/value。 失败生成编译期范围诊断，不发布损坏 program，也不静默推迟规避验证。 核对赋值、显式转换及所有 promote_to_int 调用路径。
+- **验证方式：**常量/运行时边界语义一致，失败后下一次编译正常；含 float-cast-overflow 的专项插桩验证。
+- **关联源码/测试：**`src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`docs/efun/floats/to_int.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-065)。
+
+### AUD-066 · replace_dollars 消费游标不一致导致负复制长度
+
+- **级别 / 类别 / 来源：**P0 / B E / 不确定。
+- **审读视角 / 性质：**dwlib / 值语义；产品或工具实现缺陷。
+- **位置：**src/packages/dwlib/dwlib.cc:819–882。
+
+**源码摘录：**`src/packages/dwlib/dwlib.cc:873–881`
+
+```cpp
+  if (currentnew + COUNTED_STRLEN(oldstr) - currentold + oldstr - newstr > max_string_length) {
+    FREE_MSTR(newstr);
+    error("string too long");
+  }
+
+  strcpy(currentnew, currentold);
+  pop_2_elems();
+  push_malloced_string(
+      extend_string(newstr, currentnew - newstr + COUNTED_STRLEN(oldstr) - (currentold - oldstr)));
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**格式化及替换不能更改调用者共享值或泄漏部分结果；保留输出语义，异常时清理，测试重复调用与别名输入。
+- **触发前提：**模式覆盖的源范围内含后续可匹配标记，或起点匹配替换为空。
+- **影响：**负 len 转无符号大长度进入 strncpy；空替换结果错误。现有 replacement-length 修复未覆盖这些路径。
+- **根因：**匹配后 currentold 前进但扫描 i 仍逐字递增，可重新匹配已消费范围得到负 len；尾检查还有跨分配指针相减。零长度产出还被误判未发生替换。
+- **现有上下文（控制流摘要，非逐字代码引用）：**currentold 前进而 i 不跳过；跨分配指针算尾长。
+- **证据与确认边界：**输入扫描、消费、尾算术及零产出分支直接确认；归属文档需新建。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**用源 offset、扫描 offset、输出长度统一所有计算；消费非空模式后跳到其末尾，禁止再扫已消费范围。 空模式保证扫描至少推进一个字节但保留未消费源字符；用独立 matched 标志区分零产出与未匹配。 复制前检查剩余源/目标容量，尾段只在同一字符串内计算；保持规则顺序和返回类型。
+- **验证方式：**重叠/内嵌标记、空 key/空替换、多规则和边界；对照结果正确，ASan 无负长度/越界。
+- **关联源码/测试：**`src/packages/dwlib/dwlib.cc`、`src/tests/test_lpc.cc`。
+- **文档归属（拟新增）：**`docs/efun/contrib/replace_dollars.md`。当前没有此页；沿用同包 query_num 的 contrib 归属，在本卡实施时补充，不声称现有文档已经存在。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-066)。
+
+### AUD-067 · include 宏展开直接递归且无预算
+
+- **级别 / 类别 / 来源：**P1 / D F / 不确定。
+- **审读视角 / 性质：**LPC 编译器 / C++；产品或工具实现缺陷。
+- **位置：**src/compiler/internal/lex.cc:1181–1199。
+
+**源码摘录：**`src/compiler/internal/lex.cc:1186–1200`
+
+```cpp
+  if (*name != '"' && *name != '<') {
+    defn_t* d;
+
+    if ((d = lookup_define(name)) && d->nargs == -1) {
+      char* q;
+
+      q = d->exps;
+      while (uisspace(*q)) {
+        q++;
+      }
+      handle_include(q, global);
+    } else {
+      include_error("Missing leading \" or < in #include", global);
+    }
+    return;
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**词法/编译期修复可能改变合法源码、诊断及恢复状态；保持源码拼写与错误合同，新增有效/无效输入矩阵，涉及 grammar 时按 §3 重生成。
+- **触发前提：**include 参数为循环宏或足够长的间接宏链。
+- **影响：**编译期栈耗尽/不可控展开；不提供可执行危险源。
+- **根因：**handle_include 在文件包含深度检查之前对宏值递归调用自身，未走普通宏展开预算；循环宏或长链可耗尽原生栈。
+- **现有上下文（控制流摘要，非逐字代码引用）：**return handle_include(def->exps)。
+- **证据与确认边界：**递归发生在实际 include 深度计数之前，普通宏预算未覆盖该分支。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**改为迭代解析宏链，复用现有宏展开上限，不另设随意的小兼容阈值。 每一步计预算，循环/超限输出编译诊断；正常定界符后才进入原文件包含路径。 保留符号记录、源码行号和已验证的权限回调原始拼写。
+- **验证方式：**普通/间接链正确，循环/超限有界拒绝；之后正常编译成功，无原生栈增长。
+- **关联源码/测试：**`src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc`。
+- **文档归属：**`src/compiler/internal/lex.cc`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**8–16 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-067)。
+
+### AUD-068 · uncompress 注册 string 输入却无实现
+
+- **级别 / 类别 / 来源：**P2 / E / 不确定。
+- **审读视角 / 性质：**压缩 / 类型与资源；产品或工具实现缺陷。
+- **位置：**src/packages/compress/compress.spec:10；src/packages/compress/compress.cc:338–352。
+
+**源码摘录：**`src/packages/compress/compress.cc:342–348`
+
+```cpp
+  if (sp->type == T_BUFFER) {
+    buffer = sp->u.buf;
+  } else {
+    pop_n_elems(st_num_arg);
+    push_undefined();
+    return;
+  }
+```
+
+**源码摘录：**`src/packages/compress/compress.spec:10`
+
+```text
+buffer uncompress(string | buffer);
+```
+
+- **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
+- **修复风险与缓解：**保持 string/buffer 的精确字节长度和输入存活期；保留非法流、空输入与输出上限合同，不删注册重载或取消解压上限。
+- **触发前提：**合法 string 重载，包括可表示的压缩字节串。
+- **影响：**编译可通过而已声明重载始终不工作。
+- **根因：**签名为 buffer uncompress(string|buffer)，运行时却只接受 T_BUFFER，所有 string 在 inflate 前直接返回 undefined。
+- **现有上下文（控制流摘要，非逐字代码引用）：**非 T_BUFFER 直接 undefined。
+- **证据与确认边界：**注册、实现和 compress 返回类型直接核对，未把文件压缩删除合同混入此项。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**string/buffer 都先取得借用字节区间与精确长度，共用现有 inflate 和输出上限。 字符串用 SVALUE_STRLEN，不用 strlen；输入保持存活直到解压结束，返回仍是 buffer。 保留非法压缩数据的 undefined 与输出超限错误，完善现有归属文档，不删注册重载。
+- **验证方式：**两种输入同字节得到同 buffer；嵌入 NUL、截断、空数据及解压上限，清理正确。
+- **关联源码/测试：**`src/packages/compress/compress.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/general/uncompress.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-068)。
+
+### AUD-069 · sprintf 数组数值转换原地修改输入元素
+
+- **级别 / 类别 / 来源：**P2 / E / 不确定。
+- **审读视角 / 性质：**efun / VM / 生命周期；产品或工具实现缺陷。
+- **位置：**src/packages/core/sprintf.cc:1075–1081、1357–1369、1404–1405。
+
+**源码摘录：**`src/packages/core/sprintf.cc:1084–1085`
+
+```cpp
+        carg = (argv + sprintf_state->cur_arg)->u.arr->item;
+        nelemno = 1; /* next element number */
+```
+
+**源码摘录：**`src/packages/core/sprintf.cc:1357–1366`
+
+```cpp
+          if ((cheat[i - 1] == 'f' && carg->type == T_NUMBER)) {
+            // convert to T_REAL
+            LPC_FLOAT temp = carg->u.number;
+            carg->type = T_REAL;
+            carg->u.real = temp;
+          } else if ((cheat[i - 1] == 'd' && carg->type == T_REAL)) {
+            // convert to T_NUMBER
+            LPC_INT temp = floor(carg->u.real);
+            carg->type = T_NUMBER;
+            carg->u.number = temp;
+```
+
+- **依赖：**AUD-064。
+- **修复风险与缓解：**保留 efun 返回类型、合法输入与 owner/引用合同；不要把越界修复变成输入丢弃或隐式改值，用别名输入、精确边界和异常清理回归约束。
+- **触发前提：**数组格式化把整数作为浮点输出，或浮点作为整数输出。
+- **影响：**本应格式化的调用改变后续业务可见的数组类型和值；未把此现象扩张成已证跨 owner 写入。
+- **根因：**INFO_ARRAY 的 carg 指向调用方数组元素；%f/%d 的数字类型适配直接改 carg->type/u，从而修改共享输入数组。
+- **现有上下文（控制流摘要，非逐字代码引用）：**carg 指向数组元素，适配时直接改 type/u。
+- **证据与确认边界：**数组取址、原地适配及下一元素赋址三处直接闭环。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。根因已核对；尚无足够引入提交证据，不能按文件年代猜成上游或 fork。
+- **修复方向：**数值适配在当前迭代的局部 svalue副本上完成，格式化只读取原元素，禁止改写 carg 指向的输入。 沿用 AUD-064 的范围检查及原 floor/浮点规则；局部数字不增加引用所有权或堆分配。 验证别名数组、多元素、失败中途和后续调用；与 AUD-050 分别保留回归。
+- **验证方式：**%@f/%@d 输出不变，输入及其别名的 tag/value 前后相同；中途范围/类型错误也不产生部分修改。
+- **关联源码/测试：**`src/packages/core/sprintf.cc`、`src/tests/test_lpc.cc`。
+- **文档归属：**`docs/efun/strings/sprintf.md`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
+- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-069)。
+
 ## 8. 问题分布与上游未同步修复
 
 ### 8.1 分布
 
 | 严重级别 | 数量 |
 | --- | --- |
-| P0 | 1 |
-| P1 | 7 |
-| P2 | 14 |
+| P0 | 5 |
+| P1 | 22 |
+| P2 | 40 |
 | P3 | 2 |
 
 | 来源 | 数量 |
 | --- | --- |
 | 上游继承问题 | 15 |
-| fork 引入问题 | 6 |
+| fork 引入问题 | 17 |
 | fork 未同步上游修复 | 3 |
-| 不确定来源 | 0 |
+| 不确定来源 | 34 |
 
-类别允许多标，以下不是互斥分类，不应相加后与 24 比较。
+类别按 A–P 具体审计维度多标，不应相加后与 69 比较。
 
 | 类别 | 涉及问题数 |
 | --- | --- |
-| A | 4 |
-| B | 6 |
-| C | 7 |
-| D | 3 |
-| E | 6 |
-| F | 3 |
-| G | 6 |
-| H | 6 |
-| I | 6 |
-| J | 2 |
-| K | 4 |
+| A | 8 |
+| B | 30 |
+| C | 12 |
+| D | 13 |
+| E | 36 |
+| F | 8 |
+| G | 8 |
+| H | 16 |
+| I | 11 |
+| J | 7 |
+| K | 7 |
 | L | 1 |
 | M | 3 |
-| N | 2 |
-| O | 4 |
-| P | 10 |
+| N | 5 |
+| O | 5 |
+| P | 15 |
 
 ### 8.2 本地快照内已确认的残余上游修复
 
@@ -1846,16 +3512,82 @@ set(PACKAGE_DB_DEFAULT_DB "1" CACHE STRING "Default DB Handle")
 
 **不列为“待同步漏洞”的反例：**本地已经有异步 getdir 分配按 sizeof(dirent) 增长、reclaim 递归计数回退、输入 callback 的非法 init 名称清理等等价修正；存在历史提交标题并不足以要求重复应用。Char-mode 大提交还含 NAWS/TUI 等内容，本报告不把整提交的所有 hunk 自动算作未同步。
 
-最新上游公告与已知 CVE 清单未完成在线核验。缺少可用公告证据时，结论是 **unknown / external verification required**，不是“0 漏洞”。各系统依赖的已安装版本和本次二进制链接身份没有重测，因此也不发布笼统的“依赖全部安全”结论。
+续审已取得在线提交、安全工具及公告查询缓存，见 §10.3；并未完成全部组件/补丁的安全适用性核验。**unknown / external verification required 不等于 0 漏洞。** 不由版本字符串、空查询或成功构建推导“依赖全部安全”。
 
 ## 9. 交付自检
 
-- 已明确 fork 身份、源码 SHA、merge-base/tag、差异口径和当前工作区状态。
-- A–P 均给出实际审查对象、发现或限制；原背景中不存在的路径/API 已纠正。
-- 24 个 ID 与修复方案同源生成；每项给出位置、原始片段、前提、影响、根因、来源、验证和建议。
-- 所有跟踪路径、全部差异、两侧提交清单、物理目录与原始字节文件均列在下列附录。
-- 明确保留未完成的逐路径深度覆盖、动态/平台/最新上游核验；**没有声称无遗漏或修复完成**。
-- 本轮没有改驱动、测试、配置或主计划；既有规则/skill 的约束未改变。实施时需要同步的权威文档列于修复方案；本轮不提前改写它们。
+- 对照原任务 A–P 共 109 个子项核对：全文件台账、fork/上游差异、架构、问题证据、来源和修复方案均保留；不能把已记录检查点称为所有路径已证明安全。
+- 两份文档各有 AUD-001–AUD-069 的唯一详细节；总表、级别、类别、来源和工作量按同一问题集合复算。机械核验通过：新增 55 段源码摘录与原文一致，88 段 shell 命令通过 bash -n，73 个本地文档链接（含 45 个 ID 锚点链接）有效，git diff --check 无错误。这不表示拟议补丁已编译或修复后测试已运行。
+- 新增问题均列位置、上下文、触发、影响、根因、验证、依赖、风险与状态；来源不确定的 34 项不伪造引入提交。
+- 附录 A–G 保留最初 a4475b1a 的原始台账，不把两份报告、新构建与后来的验证结果倒灌成历史覆盖。55c7360b 相对该源码基线仅新增这两份报告。
+- 本轮交付只修改本文件与修复方案；没有修驱动/测试/配置、改变唯一主计划或操作既有 driver。代码行为未变，不提前更新 API/CHANGELOG；需要同步的权威文档已列入对应实施卡，现有 skill 约束仍适用。
+- **审计剩余边界见 §10.5；69 项修复均未实施。** 文档交付不等于全量安全验收或所有审计目标闭合。
+
+## 10. 续审执行记录、证据与未闭合项
+
+### 10.1 身份、目录与计数
+
+续审源码为 `55c7360bdbd81ef717290c8cd3b233da42d67724`，产品源码与最初 `a4475b1afe998bb03a37bdb0596b64ab01042ed3` 相同；两者只差两份报告。当前跟踪路径 3884，原始文件台账分母仍是 3882。以下 E 均指仓库内 `build-modernization-evidence/audit-deep-55c7360b-20261012T072825Z/`，不是 /tmp 唯一副本，也不是需要提交的运行产物。
+
+- `source-reviews-final/summary.json`：63 个分片，returned=63、failed=0、not_started=0。它证明工作收回，不证明每个结论正确或每条执行路径覆盖；主代理另对照源码、调用者和合同。
+- 中断/重复波次不累加：`source-reviews-resumed/summary.json` 的 17 返回、3 失败、43 未开始不是最终完成率；`extended-validation-summary.json` 未生成，不能补造总通过记录。
+- LPC 最终逐项记录归 `lpc-resumed-summary.json`：planned=recorded=419、interrupted=false。原记录和续跑记录按用例身份去重，不把重跑次数当新覆盖。
+- 该逐项 Debug driver SHA-256 为 `1dd9ec9fafce7302f86800d12ec5fa89b1826edfcf4a874fe3094c8054532adc`；其他 profile 使用各自 summary 的摘要，不能套用这个值。
+- 构建使用独立目录和有限并行；没有改写运行实例的产物。验证进程与既有 driver 分离，失败日志原样保留。
+
+### 10.2 实际运行结果
+
+| 工作 | 实际结果 | 证据入口 / 解释 |
+| --- | --- | --- |
+| Debug 原生套件 | 509 lpc_tests + 2 ofile + 8 compile_arena + 14 object_store + 96 file_io = **629 通过** | `debug-validation-summary.json`、`gtest-debug-*/summary.json` |
+| ASan+UBSan 原生套件 | 同五套件 **629 通过** | `sanitizer-summary.json` 与对应 gtest 记录；仅证明实际启用的 sanitizer 检查 |
+| TSan 原生套件 | 同五套件 **629 通过** | 同上；本机按 setarch 禁用 ASLR 的受支持方式运行，不当作任意平台证明 |
+| 三配置完整 LPC | **均未通过** | `lpc-debug-full/`、`lpc-asan-ubsan-full/`、`lpc-tsan-full/`；已出现 case 完成后的断言，见 AUD-038 |
+| 419 项逐项 LPC | **415 通过，4 失败** | 两个 warn_%s 文件被 runner 拒绝（AUD-037）；async_db_exec_bound_args 与 db 各约 183 秒失败（AUD-038）；不把 wrapper 失败变成产品 Crash |
+| CTest Debug | **未通过** | `ctest-debug/summary.json`；严格 wrapper 拒绝 TestLpcshellInteractiveContract 的 skip，不能与直接 GTest 记录混同 |
+| GCC RelWithDebInfo 的 file_io_tests | **94/96 通过，2 失败** | `gtest-audit44-gcc-relwithdebinfo-file_io_tests/summary.json`；SymbolWriteFailureIsReported、StatWriteFailureIsReported 的注入未命中 |
+| GCC 优化配置/构建 | configure 与 file_io_tests 构建成功 | `configure-audit44-gcc-relwithdebinfo/`、`build-audit44-gcc-relwithdebinfo/`；失败发生在测试，不是构建 |
+
+GCC 优化测试二进制 SHA-256 为 `854efb715bfc716fe0818275fc39d49af486af6f8c67ea8b1062a0a464bd810d`。调用经 FORTIFY 改为 __fprintf_chk，现有 --wrap=fprintf 不能截获；修复应补齐注入，不关闭 FORTIFY。原始 CI 临时日志没有完整上传的问题独立记为 AUD-042。
+
+其他 gateway、lpcc、trace、arena 与 locale 探针保留在 E 的同名目录。它们只支持各自输入/布局下的观察，不替代 69 项逐 ID 的修复前后回归、完整 fuzz 或真实负载性能结论。单例 SQLite 超时的所有退出期根因尚未单独证明；先修正已确认的完成协议，若仍挂起必须继续追踪，不能猜成数据库锁或直接加长超时。
+
+### 10.3 上游与安全工具
+
+在线比对缓存 `upstream-post-snapshot.json` 为 ahead_by=total_commits=6，终点是 `a2902952d74a53b5b031aa2d98633bec5fba6e55`。这是该次查询快照，不是永久“最新”声明。
+
+| SHA / 提交 | 与本地的关系和处理 |
+| --- | --- |
+| [9d24db92b8e6](https://github.com/fluffos/fluffos/commit/9d24db92b8e693fcd40b5e57eaaa07864ee404f5) · docs: telnet_suboption receives the payload without the option byte (#1437) | 文档候选；核对 telnet_suboption 实际传参后再决定是否同步 |
+| [df21db8e8c6c](https://github.com/fluffos/fluffos/commit/df21db8e8c6ccd196fdbb045b760d29d9afdbe44) · docs: fix broken diagnostics link in lpc/types/float (#1438) | 文档候选；只在本地仍有同型断链时处理 |
+| [774d1783c419](https://github.com/fluffos/fluffos/commit/774d1783c4193ff620a8ef2692e9ef360b33a20c) · config: read whole lines; reject an over-long setting instead of dropping the rest (#1434) | 关联 AUD-013；核对有界整行读取、超限拒绝与 IO 错误合同 |
+| [ffbd54a67d4f](https://github.com/fluffos/fluffos/commit/ffbd54a67d4f64f97656a2776f77da2a57d9d80d) · compiler: catch(expr) no longer prunes operations that can error (#1440) | 关联 AUD-017；核对 catch 中可观察异常，不能只补单个运算 |
+| [c51f482b55ff](https://github.com/fluffos/fluffos/commit/c51f482b55ffdd6c2a6b260c07decdb186c70b26) · compiler: keep error-capable code in catch commas, blocks, refs, $() (#1442) | 关联 AUD-017；覆盖逗号、块、引用与 $() 的错误保留 |
+| [a2902952d74a](https://github.com/fluffos/fluffos/commit/a2902952d74a53b5b031aa2d98633bec5fba6e55) · compiler: track "inside a catch body" with its own context bit (#1443) | 关联 AUD-016；核对 catch 上下文位与本 fork async/await 边界 |
+
+这 6 项不是都属于安全补丁，也没有授权整包 cherry-pick/merge。§8 的本地已确认残余与此处在线候选分开。后续取候选 hunk 前仍须核对接口、owner、生成物及测试；原来源字段不因“找到类似标题”而改写。
+
+`codeql_analyses.json` 记录了 55c7360b 的一次分析，results_count=3、rules_count=58；`codeql_alerts.json` 有 3 条 open：#31（libwebsockets 明文传输）、#30（efuns_main 弱算法）、#6（vendored crypt_des 弱算法）。它们是工具告警，不冒充本轮已经复现的 3 个新增漏洞。适用调用面、兼容用途及暴露策略仍须人工裁定。`upstream_advisories.json` 和 `dependency-advisories.json` 的查询缓存也不能替代真实组件身份和本地 patch 的适用性核验，尤其 AUD-021 的身份漂移尚未修复。
+
+### 10.4 去重与结论校准
+
+- 没有找到当前驱动向 -D 预定义列表写入的可达路径；不把相关无界扫描描述成已证实的启动参数漏洞。
+- comm 清理先把 ssl 置空，不能把其后续写描述成访问原 SSL 对象的 UAF；socket efun 的 TLS 关闭/续写问题按自己的实际路径记录，不混淆两个模块。
+- link 的 EXDEV 分支是 symlink 回退，不是复制；AUD-049 约束相对目标和失败返回 1。
+- 优化构建的 constant_expr 受 __DEBUG__ 保护，属于测试能力预分类缺口；不是“编译器丢失功能”，也不能用假断言让它通过。
+- FORTIFY 下两项写失败测试未命中钩子，属于测试注入缺口，不据此认定产品错误传播失败。
+- parser 递归预算跨调用累计与 reclaim 的历史递归计数修复不是同一问题；不会重复吸收已经等价实现的上游补丁。
+
+### 10.5 尚未闭合的验收边界
+
+1. **逐路径和逐 hunk：**原任务要求的完整语义矩阵仍不足。63 分片、全文件读取和 69 项发现不等于 VM 每条指令/错误路径、全部 efun 组合或 2710 条差异的独立安全证明。
+2. **测试闭合：**完整 LPC、严格 CTest 与 GCC 优化 file_io_tests 当前未通过。修正已确认的测试缺口后必须重跑；本轮没有修它们，也不补造通过。
+3. **真实环境：**原生 macOS/Windows、WASM runtime、持续慢读/TLS 压力、外部 PostgreSQL/MySQL、真实部署性能和容量没有对应完整证据。隔离 Linux fixture 不能代替它们。
+4. **来源与供应链：**34 项来源仍不确定；在线候选的全部 hunk、安全公告适用性和 3 条 CodeQL open 告警未全部闭合，不能发布“依赖/上游漏洞清零”。
+5. **修复实施：**69 项均待实施批准；优先级、依赖、保留合同、正常/边界/失败测试和回退见修复方案。没有把发布、部署、现有 driver 或下游数据加入范围。
+
+上述边界保留为明确未完成项，不因报告已落盘、原生套件通过或分片返回齐全而消失。
+
 
 ## 附录说明
 
