@@ -17,6 +17,12 @@ title: async / async_db_exec
     This function will execute the passed sql statement for the given data‐
     base handle.
 
+    The integer handle is captured together with an internal connection
+    generation when the request is admitted. If the handle was closed and
+    reused before the worker starts, the request is rejected with the error
+    string `stale database connection`; it is never executed on the new
+    connection. The callback receives that string as its single argument.
+
     Returns the database handle to the callback function provided.
 
     The callback should follow this format:

@@ -22,7 +22,12 @@ title: db / db_connect
     ues depend on compile time settings should be made available through  a
     corresponding header file within the mudlib.
 
-    Returns a handle to the new connection on success, 0 otherwise
+    Returns a handle to the new connection on success. On failure, it returns
+    an error string when the backend provides one, otherwise 0. A handle is
+    valid only until db_close() releases that connection; a later
+    connection may reuse the integer, but asynchronous requests retain an
+    internal connection generation and reject stale work. Failed connection
+    attempts do not publish a usable handle.
 
     Driver will call master object's valid_database function to reterive
     password for this database (string) or approvals (positive intgeter).

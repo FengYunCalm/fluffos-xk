@@ -66,6 +66,7 @@ struct Request {
       : flags(0),
         ret(0),
         handle(0),
+        db_generation(0),
         fun(nullptr),
         bound_args(nullptr),
         promise(nullptr),
@@ -84,6 +85,7 @@ struct Request {
   int flags;
   int ret;
   int handle;
+  uint64_t db_generation;
   std::string data;
   function_to_call_t* fun;
   /* Bound args trailing the callback (async_db_exec's spec allows a trailing
@@ -403,6 +405,13 @@ void* dbexecthread(struct Request* req) {
   DEFER {
     db_unlock_mutex();
   };
+  if (!db_generation_matches(req->handle, req->db_generation)) {
+    req->path = "stale database connection";
+    req->ret = -1;
+    req->status = DONE;
+    return nullptr;
+  }
+
   // see add_db_exec
   db_t* db = find_db_conn(req->handle);
   int ret = -1;
@@ -552,12 +561,14 @@ int add_write(const char* fname, const char* buf, int size, char flags, function
 }
 
 #ifdef F_ASYNC_DB_EXEC
-int add_db_exec(int handle, const char* sql, function_to_call_t* fun, array_t* bound_args) {
+int add_db_exec(int handle, uint64_t generation, const char* sql,
+                function_to_call_t* fun, array_t* bound_args) {
   auto* req = new Request();
   req->fun = fun;
   req->bound_args = bound_args;
   req->type = ADBEXEC;
   req->handle = handle;
+  req->db_generation = generation;
   req->data = sql;
   bind_request_owner(req);
   return aio_db_exec(req);
@@ -1044,12 +1055,11 @@ void f_async_db_exec() {
   info->item[0].u.string = string_copy(sp->u.string, "f_db_exec");
   valid_database("exec", info);
 
-  db_t* db;
+  uint64_t generation = 0;
 #ifdef PACKAGE_ASYNC
   db_lock_mutex();
 #endif
-  db = find_db_conn((sp - 1)->u.number);
-  if (!db) {
+  if (!db_capture_generation((sp - 1)->u.number, &generation)) {
 #ifdef PACKAGE_ASYNC
     db_unlock_mutex();
 #endif
@@ -1059,7 +1069,7 @@ void f_async_db_exec() {
   db_unlock_mutex();
 #endif
 
-  add_db_exec((sp - 1)->u.number, sp->u.string, cb.release(), bound_args);
+  add_db_exec((sp - 1)->u.number, generation, sp->u.string, cb.release(), bound_args);
   bound_args_handed_off = true;
   pop_2_elems();
 }
@@ -1076,8 +1086,8 @@ void f_async_db_exec_promise() {
 #ifdef PACKAGE_ASYNC
   db_lock_mutex();
 #endif
-  auto* db = find_db_conn((sp - 1)->u.number);
-  if (!db) {
+  uint64_t generation = 0;
+  if (!db_capture_generation((sp - 1)->u.number, &generation)) {
 #ifdef PACKAGE_ASYNC
     db_unlock_mutex();
 #endif
@@ -1090,6 +1100,7 @@ void f_async_db_exec_promise() {
   auto* req = make_promise_request(TYPE_NUMBER);
   req->type = ADBEXEC;
   req->handle = static_cast<int>((sp - 1)->u.number);
+  req->db_generation = generation;
   req->data = sp->u.string;
   req->promise->ref++;
   pop_2_elems();

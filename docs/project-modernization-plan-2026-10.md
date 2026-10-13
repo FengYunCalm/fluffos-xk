@@ -1607,7 +1607,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-001 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-002 | 已实施，功能/受监督 runner 通过；性能基准待补 | 当前私有 Debug/ASan 构建直接 GTest 与受监督 `run-targeted.py` 均通过；受控 AF_UNIX loopback 慢读/恢复读取已通过，独立吞吐对照和固定 clang-format 门禁仍未完成 |
 | AUD-003 | 待实施 | 按整改卡依赖推进 |
-| AUD-004 | 待实施 | 按整改卡依赖推进 |
+| AUD-004 | 已实施，Debug/ASan/TSan 定向验证通过；格式门禁待工具 | fail-first 2/2 失败→修复后 Debug/ASan 受监督 runner 各 4/4、TSan 4/4；见 U04 合同 |
 | AUD-005 | 待实施 | 按整改卡依赖推进 |
 | AUD-006 | 待实施 | 按整改卡依赖推进 |
 | AUD-007 | 待实施 | 按整改卡依赖推进 |
@@ -1686,6 +1686,15 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 修复后 `lpc_tests` 已在当前 Debug/ASan 私有构建分别通过 `524/524`；AUD-001/009/010 的新增过滤器在 Debug/ASan 各自通过：Lifetime `4/4`、EmptyLine `2/2`、CrLf `2/2`。AUD-002 的 `TestAuditOutputBudget*` 在两种构建均 `5/5`。
 - 上述 AUD-001/009/010 记录保留其原始 runner 证据；本轮 AUD-002 的 `run-targeted.py` 已用 `/usr/bin/python3` 完成监督、身份和异步完成屏障校验，Debug/ASan 各选中 5 项并通过，证据目录为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-debug-systempy/` 和 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-asan-systempy/`。此前默认 Python 因 pidfd 能力不足拒绝启动的记录仍保留，但不作为当前通过依据。直接 GTest 结果来自同一私有构建。
 - Debug/ASan 构建均使用 `--parallel 1`；ASan 运行使用 `detect_leaks=0`，本单元未声明 LSan。既有 driver 未启动、未停止；真实 TCP/TLS/WebSocket 网络门禁和独立吞吐对照仍未执行。
+
+#### U04-output：AUD-004 数据库连接代际验证合同
+
+- 原子范围：公开整数 handle 语义不变；每次槽位发布递增 `uint64_t generation`，只有 `DB_FLAG_READY` 的连接可被执行路径取得。异步 callback/Promise 在准入时锁内捕获 handle+generation，worker 持数据库锁复核，失配只交付一次 `stale database connection` 错误，不访问新连接。
+- fail-first：`build-modernization-evidence/audit-u04-failfirst-20261014T010000Z/fail-first.log` 在旧源码中复现 `AuditConnectionGenerationRejectsStaleCallbackRequest` 和 `...PromiseRequest` 两项失败；Promise 仍为 fulfilled/未拒绝。
+- 修复后 native `db_io_tests` 的 `DbIoTest.AuditConnection*` 共 4 项，覆盖 queued callback/Promise 的关闭重连、失败连接不发布和 12 连接槽位增长。Debug、ASan 的受监督 `run-targeted.py` 均为 `selected=4, passed=4, skipped=0, failed=0`，证据目录为 `build-modernization-evidence/audit-u04-native-debug-systempy-20261014T022300Z/` 和 `audit-u04-native-asan-systempy-20261014T022300Z/`。
+- TSan 私有构建直接运行同一 4 项为 `4/4`，日志为 `build-modernization-evidence/audit-u04-tsan/db_io_tests-expanded-after-lpc-fix.log`；因本机 TSan PIE shadow mapping 限制，构建生成工具和测试运行使用隔离构建的 `setarch -R`，不改变源码或既有 driver。
+- 异步 LPC 夹具是 `testsuite/single/tests/efuns/audit_db_identity.lpc`，按 `fixture` 注册，不作为独立 `do_tests` 用例；C++ 测试从真实 driver/SQLite 路径加载它。文档同步为 `docs/efun/async/async_db_exec.md`、`docs/efun/db/db_close.md` 和 `docs/efun/db/db_connect.md`。
+- `tools/style/check-format.py` 已执行目标文件检查，但本机缺少声明版本 clang-format 18.1.8，返回 2；不能把格式门禁记为通过。
 
 #### U02-output：AUD-002 输出队列预算验证合同
 

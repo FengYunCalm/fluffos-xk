@@ -1,0 +1,74 @@
+nosave int conn;
+nosave mixed callback_value;
+nosave mixed *connections;
+
+int open_connection() {
+  conn = db_connect("", "/audit_db_generation.sqlite", "", __USE_SQLITE3__);
+  return conn;
+}
+
+int failure_then_open() {
+  mixed failed = db_connect("", "/", "", __USE_SQLITE3__);
+  if (intp(failed) && failed > 0) {
+    db_close(failed);
+  }
+  conn = db_connect("", "/audit_db_generation.sqlite", "", __USE_SQLITE3__);
+  return conn;
+}
+
+void close_all_connections() {
+  if (!connections) {
+    conn = 0;
+    return;
+  }
+  foreach (mixed handle in connections) {
+    if (intp(handle) && handle > 0) {
+      db_close(handle);
+    }
+  }
+  connections = ({});
+  conn = 0;
+}
+
+int grow_connections() {
+  connections = ({});
+  for (int i = 0; i < 12; i++) {
+    mixed handle = db_connect("", "/audit_db_generation.sqlite", "", __USE_SQLITE3__);
+    if (!intp(handle) || handle <= 0) {
+      close_all_connections();
+      return 0;
+    }
+    connections += ({handle});
+  }
+  return sizeof(connections);
+}
+
+void on_async_result(mixed value) {
+  callback_value = value;
+}
+
+void start_callback() {
+  callback_value = 0;
+  async_db_exec(conn, "select 1", (: on_async_result :));
+}
+
+mixed start_promise() {
+  return async_db_exec_promise(conn, "select 1");
+}
+
+mixed callback_result() {
+  return callback_value;
+}
+
+int close_and_reopen() {
+  db_close(conn);
+  conn = db_connect("", "/audit_db_generation.sqlite", "", __USE_SQLITE3__);
+  return conn;
+}
+
+void close_current() {
+  if (conn > 0) {
+    db_close(conn);
+    conn = 0;
+  }
+}

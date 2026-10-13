@@ -1,6 +1,8 @@
 #ifndef PACKAGES_DB_H
 #define PACKAGES_DB_H
 
+#include <cstdint>
+
 #ifdef USE_POSTGRES
 #include <libpq-fe.h>
 #endif
@@ -59,16 +61,23 @@ struct db_defn_t {
 };
 
 #define DB_FLAG_EMPTY 0x1
+#define DB_FLAG_READY 0x2
 
 struct db_t {
   int flags;
   db_defn_t* type;
+  uint64_t generation;
   union dbconn_t c;
 };
 
 void db_cleanup(void);
 svalue_t* valid_database(const char* action, array_t* info);
+// These helpers require the caller to hold the database mutex when async I/O
+// is enabled. They make handle admission and worker execution use the same
+// ready slot and generation.
 db_t* find_db_conn(int handle);
+bool db_capture_generation(int handle, uint64_t* generation);
+bool db_generation_matches(int handle, uint64_t generation);
 
 #ifdef PACKAGE_ASYNC
 void db_lock_mutex();

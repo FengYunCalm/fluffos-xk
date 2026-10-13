@@ -270,7 +270,7 @@ cmake --preset portable-release -B "$BR" \
 | AUD-001 | P0 | 公共准入 | 网络/C++ 运行时维护者 | 8–16 小时 | DriverTest.TestAuditAsciiLifetime* |
 | AUD-002 | P1 | AUD-001 | 网络/C++ 运行时维护者 | 24–40 小时 | DriverTest.TestAuditOutputBudget* |
 | AUD-003 | P1 | AUD-004 | 并发/运行时维护者 | 24–40 小时 | DriverTest.TestAuditAsyncBudget* |
-| AUD-004 | P1 | AUD-015 | 并发/运行时维护者 | 16–32 小时 | DbIoTest.AuditConnectionGeneration* |
+| AUD-004 | P1 | AUD-015 | 并发/运行时维护者 | 16–32 小时 | DbIoTest.AuditConnection* |
 | AUD-005 | P1 | 公共准入 | 网络/C++ 运行时维护者 | 4–8 小时 | DriverTest.TestAuditNoechoLog* |
 | AUD-006 | P1 | 公共准入 | 构建/依赖维护者 | 24–40 小时 | DriverTest.TestAuditEvalBudget* |
 | AUD-007 | P1 | 公共准入 | 并发/运行时维护者 | 16–32 小时 | DriverTest.TestAuditReclaimGraph* |
@@ -466,7 +466,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P1 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/packages/async/async.cc:402–418`、`src/packages/async/async.cc:554–564`、`src/packages/db/db.cc:639–662`。
-- **作用范围：**`src/packages/async/async.cc`、`src/packages/db/db.cc`、`src/packages/db/db.h`、`src/tests/CMakeLists.txt`、`testsuite/single/tests/efuns/async.c`。测试归属 `src/tests/test_db_io.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/packages/async/async.cc`、`src/packages/db/db.cc`、`src/packages/db/db.h`、`src/tests/CMakeLists.txt`、`src/tests/test_db_io.cc`、`testsuite/single/tests/efuns/audit_db_identity.lpc`、`testsuite/etc/test-scopes.tsv`。只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**AUD-015 已满足；并发/运行时维护者；16–32 小时。
 - **必须击中的根因：**Request 只有 handle，执行时再次查槽位；锁保证单次访问互斥，但不能证明两次查找是同一代连接。
 
@@ -493,34 +493,26 @@ if (!db || db->generation != req->generation) {
 
 - **场景：**ELF test-only wrapper 在异步线程调用 db_lock_mutex 前暂停，主线程关闭并重建同号 SQLite 连接，再释放 worker；旧请求不得触达新库。
 - **profile/真实边界：**新 db_io_tests 目标；Debug、ASan、TSan；SQLite 隔离集成。
-- **新增 native filter：**`DbIoTest.AuditConnectionGeneration*`，目标 `db_io_tests`。
+- **新增 native filter：**`DbIoTest.AuditConnection*`，目标 `db_io_tests`；包含代际失配、失败重连和槽位增长。
 
 ```bash
 N=AUD-004
-F='DbIoTest.AuditConnectionGeneration*'
+F='DbIoTest.AuditConnection*'
 B="$BD"
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --binary "$B/src/tests/db_io_tests" --gtest-filter "$F" \
   --timeout 180 --evidence-dir "$E/$N-native-debug"
 ```
 
-- **新增 LPC 对象：**`/single/tests/efuns/audit_db_identity`。测试源是 `testsuite/single/tests/efuns/audit_db_identity.lpc`；纳入本单元文件清单并注册 scope。
-
-```bash
-N=AUD-004
-L=audit_db_identity
-HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --driver "$BD/bin/driver" --case "/single/tests/efuns/$L" \
-  --timeout 180 --evidence-dir "$E/$N-lpc-debug"
-```
+- **新增 LPC fixture：**`/single/tests/efuns/audit_db_identity`。测试源是 `testsuite/single/tests/efuns/audit_db_identity.lpc`，按 `fixture` 注册；它由 `db_io_tests` 通过真实 driver/SQLite 路径加载，不作为独立 `do_tests` 用例或独立 LPC runner 通过项。
 
 #### 完成、风险和回退
 
 - **验收：**暂停/复用反例稳定失败在旧源码、修复后旧任务被拒绝；新库没有旧任务的副作用；错误和回调次数一致，TSan 无该路径数据竞争。
 - **风险与缓解：**不能改变公开整数 handle 语义；不能在执行期间把裸 db_t* 保存在可重分配槽数组之外；失败连接发布必须与 AUD-015 配合。
-- **文档同步：**`docs/efun/async/async_db_exec.md`、`docs/efun/db/db_close.md`；只更新受影响的合同/流程，不复制历史测试数字。
+- **文档同步：**`docs/efun/async/async_db_exec.md`、`docs/efun/db/db_close.md`、`docs/efun/db/db_connect.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。旧源码 fail-first 的 callback/Promise 两项均失败；修复后 Debug、ASan 受监督 runner 各发现并通过 4/4，TSan 私有构建直接运行通过 4/4，覆盖代际拒绝、失败连接不发布和槽位增长。证据位于 `build-modernization-evidence/audit-u04-failfirst-20261014T010000Z/`、`audit-u04-debug/`、`audit-u04-asan/`、`audit-u04-tsan/`、`audit-u04-native-debug-systempy-20261014T022300Z/` 和 `audit-u04-native-asan-systempy-20261014T022300Z/`。TSan 运行使用私有构建的 `setarch -R` 规避本机 PIE shadow mapping 限制；固定 clang-format 18.1.8 不可用，格式门禁仍未通过。
 
 ### AUD-005 · connections 调试日志记录 NOECHO 输入正文
 

@@ -16,7 +16,10 @@ title: db / db_close
 
     Closes the database connection represented by the given handle.
 
-    Returns 1 on success, 0 otherwise
+    Returns 1 on success, 0 otherwise. Closing a handle invalidates the
+    current connection generation. An asynchronous database request that was
+    queued for this handle is rejected if the handle is closed and reused
+    before execution; it cannot operate on the replacement connection.
 
 ### SEE ALSO
 

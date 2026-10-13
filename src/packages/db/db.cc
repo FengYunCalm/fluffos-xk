@@ -65,6 +65,8 @@
 
 #include "base/package_api.h"
 
+#include <cstring>
+
 #include "packages/db/db.h"
 
 #include "packages/core/file.h"
@@ -77,6 +79,7 @@
 static int db_conn_alloc, db_conn_used;
 static db_t* db_conn_list;
 
+static db_t* find_db_slot(int);
 db_t* find_db_conn(int);
 static int create_db_conn();
 static void free_db_conn(db_t*);
@@ -323,7 +326,7 @@ void f_db_connect() {
     push_number(0);
     return;
   }
-  db = find_db_conn(handle);
+  db = find_db_slot(handle);
 
   switch (type) {
     default:
@@ -375,6 +378,7 @@ void f_db_connect() {
     }
     free_db_conn(db);
   } else {
+    db->flags |= DB_FLAG_READY;
     push_number(handle);
   }
 }
@@ -606,8 +610,7 @@ void db_cleanup() {
         db_conn_list[i].type->close(&(db_conn_list[i].c));
       }
 
-      db_conn_list[i].flags = DB_FLAG_EMPTY;
-      db_conn_used--;
+      free_db_conn(&db_conn_list[i]);
     }
   }
 }
@@ -632,12 +635,18 @@ int create_db_conn() {
       db_conn_list = RESIZE(db_conn_list, db_conn_alloc, db_t, TAG_DB, "create_db_conn");
     }
     while (i < db_conn_alloc) {
+      std::memset(&db_conn_list[i], 0, sizeof(db_conn_list[i]));
       db_conn_list[i++].flags = DB_FLAG_EMPTY;
     }
   }
 
   for (i = 0; i < db_conn_alloc; i++) {
     if (db_conn_list[i].flags & DB_FLAG_EMPTY) {
+      if (db_conn_list[i].generation == UINT64_MAX) {
+        continue;
+      }
+      db_conn_list[i].generation++;
+      std::memset(&db_conn_list[i].c, 0, sizeof(db_conn_list[i].c));
       db_conn_list[i].flags = 0;
       db_conn_list[i].type = &no_db;
       db_conn_used++;
@@ -645,21 +654,46 @@ int create_db_conn() {
     }
   }
 
-  fatal("dbConnAlloc != dbConnUsed, but no empty slots");
+  return 0;
 }
 
-db_t* find_db_conn(int handle) {
-  if (handle < 1 || handle > db_conn_alloc || db_conn_list[handle - 1].flags & DB_FLAG_EMPTY) {
+static db_t* find_db_slot(int handle) {
+  if (handle < 1 || handle > db_conn_alloc ||
+      (db_conn_list[handle - 1].flags & DB_FLAG_EMPTY)) {
     return nullptr;
   }
   return &(db_conn_list[handle - 1]);
+}
+
+db_t* find_db_conn(int handle) {
+  auto* db = find_db_slot(handle);
+  if (!db || !(db->flags & DB_FLAG_READY)) {
+    return nullptr;
+  }
+  return db;
+}
+
+bool db_capture_generation(int handle, uint64_t* generation) {
+  auto* db = find_db_conn(handle);
+  if (!db || !generation) {
+    return false;
+  }
+  *generation = db->generation;
+  return true;
+}
+
+bool db_generation_matches(int handle, uint64_t generation) {
+  auto* db = find_db_conn(handle);
+  return db && db->generation == generation;
 }
 
 void free_db_conn(db_t* db) {
   DEBUG_CHECK(db->flags & DB_FLAG_EMPTY, "Freeing DB connection that is already freed\n");
   DEBUG_CHECK(!db_conn_used, "Freeing DB connection when dbConnUsed == 0\n");
   db_conn_used--;
-  db->flags |= DB_FLAG_EMPTY;
+  db->flags = DB_FLAG_EMPTY;
+  db->type = &no_db;
+  std::memset(&db->c, 0, sizeof(db->c));
 }
 
 #ifdef DEBUGMALLOC_EXTENSIONS

@@ -15,6 +15,17 @@ if(${GTEST_FOUND})
   target_link_libraries(lpc_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest  GTest::Main)
   target_compile_definitions(lpc_tests PRIVATE -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
 
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PACKAGE_ASYNC AND PACKAGE_DB AND PACKAGE_DB_SQLITE)
+    add_executable(db_io_tests test_db_io.cc)
+    target_link_libraries(db_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
+    target_compile_definitions(db_io_tests PRIVATE
+      -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
+    target_link_options(db_io_tests PRIVATE "-Wl,--wrap=_Z13db_lock_mutexv")
+    gtest_discover_tests(db_io_tests
+      DISCOVERY_TIMEOUT 60
+      TEST_PREFIX "db_io_tests.")
+  endif()
+
   add_executable(compile_arena_tests test_compile_arena.cc)
   target_link_libraries(compile_arena_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
 
