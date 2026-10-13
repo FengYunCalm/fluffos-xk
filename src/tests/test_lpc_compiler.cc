@@ -41,6 +41,15 @@ TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
   destruct_object_for_test(probe);
 }
 
+TEST_F(DriverTest, TestCompilerEmptyPragmaDoesNotReadBeforeBuffer) {
+  std::istringstream source("#pragma   \nvoid test() {}\n");
+  auto stream = std::make_unique<IStreamLexStream>(source);
+  auto* prog = compile_file(std::move(stream), "empty-pragma");
+
+  ASSERT_NE(prog, nullptr);
+  deallocate_program(prog);
+}
+
 TEST_F(DriverTest, TestInMemoryCompileFileFail) {
   program_t* prog = nullptr;
   std::istringstream source("aksdljfaljdfiasejfaeslfjsaef");

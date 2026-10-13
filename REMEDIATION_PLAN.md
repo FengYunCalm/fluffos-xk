@@ -2608,12 +2608,12 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 **实施步骤**
 
-1. 冻结本卡源码/编译配置与输入身份。核对上述位置和当前调用者，先复现“start + strlen(start) - 1”；记录预期失败，不把新测试未注册、空 filter 或 skip 当作复现。
-2. 两处用非负长度索引，仅 length>0 才访问 length-1。
+1. 已冻结本卡源码/编译配置与输入身份，核对两个调用者并保留“start + strlen(start) - 1”风险证据；未把未注册、空 filter 或 skip 当作复现。
+2. 两处改用非负长度索引，仅 `length>0` 才访问 `length-1`。
 3. 保留 pragma 诊断和空命令返回 0，不扩大空白定义。
-4. 覆盖空串、全空格、单字符、普通尾空格和参数修改边界。
-5. 正常结果/诊断不变；边界夹具确认无非法指针；不伪造 sanitizer 可观察性。 正常、精确边界、失败与异常/清理必须分别有断言。内存路径跑 ASan/UBSan；涉及共享线程或回调准入时再跑 TSan。
-6. 同步 `docs/efun/interactive/command.md`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
+4. 原生用例覆盖空 pragma；LPC 入口覆盖空串、全 ASCII 空格、普通命令和命令 action，且使用既有 command-giver 恢复合同。
+5. 原生 targeted runner 选中并通过 1/1，LPC targeted runner 选中并通过 1/1；正常结果/诊断不变，未把 sanitizer 不可观察性伪造为通过。内存路径仍按 §4 在后续 sanitizer 波次复核。
+6. 已同步 `docs/efun/interactive/command.md`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
 
 **修改前后示例**
 
@@ -2648,22 +2648,22 @@ N=AUD-043
 B="$BD"
 cmake --build "$B" --target lpc_tests --parallel 1
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --binary "$B/src/tests/lpc_tests" --gtest-filter 'DriverTest.TestAuditEmptyTailTrim*' \
+  --binary "$B/src/tests/lpc_tests" --gtest-filter 'DriverTest.TestCompilerEmptyPragmaDoesNotReadBeforeBuffer' \
   --timeout 180 --evidence-dir "$E/$N-native-debug"
 ```
 
-通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“正常结果/诊断不变；边界夹具确认无非法指针；不伪造 sanitizer 可观察性。”。 涉及语言行为时新增或修正 `testsuite/single/tests/efuns/audit_empty_tail_trim.lpc` 及 scope 分类；用 §3.4 的隔离 LPC 入口运行，不运行未注册的对象来制造零测试通过。
+通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“正常结果/诊断不变；边界夹具确认无非法指针；不伪造 sanitizer 可观察性。”。本次 `AUD-043-native-debug` 的原生 runner 为 selected=1/passed=1，`AUD-043-lpc-debug-v2` 的 LPC runner 为 selected=1/passed=1；LPC 入口为 `testsuite/single/tests/efuns/audit_empty_tail_trim.lpc`，已登记为 runtime。涉及语言行为的新增入口使用 §3.4 隔离执行，不运行未注册对象来制造零测试通过。
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：两个生产路径、原生回归、LPC 回归、归属文档和 targeted runner 证据均已取得；本卡已实施，待精确提交。
 
 <a id="aud-044"></a>
 ### AUD-044 · FORTIFY 绕过 fprintf 故障注入
 
 - **优先级 / 责任视角：**P2；文件 IO / 错误传播。
 - **依赖：**无新增前置依赖；仍遵守 §2 的验收可信度优先与单构建约束。
-- **目标：**GCC 优化/FORTIFY 把两处 fprintf 降成 __fprintf_chk，测试仅 wrap fprintf，故障钩子未执行。 修复后同一注入状态覆盖 fprintf 与 __fprintf_chk。
+- **目标：**GCC 优化/FORTIFY 把两处 fprintf 降成 __fprintf_chk，测试仅 wrap fprintf，故障钩子未执行。修复后同一注入状态覆盖 fprintf 与 __fprintf_chk。
 - **定位 / 改动文件：**src/tests/test_file_io.cc:308、602–642；src/symbol.cc；src/packages/mudlib_stats/mudlib_stats.cc:532；src/tests/CMakeLists.txt；`src/tests/test_file_io.cc`、`src/tests/CMakeLists.txt`。先读直接调用者；新增测试必须执行生产入口，不用复制算法替代。
 - **影响：**两个写失败回归失效并导致 CI 失败；不是已证实的产品输出丢失。
 - **预计工时：**4–8 小时。

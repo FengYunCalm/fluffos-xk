@@ -323,16 +323,14 @@ static int user_parser(char* buff) {
   debug(add_action, "cmd [/%s]: '%s'\n", command_giver->obname, buff);
 
   /* strip trailing spaces. */
-  for (p = buff + strlen(buff) - 1; p >= buff; p--) {
-    if (*p != ' ') {
-      break;
-    }
-    *p = '\0';
+  length = strlen(buff);
+  while (length > 0 && buff[length - 1] == ' ') {
+    buff[--length] = '\0';
   }
-  if (buff[0] == '\0') {
+  if (length == 0) {
     return 0;
   }
-  length = p - buff + 1;
+  p = buff + length - 1;
   p = strchr(buff, ' ');
   if (p == nullptr) {
     user_verb = findstring(buff);

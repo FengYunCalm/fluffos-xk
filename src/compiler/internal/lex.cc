@@ -1721,9 +1721,9 @@ static void handle_pragma(char* str) {
   int no_flag;
 
   // Ignore trailing whitespaces
-  char* p = &str[strlen(str) - 1];
-  while (iswspace(*p)) {
-    *p-- = '\0';
+  size_t length = strlen(str);
+  while (length > 0 && iswspace(str[length - 1])) {
+    str[--length] = '\0';
   }
 
   if (strncmp(str, "no_", 3) == 0) {

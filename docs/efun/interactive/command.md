@@ -20,7 +20,9 @@ title: interactive / command
     error will result.  In case of failure,  0  is  returned,  otherwise  a
     numeric  value  is  returned, which is the LPC "evaluation cost" of the
     command.  Bigger numbers mean higher cost, but the whole scale is  sub‐
-    jective and unreliable.
+    jective and unreliable.  An empty command, including one containing only
+    the parser's existing ASCII-space padding, does not dispatch an action
+    and returns 0.
 
 ### SEE ALSO
 
