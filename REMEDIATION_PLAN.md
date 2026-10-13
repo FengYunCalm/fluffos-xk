@@ -2540,7 +2540,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：以上检查、归属文档和精确提交均有证据；本卡已实施：testsuite 宣布并输出 `debug` 能力，`constant_expr` 在 `test-scopes.tsv` 声明 `runtime/debug`；Debug 新构建真实执行为 `selected=1,passed=1,failed=0,skipped=0`，RelWithDebInfo 运行在启动测试后明确输出 `unavailable / Requires compiler debug introspection.` 并以非零失败，不把零断言记为通过。runner scope 自测同时覆盖 debug=1、debug=0、缺能力和零断言拒绝。证据见 `build-modernization-evidence/audit-f3317359-20261013T001301Z/AUD-041-after-debug/`、`AUD-041-optimized-rejected/`、`AUD-041-after-scope-selftest.log`；构建日志为 `AUD-041-configure-relwithdebinfo.log` 与 `AUD-041-build-driver-relwithdebinfo.log`。该卡状态为 `fixed/debug-classified`，尚未代表其余平台或 69 项整体完成。
 
 <a id="aud-042"></a>
 ### AUD-042 · CI 定向失败详细日志未持久归档

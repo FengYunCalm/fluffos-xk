@@ -4,6 +4,7 @@
 /single/tests/compiler/mixed_declarations	fixture	-	Compilation and execution checked by compiler/positive_compilation.
 /single/tests/compiler/succeed	fixture	-	Compilation and execution checked by compiler/positive_compilation.
 /single/tests/compiler/switch	fixture	-	Compilation and execution checked by compiler/positive_compilation.
+/single/tests/compiler/constant_expr	runtime	debug	Requires compiler debug introspection.
 /single/tests/efuns/async	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/async_await	runtime	async	Covers plain await, settled-promise await, and acatch over a rejected await.
 /single/tests/efuns/async_foreach	runtime	async	Covers local foreach binding and rejects async suspension while a foreach iterator is active.

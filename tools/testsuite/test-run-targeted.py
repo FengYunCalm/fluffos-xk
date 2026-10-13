@@ -367,6 +367,33 @@ class ResultContractTest(unittest.TestCase):
             with self.subTest(output=bad), self.assertRaises(runner.RunnerError):
                 runner.lpc_selection(discovered, scopes, bad)
 
+    def test_lpc_scope_selection_honors_debug_capability(self) -> None:
+        directory = self.root / "single" / "tests" / "compiler"
+        directory.mkdir(parents=True)
+        (directory / "constant_expr.c").write_text("// debug-only fixture\n")
+        (self.root / "etc" / "test-scopes.tsv").write_text(
+            "/single/tests/compiler/constant_expr\truntime\tdebug\tRequires compiler debug introspection.\n"
+        )
+        scopes = runner.lpc_scopes(self.root)
+        discovered = runner.lpc_test_cases(self.root)
+        passed_output = (
+            "T> cap debug=1\nC> /single/tests/compiler/constant_expr.c\n"
+        )
+        required, excluded, caps = runner.lpc_selection(discovered, scopes, passed_output)
+        self.assertEqual(required, {("C", "/single/tests/compiler/constant_expr.c")})
+        self.assertEqual(excluded, {})
+        self.assertEqual(caps, {"debug": 1})
+        rejected_output = (
+            "T> cap debug=0\n"
+            "X> /single/tests/compiler/constant_expr.c\tunavailable\tRequires compiler debug introspection.\n"
+        )
+        required, excluded, caps = runner.lpc_selection(discovered, scopes, rejected_output)
+        self.assertEqual(required, set())
+        self.assertEqual(excluded["/single/tests/compiler/constant_expr.c"]["missing_requirements"], ["debug"])
+        self.assertEqual(caps, {"debug": 0})
+        with self.assertRaises(runner.RunnerError):
+            runner.lpc_selection(discovered, scopes, "C> /single/tests/compiler/constant_expr.c\n")
+
     def test_lpc_scope_manifest_rejects_duplicates_and_unknown_roles(self) -> None:
         directory = self.root / "single" / "tests" / "efuns"
         directory.mkdir(parents=True)
