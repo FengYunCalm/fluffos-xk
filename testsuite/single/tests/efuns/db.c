@@ -1,21 +1,5 @@
-#ifdef __PACKAGE_DB__
-int calledDB;
-#endif
-
 int conn = 0;
-
-#ifdef __PACKAGE_DB__
-#ifdef __PACKAGE_ASYNC__
-void check_async_db_done(int tries) {
-  if (calledDB) {
-    return;
-  }
-
-  ASSERT_NE(0, tries);
-  call_out((: check_async_db_done, tries - 1 :), 1);
-}
-#endif
-#endif
+int completion_token = 0;
 
 void do_tests() {
 #ifndef __PACKAGE_DB__
@@ -84,12 +68,12 @@ void do_tests() {
   write("PACKAGE_ASYNC is not enabled, skipping async db tests...\n");
   return;
 #else
+  completion_token = "/command/tests"->begin_async();
+  ASSERT_NE(0, completion_token);
   conn = db_connect("", "/test.sqlite", "", __USE_SQLITE3__);
   ASSERT_NE(0, conn);
   async_db_exec(conn, "select 1;", function(int rows) {
     mixed res;
-
-    calledDB = 1;
 
     write("ASYNC: async_db_exec callback: " + conn + " matched " + rows + " rows\n");
 
@@ -99,9 +83,8 @@ void do_tests() {
     ASSERT_EQ(({ 1 }), res);
 
     db_close(conn);
+    "/command/tests"->complete_async(completion_token);
   });
-
-  check_async_db_done(5);
 #endif // __PACKAGE_ASYNC__
 #endif // __USE_SQLITE3__
 #endif // __PACKAGE_DB__

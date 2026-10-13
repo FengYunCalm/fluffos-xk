@@ -2371,7 +2371,7 @@ done
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：以上检查、归属文档和精确提交均有证据；本卡已实施：`async_db_exec_bound_args` 和 `db` 在真实异步工作注册前登记 token，并仅在最终回调断言与 `db_close()` 后完成 token；移除了原固定轮询完成假设。使用显式 SQLite 的新 Debug 构建 `build-audit-debug-57bf8a02-20261013T001301Z`，两项均为 `selected=1,passed=1,failed=0,skipped=0`，无超时或诊断。证据见 `build-modernization-evidence/audit-f3317359-20261013T001301Z/AUD-038-after-built-v2-async_db_exec_bound_args/` 和 `AUD-038-after-built-v2-db/`；修前失败记录保留在 `AUD-038-before-*`，未启用 SQLite 的错误构建结果另行保留，不计通过。该卡状态为 `fixed/debug-sqlite`，尚未代表其余平台或 69 项整体完成。
 
 <a id="aud-039"></a>
 ### AUD-039 · 无执行权限对象可占满外部句柄池
