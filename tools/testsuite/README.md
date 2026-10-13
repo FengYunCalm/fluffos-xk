@@ -34,7 +34,8 @@ CTest 模式只记录调度合同；需要精确断言覆盖时使用 `--binary`
 
 ## 文件 I/O 故障注入
 
-Linux 的 `file_io_tests` 在测试可执行文件链接时包装 stdio/zlib 与 POSIX 启动调用。
+Linux 的 `file_io_tests` 在测试可执行文件链接时包装 stdio/zlib 与 POSIX 启动调用；
+glibc 的 FORTIFY 输出还包装 `__fprintf_chk`，并通过 `__vfprintf_chk` 保留原始 flag。
 文件故障只作用于夹具路径；进程故障只在专用场景激活，并在子进程启动前返回错误。
 生产 driver 不含注入开关。测试还用私有符号链接访问 `/dev/full`，不填满磁盘。
 夹具要求隔离 mudlib，CTest 通过本 runner 执行，不直接把每个 GTest 注册到源码目录。

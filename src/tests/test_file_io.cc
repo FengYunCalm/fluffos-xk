@@ -227,6 +227,9 @@ int __real_fputs(const char*, FILE*);
 int __real_fputc(int, FILE*);
 int __real_ferror(FILE*);
 gzFile __real_gzopen(const char*, const char*);
+#if defined(__GLIBC__)
+int __vfprintf_chk(FILE*, int, const char*, va_list);
+#endif
 int __real_gzwrite(gzFile, const void*, unsigned int);
 int __real_gzclose(gzFile);
 
@@ -315,6 +318,19 @@ int __wrap_fprintf(FILE* stream, const char* format, ...) {
   va_end(arguments);
   return result;
 }
+
+#if defined(__GLIBC__)
+int __wrap___fprintf_chk(FILE* stream, int flag, const char* format, ...) {
+  if (stream == fault.stream && reject_write(FaultPoint::kWrite)) {
+    return -1;
+  }
+  va_list arguments;
+  va_start(arguments, format);
+  const int result = __vfprintf_chk(stream, flag, format, arguments);
+  va_end(arguments);
+  return result;
+}
+#endif
 
 int __wrap_gzprintf(gzFile stream, const char* format, ...) {
   if (stream == fault.gzip && reject_write(FaultPoint::kGzipWrite)) {

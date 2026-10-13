@@ -2673,21 +2673,21 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 **实施步骤**
 
 1. 冻结本卡源码/编译配置与输入身份。核对上述位置和当前调用者，先复现“仅 --wrap=fprintf / __wrap_fprintf”；记录预期失败，不把新测试未注册、空 filter 或 skip 当作复现。
-2. 保留 FORTIFY，在同一故障状态机接入 __fprintf_chk 包装；正常转发保留 flag/varargs。
-3. CMake 仅在平台/编译器支持该符号时启用对应 wrap。
+2. 保留 FORTIFY，在同一故障状态机接入 `__fprintf_chk` 包装；通过 `__vfprintf_chk` 正常转发并保留 `flag`/varargs。
+3. Linux 测试目标启用 `--wrap=__fprintf_chk`；包装函数仅在 glibc 下编译，非 glibc 平台不引入该符号依赖。
 4. 继续要求 hits>=1，验证正常写和两个 printf 变体的故障上报。
 5. 同型优化配置 96/96 且钩子命中；Debug 不回归，正常 fortified 输出不被屏蔽。 正常、精确边界、失败与异常/清理必须分别有断言。同时保留 runner 的 selected/executed、断言与异步完成门禁。
-6. 同步 `tools/testsuite/README.md`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
+6. 已同步 `tools/testsuite/README.md`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
 
 **修改前后示例**
 
 - 前：仅 --wrap=fprintf / __wrap_fprintf。
-- 后：同一注入状态覆盖 fprintf 与 __fprintf_chk。
+- 后：同一注入状态覆盖 fprintf 与 __fprintf_chk，正常路径经 __vfprintf_chk 保留 FORTIFY flag。
 - 以下是拟议实现片段，不是已经存在或已验证的补丁。新增私有 helper 要在本卡列出的生产路径接入；不得只在测试包装层生效。
 
 ```cpp
 extern "C" int __wrap___fprintf_chk(FILE*, int, const char*, ...);
-// glibc 的 file_io_tests 链接选项增加：-Wl,--wrap=__fprintf_chk
+// Linux/glibc 的 file_io_tests 链接选项增加：-Wl,--wrap=__fprintf_chk
 // 正常转发使用 __vfprintf_chk，保留原 flag；故障路径复用现有注入逻辑。
 ```
 
@@ -2708,11 +2708,11 @@ done
 # 两种构建都必须实际命中故障注入钩子，使用各自的原始日志。
 ```
 
-通过标准是 GCC 优化与 Debug 均为 2/2、故障钩子命中、正确错误文本且无静默写成功；不能把 94/96 记为通过。 本卡使用上列既有测试身份和 runner/CI 自测，不新增无关 LPC runtime 文件。
+通过标准是 GCC 优化与 Debug 均为 2/2、故障钩子命中、正确错误文本且无静默写成功；不能把 94/96 记为通过。本次先保留 `audit-deep-55c7360b-20261012T072825Z/gtest-audit44-gcc-relwithdebinfo-file_io_tests/` 的修前 94/96 失败证据，再以新目录 `build-audit-gcc-relwithdebinfo-55c7360b-audit44-r3` 完成优化 CTest 96/96，并以 `build-dev-debug` 完成 Debug CTest 96/96；两次均包含目标写失败用例，优化二进制含 `__wrap___fprintf_chk`。本卡使用上列既有测试身份和 runner/CI 自测，不新增无关 LPC runtime 文件。
 
-**失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
+**失败与回滚**：遵守 R1。保留原始失败（包括先前 r2 优化构建因默认 Python 缺少 pidfd 能力而拒绝，以及 r3 首次修复前 94/96 失败）、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：源码、CMake 链接包装、归属文档和 Debug/优化 96/96 证据均已取得；本卡已实施，待精确提交。
 
 <a id="aud-045"></a>
 ### AUD-045 · member_array 下标窄化及逆向失败哨兵错误
