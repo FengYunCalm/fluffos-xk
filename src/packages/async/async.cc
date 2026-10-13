@@ -3,13 +3,16 @@
 #include "packages/async/async.h"
 
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <deque>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <set>  // #1247 ASYNC-1
 #include <string>
 #include <thread>
+#include <vector>
 
 #if HAVE_DIRENT_H
 #include <dirent.h>
@@ -72,6 +75,8 @@ struct Request {
         promise(nullptr),
         owner(nullptr),
         failed(false),
+        charged_bytes(0),
+        admitted(false),
         next(nullptr),
         type(AREAD),
         status(BUSY) {
@@ -97,6 +102,8 @@ struct Request {
   promise_t* promise;
   object_t* owner;
   bool failed;
+  size_t charged_bytes;
+  bool admitted;
   struct Request* next;
   enum atypes type;
   int status;
@@ -114,13 +121,14 @@ std::deque<struct Work*> reqs;
 // reqs but not yet moved to finished_reqs. Guarded by reqs_lock so
 // async_mark_request() (main thread, via check_memory) can account for their
 // callback funptr during that window -- otherwise a DEBUGMALLOC
-// sweep that lands mid-processing false-flags the ref. This is a SET, not a
-// single pointer: do_stuff() spawns a fresh worker thread whenever reqs is
-// momentarily empty, which happens while an earlier worker is still inside a
-// slow w->func() -- two or more workers can run at once; a single pointer only
-// tracked the last one and left the others' refs unaccounted (flaky "Bad ref
-// count" in Debug builds).
+// sweep that lands mid-processing false-flags the ref.
 std::set<struct Work*> current_works;
+std::condition_variable reqs_cv;
+std::vector<std::thread> workers;
+size_t idle_worker_count = 0;
+size_t live_worker_count = 0;
+bool stop_workers = false;
+size_t pending_request_bytes = 0;
 
 std::deque<struct Request*> finished_reqs;
 std::mutex finished_reqs_lock;
@@ -206,6 +214,13 @@ void free_async_request(Request* req) {
   }
   {
     std::lock_guard<std::mutex> const lock(reqs_lock);
+    if (req->admitted) {
+      DEBUG_CHECK(req->charged_bytes > pending_request_bytes,
+                  "async request byte accounting underflow");
+      pending_request_bytes -= req->charged_bytes;
+      req->charged_bytes = 0;
+      req->admitted = false;
+    }
     live_requests.erase(req);
   }
   if (req->fun) {
@@ -236,67 +251,192 @@ void cleanup_async_request(Request* req, const char* operation, bool main_requir
   (void)vm_owner_enqueue_executor_callback_cleanup(&req->cleanup_record);
 }
 
+void publish_finished(Request* req) {
+  {
+    std::lock_guard<std::mutex> const lock(finished_reqs_lock);
+    finished_reqs.push_back(req);
+  }
+  backend_wakeup_event_loop();
+}
+
+void reject_request(Request* req, const char* reason) {
+#ifdef F_ASYNC_GETDIR
+  req->ret = req->type == AGETDIR ? 0 : -1;
+#else
+  req->ret = -1;
+#endif
+  req->failed = true;
+  req->path = reason ? reason : "async request rejected";
+  req->status = DONE;
+  publish_finished(req);
+}
+
+bool admit_request(Request* req, size_t payload_bytes, size_t path_bytes) {
+  constexpr size_t kMax = std::numeric_limits<size_t>::max();
+  if (payload_bytes > kMax - path_bytes) {
+    reject_request(req, "async request byte budget exceeded");
+    return false;
+  }
+  auto const charge = payload_bytes + path_bytes;
+  bool accepted = false;
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    auto const max_requests = CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__);
+    auto const max_bytes = CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__);
+    accepted = !stop_workers &&
+               live_requests.size() <= static_cast<size_t>(max_requests > 0 ? max_requests : 1) &&
+               charge <= static_cast<size_t>(max_bytes > 0 ? max_bytes : 1) &&
+               pending_request_bytes <=
+                   static_cast<size_t>(max_bytes > 0 ? max_bytes : 1) - charge;
+    if (accepted) {
+      req->charged_bytes = charge;
+      req->admitted = true;
+      pending_request_bytes += charge;
+    }
+  }
+  if (!accepted) {
+    reject_request(req, "async request queue or byte budget exceeded");
+  }
+  return accepted;
+}
+
+bool grow_request_data(Request* req, size_t new_size) {
+  auto const old_size = req->data.size();
+  if (new_size <= old_size) {
+    return true;
+  }
+  auto const additional = new_size - old_size;
+  bool reserved = false;
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    auto const max_bytes = CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__);
+    auto const limit = static_cast<size_t>(max_bytes > 0 ? max_bytes : 1);
+    reserved = req->admitted && additional <= limit &&
+               pending_request_bytes <= limit - additional;
+    if (reserved) {
+      req->charged_bytes += additional;
+      pending_request_bytes += additional;
+    }
+  }
+  if (!reserved) {
+    return false;
+  }
+  try {
+    req->data.resize(new_size);
+  } catch (...) {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    req->charged_bytes -= additional;
+    pending_request_bytes -= additional;
+    return false;
+  }
+  return true;
+}
+
+void mark_worker_failure(Request* req) {
+#ifdef F_ASYNC_GETDIR
+  req->ret = req->type == AGETDIR ? 0 : -1;
+#else
+  req->ret = -1;
+#endif
+  req->failed = true;
+  req->status = DONE;
+}
+
 void thread_func() {
   Tracer::setThreadName("Package Async thread");
-
   ScopedTracer const tracer("Async thread loop");
 
   while (true) {
     struct Work* w = nullptr;
     {
-      std::lock_guard<std::mutex> const lock(reqs_lock);
+      std::unique_lock<std::mutex> lock(reqs_lock);
+      ++idle_worker_count;
+      reqs_cv.wait(lock, [] { return stop_workers || !reqs.empty(); });
+      --idle_worker_count;
       if (reqs.empty()) {
-        return;
+        if (stop_workers) {
+          --live_worker_count;
+          return;
+        }
+        continue;
       }
       w = reqs.front();
       reqs.pop_front();
       current_works.insert(w);  // #1247 ASYNC-3: in-flight: keep it accountable
     }
 
-    if (w) {
-      {
-        ScopedTracer const work_tracer("Async thread work", EventCategory::DEFAULT, [=] {
-          return json{{"type", w->data->type}};
-        });
-
-        w->func(w->data);
-      }
-      if (w->data->status == DONE) {
-        {
-          std::lock_guard<std::mutex> const lock(reqs_lock);
-          std::lock_guard<std::mutex> const flock(finished_reqs_lock);
-          current_works.erase(w);  // #1247 ASYNC-4
-          finished_reqs.push_back(w->data);
-          delete w;
-        }
-      } else {
-        std::lock_guard<std::mutex> const lock(reqs_lock);
-        current_works.erase(w);  // #1247 ASYNC-4
-        reqs.push_back(w);
-      }
-
-      // P7-2: this runs on a detached worker thread. Creating and activating a
-      // libevent event here used to race the main loop's base; instead write to
-      // the backend self-pipe so the loop wakes up and drains on the main
-      // thread. A missing pipe (no backend loop in this process) simply means
-      // the main thread's own tick pump will call check_reqs().
-      backend_wakeup_event_loop();
+    try {
+      ScopedTracer const work_tracer("Async thread work", EventCategory::DEFAULT, [=] {
+        return json{{"type", w->data->type}};
+      });
+      w->func(w->data);
+    } catch (...) {
+      // A backend exception must still produce the operation's normal failure
+      // result and release the request through the main-thread delivery path.
+      mark_worker_failure(w->data);
     }
+
+    if (w->data->status == DONE) {
+      {
+        std::lock_guard<std::mutex> const lock(reqs_lock);
+        std::lock_guard<std::mutex> const flock(finished_reqs_lock);
+        current_works.erase(w);  // #1247 ASYNC-4
+        finished_reqs.push_back(w->data);
+        delete w;
+      }
+    } else {
+      std::lock_guard<std::mutex> const lock(reqs_lock);
+      current_works.erase(w);  // #1247 ASYNC-4
+      reqs.push_back(w);
+      reqs_cv.notify_one();
+    }
+
+    // P7-2: worker completion wakes the main loop through the backend
+    // self-pipe; it never creates a libevent event off the main thread.
+    backend_wakeup_event_loop();
   }
 }
 
-void do_stuff(void* (*func)(struct Request*), struct Request* data) {
-  std::lock_guard<std::mutex> const lock(reqs_lock);
-
-  if (reqs.empty()) {
-    std::thread(thread_func).detach();
+bool enqueue_work(void* (*func)(struct Request*), struct Request* data) {
+  std::unique_ptr<Work> work;
+  try {
+    work = std::make_unique<Work>();
+    work->func = func;
+    work->data = data;
+  } catch (...) {
+    reject_request(data, "async request allocation failed");
+    return false;
   }
 
-  auto* i = new Work;
-  i->func = func;
-  i->data = data;
-
-  reqs.push_back(i);
+  bool rejected = false;
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    if (!data->admitted || stop_workers) {
+      rejected = true;
+    } else {
+      reqs.push_back(work.release());
+      if (idle_worker_count == 0 &&
+          live_worker_count < static_cast<size_t>(CONFIG_INT(__RC_MAX_ASYNC_WORKERS__) > 0
+                                                      ? CONFIG_INT(__RC_MAX_ASYNC_WORKERS__)
+                                                      : 1)) {
+        try {
+          workers.emplace_back(thread_func);
+          ++live_worker_count;
+        } catch (...) {
+          auto* failed_work = reqs.back();
+          reqs.pop_back();
+          delete failed_work;
+          rejected = true;
+        }
+      }
+    }
+  }
+  if (rejected) {
+    reject_request(data, "async worker pool unavailable");
+    return false;
+  }
+  reqs_cv.notify_one();
+  return true;
 }
 
 void* gzreadthread(struct Request* req) {
@@ -314,7 +454,7 @@ void* gzreadthread(struct Request* req) {
 
 int aio_gzread(struct Request* req) {
   req->status = BUSY;
-  do_stuff(gzreadthread, req);
+  enqueue_work(gzreadthread, req);
   return 0;
 }
 
@@ -342,7 +482,7 @@ void* gzwritethread(struct Request* req) {
 
 int aio_gzwrite(struct Request* req) {
   req->status = BUSY;
-  do_stuff(gzwritethread, req);
+  enqueue_work(gzwritethread, req);
   return 0;
 }
 
@@ -362,7 +502,7 @@ void* writethread(struct Request* req) {
 
 int aio_write(struct Request* req) {
   req->status = BUSY;
-  do_stuff(writethread, req);
+  enqueue_work(writethread, req);
   return 0;
 }
 
@@ -389,7 +529,7 @@ void* readthread(struct Request* req) {
 
 int aio_read(struct Request* req) {
   req->status = BUSY;
-  do_stuff(readthread, req);
+  enqueue_work(readthread, req);
   return 0;
 }
 
@@ -441,7 +581,7 @@ void* dbexecthread(struct Request* req) {
 
 int aio_db_exec(struct Request* req) {
   req->status = BUSY;
-  do_stuff(dbexecthread, req);
+  enqueue_work(dbexecthread, req);
   return 0;
 }
 #endif
@@ -460,18 +600,31 @@ void* getdirthread(struct Request* req) {
     return nullptr;
   }
   /*
-   * Count files
+   * Count files. The request owns only the entries it has reserved, and the
+   * configured array limit prevents an unbounded directory from consuming the
+   * process-wide async byte budget.
    */
+  int const max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
   int i = 0;
   for (auto* de = readdir(dirp); de; de = readdir(dirp)) {
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
       continue;
+    if (i >= max_array_size) {
+      break;
+    }
     // #1247 ASYNC-5: the buffer is used as an array of `struct dirent`, indexed
     // by i, so it must grow by sizeof(dirent) per entry -- growing by
     // sizeof(dirent*) (a pointer, ~8 bytes) undersized it and memcpy of the
     // ~280-byte dirent overflowed the heap once a directory held enough
     // entries.
-    req->data.resize(static_cast<size_t>(i + 1) * sizeof(struct dirent));
+    auto const required = static_cast<size_t>(i + 1) * sizeof(struct dirent);
+    if (!grow_request_data(req, required)) {
+      req->failed = true;
+      req->ret = 0;
+      closedir(dirp);
+      req->status = DONE;
+      return nullptr;
+    }
     memcpy(&((dirent*)(req->data.data()))[i], de, sizeof(*de));
     i++;
   }
@@ -485,7 +638,7 @@ void* getdirthread(struct Request* req) {
 
 int aio_getdir(struct Request* req) {
   req->status = BUSY;
-  do_stuff(getdirthread, req);
+  enqueue_work(getdirthread, req);
   return 0;
 }
 
@@ -496,11 +649,22 @@ int add_read(const char* fname, function_to_call_t* fun) {
 
   if (fname) {
     auto* req = new Request();
-    // printf("fname: %s\n", fname);
-    req->data.resize(read_file_max_size);
     req->fun = fun;
     req->type = AREAD;
-    req->path = std::string(fname);
+    if (!admit_request(req, static_cast<size_t>(read_file_max_size > 0 ? read_file_max_size : 1),
+                       std::strlen(fname))) {
+      bind_request_owner(req);
+      return 0;
+    }
+    // printf("fname: %s\n", fname);
+    try {
+      req->data.resize(read_file_max_size > 0 ? read_file_max_size : 1);
+      req->path = std::string(fname);
+    } catch (...) {
+      reject_request(req, "async request allocation failed");
+      bind_request_owner(req);
+      return 0;
+    }
     bind_request_owner(req);
     return aio_gzread(req);
   }
@@ -516,15 +680,22 @@ int add_read(const char* fname, function_to_call_t* fun) {
 
 #ifdef F_ASYNC_GETDIR
 int add_getdir(const char* fname, function_to_call_t* fun) {
-  auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
-
   if (fname) {
     // printf("fname: %s\n", fname);
     auto* req = new Request();
-    req->data.resize(max_array_size);
     req->fun = fun;
     req->type = AGETDIR;
-    req->path = fname;
+    if (!admit_request(req, 0, std::strlen(fname))) {
+      bind_request_owner(req);
+      return 0;
+    }
+    try {
+      req->path = fname;
+    } catch (...) {
+      reject_request(req, "async request allocation failed");
+      bind_request_owner(req);
+      return 0;
+    }
     bind_request_owner(req);
     return aio_getdir(req);
   }
@@ -548,11 +719,21 @@ int add_write(const char* fname, const char* buf, int size, char flags, function
   }
 
   auto* req = new Request();
-  req->data = std::string(buf, size);
   req->fun = fun;
   req->type = AWRITE;
   req->flags = flags;
-  req->path = std::string(fname);
+  if (!admit_request(req, static_cast<size_t>(size > 0 ? size : 0), std::strlen(fname))) {
+    bind_request_owner(req);
+    return 0;
+  }
+  try {
+    req->data = std::string(buf, size);
+    req->path = std::string(fname);
+  } catch (...) {
+    reject_request(req, "async request allocation failed");
+    bind_request_owner(req);
+    return 0;
+  }
   bind_request_owner(req);
   if (flags & 2) {
     return aio_gzwrite(req);
@@ -569,7 +750,17 @@ int add_db_exec(int handle, uint64_t generation, const char* sql,
   req->type = ADBEXEC;
   req->handle = handle;
   req->db_generation = generation;
-  req->data = sql;
+  if (!admit_request(req, sql ? std::strlen(sql) : 0, 0)) {
+    bind_request_owner(req);
+    return 0;
+  }
+  try {
+    req->data = sql ? sql : "";
+  } catch (...) {
+    reject_request(req, "async request allocation failed");
+    bind_request_owner(req);
+    return 0;
+  }
   bind_request_owner(req);
   return aio_db_exec(req);
 }
@@ -632,7 +823,7 @@ void handle_read(struct Request* req) {
 void handle_getdir(struct Request* req) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
-  if (req->promise && req->failed) {
+  if (req->failed && req->promise) {
     svalue_t result{};
     result.type = T_NUMBER;
     result.u.number = -1;
@@ -841,10 +1032,53 @@ void complete_all_asyncio() {
       std::lock_guard<std::mutex> const lock(finished_reqs_lock);
       pending = !finished_reqs.empty();
     }
+    {
+      std::lock_guard<std::mutex> const lock(reqs_lock);
+      pending = pending || !live_requests.empty() || pending_request_bytes != 0;
+    }
     if (!pending && vm_owner_main_queue_total_depth() == 0) {
       break;
     }
+    std::this_thread::yield();
   }
+}
+
+void stop_async_workers() {
+  // Stop only after every producer and owner callback has had a chance to
+  // finish its request chain. The final drain also delivers any completion
+  // published in the race between the previous drain and the stop flag.
+  complete_all_asyncio();
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    stop_workers = true;
+  }
+  reqs_cv.notify_all();
+
+  for (auto& worker : workers) {
+    if (worker.joinable()) {
+      worker.join();
+    }
+  }
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    DEBUG_CHECK(live_worker_count != 0, "async worker count did not drain");
+    workers.clear();
+  }
+
+  check_reqs();
+  complete_all_asyncio();
+
+  bool dirty = false;
+  {
+    std::lock_guard<std::mutex> const lock(reqs_lock);
+    dirty = !reqs.empty() || !current_works.empty() || !live_requests.empty() ||
+            pending_request_bytes != 0 || live_worker_count != 0;
+  }
+  {
+    std::lock_guard<std::mutex> const lock(finished_reqs_lock);
+    dirty = dirty || !finished_reqs.empty();
+  }
+  DEBUG_CHECK(dirty, "async shutdown left requests or workers behind");
 }
 
 int find_test_lfun_index(object_t* owner, const char* method) {
@@ -917,8 +1151,23 @@ void f_async_read() {
 void f_async_read_promise() {
   auto* req = make_promise_request(TYPE_STRING);
   req->type = AREAD;
-  req->data.resize(CONFIG_INT(__MAX_READ_FILE_SIZE__));
   auto* path = check_valid_path(sp->u.string, current_object, "read_file", 0);
+  bool admitted = false;
+  if (path) {
+    auto const size = static_cast<size_t>(CONFIG_INT(__MAX_READ_FILE_SIZE__) > 0
+                                               ? CONFIG_INT(__MAX_READ_FILE_SIZE__)
+                                               : 1);
+    admitted = admit_request(req, size, std::strlen(path));
+    if (admitted) {
+      try {
+        req->path = path;
+        req->data.resize(size);
+      } catch (...) {
+        reject_request(req, "async request allocation failed");
+        admitted = false;
+      }
+    }
+  }
 
   /* Keep one reference for the returned stack value and one for the request.
    * Start the request only after replacing the input argument so an immediate
@@ -926,10 +1175,9 @@ void f_async_read_promise() {
   req->promise->ref++;
   pop_stack();
   push_refed_promise(req->promise);
-  if (path) {
-    req->path = path;
+  if (admitted) {
     aio_gzread(req);
-  } else {
+  } else if (!path) {
     req->ret = -1;
     req->status = DONE;
     dispatch_finished_request(req, AREAD);
@@ -958,20 +1206,33 @@ void f_async_write_promise() {
   auto* req = make_promise_request(TYPE_NUMBER);
   req->type = AWRITE;
   auto* path = check_valid_path((sp - 2)->u.string, current_object, "write_file", 1);
-  req->data = std::string((sp - 1)->u.string, SVALUE_STRLEN(sp - 1));
+  auto const size = SVALUE_STRLEN(sp - 1);
+  auto const* input = (sp - 1)->u.string;
   req->flags = static_cast<char>(sp->u.number);
+  bool admitted = false;
+  if (path) {
+    admitted = admit_request(req, size, std::strlen(path));
+    if (admitted) {
+      try {
+        req->path = path;
+        req->data = std::string(input, size);
+      } catch (...) {
+        reject_request(req, "async request allocation failed");
+        admitted = false;
+      }
+    }
+  }
 
   req->promise->ref++;
   pop_3_elems();
   push_refed_promise(req->promise);
-  if (path) {
-    req->path = path;
+  if (admitted) {
     if (req->flags & 2) {
       aio_gzwrite(req);
     } else {
       aio_write(req);
     }
-  } else {
+  } else if (!path) {
     req->ret = -1;
     req->status = DONE;
     dispatch_finished_request(req, AWRITE);
@@ -999,14 +1260,24 @@ void f_async_getdir_promise() {
   auto* req = make_promise_request(TYPE_STRING | TYPE_MOD_ARRAY);
   req->type = AGETDIR;
   auto* path = check_valid_path(sp->u.string, current_object, "get_dir", 0);
+  bool admitted = false;
+  if (path) {
+    admitted = admit_request(req, 0, std::strlen(path));
+    if (admitted) {
+      try {
+        req->path = path;
+      } catch (...) {
+        reject_request(req, "async request allocation failed");
+        admitted = false;
+      }
+    }
+  }
   req->promise->ref++;
   pop_stack();
   push_refed_promise(req->promise);
-  if (path) {
-    req->path = path;
-    req->data.resize(CONFIG_INT(__MAX_ARRAY_SIZE__));
+  if (admitted) {
     aio_getdir(req);
-  } else {
+  } else if (!path) {
     req->failed = true;
     req->status = DONE;
     dispatch_finished_request(req, AGETDIR);
@@ -1101,11 +1372,22 @@ void f_async_db_exec_promise() {
   req->type = ADBEXEC;
   req->handle = static_cast<int>((sp - 1)->u.number);
   req->db_generation = generation;
-  req->data = sp->u.string;
+  auto const* sql = sp->u.string;
+  bool admitted = admit_request(req, std::strlen(sql), 0);
+  if (admitted) {
+    try {
+      req->data = sql;
+    } catch (...) {
+      reject_request(req, "async request allocation failed");
+      admitted = false;
+    }
+  }
   req->promise->ref++;
   pop_2_elems();
   push_refed_promise(req->promise);
-  aio_db_exec(req);
+  if (admitted) {
+    aio_db_exec(req);
+  }
 }
 #endif
 

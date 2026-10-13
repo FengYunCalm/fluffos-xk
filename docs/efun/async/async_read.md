@@ -18,6 +18,12 @@ title: async / async_read
     takes a second and third arguments for start_line and number_of_lines to
     read, but async_read will return the entire file to the callback.
 
+    The driver admits the request only when the startup configuration budgets
+    for asynchronous requests and pending bytes allow it.  The byte budget
+    includes the file path and the reserved read buffer until the callback has
+    been delivered and cleaned up.  A rejected request calls the callback with
+    -1 and does not start a worker.
+
     The callback should follow this format:
 
         function(mixed res) {

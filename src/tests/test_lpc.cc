@@ -756,6 +756,70 @@ TEST_F(DriverTest, ForeachTemporariesRestoredOnUnwind) {
 }
 #endif  // DEBUG
 
+#ifdef PACKAGE_ASYNC
+TEST_F(DriverTest, TestAuditAsyncThreadBudget) {
+  struct ConfigGuard {
+    int workers;
+    int requests;
+    int bytes;
+    ~ConfigGuard() {
+      CONFIG_INT(__RC_MAX_ASYNC_WORKERS__) = workers;
+      CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__) = requests;
+      CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__) = bytes;
+    }
+  } config_guard{CONFIG_INT(__RC_MAX_ASYNC_WORKERS__),
+                 CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__),
+                 CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__)};
+
+  CONFIG_INT(__RC_MAX_ASYNC_WORKERS__) = 1;
+  CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__) = 16;
+  CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__) = 80;
+
+  auto* object = load_object_for_test("single/tests/efuns/audit_async_budget");
+  ASSERT_NE(object, nullptr);
+  struct ObjectGuard {
+    object_t* object;
+    ~ObjectGuard() {
+      complete_all_asyncio();
+      if (object != nullptr) {
+        destruct_object_for_test(object);
+      }
+    }
+  } object_guard{object};
+
+  ASSERT_NE(safe_apply("submit", object, 0, ORIGIN_DRIVER), nullptr);
+  vm_apply_return_clear();
+  complete_all_asyncio();
+
+  auto* counts = safe_apply("query_counts", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(counts, nullptr);
+  ASSERT_EQ(counts->type, T_ARRAY);
+  ASSERT_EQ(counts->u.arr->size, 3);
+  EXPECT_EQ(counts->u.arr->item[0].u.number, 8);
+  EXPECT_EQ(counts->u.arr->item[1].u.number, 2);
+  EXPECT_EQ(counts->u.arr->item[2].u.number, 6);
+  vm_apply_return_clear();
+
+  CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__) = 2;
+  CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__) = 1024;
+  ASSERT_NE(safe_apply("submit", object, 0, ORIGIN_DRIVER), nullptr);
+  vm_apply_return_clear();
+  complete_all_asyncio();
+
+  counts = safe_apply("query_counts", object, 0, ORIGIN_DRIVER);
+  ASSERT_NE(counts, nullptr);
+  ASSERT_EQ(counts->type, T_ARRAY);
+  ASSERT_EQ(counts->u.arr->size, 3);
+  EXPECT_EQ(counts->u.arr->item[0].u.number, 8);
+  EXPECT_EQ(counts->u.arr->item[1].u.number, 2);
+  EXPECT_EQ(counts->u.arr->item[2].u.number, 6);
+  vm_apply_return_clear();
+
+  ASSERT_NE(safe_apply("cleanup", object, 0, ORIGIN_DRIVER), nullptr);
+  vm_apply_return_clear();
+}
+#endif
+
 TEST_F(DriverTest, TestAsyncAwaitResumesAfterYieldAndCatchesRejection) {
   clear_tick_events();
   struct AsyncProbeGuard {

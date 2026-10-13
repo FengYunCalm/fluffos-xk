@@ -22,6 +22,11 @@ title: async / async_getdir
     Unlike the get_dir routine, this efun does not take an integer second
     argument to specify more information (filename, filesize, last touched).
 
+    The driver bounds directory growth by both maximum array size and the
+    asynchronous pending-byte budget.  If the request cannot reserve another
+    directory entry, the callback receives an empty array (or the Promise is
+    rejected); a partial directory is not reported as a successful result.
+
     The callback should follow this format:
 
         function(mixed res) {

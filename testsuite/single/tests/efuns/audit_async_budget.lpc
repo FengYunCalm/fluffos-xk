@@ -1,0 +1,63 @@
+#ifdef __PACKAGE_ASYNC__
+string path = "/log/audit-async-budget.txt";
+int total;
+int successful;
+int failed;
+string completion_token;
+
+int *query_counts() {
+    return ({ total, successful, failed });
+}
+
+void cleanup() {
+    rm(path);
+}
+
+void submit() {
+    total = 0;
+    successful = 0;
+    failed = 0;
+    for (int i = 0; i < 8; i++) {
+        async_write(path, "payload", 1, function(int result) {
+            total++;
+            if (result == 0) {
+                successful++;
+            } else {
+                failed++;
+            }
+        });
+    }
+}
+
+void finish_if_done() {
+    if (total != 8) {
+        return;
+    }
+    ASSERT_EQ(8, successful);
+    ASSERT_EQ(0, failed);
+    rm(path);
+    "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+    total = 0;
+    successful = 0;
+    failed = 0;
+    completion_token = "/command/tests"->begin_async();
+    for (int i = 0; i < 8; i++) {
+        async_write(path, "payload", 1, function(int result) {
+            total++;
+            if (result == 0) {
+                successful++;
+            } else {
+                failed++;
+            }
+            finish_if_done();
+        });
+    }
+}
+#else
+void do_tests() {
+    write("PACKAGE_ASYNC is not enabled, skipping async budget tests...\n");
+}
+#endif

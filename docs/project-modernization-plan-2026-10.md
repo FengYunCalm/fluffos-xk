@@ -1606,7 +1606,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 |---|---|---|
 | AUD-001 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-002 | 已实施，功能/受监督 runner 通过；性能基准待补 | 当前私有 Debug/ASan 构建直接 GTest 与受监督 `run-targeted.py` 均通过；受控 AF_UNIX loopback 慢读/恢复读取已通过，独立吞吐对照和固定 clang-format 门禁仍未完成 |
-| AUD-003 | 待实施 | 按整改卡依赖推进 |
+| AUD-003 | 已实施，Debug/ASan/TSan 定向验证通过；边界与格式门禁证据保留 | `REMEDIATION_PLAN.md` AUD-003 卡；证据目录见该卡当前状态 |
 | AUD-004 | 已实施，Debug/ASan/TSan 定向验证通过；格式门禁待工具 | fail-first 2/2 失败→修复后 Debug/ASan 受监督 runner 各 4/4、TSan 4/4；见 U04 合同 |
 | AUD-005 | 待实施 | 按整改卡依赖推进 |
 | AUD-006 | 待实施 | 按整改卡依赖推进 |

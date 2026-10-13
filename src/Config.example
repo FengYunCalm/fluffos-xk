@@ -335,6 +335,15 @@ maximum pending output bytes : 1048576
 # The connection producing output is closed when this limit would be exceeded.
 maximum total pending output bytes : 67108864
 
+# Startup-only upper bound for asynchronous filesystem/database worker threads.
+maximum async workers : 8
+
+# Startup-only upper bound for queued, running, and undelivered async requests.
+maximum async requests : 1024
+
+# Startup-only process-wide bytes reserved by async request payloads and paths.
+maximum async pending bytes : 33554432
+
 ###############################################################################
 #          The following aren't currently used or implemented (yet)           #
 ###############################################################################

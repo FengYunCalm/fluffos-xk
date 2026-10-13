@@ -6594,16 +6594,22 @@ TEST_F(DriverTest, TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown) {
   const auto shutdown_pos = shutdown_source.find("void shutdownMudOS(int exit_code)");
   const auto prepare_pos =
       shutdown_source.find("safe_apply_master_ob(APPLY_PREPARE_SHUTDOWN, 1)", shutdown_pos);
-  const auto async_stop_pos = shutdown_source.find("complete_all_asyncio();", shutdown_pos);
+  const auto async_drain_pos = shutdown_source.find("complete_all_asyncio();", shutdown_pos);
   const auto owner_stop_pos = shutdown_source.find("vm_owner_thread_stop();", shutdown_pos);
+  const auto async_stop_pos = shutdown_source.find("stop_async_workers();", shutdown_pos);
+  const auto external_cleanup_pos = shutdown_source.find("external_cleanup();", shutdown_pos);
 
   ASSERT_NE(applies_source.find("PREPARE_SHUTDOWN"), std::string::npos);
   ASSERT_NE(shutdown_pos, std::string::npos);
   ASSERT_NE(prepare_pos, std::string::npos);
-  ASSERT_NE(async_stop_pos, std::string::npos);
+  ASSERT_NE(async_drain_pos, std::string::npos);
   ASSERT_NE(owner_stop_pos, std::string::npos);
-  ASSERT_LT(prepare_pos, async_stop_pos);
+  ASSERT_NE(async_stop_pos, std::string::npos);
+  ASSERT_NE(external_cleanup_pos, std::string::npos);
+  ASSERT_LT(prepare_pos, async_drain_pos);
   ASSERT_LT(prepare_pos, owner_stop_pos);
+  ASSERT_LT(owner_stop_pos, async_stop_pos);
+  ASSERT_LT(async_stop_pos, external_cleanup_pos);
 }
 
 TEST_F(DriverTest, TestGatewayOwnerOutputQuiesceRejectsOffMainBeforeContainerAccess) {

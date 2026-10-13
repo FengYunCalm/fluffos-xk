@@ -403,7 +403,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P1 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/packages/async/async.cc:284–299`、`src/packages/async/async.cc:449–474`。
-- **作用范围：**`src/packages/async/async.cc`、`src/packages/async/async.h`、`src/base/internal/rc.cc`、`src/include/runtime_config.h`、`src/tests/test_lpc.cc`、`testsuite/etc/test-scopes.tsv`、`src/Config.example`、`src/vm/internal/simulate.cc`、`src/tests/test_lpc_owner.cc`。测试归属 `src/tests/test_lpc.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/packages/async/async.cc`、`src/packages/async/async.h`、`src/base/internal/rc.cc`、`src/include/runtime_config.h`、`src/tests/test_lpc.cc`、`src/tests/test_lpc_support.h`、`src/tests/test_lpc_owner.cc`、`testsuite/single/tests/efuns/audit_async_budget.lpc`、`testsuite/etc/test-scopes.tsv`、`src/Config.example`、`src/vm/internal/simulate.cc`。文档同步为 `docs/driver/config.md`、`docs/efun/async/async_read.md`、`docs/efun/async/async_getdir.md`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**AUD-004 已满足；并发/运行时维护者；24–40 小时。
 - **必须击中的根因：**缺少覆盖 queued、running、finished-undelivered 的统一准入预算；MAX_ARRAY_SIZE 只限制交付结果，没有约束生产时的分配。
 
@@ -435,7 +435,7 @@ if (live_request_count >= request_limit ||
 
 ```bash
 N=AUD-003
-F='DriverTest.TestAuditAsyncThreadBudget*:DriverTest.TestAsyncNestedCallbacksDrainAllRequests:DriverTest.TestAsyncThrowingCallbackStillDrainsNestedRequest'
+F='DriverTest.TestAuditAsyncThreadBudget*:DriverTest.TestAsyncNestedCallbacksDrainAllRequests:DriverTest.TestAsyncThrowingCallbackStillDrainsNestedRequest:DriverTest.TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown'
 B="$BD"
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --binary "$B/src/tests/lpc_tests" --gtest-filter "$F" \
@@ -458,7 +458,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不得另建与 owner 调度并行的通用框架；拒绝路径不能遗失 Promise/回调和 live_requests 引用标记。 complete_all_asyncio 仍是 drain，不是 stop；最终 pool stop 放在其他生产者停止之后、共享资源清理之前。不得承诺未实现的 native IO 强制取消。
 - **文档同步：**`docs/driver/config.md`、`docs/efun/async/async_read.md`、`docs/efun/async/async_getdir.md`。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施，核心受监督定向验证闭合：Debug、ASan、TSan 的 native 过滤器各 `4/4`（`audit-u03-debug-native-r10/`、`audit-u03-asan-native-r10/`、`audit-u03-tsan-native-r10/`），Debug `lpc_tests` 全量 `525/525`（`audit-u03-gtest-debug-full-r10/`）；新增 async LPC 在 Debug、ASan、TSan 各 `1/1`（`audit-u03-lpc-debug-r10/`、`audit-u03-lpc-asan-r10/`、`audit-u03-lpc-tsan-r10/`），既有 `/single/tests/efuns/async` getdir/read/write 回归也在三配置各 `1/1`（`audit-u03-lpc-async-debug-r1/`、`audit-u03-lpc-async-asan-r1/`、`audit-u03-lpc-async-tsan-r1/`），均无跳过、失败或 sanitizer 诊断。初次 ASan 运行因夹具第二批次未清零计数而保留 `3/4` 失败证据（`build-modernization-evidence/audit-u03-asan-native-r3/`），修正夹具后复验通过。TSan 构建/运行使用 `setarch x86_64 -R`；LPC 监督 runner 使用 `/usr/bin/python3.12`，系统默认 Python 3.14 缺少 pidfd API，runner 按 fail-closed 拒绝降级。`tools/style/check-format.py` 因本机缺少要求的 clang-format 18.1.8 未能运行，故格式门禁仍未验证。未将真实数据库、强制线程创建耗尽、任意阻塞 native IO 取消或长时生产压力写成已验证；这些边界仍按本卡第 5 条保留。
 
 ### AUD-004 · 异步数据库请求只保存可复用整数连接号
 

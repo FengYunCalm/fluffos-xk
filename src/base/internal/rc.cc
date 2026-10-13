@@ -118,6 +118,9 @@ const FlagEntry INT_FLAGS[] = {
     {"display preload progress", __RC_DISPLAY_PRELOAD_PROGRESS__, 1, 0, 1},
     {"maximum pending output bytes", __RC_MAX_PENDING_OUTPUT_BYTES__, 1048576, 1},
     {"maximum total pending output bytes", __RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__, 67108864, 1},
+    {"maximum async workers", __RC_MAX_ASYNC_WORKERS__, 8, 1},
+    {"maximum async requests", __RC_MAX_ASYNC_REQUESTS__, 1024, 1},
+    {"maximum async pending bytes", __RC_MAX_ASYNC_PENDING_BYTES__, 32 * 1024 * 1024, 1},
 };
 
 /*

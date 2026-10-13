@@ -113,6 +113,11 @@ A missing file or an unclosed quote/bracket remains a compilation error.
 | `maximum read file size` | Max file read size | `maximum read file size : 200000` |
 | `maximum pending output bytes` | Positive per-interactive-connection queued output limit in bytes; exceeding it closes that connection | `maximum pending output bytes : 1048576` |
 | `maximum total pending output bytes` | Positive process-wide queued output limit in bytes; it must be at least the per-connection limit, and exceeding it closes the connection causing the write | `maximum total pending output bytes : 67108864` |
+| `maximum async workers` | Startup-only maximum number of joinable asynchronous filesystem/database workers | `maximum async workers : 8` |
+| `maximum async requests` | Startup-only maximum number of queued, running, and not-yet-cleaned asynchronous requests | `maximum async requests : 1024` |
+| `maximum async pending bytes` | Startup-only process-wide reservation for asynchronous request payload and path bytes; released only at final cleanup | `maximum async pending bytes : 33554432` |
+
+The three asynchronous limits are startup-only. `set_config()` rejects attempts to change them after startup, so the worker pool and its admission contract cannot change while requests are active.
 
 ### Execution Limits
 

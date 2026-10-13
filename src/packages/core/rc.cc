@@ -50,6 +50,12 @@ void f_set_config() {
     error("Bad 2nd argument to set_config()\n");
   }
 
+  if (num == __RC_MAX_ASYNC_WORKERS__ || num == __RC_MAX_ASYNC_REQUESTS__ ||
+      num == __RC_MAX_ASYNC_PENDING_BYTES__) {
+    pop_2_elems();
+    error("Async worker and request limits are startup-only configuration.\n");
+  }
+
   CONFIG_INT(num) = value->u.number;
   pop_2_elems();
 }

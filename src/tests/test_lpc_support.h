@@ -248,6 +248,13 @@ class ScopedLpcMapping {
 
 class DriverTest : public ::testing::Test {
  public:
+#ifdef PACKAGE_ASYNC
+  static void TearDownTestSuite() {
+    complete_all_asyncio();
+    stop_async_workers();
+  }
+#endif
+
   static void SetUpTestSuite() {
     std::string mudlib;
     try {

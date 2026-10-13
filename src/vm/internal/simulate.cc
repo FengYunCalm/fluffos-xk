@@ -200,6 +200,9 @@ void shutdownMudOS(int exit_code) {
   free_mapping(owner_output_quiesce);
 #endif
   vm_owner_thread_stop();
+#ifdef PACKAGE_ASYNC
+  stop_async_workers();
+#endif
 #ifdef PACKAGE_EXTERNAL
   external_cleanup();
 #endif
