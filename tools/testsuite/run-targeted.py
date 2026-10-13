@@ -744,7 +744,7 @@ def run_ctest(session: EvidenceSession, ctest_dir: Path, regex: str, timeout: in
 
 
 def validate_case(case: str) -> str:
-    if not re.fullmatch(r"/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", case):
+    if not re.fullmatch(r"/[A-Za-z0-9_.%-]+(?:/[A-Za-z0-9_.%-]+)*", case):
         raise RunnerError(f"invalid LPC case path: {case!r}")
     return case
 

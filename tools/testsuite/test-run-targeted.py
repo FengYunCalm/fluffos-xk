@@ -312,6 +312,19 @@ class ResultContractTest(unittest.TestCase):
                     with self.assertRaises(runner.RunnerError):
                         runner.run_driver(self.session, self.binary, None, True, 10, "config.test")
 
+    def test_percent_case_path_is_passed_unchanged(self) -> None:
+        directory = self.root / "single" / "tests" / "compiler"
+        directory.mkdir(parents=True)
+        case = "/single/tests/compiler/warn_%s"
+        (directory / "warn_%s.lpc").write_text("void do_tests() { ASSERT(1); }\n")
+        output = f"C> {case}\nD> C {case} asserts=1\nChecks succeeded.\n"
+        with mock.patch.object(runner, "render_sandbox", return_value=(self.root, self.root)), \
+                mock.patch.object(runner, "run_process", return_value=self.result(output)) as process:
+            result = runner.run_driver(self.session, self.binary, case, False, 10, "config.test")
+        self.assertEqual(result.passed, 1)
+        command = process.call_args.args[1]
+        self.assertIn("-ftest:" + case, command)
+
     def test_environment_excludes_credentials_and_ambient_gtest_selection(self) -> None:
         with mock.patch.dict(os.environ, {
             "UNRELATED_CREDENTIAL": "test-only-value", "GTEST_FILTER": "Nothing.*",

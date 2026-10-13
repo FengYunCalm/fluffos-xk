@@ -24,7 +24,7 @@ python3 -B tools/testsuite/run-targeted.py --driver build-dev-debug/bin/driver \
   --all-lpc --timeout 1800
 ```
 
-`--case` 只接收一个入口；多个入口须分别调用。重复传入 `--case` 只保留最后一个值。
+`--case` 只接收一个入口；多个入口须分别调用。重复传入 `--case` 只保留最后一个值。入口路径组件允许测试语料实际使用的 `%`，但仍拒绝控制字符、反斜杠、空组件和 `.`/`..` 越界路径；参数原样传给 driver，不经过 shell。
 `--config config.recompile` 选择 `testsuite/etc/config.recompile`，不能传 `etc/` 前缀。
 `--evidence-dir` 必须指向尚不存在的目录；未指定时创建私有临时目录。
 `--tool EXECUTABLE -- ARG...` 只证明该工具的退出与诊断合同，不证明其内部断言或性能结论。
