@@ -24,6 +24,249 @@ object_t* create_gateway_session_for_test(const char* session_id, const char* lo
   return ob;
 }
 
+#ifndef _WIN32
+class AsciiInputFixture {
+ public:
+  AsciiInputFixture() : base_(event_base_new(), event_base_free), user_count_(users_num(true)) {}
+
+  ~AsciiInputFixture() {
+    if (auto* session = gateway_find_session("audit-ascii-replacement")) {
+      auto* replacement = session->user_ob;
+      add_ref(replacement, "AsciiInputFixture replacement");
+      remove_interactive(replacement, 1);
+      destruct_object_for_test(replacement);
+      free_object(&replacement, "AsciiInputFixture replacement");
+    }
+    if (object_) {
+      if (object_->interactive) {
+        remove_interactive(object_, 1);
+      }
+      destruct_object_for_test(object_);
+      free_object(&object_, "AsciiInputFixture");
+    }
+    if (unowned_fd_ >= 0) {
+      evutil_closesocket(unowned_fd_);
+    }
+    if (peer_fd_ >= 0) {
+      evutil_closesocket(peer_fd_);
+    }
+    if (base_) {
+      EXPECT_NE(event_base_loop(base_.get(), EVLOOP_NONBLOCK), -1);
+      EXPECT_EQ(event_base_get_num_events(base_.get(), EVENT_BASE_COUNT_ADDED), 0);
+    }
+    EXPECT_EQ(users_num(true), user_count_);
+  }
+
+  void open() {
+    ASSERT_NE(base_, nullptr);
+    ASSERT_EQ(gateway_find_session("audit-ascii-replacement"), nullptr);
+    object_ = clone_object_for_test("/clone/audit_ascii_input");
+    ASSERT_NE(object_, nullptr);
+    add_ref(object_, "AsciiInputFixture");
+
+    int descriptors[2];
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors), 0);
+    old_fd_ = unowned_fd_ = descriptors[0];
+    peer_fd_ = descriptors[1];
+    ASSERT_EQ(evutil_make_socket_nonblocking(old_fd_), 0);
+
+    auto* ip = user_add();
+    ip->ob = object_;
+    ip->connection_type = PORT_TYPE_ASCII;
+    ip->fd = old_fd_;
+    auto* address = reinterpret_cast<sockaddr_in*>(&ip->addr);
+    address->sin_family = AF_INET;
+    address->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ip->addrlen = sizeof(sockaddr_in);
+    object_->interactive = ip;
+    object_->flags |= O_ONCE_INTERACTIVE;
+    add_ref(object_, "AsciiInputFixture interactive");
+    ip->ev_buffer = bufferevent_socket_new(base_.get(), old_fd_, BEV_OPT_CLOSE_ON_FREE);
+    ASSERT_NE(ip->ev_buffer, nullptr);
+    unowned_fd_ = -1;
+    ip->ev_command = evtimer_new(base_.get(), [](evutil_socket_t, short, void*) {}, nullptr);
+    ASSERT_NE(ip->ev_command, nullptr);
+  }
+
+  void receive(const std::string& bytes) {
+    ASSERT_NE(object_, nullptr);
+    auto* ip = object_->interactive;
+    ASSERT_NE(ip, nullptr);
+    auto* input = bufferevent_get_input(ip->ev_buffer);
+    ASSERT_EQ(evbuffer_unfreeze(input, 0), 0);
+    ASSERT_EQ(evbuffer_add(input, bytes.data(), bytes.size()), 0);
+    ASSERT_EQ(evbuffer_freeze(input, 0), 0);
+    get_user_data(ip);
+  }
+
+  void expect_lines(const std::vector<std::string>& expected) {
+    auto* result = call_lpc_method(object_, "query_received");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->type, T_ARRAY);
+    ASSERT_EQ(result->u.arr->size, expected.size());
+    for (size_t i = 0; i < expected.size(); ++i) {
+      ASSERT_EQ(result->u.arr->item[i].type, T_STRING);
+      EXPECT_EQ(result->u.arr->item[i].u.string, expected[i]);
+    }
+  }
+
+  void expect_closed(bool replacement) {
+    ASSERT_NE(object_, nullptr);
+    EXPECT_EQ(object_->interactive, nullptr);
+    EXPECT_NE(event_base_loop(base_.get(), EVLOOP_NONBLOCK), -1);
+    EXPECT_EQ(event_base_get_num_events(base_.get(), EVENT_BASE_COUNT_ADDED), 0);
+    EXPECT_EQ(users_num(true), user_count_ + (replacement ? 1 : 0));
+    errno = 0;
+    EXPECT_EQ(fcntl(old_fd_, F_GETFD), -1);
+    EXPECT_EQ(errno, EBADF);
+  }
+
+  object_t* object() const {
+    return object_;
+  }
+
+ private:
+  std::unique_ptr<event_base, decltype(&event_base_free)> base_;
+  size_t user_count_;
+  object_t* object_{nullptr};
+  int old_fd_{-1};
+  int unowned_fd_{-1};
+  int peer_fd_{-1};
+};
+
+void check_ascii_chunks(const std::string& input, const std::vector<std::string>& expected,
+                        const std::vector<size_t>& chunks) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  size_t offset = 0;
+  for (const auto count : chunks) {
+    ASSERT_LE(count, input.size() - offset);
+    ASSERT_NO_FATAL_FAILURE(fixture.receive(input.substr(offset, count)));
+    offset += count;
+  }
+  ASSERT_EQ(offset, input.size());
+  fixture.expect_lines(expected);
+}
+
+TEST_F(DriverTest, TestAuditAsciiLifetimeClose) {
+  for (int reconnect = 0; reconnect < 16; ++reconnect) {
+    SCOPED_TRACE(reconnect);
+    AsciiInputFixture fixture;
+    ASSERT_NO_FATAL_FAILURE(fixture.open());
+    ASSERT_NO_FATAL_FAILURE(fixture.receive("close\nignored\n"));
+    fixture.expect_closed(false);
+    fixture.expect_lines({"close"});
+    auto* result = call_lpc_method(fixture.object(), "query_disconnects");
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->type, T_NUMBER);
+    EXPECT_EQ(result->u.number, 1);
+  }
+}
+
+TEST_F(DriverTest, TestAuditAsciiLifetimeDestruct) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("destruct\nignored\n"));
+  fixture.expect_closed(false);
+  EXPECT_NE(fixture.object()->flags & O_DESTRUCTED, 0);
+}
+
+TEST_F(DriverTest, TestAuditAsciiLifetimeReplacementSurvives) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("replace\nignored\n"));
+  fixture.expect_closed(true);
+  fixture.expect_lines({"replace"});
+  auto* session = gateway_find_session("audit-ascii-replacement");
+  ASSERT_NE(session, nullptr);
+  ASSERT_NE(session->user_ob, nullptr);
+  EXPECT_NE(session->user_ob->interactive, nullptr);
+  EXPECT_NE(session->user_ob, fixture.object());
+  auto* result = call_lpc_method(session->user_ob, "query_received");
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(result->type, T_ARRAY);
+  EXPECT_EQ(result->u.arr->size, 0);
+}
+
+TEST_F(DriverTest, TestAuditAsciiLifetimeCallbackErrorRecovers) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("error\nok\n"));
+  fixture.expect_lines({"error", "ok"});
+  ASSERT_NE(fixture.object()->interactive, nullptr);
+  EXPECT_EQ(fixture.object()->interactive->telnet_receive_depth, 0);
+}
+
+TEST_F(DriverTest, TestAuditAsciiEmptyLineDelivery) {
+  check_ascii_chunks("", {}, {0});
+  for (const std::string input : {"\n", "\r\n"}) {
+    SCOPED_TRACE(input.size());
+    check_ascii_chunks(input, {""}, {input.size()});
+  }
+  check_ascii_chunks("\n\n", {"", ""}, {1, 1});
+  check_ascii_chunks("\r\n\n", {"", ""}, {1, 1, 1});
+}
+
+TEST_F(DriverTest, TestAuditAsciiCrLfEveryPartition) {
+  const std::vector<std::pair<std::string, std::vector<std::string>>> samples{
+      {"a\r\nb\n", {"a", "b"}}, {"\r\n\nx\r\n", {"", "", "x"}},
+      {"a\nrest", {"a"}},       {"x\b\x7f\x1b[D\n", {"x\b\x7f\x1b[D"}},
+      {"中\n", {"中"}},         {"unfinished", {}}};
+  for (const auto& [input, expected] : samples) {
+    SCOPED_TRACE(input);
+    for (size_t mask = 0; mask < (size_t{1} << (input.size() - 1)); ++mask) {
+      SCOPED_TRACE(mask);
+      std::vector<size_t> chunks;
+      size_t count = 1;
+      for (size_t i = 0; i + 1 < input.size(); ++i) {
+        if (mask & (size_t{1} << i)) {
+          chunks.push_back(count);
+          count = 0;
+        }
+        ++count;
+      }
+      chunks.push_back(count);
+      ASSERT_NO_FATAL_FAILURE(check_ascii_chunks(input, expected, chunks));
+    }
+  }
+}
+
+TEST_F(DriverTest, TestAuditAsciiCrLfBoundedRandomFragments) {
+  const std::string input = "a\r\n\nbeta\n\r\n最后\r\nunfinished";
+  const std::vector<std::string> expected{"a", "", "beta", "", "最后"};
+  uint32_t seed = 0xa5010910;
+  for (size_t trial = 0; trial < 128; ++trial) {
+    SCOPED_TRACE(trial);
+    std::vector<size_t> chunks;
+    size_t offset = 0;
+    while (offset < input.size()) {
+      seed = seed * 1664525 + 1013904223;
+      const auto count = std::min<size_t>(1 + seed % 7, input.size() - offset);
+      chunks.push_back(count);
+      offset += count;
+    }
+    ASSERT_NO_FATAL_FAILURE(check_ascii_chunks(input, expected, chunks));
+  }
+}
+#endif
+
+TEST_F(DriverTest, TestAuditAsciiEmptyLineRedzoneBounds) {
+  auto buffer = std::make_unique<char[]>(1);
+  buffer[0] = '\n';
+  size_t line_end = 99;
+  size_t next = 99;
+  ASSERT_TRUE(comm_ascii_line_bounds_for_test(buffer.get(), 0, 1, &line_end, &next));
+  EXPECT_EQ(line_end, 0);
+  EXPECT_EQ(next, 1);
+  EXPECT_FALSE(comm_ascii_line_bounds_for_test(buffer.get(), 0, 0, &line_end, &next));
+  EXPECT_FALSE(comm_ascii_line_bounds_for_test(buffer.get(), 1, 1, &line_end, &next));
+
+  const char preceding_cr[] = {'\r', '\n'};
+  ASSERT_TRUE(comm_ascii_line_bounds_for_test(preceding_cr, 1, 2, &line_end, &next));
+  EXPECT_EQ(line_end, 1);
+  EXPECT_EQ(next, 2);
+}
+
 TEST_F(DriverTest, TestGatewayCreateSessionEventFailureCleansPendingUser) {
   ASSERT_NE(master_ob, nullptr);
   ASSERT_EQ(master_ob->interactive, nullptr);

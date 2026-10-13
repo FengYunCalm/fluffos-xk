@@ -89,4 +89,7 @@ bool decode_mud_port_payload_length_for_test(const char* header, size_t header_s
 int comm_reserve_input_space_for_test(struct interactive_t* ip, size_t reserve);
 int comm_append_input_for_test(struct interactive_t* ip, const unsigned char* data, int len);
 
+bool comm_ascii_line_bounds_for_test(const char* buffer, size_t start, size_t end, size_t* line_end,
+                                     size_t* next);
+
 #endif /* COMM_H */

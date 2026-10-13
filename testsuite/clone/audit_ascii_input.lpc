@@ -1,0 +1,48 @@
+private string *received = ({});
+private int disconnects;
+
+int logon(mixed data) {
+  return 1;
+}
+
+void net_dead() {
+  disconnects++;
+}
+
+string *query_received() {
+  return received;
+}
+
+int query_disconnects() {
+  return disconnects;
+}
+
+mixed process_input(string line) {
+  received += ({ line });
+  switch (line) {
+    case "close":
+      remove_interactive(this_object());
+      break;
+    case "destruct":
+      destruct(this_object());
+      break;
+    case "replace": {
+      mixed failure;
+      object replacement;
+      remove_interactive(this_object());
+      master()->set_test_login_ob("/clone/audit_ascii_input");
+      failure = catch(replacement = gateway_create_session("audit-ascii-replacement", ([])));
+      master()->reset_test_login_ob();
+      if (failure) {
+        error(failure);
+      }
+      if (!objectp(replacement)) {
+        error("ASCII replacement session was not created\n");
+      }
+      break;
+    }
+    case "error":
+      error("ASCII input callback test error\n");
+  }
+  return 0;
+}

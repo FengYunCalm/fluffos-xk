@@ -67,6 +67,29 @@ static int call_function_interactive(interactive_t* /*i*/, char* /*str*/);
 static void print_prompt(interactive_t* /*ip*/);
 static bool receive_user_telnet_data(interactive_t* /*ip*/, const char* /*data*/, size_t /*len*/);
 
+namespace {
+void finish_deferred_user_cleanup(interactive_t* /*ip*/);
+
+class TelnetReceiveGuard {
+ public:
+  explicit TelnetReceiveGuard(interactive_t* ip) : ip_(ip) {
+    ++ip_->telnet_receive_depth;
+  }
+
+  ~TelnetReceiveGuard() {
+    --ip_->telnet_receive_depth;
+    finish_deferred_user_cleanup(ip_);
+  }
+
+  bool connection_alive() const {
+    return ip_->ob != nullptr && !(ip_->iflags & CLOSING);
+  }
+
+ private:
+  interactive_t* ip_;
+};
+}  // namespace
+
 #ifdef NO_SNOOP
 #define handle_snoop(str, len, who)
 #else
@@ -1183,6 +1206,31 @@ static unsigned char* comm_read_scratch() {
   return scratch.get();
 }
 
+namespace {
+bool comm_ascii_line_bounds(const char* buffer, size_t start, size_t end, size_t* line_end,
+                            size_t* next) {
+  if (start >= end) {
+    return false;
+  }
+  auto* newline = static_cast<const char*>(memchr(buffer + start, '\n', end - start));
+  if (!newline) {
+    return false;
+  }
+
+  *line_end = static_cast<size_t>(newline - buffer);
+  if (*line_end > start && buffer[*line_end - 1] == '\r') {
+    --*line_end;
+  }
+  *next = static_cast<size_t>(newline + 1 - buffer);
+  return true;
+}
+}  // namespace
+
+bool comm_ascii_line_bounds_for_test(const char* buffer, size_t start, size_t end, size_t* line_end,
+                                     size_t* next) {
+  return comm_ascii_line_bounds(buffer, start, end, line_end, next);
+}
+
 int comm_reserve_input_space_for_test(interactive_t* ip, size_t reserve) {
   return comm_reserve_input_space(ip, reserve);
 }
@@ -1194,6 +1242,11 @@ int comm_append_input_for_test(interactive_t* ip, const unsigned char* data, int
 void get_user_data(interactive_t* ip) {
   int num_bytes, text_space;
   unsigned char* buf = comm_read_scratch();
+  std::optional<TelnetReceiveGuard> ascii_receive_guard;
+
+  if (ip->connection_type == PORT_TYPE_ASCII) {
+    ascii_receive_guard.emplace(ip);
+  }
 
   text_space = MAX_TEXT;
 
@@ -1311,35 +1364,35 @@ void get_user_data(interactive_t* ip) {
       break;
 
     case PORT_TYPE_ASCII: {
-      char *nl, *p;
+      char* p = ip->text + ip->text_start;
+      size_t line_end_offset = 0;
+      size_t next_offset = 0;
 
       comm_append_input(ip, buf, num_bytes);
 
-      p = ip->text + ip->text_start;
-      while ((nl = reinterpret_cast<char*>(memchr(p, '\n', ip->text_end - ip->text_start)))) {
-        ip->text_start = (nl + 1) - ip->text;
+      while (comm_ascii_line_bounds(ip->text, ip->text_start, ip->text_end, &line_end_offset,
+                                    &next_offset)) {
+        char* const line_end = ip->text + line_end_offset;
+        *line_end = 0;
+        ip->text_start = static_cast<int>(next_offset);
 
-        *nl = 0;
-        if (*(nl - 1) == '\r') {
-          *--nl = 0;
-        }
-
-        if (!(ip->ob->flags & O_DESTRUCTED)) {
-          char* str;
-
-          str = new_string(nl - p, "PORT_ASCII");
-          memcpy(str, p, nl - p + 1);
+        if (ip->ob && !(ip->ob->flags & O_DESTRUCTED)) {
+          char* str = new_string(line_end - p, "PORT_ASCII");
+          memcpy(str, p, line_end - p + 1);
           push_malloced_string(str);
           set_eval(max_eval_cost);
           owner_bound_safe_apply(APPLY_PROCESS_INPUT, ip->ob, 1, ORIGIN_DRIVER, "interactive");
         }
 
+        if (!ascii_receive_guard->connection_alive()) {
+          return;
+        }
         if (ip->text_start == ip->text_end) {
           ip->text_start = ip->text_end = 0;
           break;
         }
 
-        p = nl + 1;
+        p = ip->text + next_offset;
       }
     } break;
 
@@ -1920,25 +1973,6 @@ void finish_deferred_user_cleanup(interactive_t* ip) {
   release_user_resources(ip);
   FREE(ip);
 }
-
-class TelnetReceiveGuard {
- public:
-  explicit TelnetReceiveGuard(interactive_t* ip) : ip_(ip) {
-    ++ip_->telnet_receive_depth;
-  }
-
-  ~TelnetReceiveGuard() {
-    --ip_->telnet_receive_depth;
-    finish_deferred_user_cleanup(ip_);
-  }
-
-  bool connection_alive() const {
-    return ip_->ob != nullptr && !(ip_->iflags & CLOSING);
-  }
-
- private:
-  interactive_t* ip_;
-};
 
 }  // namespace
 

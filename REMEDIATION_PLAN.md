@@ -1,8 +1,8 @@
 # FluffOS_XK 审计修复方案
 
 > 对应 [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md) 的 AUD-001–AUD-069。
-> **本文件是待批准的实施方案，不是实施记录。** 69 项代码/测试/文档修复均未执行；续审已做隔离构建与测试，真实结果见发现报告 §10。获准调查不等于获准实施以下修复、安装、部署或回退。
-> 现行唯一实施主计划仍是 [docs/project-modernization-plan-2026-10.md](docs/project-modernization-plan-2026-10.md)。批准实施本方案后，把问题 ID、依赖和证据挂靠到该计划的对应单元；本文件不擅自取代主计划或开启另一条开发路线。
+> **本方案已获准连续实施；执行状态以[主计划审计账本](docs/project-modernization-plan-2026-10.md#audit-remediation-ledger)为准。** 各卡保留修复步骤、依赖与验收合同，不把历史审计结果当作当前修复证据。
+> 现行唯一实施主计划仍是 [docs/project-modernization-plan-2026-10.md](docs/project-modernization-plan-2026-10.md)。问题 ID、依赖和证据挂靠到该计划的对应单元；本文件不取代主计划，也不授权安装、部署、发布或回退。
 
 ## 1. 目标、范围与影响
 
@@ -342,7 +342,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能用已释放 ip 做 IP_VALID 检查；不能误关替代会话；bufferevent 的最终关闭是延迟发生的。
 - **文档同步：**`docs/lpc-modern-runtime.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已验证，纳入 U02 原子提交；Debug/ASan 定向与完整 `lpc_tests` 证据见主计划 U02。
 
 ### AUD-002 · 交互输出队列没有字节预算和背压
 
@@ -805,7 +805,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**必须与 AUD-010 的游标修正协调，不能加一个判断却继续复用被减一的 nl。 ASan 对结构体成员内部前读可能不报警，不能只依赖 sanitizer 退出码。
 - **文档同步：**`docs/project-modernization-plan-2026-10.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已验证，纳入 U02 原子提交；Debug/ASan 定向与完整 `lpc_tests` 证据见主计划 U02。
 
 ### AUD-010 · ASCII CRLF 修剪后下一行游标退回分隔符
 
@@ -855,7 +855,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**改变正文结束位置时要保留残片搬移逻辑，不能把未完整行当成完整命令。
 - **文档同步：**`docs/project-modernization-plan-2026-10.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已验证，纳入 U02 原子提交；Debug/ASan 定向与完整 `lpc_tests` 证据见主计划 U02。
 
 ### AUD-011 · Telnet 按网络分块净化文本，破坏跨块编码序列
 

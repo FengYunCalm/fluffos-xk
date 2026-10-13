@@ -157,6 +157,20 @@ VM 内部规范字符串保持 UTF-8。其他编码通过明确边界支持：
 
 可用编码名称取决于 ICU。GBK、GB2312、Big5 和 UTF-8 已由现代运行时测试覆盖。
 
+## ASCII Input Callbacks / ASCII 输入回调
+
+ASCII ports deliver each LF-terminated line to `process_input`, removing only the CR
+immediately before that LF. Empty lines are delivered as empty strings; an unfinished
+tail waits for more bytes. Splitting the same byte stream does not change line order or content.
+If a callback closes its connection or destructs its object, processing of that old connection
+stops. Its receive frame defers resource release until it returns; a replacement session is
+not part of the old connection cleanup.
+
+ASCII 端口把每条以 LF 结束的行交给 `process_input`，只移除紧邻该 LF 的 CR。
+空行交付为空字符串；未完整的尾行等待后续字节。同一字节流的分片方式不改变行内容和顺序。
+回调关闭连接或销毁自身后，旧连接停止处理输入；接收栈退出后才释放其资源。
+回调新建的替代会话不属于旧连接的清理对象。
+
 ## Static Audit / 静态审计
 
 Audit modern LPC migration work with `lpcc`:
