@@ -1605,7 +1605,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | ID | 状态 | 提交或承接记录 |
 |---|---|---|
 | AUD-001 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
-| AUD-002 | 待实施 | 按整改卡依赖推进 |
+| AUD-002 | 已实施，功能/受监督 runner 通过；性能基准待补 | 当前私有 Debug/ASan 构建直接 GTest 与受监督 `run-targeted.py` 均通过；受控 AF_UNIX loopback 慢读/恢复读取已通过，独立吞吐对照和固定 clang-format 门禁仍未完成 |
 | AUD-003 | 待实施 | 按整改卡依赖推进 |
 | AUD-004 | 待实施 | 按整改卡依赖推进 |
 | AUD-005 | 待实施 | 按整改卡依赖推进 |
@@ -1683,9 +1683,17 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - 原始基线采用 `34497c8b` 的冻结源码加相同回归夹具，单独记录 fail-first；首字节前读以旧源码的边界证明和候选同源 redzone 测试验收，不伪造结构体内的 ASan 报错。候选保持独立源码/构建/证据目录。
 - 兼容回归保留当前 Telnet、WebSocket、MUD、binary 和 pre-login 原生集合；本轮不操作既有 driver，不复用旧构建目录。结果回填本节，不从测试存在推定通过。
 - fail-first：`34497c8b` 冻结源码在 `build-modernization-evidence/audit-u02-baseline-asan/` 复现 `heap-use-after-free`（`src/comm.cc:1362`，`process_input` 回调清理后继续访问 `ip`）；同一旧树还复现首字节前读和 CRLF 漏交付，原始日志保留。
-- 修复后 `lpc_tests` 已在 `build-audit-u02-debug-current` 和 `build-audit-u02-asan-current` 分别通过 `519/519`；三组新增过滤器在 Debug/ASan 各自通过：Lifetime `4/4`、EmptyLine `2/2`、CrLf `2/2`。保留的兼容过滤器十项在两种构建均 `10/10`。
-- 通过 `/usr/bin/python3` 的 `run-targeted.py` 完成异步完成屏障和身份校验；项目默认 Python 因缺少 `os.pidfd_open` 被拒绝的原始记录保留在 `audit-u02-runner-*`，不能把拒绝当通过。直接 GTest 结果仅用于与 runner 结果交叉核对。
-- Debug/ASan 构建均使用 `--parallel 1`；ASan 运行使用 `detect_leaks=0`，本单元未声明 LSan。证据根为 `build-modernization-evidence/audit-u02-*`，既有 driver 未启动、未停止。
+- 修复后 `lpc_tests` 已在当前 Debug/ASan 私有构建分别通过 `524/524`；AUD-001/009/010 的新增过滤器在 Debug/ASan 各自通过：Lifetime `4/4`、EmptyLine `2/2`、CrLf `2/2`。AUD-002 的 `TestAuditOutputBudget*` 在两种构建均 `5/5`。
+- 上述 AUD-001/009/010 记录保留其原始 runner 证据；本轮 AUD-002 的 `run-targeted.py` 已用 `/usr/bin/python3` 完成监督、身份和异步完成屏障校验，Debug/ASan 各选中 5 项并通过，证据目录为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-debug-systempy/` 和 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-asan-systempy/`。此前默认 Python 因 pidfd 能力不足拒绝启动的记录仍保留，但不作为当前通过依据。直接 GTest 结果来自同一私有构建。
+- Debug/ASan 构建均使用 `--parallel 1`；ASan 运行使用 `detect_leaks=0`，本单元未声明 LSan。既有 driver 未启动、未停止；真实 TCP/TLS/WebSocket 网络门禁和独立吞吐对照仍未执行。
+
+#### U02-output：AUD-002 输出队列预算验证合同
+
+- 原子范围：`maximum pending output bytes`（默认 1 MiB）和 `maximum total pending output bytes`（默认 64 MiB）只约束实际待发送字节；预算拒绝关闭具体慢会话并归还连接级、全局级计数，不改变正常输入、TLS 身份验证或 WebSocket payload drain 语义。
+- fail-first 根因和修复：旧实现的 `evbuffer_add`/`bufferevent_write` 路径没有单连接或累计字节准入；当前 `comm_queue_output()` 在实际入队前使用减法边界检查，成功入队后记账，发送 drain、连接清理和失败路径归还。WebSocket/TLS 完成通知按请求 payload 长度扣账，不使用 TLS 扩展返回长度。
+- Debug/ASan 原生 `lpc_tests` 当前均 `524/524`；`DriverTest.TestAuditOutputBudget*` 各 `5/5`，`DriverTest.TestAuditAsciiLifetime*` 各 `4/4`，AUD-002 新增回归为各 `5/5`，既有 ASCII 生命周期回归为各 `8/8`。最新完整日志为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/debug-full-after-loopback-fix.log` 和 `asan-full-after-loopback-fix.log`，定向日志为同目录下对应的 `debug-output-budget-after-callback-fix.log` 和 `asan-output-budget-after-callback-fix.log`。
+- 覆盖包括单条精确边界、单条超限、累计超限、空/控制字符、重复连接、失败清理、受控 AF_UNIX loopback 暂停读端、恢复读取、正常 drain、普通/TLS/WebSocket/gateway 兼容回归；没有启动、停止或写入机器上既有 driver。真实 TCP/TLS/WebSocket 网络门禁和独立吞吐对照基准没有执行，不得宣称性能或真实外部平台已验收；固定 clang-format 18.1.8 不可用，也不宣称格式门禁通过。
+- 配置失败证据仍保留于 `build-modernization-evidence/audit-u02-debug-current/config-rejection-after-1/`；旧 runner 的 4 项记录仅作历史证据，当前 5 项监督 runner 结果以 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-debug-systempy/` 和 `.../AUD-002-native-asan-systempy/` 为准。此前默认 Python 因缺少 pidfd 能力拒绝的记录仍保留，但不作为当前通过依据。独立吞吐基准、真实 TCP/TLS/WebSocket 网络和固定 clang-format 18.1.8 尚未验证。
 
 ## 附录 A：生产源码差异逐文件索引
 

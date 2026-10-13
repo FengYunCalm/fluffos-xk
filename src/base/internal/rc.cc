@@ -116,6 +116,8 @@ const FlagEntry INT_FLAGS[] = {
     {"async drain eval budget", __RC_ASYNC_DRAIN_EVAL_BUDGET__, 1000},
     {"max pending promise deliveries", __RC_MAX_PENDING_DELIVERIES__, 100000},
     {"display preload progress", __RC_DISPLAY_PRELOAD_PROGRESS__, 1, 0, 1},
+    {"maximum pending output bytes", __RC_MAX_PENDING_OUTPUT_BYTES__, 1048576, 1},
+    {"maximum total pending output bytes", __RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__, 67108864, 1},
 };
 
 /*
@@ -447,6 +449,11 @@ void read_config(const char* filename) {
     if (scan_config_line(buf, &value, kOptional)) {
       if (value != flag.defaultValue) {
         if (value < flag.minValue || value > flag.maxValue) {
+          if (flag.pos == __RC_MAX_PENDING_OUTPUT_BYTES__ ||
+              flag.pos == __RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) {
+            debug_message("%s: invalid value; refusing configuration.\n", flag.key.c_str());
+            exit(-1);
+          }
           debug_message("%s: invalid new value, resetting to default.\n", flag.key.c_str());
           value = flag.defaultValue;
         }
@@ -454,6 +461,13 @@ void read_config(const char* filename) {
       }
     }
   }
+
+  if (CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) <
+      CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__)) {
+    debug_message("maximum total pending output bytes must be at least the per-connection limit.\n");
+    exit(-1);
+  }
+
   // TODO: get rid of config_lines all together.
   config_lines.clear();
   config_lines.shrink_to_fit();

@@ -111,6 +111,8 @@ A missing file or an unclosed quote/bracket remains a compilation error.
 | `maximum bits in a bitfield` | Max bitfield size | `maximum bits in a bitfield : 12000` |
 | `maximum byte transfer` | Max bytes per read/write | `maximum byte transfer : 200000` |
 | `maximum read file size` | Max file read size | `maximum read file size : 200000` |
+| `maximum pending output bytes` | Positive per-interactive-connection queued output limit in bytes; exceeding it closes that connection | `maximum pending output bytes : 1048576` |
+| `maximum total pending output bytes` | Positive process-wide queued output limit in bytes; it must be at least the per-connection limit, and exceeding it closes the connection causing the write | `maximum total pending output bytes : 67108864` |
 
 ### Execution Limits
 
@@ -190,6 +192,8 @@ compress protocol : 1
 maximum array size : 15000
 maximum string length : 200000
 maximum mapping size : 150000
+maximum pending output bytes : 1048576
+maximum total pending output bytes : 67108864
 ```
 
 ## Tips

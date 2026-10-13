@@ -4,6 +4,8 @@
 #include <openssl/ssl.h>
 #include <event2/util.h>
 
+#include <cstddef>
+
 #include "vm/vm.h"  // FIXME: for union string_or_func
 
 #define MAX_TEXT (1 * 1024 * 1024)
@@ -86,6 +88,12 @@ struct interactive_t {
 
   // libevent event handle.
   struct bufferevent* ev_buffer;
+  // Bytes currently queued for this interactive connection.  All transport
+  // output must use comm_queue_output() so the process-wide budget stays exact.
+  std::size_t pending_output_bytes{0};
+  // Number of active output callbacks.  Budget rejection defers final free
+  // until these callbacks have returned.
+  std::size_t output_send_depth{0};
   struct event* ev_command;
   struct event* ev_logon;
 

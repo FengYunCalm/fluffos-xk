@@ -82,6 +82,9 @@ int ws_telnet_callback(struct lws* wsi, enum lws_callback_reasons reason, void* 
           return -1;
         }
         evbuffer_drain(pss->buffer, numbytes);
+        if (pss->user) {
+          comm_update_output_accounting(pss->user, pss->buffer);
+        }
         total = evbuffer_get_length(pss->buffer);
         // May have more text to write.
         if (total > 0) {
@@ -124,7 +127,11 @@ void ws_telnet_send(struct lws* wsi, const char* data, size_t len) {
   DEBUG_CHECK(lws_get_protocol(wsi)->id != PROTOCOL_WS_TELNET, "wrong protocol!");
   auto pss = reinterpret_cast<WebSocketSession*>(lws_wsi_user(wsi));
   DEBUG_CHECK(pss == nullptr, "no session data!");
+  auto* user = pss->user;
+  comm_output_enter(user);
 
-  evbuffer_add(pss->buffer, data, len);
-  lws_callback_on_writable(wsi);
+  if (user && comm_queue_output(user, pss->buffer, data, len)) {
+    lws_callback_on_writable(wsi);
+  }
+  comm_output_leave(user);
 }

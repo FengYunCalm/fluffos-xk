@@ -24,6 +24,16 @@ object_t* create_gateway_session_for_test(const char* session_id, const char* lo
   return ob;
 }
 
+struct OutputBudgetConfigGuard {
+  int per_connection{CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__)};
+  int total{CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__)};
+
+  ~OutputBudgetConfigGuard() {
+    CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__) = per_connection;
+    CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) = total;
+  }
+};
+
 #ifndef _WIN32
 class AsciiInputFixture {
  public:
@@ -69,6 +79,7 @@ class AsciiInputFixture {
     old_fd_ = unowned_fd_ = descriptors[0];
     peer_fd_ = descriptors[1];
     ASSERT_EQ(evutil_make_socket_nonblocking(old_fd_), 0);
+    ASSERT_EQ(evutil_make_socket_nonblocking(peer_fd_), 0);
 
     auto* ip = user_add();
     ip->ob = object_;
@@ -81,8 +92,16 @@ class AsciiInputFixture {
     object_->interactive = ip;
     object_->flags |= O_ONCE_INTERACTIVE;
     add_ref(object_, "AsciiInputFixture interactive");
-    ip->ev_buffer = bufferevent_socket_new(base_.get(), old_fd_, BEV_OPT_CLOSE_ON_FREE);
+    ip->ev_buffer = bufferevent_socket_new(base_.get(), old_fd_,
+                                           BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS);
     ASSERT_NE(ip->ev_buffer, nullptr);
+    bufferevent_setcb(
+        ip->ev_buffer, nullptr,
+        [](bufferevent* bev, void* arg) {
+          auto* user = static_cast<interactive_t*>(arg);
+          comm_update_output_accounting(user, bufferevent_get_output(bev));
+        },
+        nullptr, ip);
     unowned_fd_ = -1;
     ip->ev_command = evtimer_new(base_.get(), [](evutil_socket_t, short, void*) {}, nullptr);
     ASSERT_NE(ip->ev_command, nullptr);
@@ -96,7 +115,9 @@ class AsciiInputFixture {
     ASSERT_EQ(evbuffer_unfreeze(input, 0), 0);
     ASSERT_EQ(evbuffer_add(input, bytes.data(), bytes.size()), 0);
     ASSERT_EQ(evbuffer_freeze(input, 0), 0);
+    save_command_giver(object_);
     get_user_data(ip);
+    restore_command_giver();
   }
 
   void expect_lines(const std::vector<std::string>& expected) {
@@ -119,6 +140,45 @@ class AsciiInputFixture {
     errno = 0;
     EXPECT_EQ(fcntl(old_fd_, F_GETFD), -1);
     EXPECT_EQ(errno, EBADF);
+  }
+
+  std::string pump_transport() {
+    std::string received;
+    bool observed_empty_output = false;
+    for (int attempt = 0; attempt < 16; ++attempt) {
+      if (event_base_loop(base_.get(), EVLOOP_NONBLOCK) == -1) {
+        ADD_FAILURE() << "event_base_loop failed";
+        return received;
+      }
+      char buffer[128];
+      for (;;) {
+        const auto count = recv(peer_fd_, buffer, sizeof(buffer), MSG_DONTWAIT);
+        if (count > 0) {
+          received.append(buffer, static_cast<size_t>(count));
+          continue;
+        }
+        if (count == 0) {
+          return received;
+        }
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+          ADD_FAILURE() << "unexpected recv errno: " << errno;
+          return received;
+        }
+        break;
+      }
+      const bool output_empty =
+          !object_->interactive ||
+          evbuffer_get_length(bufferevent_get_output(object_->interactive->ev_buffer)) == 0;
+      if (output_empty) {
+        if (observed_empty_output) {
+          break;
+        }
+        observed_empty_output = true;
+      } else {
+        observed_empty_output = false;
+      }
+    }
+    return received;
   }
 
   object_t* object() const {
@@ -247,6 +307,91 @@ TEST_F(DriverTest, TestAuditAsciiCrLfBoundedRandomFragments) {
     }
     ASSERT_NO_FATAL_FAILURE(check_ascii_chunks(input, expected, chunks));
   }
+}
+#endif
+
+TEST_F(DriverTest, TestAuditOutputBudgetArithmetic) {
+  EXPECT_TRUE(comm_output_budget_allows_for_test(0, 0, 4, 4, 8));
+  EXPECT_FALSE(comm_output_budget_allows_for_test(4, 0, 1, 4, 8));
+  EXPECT_FALSE(comm_output_budget_allows_for_test(0, 8, 1, 4, 8));
+  EXPECT_FALSE(comm_output_budget_allows_for_test(0, 0, 5, 4, 8));
+  EXPECT_FALSE(comm_output_budget_allows_for_test(0, 0, 9, 4, 8));
+}
+
+#ifndef _WIN32
+TEST_F(DriverTest, TestAuditOutputBudgetLoopbackDrain) {
+  OutputBudgetConfigGuard config_guard;
+  CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__) = 16;
+  CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) = 32;
+  const auto baseline = comm_pending_output_bytes_for_test();
+
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("emit\n"));
+  ASSERT_EQ(fixture.pump_transport(), "123456");
+  ASSERT_NE(fixture.object()->interactive, nullptr);
+  EXPECT_EQ(fixture.object()->interactive->pending_output_bytes, 0u);
+  EXPECT_EQ(comm_pending_output_bytes_for_test(), baseline);
+}
+
+TEST_F(DriverTest, TestAuditOutputBudgetInteractiveAccounting) {
+  OutputBudgetConfigGuard config_guard;
+  CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__) = 16;
+  CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) = 32;
+  const auto baseline = comm_pending_output_bytes_for_test();
+
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  auto* ip = fixture.object()->interactive;
+  ASSERT_NE(ip, nullptr);
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("emit\n"));
+  auto* output = bufferevent_get_output(ip->ev_buffer);
+  ASSERT_NE(output, nullptr);
+  EXPECT_EQ(evbuffer_get_length(output), 6u);
+  EXPECT_EQ(ip->pending_output_bytes, 6u);
+  EXPECT_EQ(comm_pending_output_bytes_for_test(), baseline + 6);
+
+  ASSERT_EQ(evbuffer_unfreeze(output, 1), 0);
+  ASSERT_EQ(evbuffer_drain(output, 6), 0);
+  ASSERT_EQ(evbuffer_freeze(output, 1), 0);
+  comm_update_output_accounting(ip, output);
+  EXPECT_EQ(ip->pending_output_bytes, 0u);
+  EXPECT_EQ(comm_pending_output_bytes_for_test(), baseline);
+}
+
+TEST_F(DriverTest, TestAuditOutputBudgetRejectsSlowInteractiveConnection) {
+  OutputBudgetConfigGuard config_guard;
+  CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__) = 4;
+  CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) = 8;
+  const auto baseline = comm_pending_output_bytes_for_test();
+  const auto rejected_before = comm_output_budget_rejections_for_test();
+
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive("emit\n"));
+  EXPECT_EQ(comm_output_budget_rejections_for_test(), rejected_before + 1);
+  fixture.expect_closed(false);
+  EXPECT_EQ(comm_pending_output_bytes_for_test(), baseline);
+}
+
+TEST_F(DriverTest, TestAuditOutputBudgetRejectsGlobalSlowInteractiveConnection) {
+  OutputBudgetConfigGuard config_guard;
+  CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__) = 8;
+  CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) = 10;
+  const auto baseline = comm_pending_output_bytes_for_test();
+  const auto rejected_before = comm_output_budget_rejections_for_test();
+
+  AsciiInputFixture first;
+  ASSERT_NO_FATAL_FAILURE(first.open());
+  ASSERT_NO_FATAL_FAILURE(first.receive("emit\n"));
+  ASSERT_NE(first.object()->interactive, nullptr);
+
+  AsciiInputFixture second;
+  ASSERT_NO_FATAL_FAILURE(second.open());
+  ASSERT_NO_FATAL_FAILURE(second.receive("emit\n"));
+  EXPECT_EQ(comm_output_budget_rejections_for_test(), rejected_before + 1);
+  second.expect_closed(false);
+  EXPECT_EQ(comm_pending_output_bytes_for_test(), baseline + 6);
 }
 #endif
 

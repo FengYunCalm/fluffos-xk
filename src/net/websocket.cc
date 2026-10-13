@@ -498,6 +498,7 @@ void websocket_session_teardown(struct lws* wsi, struct interactive_t** user,
   auto* ip = *user;
   *user = nullptr;
   if (ip) {
+    comm_release_output(ip);
     if (ip->lws == wsi) {
       ip->lws = nullptr;
     }

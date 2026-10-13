@@ -10,6 +10,8 @@
 
 #include <event2/util.h>
 
+struct evbuffer;
+
 /*
  * This macro is for testing whether ip is still valid, since many
  * functions call LPC code, which could otherwise use
@@ -77,6 +79,20 @@ bool schedule_user_logon(struct event_base*, interactive_t*);
 void cancel_user_logon(interactive_t*);
 // Close a transport user created by new_user(), including the pre-logon phase.
 void remove_user_connection(struct interactive_t*);
+
+// Queue transport output while enforcing per-connection and process-wide byte
+// budgets. A rejected write closes the owning connection and returns false.
+bool comm_queue_output(struct interactive_t*, struct evbuffer*, const void*, size_t);
+void comm_update_output_accounting(struct interactive_t*, struct evbuffer*);
+void comm_release_output(struct interactive_t*);
+void comm_output_enter(struct interactive_t*);
+void comm_output_leave(struct interactive_t*);
+
+// C++ regression hooks; not part of the LPC/runtime API.
+bool comm_output_budget_allows_for_test(size_t pending, size_t total, size_t incoming,
+                                        size_t per_connection_limit, size_t total_limit);
+size_t comm_pending_output_bytes_for_test();
+size_t comm_output_budget_rejections_for_test();
 
 int cmd_in_buf(interactive_t* ip);
 void on_user_input(interactive_t* ip, const char* data, size_t len);

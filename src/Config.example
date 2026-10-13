@@ -328,6 +328,13 @@ apply cache bits : 22
 #
 call_out(0) next level : 1000
 
+# Positive maximum bytes queued for one interactive connection before the connection is closed.
+maximum pending output bytes : 1048576
+
+# Positive process-wide queued-byte maximum; it must be at least the per-connection limit.
+# The connection producing output is closed when this limit would be exceeded.
+maximum total pending output bytes : 67108864
+
 ###############################################################################
 #          The following aren't currently used or implemented (yet)           #
 ###############################################################################

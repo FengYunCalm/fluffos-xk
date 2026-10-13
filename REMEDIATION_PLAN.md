@@ -356,11 +356,11 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 #### 操作
 
-1. 新增拟议配置 maximum pending output bytes=1048576、maximum total pending output bytes=67108864，单位为实际排队字节；配置缺省和超限关闭策略随本方案一起审批，不保留 unlimited 作为默认。
-2. 把预算检查放到 ws_ascii_send、ws_telnet_send 和 bufferevent 输出的实际追加处。复用公共 WebSocket session/helper；不同传输只适配长度/完成通知，不复制计数规则。
-3. 检查 len > limit - pending，避免加法溢出；成功入队后记账，失败、部分发送和清理时准确归还。保持已有 lws_write TLS-expanded-return 处理：按请求 payload 长度 drain。
-4. 增加 main-thread 状态计数与原因，日志只记录长度/状态，不记录输出正文；不能让新增日志泄漏 NOECHO 输入。
-5. native 夹具调用真实 LPC 输出，按单会话、全局、写错误和断线矩阵验证。仅在私有端口进行慢读，不碰现有 driver。
+1. 已加入配置 `maximum pending output bytes=1048576` 和 `maximum total pending output bytes=67108864`，单位是实际排队字节；两项必须为正数，且全局上限不得小于单连接上限，不保留 unlimited 默认。
+2. 已把统一预算检查放到 `comm_queue_output()`，覆盖 bufferevent、WS ASCII 和 WS Telnet 的实际追加路径；各传输只负责提供目标 evbuffer 和完成通知，不复制计数规则。
+3. 已使用 `incoming <= limit - pending` 形式避免加法溢出；成功入队后记账，失败、发送后的 drain、连接清理均归还。保留 `lws_write` TLS-expanded-return 合同，按请求 payload 长度 drain。
+4. 已增加 main-thread 计数和原因日志，日志只记录长度/状态，不记录输出正文；预算拒绝会关闭具体慢会话，不阻塞事件循环或静默截断。
+5. native 夹具通过真实 LPC `write()` 触发输出，覆盖单连接边界、全局累计、拒绝关闭、队列 drain 和生命周期清理；验证仅使用私有测试对象/缓冲区，不接触既有 driver。
 
 #### 关键修改示例
 
@@ -391,11 +391,11 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 #### 完成、风险和回退
 
-- **验收：**队列峰值不越过已批准预算，关闭/错误后计数归零；正常字节流、TLS/WebSocket 协议和回调顺序不变；对照吞吐回退超过 5% 时停止而非放宽门槛。
+- **验收：**队列峰值不越过配置预算，拒绝后具体会话关闭且全局计数最终归零；正常字节流、WebSocket drain 方向和回调顺序不变。当前 Debug/ASan 的 `lpc_tests` 均为 524/524，`DriverTest.TestAuditOutputBudget*` 均为 5/5，`DriverTest.TestAuditAsciiLifetime*` 均为 4/4；AUD-002 的新增回归为 5/5，既有 ASCII 生命周期回归为 8/8。受控 AF_UNIX loopback 已覆盖暂停读端、恢复读取和队列 drain；独立吞吐对照基准尚未执行，不能宣称性能门槛已验证。
 - **风险与缓解：**新增资源限制会改变超额输出行为；默认值是方案建议而非现有合同或容量测量。编码、压缩、分片、关闭都必须归还正确字节数。
 - **文档同步：**`docs/driver/config.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**源码、配置、文档、直接回归和受监督 runner 已实施；Debug/ASan 完整日志为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/debug-full-after-loopback-fix.log` 和 `asan-full-after-loopback-fix.log`，均为 524/524；此前 loopback 测试的失败日志保留在同一证据目录，修复后定向日志为 `debug-output-budget-after-callback-fix.log` 和 `asan-output-budget-after-callback-fix.log`。使用 `/usr/bin/python3` 的受监督 runner 在 Debug/ASan 各选中 5 项并通过，证据目录分别为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-debug-systempy/` 和 `AUD-002-native-asan-systempy/`；同一私有构建中的直接 GTest 结果已持久化。配置零值拒绝的原始证据仍保留在 `build-modernization-evidence/audit-u02-debug-current/config-rejection-after-1/`；此前默认 Python 因 pidfd 能力不足拒绝的记录不作为当前通过依据。受控 AF_UNIX loopback 慢读/恢复读取已验证；独立吞吐对照基准尚未执行，固定 clang-format 18.1.8 不可用，不宣称性能或格式门禁完成。
 
 ### AUD-003 · 异步文件/数据库执行没有工作线程和排队内存上界
 

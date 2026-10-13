@@ -90,6 +90,122 @@ class TelnetReceiveGuard {
 };
 }  // namespace
 
+namespace {
+
+std::size_t g_total_pending_output_bytes = 0;
+std::size_t g_output_budget_rejections = 0;
+
+std::size_t configured_output_limit(int value) {
+  return value > 0 ? static_cast<std::size_t>(value) : 0;
+}
+
+bool output_budget_allows(std::size_t pending, std::size_t total, std::size_t incoming,
+                          std::size_t per_connection_limit, std::size_t total_limit) {
+  return pending <= per_connection_limit && incoming <= per_connection_limit - pending &&
+         total <= total_limit && incoming <= total_limit - total;
+}
+
+void update_output_accounting(interactive_t* ip, evbuffer* output) {
+  if (!ip || !output) {
+    return;
+  }
+
+  const auto current = evbuffer_get_length(output);
+  if (current >= ip->pending_output_bytes) {
+    g_total_pending_output_bytes += current - ip->pending_output_bytes;
+  } else {
+    const auto released = ip->pending_output_bytes - current;
+    g_total_pending_output_bytes =
+        released > g_total_pending_output_bytes ? 0 : g_total_pending_output_bytes - released;
+  }
+  ip->pending_output_bytes = current;
+}
+
+}  // namespace
+
+bool comm_output_budget_allows_for_test(std::size_t pending, std::size_t total,
+                                        std::size_t incoming,
+                                        std::size_t per_connection_limit,
+                                        std::size_t total_limit) {
+  return output_budget_allows(pending, total, incoming, per_connection_limit, total_limit);
+}
+
+std::size_t comm_pending_output_bytes_for_test() {
+  return g_total_pending_output_bytes;
+}
+
+std::size_t comm_output_budget_rejections_for_test() {
+  return g_output_budget_rejections;
+}
+
+void comm_release_output(interactive_t* ip) {
+  if (!ip) {
+    return;
+  }
+  const auto released = ip->pending_output_bytes;
+  g_total_pending_output_bytes =
+      released > g_total_pending_output_bytes ? 0 : g_total_pending_output_bytes - released;
+  ip->pending_output_bytes = 0;
+}
+
+void comm_output_enter(interactive_t* ip) {
+  if (ip) {
+    ++ip->output_send_depth;
+  }
+}
+
+bool comm_queue_output(interactive_t* ip, evbuffer* output, const void* data, std::size_t len) {
+  if (!ip || !output || (ip->iflags & CLOSING)) {
+    return false;
+  }
+
+  update_output_accounting(ip, output);
+  const auto per_connection_limit =
+      configured_output_limit(CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__));
+  const auto total_limit =
+      configured_output_limit(CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__));
+  if (!output_budget_allows(ip->pending_output_bytes, g_total_pending_output_bytes, len,
+                            per_connection_limit, total_limit)) {
+    ++g_output_budget_rejections;
+    debug_message("Closing interactive connection after exceeding output budget "
+                  "(pending=%zu, incoming=%zu, total=%zu).\n",
+                  ip->pending_output_bytes, len, g_total_pending_output_bytes);
+    remove_user_connection(ip);
+    return false;
+  }
+
+  if (evbuffer_add(output, data, len) < 0) {
+    debug_message("Closing interactive connection after output enqueue failure (bytes=%zu).\n", len);
+    remove_user_connection(ip);
+    return false;
+  }
+  ip->pending_output_bytes += len;
+  g_total_pending_output_bytes += len;
+  return true;
+}
+
+void comm_update_output_accounting(interactive_t* ip, evbuffer* output) {
+  update_output_accounting(ip, output);
+}
+
+namespace {
+
+class OutputSendGuard {
+ public:
+  explicit OutputSendGuard(interactive_t* ip) : ip_(ip) {
+    comm_output_enter(ip_);
+  }
+
+  ~OutputSendGuard() {
+    comm_output_leave(ip_);
+  }
+
+ private:
+  interactive_t* ip_;
+};
+
+}  // namespace
+
 #ifdef NO_SNOOP
 #define handle_snoop(str, len, who)
 #else
@@ -394,13 +510,13 @@ void on_user_read(bufferevent* /*bev*/, void* arg) {
   // should probably move it here.
 }
 
-void on_user_write(bufferevent* /*bev*/, void* arg) {
+void on_user_write(bufferevent* bev, void* arg) {
   auto* user = reinterpret_cast<interactive_t*>(arg);
   if (user == nullptr) {
     DEBUG_FATAL("on_user_write: user == NULL, Driver BUG.");
     return;
   }
-  // nothing to do.
+  comm_update_output_accounting(user, bufferevent_get_output(bev));
 }
 
 void on_user_events(bufferevent* /*bev*/, short events, void* arg) {
@@ -953,6 +1069,7 @@ void add_message(object_t* who, const char* data, int len) {
   inet_packets++;
 
   auto* ip = who->interactive;
+  OutputSendGuard output_guard(ip);
 
 #ifdef PACKAGE_GATEWAY
   if ((ip->iflags & GATEWAY_SESSION) && ip->gateway_session_id) {
@@ -1015,7 +1132,7 @@ void add_message(object_t* who, const char* data, int len) {
       if (ip->connection_type == PORT_TYPE_TELNET) {
         telnet_send_text(ip->telnet, result.data(), result.size());
       } else {
-        bufferevent_write(ip->ev_buffer, result.data(), result.size());
+        comm_queue_output(ip, bufferevent_get_output(ip->ev_buffer), result.data(), result.size());
       }
     } break;
     case PORT_TYPE_WEBSOCKET: {
@@ -1028,9 +1145,15 @@ void add_message(object_t* who, const char* data, int len) {
     }
     default: {
       inet_volume += len;
-      bufferevent_write(ip->ev_buffer, data, len);
+      comm_queue_output(ip, bufferevent_get_output(ip->ev_buffer), data, len);
       break;
     }
+  }
+
+  // A rejected queue request closes the session while the guard keeps ip alive;
+  // do not run snoop/shadow callbacks against that detached session.
+  if (ip->iflags & CLOSING) {
+    return;
   }
 
 #ifdef SHADOW_CATCH_MESSAGE
@@ -1115,6 +1238,7 @@ int flush_message(interactive_t* ip) {
         if (wrote > 0) {
           evbuffer_drain(output, wrote);
         }
+        comm_update_output_accounting(ip, output);
         return wrote > 0;
       }
     } else {
@@ -1128,6 +1252,7 @@ int flush_message(interactive_t* ip) {
         evbuffer_unfreeze(output, 1);
         auto wrote = evbuffer_write(output, fd);
         evbuffer_freeze(output, 1);
+        comm_update_output_accounting(ip, output);
         return wrote != -1;
       }
     }
@@ -1929,6 +2054,7 @@ int process_user_command_snapshot(interactive_t* ip, const char* command_snapsho
 namespace {
 
 void release_user_resources(interactive_t* ip) {
+  comm_release_output(ip);
   // Cleanup events, must happen after ssl.
   if (ip->ev_buffer != nullptr) {
     // see http://www.wangafu.net/~nickm/libevent-book/Ref6a_advanced_bufferevents.html
@@ -1966,7 +2092,8 @@ void release_user_resources(interactive_t* ip) {
 }
 
 void finish_deferred_user_cleanup(interactive_t* ip) {
-  if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0) {
+  if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0 ||
+      ip->output_send_depth != 0) {
     return;
   }
   ip->cleanup_pending = false;
@@ -1975,6 +2102,16 @@ void finish_deferred_user_cleanup(interactive_t* ip) {
 }
 
 }  // namespace
+
+void comm_output_leave(interactive_t* ip) {
+  if (!ip || ip->output_send_depth == 0) {
+    return;
+  }
+  --ip->output_send_depth;
+  if (ip->output_send_depth == 0 && ip->cleanup_pending && ip->telnet_receive_depth == 0) {
+    finish_deferred_user_cleanup(ip);
+  }
+}
 
 static bool receive_user_telnet_data(interactive_t* ip, const char* data, size_t len) {
   TelnetReceiveGuard guard(ip);
@@ -1996,7 +2133,7 @@ void remove_user_connection(interactive_t* ip) {
   ip->iflags |= CLOSING;
   user_del(ip);
   ip->ob = nullptr;
-  if (ip->telnet_receive_depth != 0) {
+  if (ip->telnet_receive_depth != 0 || ip->output_send_depth != 0) {
     ip->cleanup_pending = true;
     return;
   }
@@ -2074,7 +2211,7 @@ void remove_interactive(object_t* ob, int dested) {
     ip->snooped_by = nullptr;
   }
 #endif
-  const bool defer_cleanup = ip->telnet_receive_depth != 0;
+  const bool defer_cleanup = ip->telnet_receive_depth != 0 || ip->output_send_depth != 0;
   if (!defer_cleanup) {
     release_user_resources(ip);
   }

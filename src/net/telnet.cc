@@ -95,13 +95,16 @@ static inline void on_telnet_data(const char* buffer, unsigned long size, intera
 }
 
 static inline void on_telnet_send(const char* buffer, unsigned long size, interactive_t* ip) {
+  comm_output_enter(ip);
   //no need to test if binary as only binary enables telnet
   if (ip->connection_type == PORT_TYPE_WEBSOCKET) {
     auto transdata = u8_convert_encoding(ip->trans, buffer, size);
     auto result = transdata.empty() ? std::string_view(buffer, size) : transdata;
     websocket_send_text(ip->lws, result.data(), result.size());
-  } else
-    bufferevent_write(ip->ev_buffer, buffer, size);
+  } else {
+    comm_queue_output(ip, bufferevent_get_output(ip->ev_buffer), buffer, size);
+  }
+  comm_output_leave(ip);
 }
 
 static inline bool telnet_connection_alive(const interactive_t* ip) {

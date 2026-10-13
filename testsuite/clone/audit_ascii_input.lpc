@@ -20,6 +20,9 @@ int query_disconnects() {
 mixed process_input(string line) {
   received += ({ line });
   switch (line) {
+    case "emit":
+      write("123456");
+      break;
     case "close":
       remove_interactive(this_object());
       break;
