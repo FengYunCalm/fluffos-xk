@@ -18,7 +18,10 @@ title: arrays / member_array
 
     Returns the index of the first occurence of 'item' in array  'arr',  or
     the  first  occurence  at  or after 'start'.  If the item is not found,
-    then -1 is returned.
+    then -1 is returned.  'start' must be non-negative.  For arrays, a start
+    equal to or beyond the container length returns -1; a start beyond the
+    string length is an error.  Backward searches also return -1 when no item
+    matches.
 
     Note, if the second argument is a string, the first parameter must be an int
     representing the character you are looking for in the provided string.

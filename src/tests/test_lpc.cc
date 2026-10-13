@@ -1023,3 +1023,39 @@ TEST_F(DriverTest, TestRecompileSafetyCoroutineRejectsReplaceProgram) {
   destruct_object_for_test(object);
   destruct_object_for_test(replacement);
 }
+
+TEST_F(DriverTest, TestAuditMemberArrayIndices) {
+  struct ObjectGuard {
+    object_t* object;
+    ~ObjectGuard() {
+      if (object != nullptr) {
+        destruct_object_for_test(object);
+      }
+    }
+  } guard{load_object_for_test("single/tests/efuns/audit_member_array_indices")};
+  ASSERT_NE(guard.object, nullptr);
+
+  auto invoke_number = [&](const char* method) {
+    auto* result = safe_apply(method, guard.object, 0, ORIGIN_DRIVER);
+    if (result == nullptr) {
+      ADD_FAILURE() << method << " unexpectedly failed";
+      vm_apply_return_clear();
+      return;
+    }
+    if (result->type != T_NUMBER) {
+      ADD_FAILURE() << method << " returned svalue type " << result->type;
+      vm_apply_return_clear();
+      return;
+    }
+    EXPECT_EQ(result->u.number, 0) << method;
+    vm_apply_return_clear();
+  };
+
+  invoke_number("normal_and_reverse");
+  invoke_number("wide_start");
+  invoke_number("boundary_start");
+
+  auto* rejected = safe_apply("negative_start", guard.object, 0, ORIGIN_DRIVER);
+  EXPECT_EQ(rejected, nullptr);
+  vm_apply_return_clear();
+}

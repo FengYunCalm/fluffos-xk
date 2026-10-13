@@ -1092,7 +1092,7 @@ void f_match_path() {
 void f_member_array() {
   array_t* v;
   int flag = 0;
-  int i;
+  LPC_INT i;
   int size;
 
   if (st_num_arg > 2) {
@@ -1116,10 +1116,11 @@ void f_member_array() {
       error("member_array: can not search backwards in strings");
     }
     CHECK_TYPES(sp - 1, T_NUMBER, 1, F_MEMBER_ARRAY);
-    if (i > SVALUE_STRLEN(sp)) {
+    const size_t start = static_cast<size_t>(i);
+    if (start > SVALUE_STRLEN(sp)) {
       error("Index to start search from in member_array() is > string length.\n");
     }
-    if ((res = strchr(sp->u.string + i, (sp - 1)->u.number))) {
+    if ((res = strchr(sp->u.string + start, (sp - 1)->u.number))) {
       i = res - sp->u.string;
     } else {
       i = -1;
@@ -1145,7 +1146,7 @@ void f_member_array() {
     }
 
     for (; i < size; i++) {
-      int tmp = i;
+      int tmp = static_cast<int>(i);
       if (flag & 2) {
         tmp = size - tmp - 1;
       }
@@ -1244,12 +1245,12 @@ void f_member_array() {
     if (i >= size) {
       i = -1; /* Return -1 for failure */
     }
+    if ((flag & 2) && i >= 0) {
+      i = size - i - 1;
+    }
     free_array(v);
     free_svalue(find, "f_member_array");
     sp--;
-  }
-  if (flag & 2) {
-    i = size - i - 1;
   }
   put_number(i);
 }

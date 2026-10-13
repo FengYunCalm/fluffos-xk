@@ -1,0 +1,62 @@
+int normal_and_reverse() {
+  int *values = ({ 1, 2, 3, 2 });
+
+  if (member_array(2, values) != 1) {
+    return 1;
+  }
+  if (member_array(2, values, 0, 2) != 3) {
+    return 2;
+  }
+  if (member_array(9, values, 0, 2) != -1) {
+    return 3;
+  }
+  if (member_array("fo", ({ "bar", "foo", 3 }), 0, 1) != 1) {
+    return 4;
+  }
+  if (member_array((: $1 == 2 :), values, 0, 4) != 1) {
+    return 5;
+  }
+  if (member_array((: $1 > 9 :), values, 0, 4) != -1) {
+    return 6;
+  }
+  return 0;
+}
+
+int wide_start() {
+  int *values = ({ 1, 2, 3 });
+
+  // These starts must not narrow to a valid array index before validation.
+  if (member_array(2, values, 0x100000001) != -1) {
+    return 1;
+  }
+  if (member_array(2, values, 0x7fffffffffffffff, 2) != -1) {
+    return 2;
+  }
+  return 0;
+}
+
+int boundary_start() {
+  int *values = ({ 1, 2, 3 });
+
+  if (member_array(1, values, 3) != -1) {
+    return 1;
+  }
+  if (member_array(1, values, 3, 2) != -1) {
+    return 2;
+  }
+  if (member_array(1, values, 2, 2) != 0) {
+    return 3;
+  }
+  return 0;
+}
+
+int negative_start() {
+  return member_array(1, ({ 1 }), -1);
+}
+
+void do_tests() {
+  ASSERT_EQ(0, normal_and_reverse());
+  ASSERT_EQ(0, wide_start());
+  ASSERT_EQ(0, boundary_start());
+  ASSERT(catch(negative_start()));
+}
