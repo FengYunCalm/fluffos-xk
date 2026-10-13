@@ -362,6 +362,14 @@ jobs:
         if: ${{ !matrix.sanitizer }}
         run: cd build && make test
 
+      - name: Upload targeted test evidence
+        if: ${{ always() && matrix.platform == 'Ubuntu' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: targeted-test-evidence-${{ matrix.compiler }}-${{ matrix.build }}-${{ matrix.sanitizer || 'none' }}
+          path: build/test-evidence
+          if-no-files-found: ignore
+
       - name: Run Sanitizer Targeted Tests (TSan)
         if: matrix.sanitizer == 'tsan'
         run: |

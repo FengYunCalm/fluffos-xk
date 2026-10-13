@@ -936,7 +936,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="testsuite/etc config.<name> template copied to config.test (driver mode only)",
     )
     parser.add_argument("--timeout", type=int, default=None, help="positive timeout in seconds (default 180)")
-    parser.add_argument("--evidence-dir", help="new directory for logs and machine-readable records")
+    evidence = parser.add_mutually_exclusive_group()
+    evidence.add_argument("--evidence-dir", help="new directory for logs and machine-readable records")
+    evidence.add_argument(
+        "--evidence-root",
+        help="persistent parent; create a unique child directory for logs and records",
+    )
     parser.add_argument("tool_args", nargs=argparse.REMAINDER, help="arguments after -- for --tool")
     return parser
 
@@ -979,7 +984,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     timeout = validate_arguments(parser, args)
     session = None
     try:
-        session = EvidenceSession(args.evidence_dir)
+        requested_evidence = args.evidence_dir
+        if args.evidence_root:
+            parent = Path(args.evidence_root).expanduser().resolve()
+            parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            requested_evidence = str(parent / f"run-{os.getpid()}-{time.time_ns()}")
+        session = EvidenceSession(requested_evidence)
         if args.binary:
             summary = run_binary(session, require_executable(args.binary), args.gtest_filter, timeout)
         elif args.ctest_dir:

@@ -72,6 +72,7 @@ if(${GTEST_FOUND})
     add_test(NAME file_io_tests
       COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/run-targeted.py"
         --binary $<TARGET_FILE:file_io_tests> --gtest-filter=FileIoTest.* --timeout 90
+        --evidence-root "${CMAKE_BINARY_DIR}/test-evidence/file_io"
     )
     add_test(NAME lpcc_io_tests
       COMMAND "${Python3_EXECUTABLE}" -B "${CMAKE_SOURCE_DIR}/tools/testsuite/test-lpcc-io.py"

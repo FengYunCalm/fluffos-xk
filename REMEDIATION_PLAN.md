@@ -2557,7 +2557,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 **实施步骤**
 
 1. 冻结本卡源码/编译配置与输入身份。核对上述位置和当前调用者，先复现“只剩临时路径，原日志未上传”；记录预期失败，不把新测试未注册、空 filter 或 skip 当作复现。
-2. 每次 runner/嵌套 CTest 显式使用工作区下唯一 evidence-dir。
+2. 每次 runner/嵌套 CTest 显式使用工作区下唯一 evidence-root；runner 在父目录下创建不可覆盖的唯一子目录。
 3. always 上传受控 summary、有界完整日志和身份元数据；不上传凭据、环境或任意 /tmp。
 4. 保留失败码，用受控失败确认 artifact 可定位具体断言。
 5. 已知失败可从 artifact 恢复断言与身份，job 仍失败；成功/中断可追踪且敏感文件不归档。 正常、精确边界、失败与异常/清理必须分别有断言。同时保留 runner 的 selected/executed、断言与异步完成门禁。
@@ -2584,6 +2584,7 @@ N=AUD-042
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --tool "$PY" --timeout 180 --evidence-dir "$E/$N-runner-selftest" \
   -- -B tools/testsuite/test-run-targeted.py
+# CTest 的 file_io_tests 使用 --evidence-root build/test-evidence/file_io；
 # 随后对 CI 文件执行 tools/docs/check-workflows.py --self-test 与固定版 actionlint。
 ```
 
@@ -2591,7 +2592,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：以上检查、归属文档和精确提交均有证据；本卡已实施：`run-targeted.py` 增加互斥的 `--evidence-root`，在持久父目录下以进程号和时间戳创建唯一子目录，失败 summary、日志、records 和输入身份均留在工作区；`src/tests/CMakeLists.txt` 的 `file_io_tests` 使用该入口；CI 在 Ubuntu 单元测试后以 `always()` 上传 `build/test-evidence`，不上传任意 `/tmp`。runner 自测通过，Debug `file_io_tests` 真实 runner 结果为 `selected=96,passed=96,failed=0,skipped=0`，CTest 精确选择 `1/1 Passed`；同一次 CTest 可见两个唯一证据子目录，未覆盖旧证据。CI 工作流自测通过；本机没有 `actionlint`，未声称该项通过。证据见 `build-modernization-evidence/audit-f3317359-20261013T001301Z/AUD-042-runner-selftest.log`、`AUD-042-configure-dev-debug.log`、`AUD-042-build-file-io-tests.log`、`AUD-042-file-io-run.log`、`AUD-042-ctest-file-io.log`、`AUD-042-workflow-selftest.log`、`AUD-042-actionlint.log`，持久 runner 证据在 `build-dev-debug/test-evidence/file_io/`。原 CI 临时日志不可恢复；此前 GCC RelWithDebInfo 同型复跑的 2 项失败仍按 AUD-044 测试注入缺口归类。该卡状态为 `fixed/persistent-evidence`，尚未代表 CI 远端重新运行或 69 项整体完成。
 
 <a id="aud-043"></a>
 ### AUD-043 · 空输入尾裁剪形成起点之前的指针
