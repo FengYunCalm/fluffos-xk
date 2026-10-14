@@ -1,10 +1,213 @@
 #include <atomic>
+#include <cerrno>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <thread>
+#include <vector>
+
+#if defined(__linux__)
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+extern char** environ;
+#endif
 
 #include "test_lpc_support.h"
 
+#include "base/internal/rc.h"
+
 #include "packages/core/reclaim.h"
 #include "vm/internal/eval_limit.h"
+
+namespace {
+#if defined(__linux__)
+struct ConfigProbeResult {
+  int exit_code;
+  std::string output;
+};
+
+ConfigProbeResult run_config_probe(const std::filesystem::path& config_path) {
+  std::error_code error;
+  const auto executable = std::filesystem::read_symlink("/proc/self/exe", error);
+  if (error) {
+    return {127, "unable to locate test executable"};
+  }
+
+  std::string output_template =
+      (std::filesystem::temp_directory_path() / "fluffos-aud013-output-XXXXXX").string();
+  std::vector<char> output_name(output_template.begin(), output_template.end());
+  output_name.push_back('\0');
+  const int output_fd = mkstemp(output_name.data());
+  if (output_fd < 0) {
+    return {127, "unable to create probe output"};
+  }
+
+  posix_spawn_file_actions_t actions;
+  if (posix_spawn_file_actions_init(&actions) != 0) {
+    close(output_fd);
+    std::filesystem::remove(output_name.data());
+    return {127, "unable to initialize probe file actions"};
+  }
+  const int redirect_stdout =
+      posix_spawn_file_actions_adddup2(&actions, output_fd, STDOUT_FILENO);
+  const int redirect_stderr =
+      posix_spawn_file_actions_adddup2(&actions, output_fd, STDERR_FILENO);
+  int close_output = 0;
+  if (output_fd > STDERR_FILENO) {
+    close_output = posix_spawn_file_actions_addclose(&actions, output_fd);
+  }
+  if (redirect_stdout != 0 || redirect_stderr != 0 || close_output != 0) {
+    posix_spawn_file_actions_destroy(&actions);
+    close(output_fd);
+    std::filesystem::remove(output_name.data());
+    return {127, "unable to configure probe output"};
+  }
+
+  const char* previous_probe = std::getenv("FLUFFOS_AUDIT_CONFIG_PROBE");
+  const std::string previous_value = previous_probe ? previous_probe : "";
+  const bool had_previous_value = previous_probe != nullptr;
+  const std::string probe_value = config_path.string();
+  if (setenv("FLUFFOS_AUDIT_CONFIG_PROBE", probe_value.c_str(), 1) != 0) {
+    posix_spawn_file_actions_destroy(&actions);
+    close(output_fd);
+    std::filesystem::remove(output_name.data());
+    return {127, "unable to set probe environment"};
+  }
+
+  std::string executable_string = executable.string();
+  std::string filter = "--gtest_filter=DriverTest.TestAuditConfigLineProbe";
+  std::string color = "--gtest_color=no";
+  char* argv[] = {executable_string.data(), filter.data(), color.data(), nullptr};
+  pid_t child = -1;
+  const int spawn_result = posix_spawn(&child, executable_string.c_str(), &actions, nullptr,
+                                       argv, environ);
+  posix_spawn_file_actions_destroy(&actions);
+  close(output_fd);
+  if (had_previous_value) {
+    setenv("FLUFFOS_AUDIT_CONFIG_PROBE", previous_value.c_str(), 1);
+  } else {
+    unsetenv("FLUFFOS_AUDIT_CONFIG_PROBE");
+  }
+
+  int exit_code = 127;
+  if (spawn_result == 0) {
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {
+    }
+    if (WIFEXITED(status)) {
+      exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+      exit_code = 128 + WTERMSIG(status);
+    }
+  }
+
+  std::ifstream output_file(output_name.data());
+  std::ostringstream output;
+  output << output_file.rdbuf();
+  std::filesystem::remove(output_name.data());
+  if (spawn_result != 0) {
+    output << "posix_spawn failed: " << spawn_result << '\n';
+  }
+  return {exit_code, output.str()};
+}
+
+std::filesystem::path write_config_fixture(size_t target_length, bool long_comment,
+                                            bool final_newline, size_t* line_number,
+                                            std::string* marker) {
+  const std::filesystem::path base_path = std::filesystem::path(TESTSUITE_DIR) / "etc/config.test";
+  std::ifstream base_file(base_path);
+  if (!base_file.is_open()) {
+    return {};
+  }
+  std::vector<std::string> lines;
+  std::string line;
+  while (std::getline(base_file, line)) {
+    if (line.rfind("name :", 0) != 0) {
+      lines.push_back(line);
+    }
+  }
+
+  const std::string prefix = "name : ";
+  const size_t value_length = target_length - prefix.size();
+  *marker = "aud013_" + std::string(value_length - 7, 'x');
+  const std::string candidate = prefix + *marker;
+
+  std::ostringstream content;
+  for (const auto& base_line : lines) {
+    content << base_line << '\n';
+  }
+  if (long_comment) {
+    content << '#' << std::string(180, 'x') << '\n';
+  }
+  *line_number = lines.size() + (long_comment ? 1 : 0) + 1;
+  content << candidate;
+  if (final_newline) {
+    content << '\n';
+  }
+
+  std::string path_template =
+      (std::filesystem::temp_directory_path() / "fluffos-aud013-config-XXXXXX").string();
+  std::vector<char> path_name(path_template.begin(), path_template.end());
+  path_name.push_back('\0');
+  const int fd = mkstemp(path_name.data());
+  if (fd < 0) {
+    return {};
+  }
+  close(fd);
+  std::ofstream fixture(path_name.data(), std::ios::trunc);
+  fixture << content.str();
+  fixture.close();
+  return path_name.data();
+}
+#endif
+}  // namespace
+
+TEST_F(DriverTest, TestAuditConfigLineProbe) {
+#if defined(__linux__)
+  const char* config_path = std::getenv("FLUFFOS_AUDIT_CONFIG_PROBE");
+  if (config_path && config_path[0] != '\0') {
+    read_config(config_path);
+  }
+#else
+  GTEST_SKIP() << "AUD-013 native config probe requires Linux process isolation";
+#endif
+}
+
+TEST_F(DriverTest, TestAuditConfigLineBoundaries) {
+#if defined(__linux__)
+  const auto run_case = [](size_t target_length, bool long_comment, bool final_newline,
+                           bool expect_success) {
+    size_t line_number = 0;
+    std::string marker;
+    const auto config_path =
+        write_config_fixture(target_length, long_comment, final_newline, &line_number, &marker);
+    ASSERT_FALSE(config_path.empty());
+    const auto result = run_config_probe(config_path);
+    std::filesystem::remove(config_path);
+
+    if (expect_success) {
+      EXPECT_EQ(result.exit_code, 0) << result.output;
+    } else {
+      EXPECT_NE(result.exit_code, 0) << result.output;
+      EXPECT_NE(result.output.find("line " + std::to_string(line_number)), std::string::npos)
+          << result.output;
+      EXPECT_NE(result.output.find("exceeds"), std::string::npos) << result.output;
+      EXPECT_EQ(result.output.find(marker), std::string::npos) << result.output;
+    }
+  };
+
+  run_case(119, false, true, true);
+  run_case(119, false, false, true);
+  run_case(119, true, true, true);
+  run_case(120, false, true, false);
+  run_case(121, false, false, false);
+#else
+  GTEST_SKIP() << "AUD-013 native config boundary test requires Linux process isolation";
+#endif
+}
 
 TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   constexpr uint64_t kBudgetMicros = 10'000;

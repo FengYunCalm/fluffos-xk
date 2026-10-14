@@ -15,8 +15,11 @@ FluffOS uses a runtime configuration file to specify various settings for the MU
 ## File Format
 
 - Lines beginning with `#` are comments
+- Text after `#` is ignored
 - Empty lines are ignored
 - Format: `setting_name : value`
+- A setting line may contain at most 119 bytes after comment removal and trimming. A longer setting fails startup with its physical line number; the configuration value is not included in the error.
+- A long comment is ignored, and a final line without a newline is valid.
 - Paths are relative to the mudlib directory (except mudlib directory itself)
 
 ## Core Settings

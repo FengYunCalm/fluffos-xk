@@ -231,25 +231,92 @@ void read_config(const char* filename) {
 
   std::stringstream buffer;
   buffer << f.rdbuf();
+  if (f.bad() || (f.fail() && !f.eof())) {
+    debug_message("*Error in config file: read failure.\n");
+    exit(-1);
+  }
 
-  char tmp[K_MAX_CONFIG_LINE_LENGTH];
-  while (buffer.getline(&tmp[0], sizeof(tmp), '\n')) {
-    if (strlen(tmp) == K_MAX_CONFIG_LINE_LENGTH - 1) {
-      debug_message("*Warning: possible truncated config line: %s\n", tmp);
+  const auto is_config_space = [](char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\v' ||
+           c == '\f' || c == '\r';
+  };
+  const size_t kMaxConfigContent = K_MAX_CONFIG_LINE_LENGTH - 1;
+  char tmp[K_MAX_CONFIG_LINE_LENGTH]{};
+  size_t line_number = 0;
+  // Keep the accepted setting content bounded without treating a full buffer as EOF.
+  for (;;) {
+    std::string v;
+    v.reserve(kMaxConfigContent);
+    bool line_has_input = false;
+    bool in_comment = false;
+    bool overlong = false;
+    bool reached_eof = false;
+    ++line_number;
+
+    for (;;) {
+      const int next = buffer.get();
+      if (next == std::char_traits<char>::eof()) {
+        reached_eof = true;
+        if (buffer.bad() || (buffer.fail() && !buffer.eof())) {
+          debug_message("*Error in config file at line %zu: read failure.\n", line_number);
+          exit(-1);
+        }
+        if (!line_has_input) {
+          --line_number;
+        }
+        break;
+      }
+
+      line_has_input = true;
+      const char c = static_cast<char>(next);
+      if (c == '\n') {
+        break;
+      }
+      if (in_comment) {
+        continue;
+      }
+      if (c == '#') {
+        in_comment = true;
+        continue;
+      }
+
+      if (v.empty() && is_config_space(c)) {
+        continue;
+      }
+      if (is_config_space(c)) {
+        if (v.size() < kMaxConfigContent) {
+          v.push_back(c);
+        }
+        continue;
+      }
+      if (v.size() >= kMaxConfigContent) {
+        while (!v.empty() && is_config_space(v.back())) {
+          v.pop_back();
+        }
+        if (v.size() >= kMaxConfigContent) {
+          overlong = true;
+          continue;
+        }
+      }
+      v.push_back(c);
     }
 
-    std::string v(tmp);
-
-    // ignore anything after # in the line.
-    auto pos = v.find_first_of('#');
-    if (pos != std::string::npos) {
-      v.erase(pos);
+    if (!line_has_input) {
+      break;
+    }
+    if (overlong) {
+      debug_message(
+          "*Error in config file at line %zu: setting line exceeds %zu characters.\n",
+          line_number, kMaxConfigContent);
+      exit(-1);
     }
     v = trim(v);
-    if (v.empty()) {
-      continue;
+    if (!v.empty()) {
+      config_lines.push_back(v + "\n");
     }
-    config_lines.push_back(v + "\n");
+    if (reached_eof) {
+      break;
+    }
   }
 
   // OS environment allow-lists for get_os_env()/set_os_env() (package_contrib).

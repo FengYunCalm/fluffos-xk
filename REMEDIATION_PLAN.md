@@ -952,44 +952,42 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P2 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/base/internal/rc.cc:32–33`、`src/base/internal/rc.cc:229–254`。
-- **作用范围：**`src/base/internal/rc.cc`、`src/tests/test_lpc.cc`、`etc/config.test`、`docs/driver/config.md`。测试归属 `src/tests/test_lpc.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/base/internal/rc.cc`、`src/tests/test_lpc.cc`、`docs/driver/config.md`。测试归属 `src/tests/test_lpc.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**构建/依赖维护者；4–8 小时。
 - **必须击中的根因：**把 getline 的缓冲耗尽失败与正常 EOF 当成同一终止条件。
 
 #### 操作
 
-1. 保留 K_MAX_CONFIG_LINE_LENGTH=120 的有界读取；显式检查 getline 的 fail/bad/eof 状态。超长行在解析任何后续配置前报错退出，不用读取整条任意长行后才检查长度。
-2. 正确区分空 EOF、无末尾换行的合法行、恰好 119 字节的合法行和 120 字节以上的失败行；保留原注释剥除/trim/空行处理。删除会打印整行值的 truncated warning。配置启动失败就停止，不引入不必要的运行时配置事务重构。
-3. 核对外部端口、路径与 TLS 配置的 scanf 宽度，保持经过长度检查后才能进入解析的单一入口。
+1. 保留 `K_MAX_CONFIG_LINE_LENGTH=120` 的有界逐字符读取；显式区分正常 EOF、`fail` 和 `bad`。超长设置在解析任何后续配置前报错退出，不读取或打印整条任意长行。
+2. 正确区分空 EOF、无末尾换行的合法行、恰好 119 字节的合法行和 120 字节以上的失败行；保留原注释剥除、trim、空行处理及内部空格语义。删除会打印整行值的 truncated warning。配置启动失败就停止，不引入运行时配置事务重构。
+3. 核对外部端口、路径与 TLS 配置的 `scanf` 宽度，保持经过长度检查后才能进入解析的单一入口。
 
-#### 关键修改示例
+#### 关键修改合同
 
 ```text
-while (std::getline(buffer, line)) {
-  ++line_number;
-  if (line.size() >= K_MAX_CONFIG_LINE_LENGTH) {
-    reject_overlong_config_line(line_number);
-  }
-  config_lines.push_back(line);
-}
-if (!buffer.eof()) {
-  reject_config_read_error();
-}
+逐字符读取一个物理行：
+  - 注释尾部直接丢弃；设置内容最多保留 119 字节；
+  - 120 字节以上的设置立即按物理行号拒绝；
+  - 无字符 EOF 结束读取；带内容 EOF 仍处理最后一行；
+  - stream bad/fail（非 EOF）立即拒绝配置。
 ```
+
+实现使用有界逐字符读取，而不是无界 `std::getline`；因此不会把固定 `sscanf` 目标数组的长度检查推迟到任意长输入已经读入之后。
 
 #### 定向验证
 
 - **场景：**119/120/121 字节边界、有/无末尾换行、超长注释及后续合法配置；验证报错行号和不会悄悄继续启动。
-- **profile/真实边界：**新进程配置解析测试，Debug、ASan；不把失败配置喂给现有 driver。
+- **profile/真实边界：**新进程配置解析测试，Debug、ASan；不操作正在运行的 driver。失败配置只喂给隔离的测试子进程和私有构建二进制。
 - **新增 native filter：**`DriverTest.TestAuditConfigLine*`，目标 `lpc_tests`。
 
 ```bash
-N=AUD-013
 F='DriverTest.TestAuditConfigLine*'
-B="$BD"
-HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --binary "$B/src/tests/lpc_tests" --gtest-filter "$F" \
-  --timeout 180 --evidence-dir "$E/$N-native-debug"
+python3 -B tools/testsuite/run-targeted.py \
+  --binary "$E/native-debug-pcre-off/lpc_tests-after-reader-fix" \
+  --gtest-filter "$F" --evidence-root "$E/native-debug-pcre-off/runner-after-reader-fix"
+ASAN_OPTIONS=detect_leaks=0 python3 -B tools/testsuite/run-targeted.py \
+  --binary "$E/native-asan-pcre-off/lpc_tests" \
+  --gtest-filter "$F" --evidence-root "$E/native-asan-pcre-off/runner-detect-leaks-off"
 ```
 
 - **独立 LPC case：**不适用或由 native 夹具运行真实 LPC 回调覆盖。不能增加没有断言的假用例。
@@ -998,9 +996,9 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 - **验收：**超限或读取失败明确非零退出；合法边界值全部解析；后续配置既不丢失也不在失败后被误认为生效。
 - **风险与缓解：**不能只换成无界 std::getline：后续 sscanf 的目标仍有固定数组。保留原可接受长度，不扩大未审计输入范围。
-- **文档同步：**`docs/driver/config.md`；只更新受影响的合同/流程，不复制历史测试数字。
+- **文档同步：**`docs/driver/config.md`；已记录 119 字节合法上限、超长设置拒绝、长注释忽略和无换行 EOF 语义。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成本地可执行范围验证。`rc.cc` 现在用有界逐字符读取，区分正常 EOF、带内容 EOF、超长设置和读取失败；超长设置报物理行号并且不打印配置值。Debug 受监督 runner `TestAuditConfigLine*` 为发现 2、执行 2、通过 2、失败 0；ASan 使用项目预设的 `ASAN_OPTIONS=detect_leaks=0` 同样为 `2/2`。ASan 首次未关闭默认 LeakSanitizer 时记录了配置初始化子进程的分配泄漏，原始失败证据保留于 `audit-evidence/aud013-current-01/native-asan-pcre-off/runner/`，不能把该次写成通过。隔离 Debug driver 对 120 字节设置行返回 255，并报告 `line 397` 与 `exceeds 119 characters`；完整持久证据见 `audit-evidence/aud013-current-01/`。未取得非 Linux 原生运行证据；本单元不宣称跨平台动态通过。
 
 ### AUD-014 · 数据库编号比较漏写变量展开，错误也未终止 CMake
 

@@ -1130,17 +1130,17 @@ static char* first_cmd_in_buf(interactive_t* ip) {
 - **触发前提：**配置文件某行达到固定 120 字节缓冲上限，流进入 failbit；合法后续配置仍存在。
 - **影响：**while(getline(...)) 在循环体前结束，体内的截断警告无法覆盖失败的那一行，后续配置没有加载。涉及权限/端口配置时可能违背管理员意图。
 - **根因：**把 getline 的缓冲耗尽失败与正常 EOF 当成同一终止条件。
-- **来源与确认边界：**基线已有固定缓冲循环；当前完整读取和警告顺序未消除此 failbit 路径。
-- **位置：**src/base/internal/rc.cc:32–33；src/base/internal/rc.cc:229–254。
+- **来源与确认边界：**该结论针对基线固定缓冲循环；基线完整读取和警告顺序未消除此 failbit 路径。当前实现已改为有界逐字符读取并显式拒绝超长设置，以下代码块保留为基线证据。
+- **位置：**基线 `src/base/internal/rc.cc:32–33`、`src/base/internal/rc.cc:229–254`；当前实现仍归属 `src/base/internal/rc.cc`。
 
-`src/base/internal/rc.cc:32–33`：
+`src/base/internal/rc.cc:32–33`（基线）：
 
 ```text
 const int K_MAX_CONFIG_LINE_LENGTH = 120;
 std::deque<std::string> config_lines;
 ```
 
-`src/base/internal/rc.cc:229–254`：
+`src/base/internal/rc.cc:229–254`（基线）：
 
 ```text
 
@@ -1175,9 +1175,9 @@ std::deque<std::string> config_lines;
 - **修复建议：**保留有界行缓冲，显式区分 EOF、超长行和 I/O 失败；任何读取失败均停止配置初始化，不再悄悄忽略余下安全指令，也不打印整行配置值。
 - **依赖：**无其他问题修复前置；仍须满足公共准入。
 - **风险与缓解：**不能只换成无界 std::getline：后续 sscanf 的目标仍有固定数组。保留原可接受长度，不扩大未审计输入范围。
-- **关联文件：**`src/tests/test_lpc.cc`、`etc/config.test`、`docs/driver/config.md`。
+- **关联文件：**`src/tests/test_lpc.cc`、`docs/driver/config.md`。
 - **工时：**4–8 小时。
-- **状态：**静态确认；代码项未做本轮动态复现；未修复。验收与执行步骤见修复方案同 ID。
+- **状态：**已修复并完成本地可执行范围动态验证。Debug 与 ASan 受监督 runner 的 `DriverTest.TestAuditConfigLine*` 均为发现/执行/通过 `2/2`；覆盖 119 字节合法边界、无换行 EOF、长注释及 120/121 字节拒绝。首次 ASan 默认 LeakSanitizer 记录了配置初始化子进程的分配泄漏，失败证据保留于 `audit-evidence/aud013-current-01/native-asan-pcre-off/runner/`，最终按项目 `detect_leaks=0` 预设通过；隔离 driver 对 120 字节设置行以 255 退出并报告物理行号，不打印配置值。未取得非 Linux 原生运行证据。
 
 ### AUD-014 · 数据库编号比较漏写变量展开，错误也未终止 CMake
 
