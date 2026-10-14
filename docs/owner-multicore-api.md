@@ -298,6 +298,15 @@ Use `vm_owner_runtime_status()` to verify integration. Important fields:
 - `lpc_modern_profile_ready=1`；
 - `lpc_source_encoding_ready=1`。
 
+`gateway_owner_task_contract` 中的生产验收字段另有 fail-closed 约束：没有绑定当前
+二进制的有效证据时，`production_gate_ready=0`、`production_gate_status="unverified"`、
+`production_gate_current_evidence_bound=0`，并返回明确的 `production_gate_blocker`。
+历史 audit、压力和 `socket_release` 标识只放在 `*_historical_evidence` 字段，不能填充
+当前证据字段。ready claim 还必须满足 `production_gate_status="ready"` 且
+`production_gate_blocker` 为空或缺省。`tools/docs/check-evidence.py` 只验证 evidence envelope 的身份、SHA、清理状态、原始
+日志摘要和 ready/status/blocker 一致性，不自动加载或改变 driver 状态。完整字段表和恢复 ready 的前置
+见 [`multicore-production-gate.md`](multicore-production-gate.md)。
+
 ## Verification / 验证
 
 ```bash

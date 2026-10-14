@@ -1452,7 +1452,7 @@ TMPDIR="$E/tmp" "$PY" -B tools/test-sbom.py
 - **来源处理策略：**保留 fork 的对外能力，修当前实现根因，不借机删除合同或覆盖已有修复。
 - **优先级/来源：**P2 / fork 引入问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/vm/internal/owner.cc:1602–1631`、`docs/multicore-production-gate.md:6–15`、`docs/multicore-production-gate.md:124–127`。
-- **作用范围：**`src/vm/internal/owner.cc`、`docs/multicore-production-gate.md`、`tools/docs/check-evidence.py`、`docs/evidence/manifest.schema.json`、`src/tests/test_lpc_owner.cc`。测试归属 `src/tests/test_lpc_owner.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/vm/internal/owner.cc`、`docs/multicore-production-gate.md`、`docs/owner-multicore-api.md`、`tools/docs/check-evidence.py`、`tools/docs/test-evidence-gate.py`、`docs/evidence/manifest.schema.json`、`src/tests/test_lpc_owner.cc`、`testsuite/single/tests/efuns/owner_executor_contract.c`、`testsuite/single/tests/efuns/audit_owner_evidence.lpc`、`testsuite/etc/test-scopes.tsv`。测试归属为 native/LPC owner 合同和 evidence-gate matrix；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**核心维护者/文档责任人；8–16 小时。
 - **必须击中的根因：**状态字段脱离当前 commit、构建配置及原始证据有效性；权威合同要求失效时回到 incomplete/blocked，但代码没有该判断。
 
@@ -1468,7 +1468,10 @@ TMPDIR="$E/tmp" "$PY" -B tools/test-sbom.py
 ```text
 // 没有绑定当前二进制的有效证据时，不报告 current-ready。
 add_mapping_pair(map, "production_gate_ready", 0);
-add_mapping_pair(map, "production_gate_status", "unverified");
+add_mapping_string(map, "production_gate_status", "unverified");
+add_mapping_string(map, "production_gate_blocker",
+                   "current_evidence_not_bound_to_this_binary");
+add_mapping_pair(map, "production_gate_current_evidence_bound", 0);
 ```
 
 #### 定向验证
@@ -1502,7 +1505,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能为让 ready 回到 1 伪造日志或加入可手工绕过的配置开关；不引入本项目不需要的正式发布认证体系。
 - **文档同步：**`docs/multicore-production-gate.md`、`docs/owner-multicore-api.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。运行时 owner contract 已改为 fail-closed：`production_gate_ready=0`、`production_gate_status="unverified"`、`production_gate_current_evidence_bound=0`；历史 mudlib/pressure/socket 标识移至 `*_historical_evidence`，当前证据字段为空并返回明确 blocker。`check-evidence.py` 与 manifest schema 现在拒绝不一致的 ready/status/blocker claim，并在 gate 模式拒绝历史证据的 ready claim；Debug native/LPC/evidence-gate 定向结果和证据见 `audit-evidence/aud022-current-01/`。固定版本 clang-format 18.1.8 在当前环境不可得，因此未宣称格式门禁通过。恢复 ready 仍需要当前二进制绑定的真实 envelope；未执行线上压力、部署或发布。
 
 ### AUD-023 · 权威排版说明仍描述已被 CI 扩大的 pilot 范围
 

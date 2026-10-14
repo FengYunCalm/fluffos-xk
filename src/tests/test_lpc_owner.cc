@@ -11114,6 +11114,46 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
   runtime_cleanup_needed = false;
 }
 
+TEST_F(DriverTest, TestAuditOwnerEvidenceStateFailClosed) {
+  auto* status = vm_owner_runtime_status();
+  ASSERT_NE(status, nullptr);
+  auto* value = find_string_in_mapping(status, "gateway_owner_task_contract");
+  ASSERT_NE(value, nullptr);
+  ASSERT_EQ(value->type, T_MAPPING);
+  auto* contract = value->u.map;
+  ASSERT_NE(contract, nullptr);
+
+  auto number = [&](const char* key) -> long {
+    auto* entry = find_string_in_mapping(contract, key);
+    EXPECT_NE(entry, nullptr);
+    EXPECT_EQ(entry ? entry->type : T_INVALID, T_NUMBER);
+    return entry && entry->type == T_NUMBER ? entry->u.number : -1;
+  };
+  auto string = [&](const char* key) -> const char* {
+    auto* entry = find_string_in_mapping(contract, key);
+    EXPECT_NE(entry, nullptr);
+    EXPECT_EQ(entry ? entry->type : T_INVALID, T_STRING);
+    return entry && entry->type == T_STRING ? entry->u.string : "";
+  };
+
+  EXPECT_EQ(number("production_gate_ready"), 0);
+  EXPECT_STREQ(string("production_gate_status"), "unverified");
+  EXPECT_STREQ(string("production_gate_blocker"),
+               "current_evidence_not_bound_to_this_binary");
+  EXPECT_STREQ(string("production_gate_evidence_kind"), "historical");
+  EXPECT_EQ(number("production_gate_current_evidence_bound"), 0);
+  EXPECT_EQ(number("mudlib_cross_owner_hotspots_ready"), 0);
+  EXPECT_EQ(number("production_gate_pressure_evidence_ready"), 0);
+  EXPECT_EQ(number("production_gate_socket_release_handshake_ready"), 0);
+  EXPECT_STREQ(string("mudlib_cross_owner_hotspots_evidence"), "");
+  EXPECT_STREQ(string("production_gate_pressure_evidence"), "");
+  EXPECT_STREQ(string("production_gate_socket_release_handshake_evidence"), "");
+  EXPECT_STREQ(string("next_blocker"), "current_evidence_not_bound_to_this_binary");
+  EXPECT_STREQ(string("next_blocker_chain"), "production_gate_evidence_required");
+
+  free_mapping(status);
+}
+
 TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
   auto mapping_number = [](mapping_t* map, const char* key) -> long {
     auto* value = map ? find_string_in_mapping(map, key) : nullptr;
@@ -11141,17 +11181,26 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
   };
   auto assert_production_gate_contract = [&](mapping_t* contract) {
     ASSERT_EQ(mapping_number(contract, "mudlib_audit_required"), 1);
-    ASSERT_EQ(mapping_number(contract, "mudlib_cross_owner_hotspots_ready"), 1);
-    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_blocker"), "");
-    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_evidence"),
-                 "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
-    ASSERT_EQ(mapping_number(contract, "production_gate_ready"), 1);
-    ASSERT_STREQ(mapping_string(contract, "production_gate_blocker"), "");
+    ASSERT_EQ(mapping_number(contract, "mudlib_cross_owner_hotspots_ready"), 0);
+    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_blocker"),
+                 "current_evidence_not_bound_to_this_binary");
+    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_evidence"), "");
+    ASSERT_STREQ(
+        mapping_string(contract, "mudlib_cross_owner_hotspots_historical_evidence"),
+        "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
+    ASSERT_EQ(mapping_number(contract, "production_gate_ready"), 0);
+    ASSERT_STREQ(mapping_string(contract, "production_gate_status"), "unverified");
+    ASSERT_STREQ(mapping_string(contract, "production_gate_blocker"),
+                 "current_evidence_not_bound_to_this_binary");
+    ASSERT_STREQ(mapping_string(contract, "production_gate_evidence_kind"), "historical");
+    ASSERT_EQ(mapping_number(contract, "production_gate_current_evidence_bound"), 0);
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_users"), "1,3,10");
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_durations"), "smoke,30m");
-    ASSERT_EQ(mapping_number(contract, "production_gate_pressure_evidence_ready"), 1);
-    ASSERT_STREQ(mapping_string(contract, "production_gate_pressure_evidence"),
-                 "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
+    ASSERT_EQ(mapping_number(contract, "production_gate_pressure_evidence_ready"), 0);
+    ASSERT_STREQ(mapping_string(contract, "production_gate_pressure_evidence"), "");
+    ASSERT_STREQ(
+        mapping_string(contract, "production_gate_pressure_historical_evidence"),
+        "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_modes"), "off,audit,enforced");
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_scenarios"),
                  "login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
@@ -11172,9 +11221,11 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(contract, "production_gate_gateway_error_delta_required_zero"), 1);
     ASSERT_STREQ(mapping_string(contract, "production_gate_socket_release_policy"),
                  "owner_safe_synchronous_release_acquire_handshake");
-    ASSERT_EQ(mapping_number(contract, "production_gate_socket_release_handshake_ready"), 1);
-    ASSERT_STREQ(mapping_string(contract, "production_gate_socket_release_handshake_evidence"),
-                 "socket_release_owner_epoch_handshake_contract_v1");
+    ASSERT_EQ(mapping_number(contract, "production_gate_socket_release_handshake_ready"), 0);
+    ASSERT_STREQ(mapping_string(contract, "production_gate_socket_release_handshake_evidence"), "");
+    ASSERT_STREQ(
+        mapping_string(contract, "production_gate_socket_release_handshake_historical_evidence"),
+        "socket_release_owner_epoch_handshake_contract_v1");
     ASSERT_STREQ(mapping_string(contract, "production_gate_report_schema"),
                  "xkx_gateway_loadtest_report_v1");
     ASSERT_STREQ(
@@ -12362,9 +12413,10 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(gateway_contract, "ordinary_lpc_ready_required"), 0);
     ASSERT_EQ(mapping_number(gateway_contract, "main_required"), 0);
     ASSERT_EQ(mapping_number(gateway_contract, "fallback_main_required"), 1);
-    ASSERT_STREQ(mapping_string(gateway_contract, "next_blocker"), "");
+    ASSERT_STREQ(mapping_string(gateway_contract, "next_blocker"),
+                 "current_evidence_not_bound_to_this_binary");
     ASSERT_STREQ(mapping_string(gateway_contract, "next_blocker_chain"),
-                 "production_gate_complete");
+                 "production_gate_evidence_required");
     assert_production_gate_contract(gateway_contract);
     auto* gateway_tasks = mapping_array(gateway_contract, "tasks");
     ASSERT_NE(gateway_tasks, nullptr);

@@ -118,6 +118,27 @@
       ],
       "description": "Classification of the evidence. historical: produced on an earlier checkout; current: produced on the current commit; external-required: requires an environment outside this repository."
     },
+    "production_gate_ready": {
+      "type": "integer",
+      "enum": [
+        0,
+        1
+      ],
+      "description": "Optional envelope claim. A value of 1 is accepted by gate mode only for current evidence with matching identity and cleanup checks; it never changes runtime status by itself."
+    },
+    "production_gate_status": {
+      "type": "string",
+      "enum": [
+        "unverified",
+        "blocked",
+        "ready"
+      ],
+      "description": "Optional envelope status paired with production_gate_ready. Historical or incomplete evidence must remain unverified or blocked."
+    },
+    "production_gate_blocker": {
+      "type": "string",
+      "description": "Optional reason the production gate is not ready; a ready claim must leave this field empty or omit it."
+    },
     "tested_sha": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$",

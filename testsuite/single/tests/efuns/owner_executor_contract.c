@@ -78,17 +78,23 @@ void assert_dispatch_entry_ex(mapping dispatch_contract, string task_type,
 
 void assert_production_gate_contract(mapping contract) {
   ASSERT_EQ(1, contract["mudlib_audit_required"]);
-  ASSERT_EQ(1, contract["mudlib_cross_owner_hotspots_ready"]);
-  ASSERT_EQ("", contract["mudlib_cross_owner_hotspots_blocker"]);
+  ASSERT_EQ(0, contract["mudlib_cross_owner_hotspots_ready"]);
+  ASSERT_EQ("current_evidence_not_bound_to_this_binary",
+    contract["mudlib_cross_owner_hotspots_blocker"]);
+  ASSERT_EQ("", contract["mudlib_cross_owner_hotspots_evidence"]);
   ASSERT_EQ("xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads",
-    contract["mudlib_cross_owner_hotspots_evidence"]);
-  ASSERT_EQ(1, contract["production_gate_ready"]);
-  ASSERT_EQ("", contract["production_gate_blocker"]);
+    contract["mudlib_cross_owner_hotspots_historical_evidence"]);
+  ASSERT_EQ(0, contract["production_gate_ready"]);
+  ASSERT_EQ("unverified", contract["production_gate_status"]);
+  ASSERT_EQ("current_evidence_not_bound_to_this_binary", contract["production_gate_blocker"]);
+  ASSERT_EQ("historical", contract["production_gate_evidence_kind"]);
+  ASSERT_EQ(0, contract["production_gate_current_evidence_bound"]);
   ASSERT_EQ("1,3,10", contract["production_gate_required_users"]);
   ASSERT_EQ("smoke,30m", contract["production_gate_required_durations"]);
-  ASSERT_EQ(1, contract["production_gate_pressure_evidence_ready"]);
+  ASSERT_EQ(0, contract["production_gate_pressure_evidence_ready"]);
+  ASSERT_EQ("", contract["production_gate_pressure_evidence"]);
   ASSERT_EQ("xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors",
-    contract["production_gate_pressure_evidence"]);
+    contract["production_gate_pressure_historical_evidence"]);
   ASSERT_EQ("off,audit,enforced", contract["production_gate_required_modes"]);
   ASSERT_EQ("login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
     "gateway_callback,socket_callback,heartbeat,callout",
@@ -106,9 +112,10 @@ void assert_production_gate_contract(mapping contract) {
   ASSERT_EQ(1, contract["production_gate_gateway_error_delta_required_zero"]);
   ASSERT_EQ("owner_safe_synchronous_release_acquire_handshake",
     contract["production_gate_socket_release_policy"]);
-  ASSERT_EQ(1, contract["production_gate_socket_release_handshake_ready"]);
+  ASSERT_EQ(0, contract["production_gate_socket_release_handshake_ready"]);
+  ASSERT_EQ("", contract["production_gate_socket_release_handshake_evidence"]);
   ASSERT_EQ("socket_release_owner_epoch_handshake_contract_v1",
-    contract["production_gate_socket_release_handshake_evidence"]);
+    contract["production_gate_socket_release_handshake_historical_evidence"]);
   ASSERT_EQ("xkx_gateway_loadtest_report_v1", contract["production_gate_report_schema"]);
   ASSERT_EQ("schema,run_id,mode,users_requested,duration_seconds,scenario,commands_ok,timeouts,"
     "gateway_metrics_delta,production_gate_observations",
@@ -612,8 +619,8 @@ void assert_gateway_owner_task_contract(mapping contract) {
   ASSERT_EQ(0, contract["ordinary_lpc_ready_required"]);
   ASSERT_EQ(0, contract["main_required"]);
   ASSERT_EQ(1, contract["fallback_main_required"]);
-  ASSERT_EQ("", contract["next_blocker"]);
-  ASSERT_EQ("production_gate_complete",
+  ASSERT_EQ("current_evidence_not_bound_to_this_binary", contract["next_blocker"]);
+  ASSERT_EQ("production_gate_evidence_required",
     contract["next_blocker_chain"]);
   assert_production_gate_contract(contract);
   ASSERT(arrayp(tasks));

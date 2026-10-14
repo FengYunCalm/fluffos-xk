@@ -45,6 +45,9 @@ def make_envelope(overrides=None):
         "command": "owner_runtime_bench --json out.json",
         "cleanup": {"state": "clean", "detail": "derived from bench metrics"},
         "evidence_kind": "current",
+        "production_gate_ready": 0,
+        "production_gate_status": "unverified",
+        "production_gate_blocker": "current_evidence_not_bound_to_this_binary",
         "bench": {"cleanup_owner_queue_depth": 0, "cleanup_future_pending_backlog": 0,
                   "cleanup_deferred_target_releases": 0},
     }
@@ -215,12 +218,48 @@ def main() -> int:
         write_envelope(d, "e.json", {"evidence_kind": "historical"})
         expect_rejected(d, "evidence_kind=historical in gate mode")
 
-        # 14. Valid envelope in validator mode passes even with gate-level
+        # 14. A ready claim cannot reuse historical evidence.
+        d = os.path.join(td, "historical-ready-claim")
+        os.makedirs(d)
+        write_envelope(d, "e.json", {"evidence_kind": "historical",
+                                     "production_gate_ready": 1,
+                                     "production_gate_status": "ready",
+                                     "production_gate_blocker": ""})
+        expect_rejected(d, "historical evidence with production ready claim")
+
+        # 15. Ready and status are one atomic claim; mismatched values fail.
+        d = os.path.join(td, "inconsistent-ready-claim")
+        os.makedirs(d)
+        write_envelope(d, "e.json", {"production_gate_ready": 1,
+                                     "production_gate_status": "unverified"})
+        expect_rejected(d, "inconsistent production ready claim")
+
+        # 16. A current, identity-matching ready claim is accepted by the
+        # evidence gate; this does not mutate or auto-load runtime status.
+        d = os.path.join(td, "current-ready-claim")
+        os.makedirs(d)
+        write_envelope(d, "e.json", {"production_gate_ready": 1,
+                                     "production_gate_status": "ready",
+                                     "production_gate_blocker": ""})
+        expect_accepted(d, "current production ready claim")
+
+        # 17. A ready claim cannot retain a blocker.
+        d = os.path.join(td, "ready-with-blocker")
+        os.makedirs(d)
+        write_envelope(d, "e.json", {"production_gate_ready": 1,
+                                     "production_gate_status": "ready",
+                                     "production_gate_blocker": "still-blocked"})
+        expect_rejected(d, "ready claim with blocker")
+
+        # 18. Valid envelope in validator mode passes even with gate-level
         # violations (layering: validator answers format, gate answers policy).
         d = os.path.join(td, "validator-mode")
         os.makedirs(d)
         write_envelope(d, "e.json", {"cleanup": {"state": "failed", "detail": "x"},
-                                     "evidence_kind": "historical"})
+                                     "evidence_kind": "historical",
+                                     "production_gate_ready": 1,
+                                     "production_gate_status": "ready",
+                                     "production_gate_blocker": ""})
         expect_accepted(d, "validator-mode relaxation", extra=["--mode", "validator"])
 
     if FAILURES:

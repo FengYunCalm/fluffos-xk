@@ -123,6 +123,52 @@ def parse_utc_timestamp(path: str, field: str, value: object) -> list[str]:
     return errors
 
 
+def check_production_gate_claim(path: str, report: dict, mode: str) -> list[str]:
+    """Keep an optional production-gate claim bound to evidence freshness.
+
+    Runtime status is fail-closed and does not load reports automatically. If
+    an evidence envelope records a claim for consumers, a ready claim must be
+    internally consistent and may pass the gate layer only with current
+    evidence; the existing SHA and raw-digest checks remain the authority for
+    freshness and identity.
+    """
+    errors: list[str] = []
+    ready = report.get("production_gate_ready")
+    status = report.get("production_gate_status")
+    if ready is None and status is None:
+        return errors
+    if isinstance(ready, bool) or ready not in (0, 1):
+        errors.append(
+            f"{path}: production_gate_ready must be integer 0 or 1, got {ready!r}"
+        )
+    if status not in ("unverified", "blocked", "ready"):
+        errors.append(
+            f"{path}: production_gate_status must be unverified/blocked/ready, got {status!r}"
+        )
+    if ready is None or status is None:
+        errors.append(
+            f"{path}: production_gate_ready and production_gate_status must be set together"
+        )
+        return errors
+    if ready == 1 and status != "ready":
+        errors.append(
+            f"{path}: production_gate_ready=1 requires production_gate_status=ready"
+        )
+    if ready == 0 and status == "ready":
+        errors.append(
+            f"{path}: production_gate_ready=0 cannot use production_gate_status=ready"
+        )
+    if ready == 1 and report.get("production_gate_blocker", "") not in (None, ""):
+        errors.append(
+            f"{path}: production_gate_ready=1 requires an empty production_gate_blocker"
+        )
+    if mode == "gate" and ready == 1 and report.get("evidence_kind") != "current":
+        errors.append(
+            f"{path}: production_gate_ready=1 requires evidence_kind=current"
+        )
+    return errors
+
+
 def check_raw_digest(path: str, report: dict) -> list[str]:
     """When the envelope binds a raw report (raw_report + raw_sha256), the
     raw file must exist next to the envelope and its SHA-256 must match."""
@@ -217,6 +263,7 @@ def check_report(path: str, schema_path: str, mode: str, expected_tested_sha: st
         errors.append(
             f"{path}: evidence_kind should be one of historical/current/external-required/unknown"
         )
+    errors.extend(check_production_gate_claim(path, report, mode))
 
     # --- gate layer ---
     if mode != "gate":

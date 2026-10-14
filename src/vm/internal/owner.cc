@@ -67,6 +67,9 @@ constexpr const char* kOwnerExecutorCallbackAllowlistKinds =
 
 constexpr const char* kGatewayCommandExecutorActivationBlocker =
     "interactive_command_requires_main_thread_io_adapter";
+constexpr const char* kProductionGateStatus = "unverified";
+constexpr const char* kProductionGateBlocker =
+    "current_evidence_not_bound_to_this_binary";
 
 void clear_owner_apply_return() {
   vm_apply_return_clear();
@@ -1595,18 +1598,24 @@ array_t* gateway_owner_task_contract_entries_array() {
 
 void add_production_gate_contract_fields(mapping_t* map) {
   add_mapping_pair(map, "mudlib_audit_required", 1);
-  add_mapping_pair(map, "mudlib_cross_owner_hotspots_ready", 1);
-  add_mapping_string(map, "mudlib_cross_owner_hotspots_blocker", "");
+  add_mapping_pair(map, "mudlib_cross_owner_hotspots_ready", 0);
+  add_mapping_string(map, "mudlib_cross_owner_hotspots_blocker", kProductionGateBlocker);
+  add_mapping_string(map, "mudlib_cross_owner_hotspots_evidence", "");
   add_mapping_string(
-      map, "mudlib_cross_owner_hotspots_evidence",
+      map, "mudlib_cross_owner_hotspots_historical_evidence",
       "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
-  add_mapping_pair(map, "production_gate_ready", 1);
-  add_mapping_string(map, "production_gate_blocker", "");
+  add_mapping_pair(map, "production_gate_ready", 0);
+  add_mapping_string(map, "production_gate_status", kProductionGateStatus);
+  add_mapping_string(map, "production_gate_blocker", kProductionGateBlocker);
+  add_mapping_string(map, "production_gate_evidence_kind", "historical");
+  add_mapping_pair(map, "production_gate_current_evidence_bound", 0);
   add_mapping_string(map, "production_gate_required_users", "1,3,10");
   add_mapping_string(map, "production_gate_required_durations", "smoke,30m");
-  add_mapping_pair(map, "production_gate_pressure_evidence_ready", 1);
-  add_mapping_string(map, "production_gate_pressure_evidence",
-                     "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
+  add_mapping_pair(map, "production_gate_pressure_evidence_ready", 0);
+  add_mapping_string(map, "production_gate_pressure_evidence", "");
+  add_mapping_string(
+      map, "production_gate_pressure_historical_evidence",
+      "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
   add_mapping_string(map, "production_gate_required_modes", "off,audit,enforced");
   add_mapping_string(map, "production_gate_required_scenarios",
                      "login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
@@ -1625,9 +1634,11 @@ void add_production_gate_contract_fields(mapping_t* map) {
   add_mapping_pair(map, "production_gate_gateway_error_delta_required_zero", 1);
   add_mapping_string(map, "production_gate_socket_release_policy",
                      "owner_safe_synchronous_release_acquire_handshake");
-  add_mapping_pair(map, "production_gate_socket_release_handshake_ready", 1);
-  add_mapping_string(map, "production_gate_socket_release_handshake_evidence",
-                     "socket_release_owner_epoch_handshake_contract_v1");
+  add_mapping_pair(map, "production_gate_socket_release_handshake_ready", 0);
+  add_mapping_string(map, "production_gate_socket_release_handshake_evidence", "");
+  add_mapping_string(
+      map, "production_gate_socket_release_handshake_historical_evidence",
+      "socket_release_owner_epoch_handshake_contract_v1");
   add_mapping_string(map, "production_gate_report_schema", "xkx_gateway_loadtest_report_v1");
   add_mapping_string(
       map, "production_gate_report_required_fields",
@@ -1781,8 +1792,8 @@ mapping_t* gateway_owner_task_contract_mapping() {
   auto* tasks = gateway_owner_task_contract_entries_array();
   add_mapping_array(map, "tasks", tasks);
   free_array(tasks);
-  add_mapping_string(map, "next_blocker", "");
-  add_mapping_string(map, "next_blocker_chain", "production_gate_complete");
+  add_mapping_string(map, "next_blocker", kProductionGateBlocker);
+  add_mapping_string(map, "next_blocker_chain", "production_gate_evidence_required");
   add_production_gate_contract_fields(map);
   return map;
 }

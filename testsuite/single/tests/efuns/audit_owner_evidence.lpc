@@ -1,0 +1,21 @@
+void do_tests() {
+  mapping status = vm_owner_runtime_status();
+  mapping contract = status["gateway_owner_task_contract"];
+
+  ASSERT(mapp(contract));
+  ASSERT_EQ(0, contract["production_gate_ready"]);
+  ASSERT_EQ("unverified", contract["production_gate_status"]);
+  ASSERT_EQ("current_evidence_not_bound_to_this_binary",
+    contract["production_gate_blocker"]);
+  ASSERT_EQ("historical", contract["production_gate_evidence_kind"]);
+  ASSERT_EQ(0, contract["production_gate_current_evidence_bound"]);
+  ASSERT_EQ(0, contract["mudlib_cross_owner_hotspots_ready"]);
+  ASSERT_EQ(0, contract["production_gate_pressure_evidence_ready"]);
+  ASSERT_EQ(0, contract["production_gate_socket_release_handshake_ready"]);
+  ASSERT_EQ("", contract["mudlib_cross_owner_hotspots_evidence"]);
+  ASSERT_EQ("", contract["production_gate_pressure_evidence"]);
+  ASSERT_EQ("", contract["production_gate_socket_release_handshake_evidence"]);
+  ASSERT_EQ("current_evidence_not_bound_to_this_binary",
+    contract["next_blocker"]);
+  ASSERT_EQ("production_gate_evidence_required", contract["next_blocker_chain"]);
+}
