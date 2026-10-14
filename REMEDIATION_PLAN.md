@@ -1174,16 +1174,16 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P2 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/compiler/internal/grammar.y:3053–3057`、`src/compiler/internal/trees.cc:407–433`。
-- **作用范围：**`src/compiler/internal/grammar.y`、`src/compiler/internal/trees.cc`、`src/compiler/internal/icode.cc`、`src/compiler/internal/generate.cc`、`src/tests/test_lpc_compiler.cc`。测试归属 `src/tests/test_lpc_compiler.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/compiler/internal/grammar.y`、`src/compiler/internal/trees.h`、`src/compiler/internal/trees.cc`、`src/vm/internal/base/interpret.cc`、`src/tests/test_lpc_compiler.cc`、`testsuite/single/tests/efuns/audit_catch_effects.lpc`、`testsuite/etc/test-scopes.tsv`。测试归属为 native compiler test 与 LPC case；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**编译器/VM 维护者；8–16 小时。
 - **必须击中的根因：**把“结果不用”误当作“运算没有可观察行为”；抛错也是副作用。
 
 #### 操作
 
 1. 先补回归并反汇编确认具体运算是否被删除；用运行时传入的操作数避免测试只覆盖折叠器。
-2. 在 insert_pop_value 给可删除节点建立保守、明确的纯值白名单；算术/索引/类型转换只有证明不会抛错才删。不能只靠函数名或没有写变量判断纯度。
-3. 对无法证明纯的表达式保留完整求值并生成 F_POP_VALUE；检查 icode/generate 对 POP 的既有栈效果，避免栈积累。
-4. 同时覆盖普通丢弃值语句和 catch 两种语法；若改 grammar，同 AUD-016 重生成，否则不制造无关生成物差异。
+2. 在受保护上下文中使用 `insert_pop_value_keep_errors`，保守保留可能抛错的运算；普通丢弃值语句继续使用既有优化路径，不能把所有优化全部关闭。
+3. 对无法证明纯的表达式保留完整求值并生成既有 `F_POP_VALUE`；同步修正 Debug protected control-stack 检查，使 catch body 的保存栈基线与实际 `save_sp` 一致，避免以错误的 frame/local 推导误报栈损坏。
+4. 同时覆盖 `catch(expr)`、`catch { ... }`、逗号表达式、嵌套语句和普通丢弃值语句；本单元未修改 grammar，因此不重生成无关产物。
 
 #### 关键修改示例
 
@@ -1196,7 +1196,7 @@ CREATE_UNARY_OP(new_node, F_POP_VALUE, 0, expression);
 
 - **场景：**用非常量操作数构造已知会抛错的算术、索引、转换，比较 catch(expr)、catch({expr;}) 与保存结果后执行的行为；先排除常量折叠影响。
 - **profile/真实边界：**Debug、ASan/UBSan；LPC 可观察异常比较；VM benchmark。
-- **新增 native filter：**`DriverTest.TestAuditDiscardedExpression*`，目标 `lpc_tests`。
+- **新增 native filter：**`DriverTest.TestAuditDiscardedExpression*`，目标 `lpc_tests`；Debug/ASan/UBSan 各要求发现、执行、通过 `1/1`。
 
 ```bash
 N=AUD-017
@@ -1217,13 +1217,15 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --timeout 180 --evidence-dir "$E/$N-lpc-debug"
 ```
 
+- **性能对照：**同一 `tools/perf/corpus` 的 100 个源文件、7 轮编译，基线与修复二进制均 `700/700` 成功；Debug benchmark 中位轮次由 `0.076936757s` 降至 `0.067342283s`，未观察到回退。
+
 #### 完成、风险和回退
 
 - **验收：**所有形式的可观察异常一致；真实纯值仍可消除；栈深度和普通执行结果不变；性能回退有真实对照证据。
 - **风险与缓解：**不要把所有优化全部关闭；也不能仅改 catch(expr) 而让块语句的相同优化继续吞异常。
 - **文档同步：**`docs/efun/calls/catch.md`、`docs/lpc-modern-runtime.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成 Linux 本地可执行范围验证。修复把 protected `catch` 的丢弃值路径改为保留潜在异常操作并继续 `F_POP_VALUE`，普通未受保护丢弃值仍保留原优化；Debug control-stack guard 改用 catch frame 的 `save_sp` 基线。旧源码 native fail-first 的 index opcode 数为 `0`（期望至少 `2`），修复后 Debug/ASan/UBSan native 各 `1/1`；LPC Debug/ASan/UBSan 各 `1/1`。编译 benchmark 使用 100 个 corpus 文件、7 轮、700/700 成功，基线/修复 Debug 中位轮次分别为 `0.076936757s` / `0.067342283s`。证据归档于 `audit-evidence/aud017-current-01/`，包括基线失败、隔离构建、native/LPC runner summary 和 benchmark JSON。非 Linux 原生证据未取得，保持 `external-required`；不以本地结果替代其他平台。
 
 ### AUD-018 · Promise 持有的已销毁对象引用不参与 reclaim_objects
 

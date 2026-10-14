@@ -1,5 +1,7 @@
 #include "test_lpc_support.h"
 
+#include "compiler/internal/disassembler.h"
+
 TEST_F(DriverTest, TestInMemoryCompileFile) {
   program_t* prog = nullptr;
 
@@ -2449,5 +2451,60 @@ TEST_F(DriverTest, TestLpccUnknownConfigFailsCleanly) {
   ASSERT_NE(result.exit_code, -1);
   EXPECT_NE(result.exit_code, 0);
   EXPECT_NE(result.output.find("config file"), std::string::npos) << result.output;
+}
+
+TEST_F(DriverTest, TestAuditDiscardedExpressionKeepsPotentialErrors) {
+  std::istringstream source(R"(
+void test(mixed value) {
+  catch(value[0]);
+  catch { value[0]; };
+}
+void pure(mixed value) {
+  catch(value);
+  catch { value; };
+}
+void plain(mixed value) {
+  value;
+  1;
+}
+)");
+  auto* program = compile_file(std::make_unique<IStreamLexStream>(source), "discarded-expression");
+  ASSERT_NE(program, nullptr);
+
+  FILE* output = tmpfile();
+  ASSERT_NE(output, nullptr);
+  dump_prog(program, output, 1);
+  ASSERT_EQ(std::fflush(output), 0);
+  ASSERT_EQ(std::fseek(output, 0, SEEK_END), 0);
+  const auto size = std::ftell(output);
+  ASSERT_GE(size, 0);
+  ASSERT_EQ(std::fseek(output, 0, SEEK_SET), 0);
+  std::string disassembly(static_cast<size_t>(size), '\0');
+  ASSERT_EQ(std::fread(disassembly.data(), 1, disassembly.size(), output), disassembly.size());
+  std::fclose(output);
+  deallocate_program(program);
+
+  size_t index_count = 0;
+  for (size_t position = 0;
+       (position = disassembly.find("index", position)) != std::string::npos;
+       position += 1) {
+    index_count++;
+  }
+  EXPECT_GE(index_count, 2u) << disassembly;
+
+  auto assert_no_local_opcode = [&disassembly](std::string_view function_name) {
+    const auto start = disassembly.find(function_name);
+    EXPECT_NE(start, std::string::npos) << disassembly;
+    if (start == std::string::npos) {
+      return;
+    }
+    const auto next = disassembly.find(";; Function:", start + function_name.size());
+    const auto function = disassembly.substr(start, next == std::string::npos
+                                                       ? std::string::npos
+                                                       : next - start);
+    EXPECT_EQ(function.find("local"), std::string::npos) << function;
+  };
+  assert_no_local_opcode(";; Function: public void pure");
+  assert_no_local_opcode(";; Function: public void plain");
 }
 #endif  // !_WIN32

@@ -1620,7 +1620,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-014 | 已实施，本地 Linux 配置矩阵与 Debug/ASan DB 定向验证通过；Windows/macOS 实机为 external-required | 14/14 CMake 矩阵符合预期；`db_io_tests` Debug/ASan 各 4/4；证据见 `audit-evidence/aud014-current-01/`，不以 CI 参数静态检查替代外部平台证据 |
 | AUD-015 | 已实施，本地 Linux Debug/ASan/UBSan 与 SQLite-only 结果清理验证通过；真实外部 MySQL/PostgreSQL 服务为 external-required | 全量 `DbIoTest.*` Debug/ASan/UBSan 各 17/17；新增 `DbIoTest.AuditBackendCleanup*` 各 13/13；SQLite-only 定向 4/4；证据见 `audit-evidence/aud015-current-01/`，不以包装器替代真实外部服务证据 |
 | AUD-016 | 已实施，本地 Linux Debug/ASan/UBSan 定向闭合；非 Linux 原生证据为 external-required | `DriverTest.TestAwaitProtectedContextCompileContract` 与 `/single/tests/efuns/audit_await_context` 三配置各 `1/1`；Bison fallback/EBNF 已重生成，`parse-ebnf` 未安装；证据见 `audit-evidence/aud016-current-01/` |
-| AUD-017 | 待实施 | 按整改卡依赖推进 |
+| AUD-017 | 已实施，本地 Linux Debug/ASan/UBSan native、LPC 与编译 benchmark 通过；非 Linux 原生证据为 external-required | 旧源码 native fail-first index opcode `0`→修复后各配置 `1/1`；LPC 三配置各 `1/1`；100 文件×7 轮 benchmark `700/700`，证据见 `audit-evidence/aud017-current-01/` 与整改卡 |
 | AUD-018 | 已完成，已纳入 AUD-007/AUD-018 原子提交 | Promise-owned graph roots、settled/pending/chained/coroutine traversal 与 sanitizer/LPC evidence 见 `audit-evidence/aud007-018-current-02/` |
 | AUD-019 | 待实施 | 按整改卡依赖推进 |
 | AUD-020 | 待实施 | 按整改卡依赖推进 |

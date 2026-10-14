@@ -2049,6 +2049,16 @@ function_t* setup_inherited_frame(int findex) {
  * LPC code certain assertions fail, etc
  */
 void break_point() {
+  /* A catch body starts with the caller's stack values already present. Its
+   * statement boundaries must therefore compare against the catch frame's
+   * saved stack mark, not the function-local baseline. */
+  if (csp->framekind & FRAME_CATCH) {
+    if (!stack_in_use_as_temporary && sp != csp->save_sp) {
+      fatal("Bad stack pointer.\n");
+    }
+    return;
+  }
+
   /* The current implementation of foreach leaves some stuff lying on the
      stack */
   if (!stack_in_use_as_temporary && sp - fp - csp->num_local_variables + 1 != 0) {

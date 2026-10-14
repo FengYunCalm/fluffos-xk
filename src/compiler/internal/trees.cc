@@ -17,6 +17,8 @@
 #include "compiler.h"
 #include "lex.h"
 
+extern int context;
+
 /* our globals */
 static parse_node_block_t* parse_block_list = nullptr;
 static parse_node_block_t* free_block_list = nullptr;
@@ -25,6 +27,14 @@ static parse_node_t* next_node = nullptr;
 static parse_node_t* last_node = nullptr;
 
 static int last_prog_size = 1;
+
+/* Set while popping the body of catch(expr) / acatch(expr) /
+ * time_expression(expr). Those bodies are evaluated FOR what they do at run
+ * time -- whether they error, or what they cost -- so an operation that can
+ * raise an error (an index, a range, arithmetic, a comparison, a member
+ * access) must not be pruned as "side-effect free": catch(a[i]) used to
+ * compile to an empty catch and return 0 for any i. */
+static bool g_keep_error_capable = false;
 
 static bool node_cursor_is_live() {
   if (!next_node || !last_node) {
@@ -279,6 +289,15 @@ parse_node_t* make_range_node(int code, parse_node_t* expr, parse_node_t* l, par
   return newnode;
 }
 
+parse_node_t* insert_pop_value_keep_errors(parse_node_t* expr) {
+  /* insert_pop_value() only reports soft diagnostics; it never throws */
+  bool const saved = g_keep_error_capable;
+  g_keep_error_capable = true;
+  parse_node_t* result = insert_pop_value(expr);
+  g_keep_error_capable = saved;
+  return result;
+}
+
 parse_node_t* insert_pop_value(parse_node_t* expr) {
   parse_node_t* replacement;
 
@@ -329,6 +348,9 @@ parse_node_t* insert_pop_value(parse_node_t* expr) {
       }
       return expr;
     case NODE_TERNARY_OP:
+      if (g_keep_error_capable) {
+        break; /* a range can error: evaluate it, then pop */
+      }
       switch (expr->r.expr->v.number) {
         case F_NN_RANGE:
         case F_RN_RANGE:
@@ -385,16 +407,23 @@ parse_node_t* insert_pop_value(parse_node_t* expr) {
           expr->v.number = F_DEC;
           return expr;
         case F_NOT:
+          expr = insert_pop_value(expr->r.expr);
+          return expr;
         case F_COMPL:
         case F_NEGATE:
-          expr = insert_pop_value(expr->r.expr);
-          return expr;
         case F_MEMBER:
+          if (g_keep_error_capable) {
+            break; /* type errors */
+          }
           expr = insert_pop_value(expr->r.expr);
           return expr;
+        case F_REF:
+          if (g_keep_error_capable) {
+            break; /* reading a ref can raise "Reference is invalid" */
+          }
+          return nullptr;
         case F_LOCAL:
         case F_GLOBAL:
-        case F_REF:
           return nullptr;
         case F_EQ:
         case F_NE:
@@ -416,6 +445,9 @@ parse_node_t* insert_pop_value(parse_node_t* expr) {
         case F_NE_RANGE:
         case F_RINDEX:
         case F_INDEX:
+          if (g_keep_error_capable) {
+            break; /* bounds, division by zero, type errors */
+          }
           if ((expr->l.expr = insert_pop_value(expr->l.expr))) {
             if ((expr->r.expr = insert_pop_value(expr->r.expr))) {
               expr->kind = NODE_TWO_VALUES;
@@ -449,9 +481,13 @@ parse_node_t* insert_pop_value(parse_node_t* expr) {
           return expr;
       }
       break;
-    case NODE_PARAMETER:
     case NODE_ANON_FUNC: /* some dweeb threw away one? */
     case NODE_FUNCTION_CONSTRUCTOR:
+      if (g_keep_error_capable) {
+        break; /* building it evaluates its $() captures, which can error */
+      }
+      return nullptr;
+    case NODE_PARAMETER:
       return nullptr;
     case NODE_NUMBER:
     case NODE_STRING:
@@ -464,7 +500,14 @@ parse_node_t* insert_pop_value(parse_node_t* expr) {
 
 parse_node_t* pop_value(parse_node_t* pn) {
   if (pn) {
-    parse_node_t* ret = insert_pop_value(pn);
+    /* Inside a catch / time_expression (at any depth, loops included) or an
+     * acatch, an expression statement or the left side of a comma is
+     * evaluated for the same reason the catch(expr) body is: so its errors
+     * reach the catch. Prune it the error-preserving way there too, or
+     * `catch(a[i], 0)` and `catch { a[i]; }` would still be empty. */
+    parse_node_t* ret = (context & (NO_SUSPEND_CONTEXT | ASYNC_CATCH_CONTEXT))
+                            ? insert_pop_value_keep_errors(pn)
+                            : insert_pop_value(pn);
 
     if (!ret) {
       if (pn->kind == NODE_BINARY_OP && pn->v.number >= F_EQ && pn->v.number <= F_GT) {

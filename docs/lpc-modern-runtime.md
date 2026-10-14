@@ -90,6 +90,21 @@ second guard.
 但同步受保护块内的 `acatch` 仍继承禁止挂起边界。运行时 protected control-stack 检查继续保留，
 作为第二层守卫。
 
+## Discarded Protected Expressions / 丢弃值的受保护表达式
+
+A protected `catch(expr)` or `catch { ... }` body is evaluated for its errors,
+not only for its result. Discarding the result does not permit the compiler to
+remove indexing, ranges, arithmetic, comparisons, member access, reference
+reads, function-constructor captures, or other operations that may raise an
+error. The compiler may remove inert literals and plain variable reads. The
+same rule applies to comma expressions and nested statements in a protected
+block; a caught error remains observable through `catch()`.
+
+受保护的 `catch(expr)` 或 `catch { ... }` 主体必须为错误而求值，不能只按返回值处理。
+即使结果被丢弃，编译器也不能删除可能抛错的下标、范围、算术、比较、成员访问、引用读取、
+函数构造器捕获或其他运算。编译器仍可删除无异常副作用的字面量和普通变量读取。逗号表达式
+以及受保护块中的嵌套语句同样遵守此规则；捕获到的错误仍通过 `catch()` 可观察。
+
 ## Minimal Example / 最小示例
 
 ```c

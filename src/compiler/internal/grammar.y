@@ -3052,7 +3052,9 @@ expr_or_block:
     }
   | '(' comma_expr ')'
     {
-      $$ = insert_pop_value($2);
+      /* catch/acatch/time_expression bodies run for their errors and cost;
+       * retain operations that can fail before discarding their result. */
+      $$ = insert_pop_value_keep_errors($2);
     }
 ;
 

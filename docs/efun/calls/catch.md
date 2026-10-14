@@ -24,6 +24,13 @@ title: calls / catch
     The catch() is somewhat costly, and should not be used  just  anywhere.
     Rather, use it at places where an error would destroy consistency.
 
+    The protected expression is evaluated even when its value is discarded.
+    Indexing, ranges, arithmetic, comparisons, member access, reference reads,
+    and function-constructor captures can raise errors. The compiler may still
+    remove inert literals and plain variable reads, but it must preserve an
+    operation that can produce an observable error. The same rule applies to
+    `catch { ... }` blocks and comma expressions.
+
 ### EXAMPLE
 
     void example1() {
