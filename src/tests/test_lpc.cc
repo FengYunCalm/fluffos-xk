@@ -21,6 +21,7 @@ extern char** environ;
 
 #include "packages/core/reclaim.h"
 #include "vm/internal/eval_limit.h"
+#include "vm/internal/base/interpret.h"
 
 namespace {
 #if defined(__linux__)
@@ -207,6 +208,53 @@ TEST_F(DriverTest, TestAuditConfigLineBoundaries) {
 #else
   GTEST_SKIP() << "AUD-013 native config boundary test requires Linux process isolation";
 #endif
+}
+
+TEST_F(DriverTest, TestAuditFunctionIndexBounds) {
+  const auto expect_not_found = [](program_t* prog, int findex) {
+    const auto result = get_function_at_index(prog, findex);
+    EXPECT_EQ(result.first, nullptr);
+    EXPECT_EQ(result.second, 0);
+  };
+
+  unsigned short alias_flags[2] = {static_cast<unsigned short>(FUNC_ALIAS | 1), 0};
+  program_t alias_program{};
+  alias_program.function_flags = alias_flags;
+  alias_program.num_functions_defined = 2;
+
+  const auto alias_result = get_function_at_index(&alias_program, 0);
+  EXPECT_EQ(alias_result.first, &alias_program);
+  EXPECT_EQ(alias_result.second, 1);
+  const auto last_result = get_function_at_index(&alias_program, 1);
+  EXPECT_EQ(last_result.first, &alias_program);
+  EXPECT_EQ(last_result.second, 1);
+  expect_not_found(&alias_program, -1);
+  expect_not_found(&alias_program, 2);
+  expect_not_found(&alias_program, 3);
+
+  unsigned short parent_flags[1] = {0};
+  program_t parent_program{};
+  parent_program.function_flags = parent_flags;
+  parent_program.num_functions_defined = 1;
+
+  unsigned short child_flags[2] = {FUNC_INHERITED, 0};
+  inherit_t inheritance{};
+  inheritance.prog = &parent_program;
+  program_t child_program{};
+  child_program.last_inherited = 1;
+  child_program.num_functions_defined = 1;
+  child_program.num_inherited = 1;
+  child_program.function_flags = child_flags;
+  child_program.inherit = &inheritance;
+
+  const auto inherited_result = get_function_at_index(&child_program, 0);
+  EXPECT_EQ(inherited_result.first, &parent_program);
+  EXPECT_EQ(inherited_result.second, 0);
+  const auto child_result = get_function_at_index(&child_program, 1);
+  EXPECT_EQ(child_result.first, &child_program);
+  EXPECT_EQ(child_result.second, 0);
+  expect_not_found(&child_program, 2);
+  expect_not_found(&child_program, 3);
 }
 
 TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {

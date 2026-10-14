@@ -1827,10 +1827,10 @@ void setup_varargs_variables(int actual, int local, int num_arg) {
   fp = sp - (csp->num_local_variables = local + num_arg) + 1;
 }
 
-// Return function_t for findex, walking up the inheritance tree if necessary
-// TODO: return nullptr if not found
+// Return function_t for findex, walking up the inheritance tree if necessary.
+// Function indexes use a half-open [0, count) range.
 std::pair<program_t*, int> get_function_at_index(program_t* prog, int findex) {
-  if (findex < 0 || findex > prog->last_inherited + prog->num_functions_defined) {
+  if (findex < 0 || findex >= prog->last_inherited + prog->num_functions_defined) {
     return std::make_pair(nullptr, 0);
   }
   /* Walk up the inheritance tree to the real definition */

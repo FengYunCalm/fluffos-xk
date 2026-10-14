@@ -1,0 +1,8 @@
+void do_tests() {
+  object inherited = load_object("/single/tests/compiler/function_inherit_2");
+  ASSERT_EQ("aaabbb", inherited->test_1_1("aaa", "bbb"));
+  ASSERT_EQ("0bbb", inherited->test_1_2());
+
+  object alias = load_object("/clone/priv_alias_grandleaf");
+  ASSERT_EQ("mid", alias->call_f());
+}

@@ -1341,7 +1341,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能以更大的额外分配掩盖错误；不在没有攻击入口证据时扩展为任意字节码 RCE 声明。
 - **文档同步：**已检查：这是内部半开边界/错误处理修复，现有文档未因此失效；不为它重复添加规范或 README。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成 Linux 本地可执行范围验证。`get_function_at_index` 采用半开 `[0, count)` 边界；最小 program 夹具覆盖 -1、0、最后一个、count、count+1，并验证 inherited/alias 合法路径。`DriverTest.TestAuditFunctionIndexBounds` 在隔离 Debug、ASan、UBSan 各发现/执行/通过 `1/1`；`/single/tests/efuns/audit_function_lookup` 在三配置各发现/执行/通过 `1/1`，无跳过或失败。证据归档于 `audit-evidence/aud019-current-01/`，包括 fail-first、独立配置/构建、native/LPC runner summary 和 sanitizer 输出。未取得非 Linux 原生证据；本项不据此扩大为任意字节码入口或远程可利用性结论。
 
 ### AUD-020 · Windows 安装复制旧路径且没有传播复制失败
 

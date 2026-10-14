@@ -14,6 +14,7 @@
 /single/tests/efuns/async_foreach	runtime	async	Covers local foreach binding and rejects async suspension while a foreach iterator is active.
 /single/tests/efuns/audit_await_context	runtime	async	Covers compiler protected-context rejection and a real async loop/acatch completion.
 /single/tests/efuns/audit_catch_effects	runtime	-	Covers catch expression and block preservation of discarded operations that can throw.
+/single/tests/efuns/audit_function_lookup	runtime	-	Covers valid inherited and alias function-table lookups around the half-open index boundary.
 /single/tests/efuns/async_db_exec_bound_args	runtime	async,db,sqlite	Requires asynchronous SQLite callbacks.
 /single/tests/efuns/audit_db_identity	fixture	async,db,sqlite	Fixture controlled by db_io_tests to pause a real SQLite worker before connection reuse.
 /single/tests/efuns/audit_db_cleanup	fixture	-	Fixture controlled by db_io_tests to inject backend failures and verify result/connection cleanup.
