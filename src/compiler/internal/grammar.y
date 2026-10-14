@@ -898,7 +898,7 @@ while:
   L_WHILE '(' comma_expr ')'
     {
       $<number>1 = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
   statement
     {
@@ -911,7 +911,7 @@ do:
   L_DO
     {
       $<number>1 = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
   statement L_WHILE '(' comma_expr ')' ';'
     {
@@ -925,7 +925,7 @@ for:
     {
       $3.node = pop_value($3.node);
       $<number>1 = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
   statement
     {
@@ -1013,7 +1013,7 @@ foreach:
     {
       $3.node->v.expr = $5;
       $<number>1 = context;
-      context = LOOP_CONTEXT | LOOP_FOREACH;
+      context = LOOP_CONTEXT | LOOP_FOREACH | (context & NO_SUSPEND_CONTEXT);
     }
   statement
     {
@@ -1052,8 +1052,8 @@ switch:
   L_SWITCH '(' comma_expr ')'
     {
       $<number>1 = context;
-      context &= LOOP_CONTEXT;
-      context |= SWITCH_CONTEXT;
+      context = (context & (LOOP_CONTEXT | NO_SUSPEND_CONTEXT)) |
+          SWITCH_CONTEXT;
       $<number>2 = mem_block[A_CASES].current_size;
     }
    '{' local_declarations case switch_block '}'
@@ -2144,7 +2144,7 @@ expr0:
       if (!compiling_async_function) {
         yyerror("await is only allowed inside an async function.");
       }
-      if ((context & SPECIAL_CONTEXT) && !(context & ASYNC_CATCH_CONTEXT)) {
+      if (context & NO_SUSPEND_CONTEXT) {
         yyerror("await cannot suspend across a synchronous catch block.");
       }
       CREATE_UNARY_OP($$, F_AWAIT, promise_payload_type($2->type), $2);
@@ -3060,7 +3060,7 @@ catch:
   L_CATCH
     {
       $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT;
+      context = SPECIAL_CONTEXT | NO_SUSPEND_CONTEXT;
     }
   expr_or_block
     {
@@ -3077,7 +3077,8 @@ acatch:
         yyerror("acatch is only allowed inside an async function.");
       }
       $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT | ASYNC_CATCH_CONTEXT;
+      context = SPECIAL_CONTEXT | ASYNC_CATCH_CONTEXT |
+          (context & NO_SUSPEND_CONTEXT);
     }
   expr_or_block
     {
@@ -3127,7 +3128,7 @@ time_expression:
   L_TIME_EXPRESSION
     {
       $<number>$ = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT;
+      context = SPECIAL_CONTEXT | NO_SUSPEND_CONTEXT;
     }
   expr_or_block
     {

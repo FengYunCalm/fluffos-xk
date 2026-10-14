@@ -119,6 +119,10 @@ extern const char* compiler_type_names[];
 #define SPECIAL_CONTEXT 0x100
 #define ARG_LIST 0x200
 #define ASYNC_CATCH_CONTEXT 0x400
+// A suspension is forbidden while parsing a synchronous catch or a
+// time_expression. Loop and switch transitions must preserve this bit even
+// though they replace the control-flow context flags.
+#define NO_SUSPEND_CONTEXT 0x800
 
 // Context flags and current_type share one parser-stack value when a special
 // expression block is entered. Keep both pieces of state error-safe.

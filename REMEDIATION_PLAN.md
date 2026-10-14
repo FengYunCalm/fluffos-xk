@@ -1166,7 +1166,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**错误恢复路径必须恢复上下文；不能为让编译通过而删 coroutine_await_pending 的 protected-stack 检查。
 - **文档同步：**`docs/lpc-modern-runtime.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成 Linux 本地可执行范围验证。`NO_SUSPEND_CONTEXT` 独立保存禁止挂起状态，并由循环、`switch`、同步 `catch`、`time_expression` 和嵌套 `acatch` 路径保留/恢复；运行时 `coroutine_await_pending` protected-stack guard 未删除。旧编译器 fail-first 接受受保护 `await`（返回码 0），修复后私有 `lpcc` 矩阵返回码 1；`DriverTest.TestAwaitProtectedContextCompileContract` 在隔离 Debug/ASan/UBSan 各 `1/1`，新增 LPC `/single/tests/efuns/audit_await_context` 在三配置各 `1/1`。证据归档于 `audit-evidence/aud016-current-01/`，包括独立构建、runner summary、fail-first、生成记录和源差异。`generate_ebnf` 已完成；主机未安装 `parse-ebnf`，因此不宣称该工具验证。非 Linux 原生证据仍为 `external-required`。
 
 ### AUD-017 · catch 表达式被丢弃值优化器删除潜在异常操作
 

@@ -71,6 +71,25 @@ Failures return machine-readable fields such as `success`, `ok`, `code`,
 失败结果会返回机器可判定字段，例如 `success`、`ok`、`code`、`error`、`reason`、`api`
 以及可用时的 `trace_id`。
 
+## Async Suspension Boundaries / 异步挂起边界
+
+`await` is valid only in an `async` function. A synchronous `catch { ... }` or
+`time_expression { ... }` establishes a no-suspend boundary. The compiler keeps
+that boundary separate from loop and `switch` control-flow flags, so nested
+`while`, `do`, `for`, `foreach`, and `switch` bodies cannot accidentally make
+`await` legal. The boundary is restored after the protected expression and
+across anonymous-function parsing. `acatch` may suspend at the top level, but
+an `acatch` nested inside a synchronous protected block inherits its no-suspend
+boundary. The runtime protected control-stack check remains in place as a
+second guard.
+
+`await` 只能出现在 `async` 函数中。同步 `catch { ... }` 或
+`time_expression { ... }` 会建立禁止挂起边界。编译器把该边界与循环和 `switch` 流控标志分开保存，
+因此嵌套的 `while`、`do`、`for`、`foreach` 和 `switch` 不能意外放行 `await`。
+受保护表达式结束后，以及解析匿名函数后，边界都会恢复。顶层 `acatch` 可以挂起；
+但同步受保护块内的 `acatch` 仍继承禁止挂起边界。运行时 protected control-stack 检查继续保留，
+作为第二层守卫。
+
 ## Minimal Example / 最小示例
 
 ```c

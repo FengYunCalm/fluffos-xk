@@ -731,11 +731,11 @@ static const yytype_int16 yyrline[] =
     2484,  2485,  2492,  2493,  2566,  2584,  2589,  2588,  2618,  2642,
     2666,  2677,  2681,  2688,  2695,  2699,  2703,  2748,  2804,  2805,
     2809,  2810,  2811,  2813,  2812,  2869,  2907,  3002,  3025,  3034,
-    3046,  3053,  3061,  3060,  3075,  3074,  3091,  3098,  3108,  3117,
-    3128,  3127,  3142,  3147,  3161,  3169,  3170,  3174,  3181,  3182,
-    3189,  3200,  3203,  3212,  3211,  3225,  3224,  3255,  3290,  3309,
-    3308,  3449,  3448,  3522,  3521,  3573,  3572,  3624,  3623,  3654,
-    3674,  3690,  3691,  3707,  3722,  3737,  3771,  3775
+    3046,  3053,  3061,  3060,  3075,  3074,  3092,  3099,  3109,  3118,
+    3129,  3128,  3143,  3148,  3162,  3170,  3171,  3175,  3182,  3183,
+    3190,  3201,  3204,  3213,  3212,  3226,  3225,  3256,  3291,  3310,
+    3309,  3450,  3449,  3523,  3522,  3574,  3573,  3625,  3624,  3655,
+    3675,  3691,  3692,  3708,  3723,  3738,  3772,  3776
 };
 #endif
 
@@ -3256,7 +3256,7 @@ yyreduce:
 #line 899 "src/compiler/internal/grammar.y"
     {
       (yyvsp[-3].number) = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
 #line 3262 "src/compiler/internal/grammar.autogen.cc"
     break;
@@ -3274,7 +3274,7 @@ yyreduce:
 #line 912 "src/compiler/internal/grammar.y"
     {
       (yyvsp[0].number) = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
 #line 3280 "src/compiler/internal/grammar.autogen.cc"
     break;
@@ -3293,7 +3293,7 @@ yyreduce:
     {
       (yyvsp[-5].decl).node = pop_value((yyvsp[-5].decl).node);
       (yyvsp[-7].number) = context;
-      context = LOOP_CONTEXT;
+      context = LOOP_CONTEXT | (context & NO_SUSPEND_CONTEXT);
     }
 #line 3299 "src/compiler/internal/grammar.autogen.cc"
     break;
@@ -3400,7 +3400,7 @@ yyreduce:
     {
       (yyvsp[-3].decl).node->v.expr = (yyvsp[-1].node);
       (yyvsp[-5].number) = context;
-      context = LOOP_CONTEXT | LOOP_FOREACH;
+      context = LOOP_CONTEXT | LOOP_FOREACH | (context & NO_SUSPEND_CONTEXT);
     }
 #line 3406 "src/compiler/internal/grammar.autogen.cc"
     break;
@@ -3449,8 +3449,8 @@ yyreduce:
 #line 1053 "src/compiler/internal/grammar.y"
     {
       (yyvsp[-3].number) = context;
-      context &= LOOP_CONTEXT;
-      context |= SWITCH_CONTEXT;
+      context = (context & (LOOP_CONTEXT | NO_SUSPEND_CONTEXT)) |
+          SWITCH_CONTEXT;
       (yyvsp[-2].number) = mem_block[A_CASES].current_size;
     }
 #line 3457 "src/compiler/internal/grammar.autogen.cc"
@@ -4747,7 +4747,7 @@ yyreduce:
       if (!compiling_async_function) {
         yyerror("await is only allowed inside an async function.");
       }
-      if ((context & SPECIAL_CONTEXT) && !(context & ASYNC_CATCH_CONTEXT)) {
+      if (context & NO_SUSPEND_CONTEXT) {
         yyerror("await cannot suspend across a synchronous catch block.");
       }
       CREATE_UNARY_OP((yyval.node), F_AWAIT, promise_payload_type((yyvsp[0].node)->type), (yyvsp[0].node));
@@ -5807,7 +5807,7 @@ yyreduce:
 #line 3061 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT;
+      context = SPECIAL_CONTEXT | NO_SUSPEND_CONTEXT;
     }
 #line 5813 "src/compiler/internal/grammar.autogen.cc"
     break;
@@ -5829,95 +5829,96 @@ yyreduce:
         yyerror("acatch is only allowed inside an async function.");
       }
       (yyval.number) = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT | ASYNC_CATCH_CONTEXT;
+      context = SPECIAL_CONTEXT | ASYNC_CATCH_CONTEXT |
+          (context & NO_SUSPEND_CONTEXT);
     }
-#line 5835 "src/compiler/internal/grammar.autogen.cc"
+#line 5836 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 235: /* acatch: L_ACATCH @16 expr_or_block  */
-#line 3083 "src/compiler/internal/grammar.y"
+#line 3084 "src/compiler/internal/grammar.y"
     {
       CREATE_ACATCH((yyval.node), (yyvsp[0].node));
       context = SAVED_CONTEXT_FLAGS((yyvsp[-1].number));
       current_type = SAVED_CONTEXT_TYPE((yyvsp[-1].number));
     }
-#line 5845 "src/compiler/internal/grammar.autogen.cc"
+#line 5846 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 236: /* tree: L_TREE block  */
-#line 3092 "src/compiler/internal/grammar.y"
+#line 3093 "src/compiler/internal/grammar.y"
     {
 #ifdef DEBUG
       (yyval.node) = new_node_no_line();
       lpc_tree_form((yyvsp[0].decl).node, (yyval.node));
 #endif
     }
-#line 5856 "src/compiler/internal/grammar.autogen.cc"
+#line 5857 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 237: /* tree: L_TREE '(' comma_expr ')'  */
-#line 3099 "src/compiler/internal/grammar.y"
+#line 3100 "src/compiler/internal/grammar.y"
     {
 #ifdef DEBUG
       (yyval.node) = new_node_no_line();
       lpc_tree_form((yyvsp[-1].node), (yyval.node));
 #endif
     }
-#line 5867 "src/compiler/internal/grammar.autogen.cc"
+#line 5868 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 238: /* sscanf: L_SSCANF '(' expr0 ',' expr0 lvalue_list ')'  */
-#line 3109 "src/compiler/internal/grammar.y"
+#line 3110 "src/compiler/internal/grammar.y"
     {
       int p = (yyvsp[-1].node)->v.number;
       CREATE_LVALUE_EFUN((yyval.node), TYPE_NUMBER, (yyvsp[-1].node));
       CREATE_BINARY_OP_1((yyval.node)->l.expr, F_SSCANF, 0, (yyvsp[-4].node), (yyvsp[-2].node), p);
     }
-#line 5877 "src/compiler/internal/grammar.autogen.cc"
+#line 5878 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 239: /* parse_command: L_PARSE_COMMAND '(' expr0 ',' expr0 ',' expr0 lvalue_list ')'  */
-#line 3118 "src/compiler/internal/grammar.y"
+#line 3119 "src/compiler/internal/grammar.y"
     {
       int p = (yyvsp[-1].node)->v.number;
       CREATE_LVALUE_EFUN((yyval.node), TYPE_NUMBER, (yyvsp[-1].node));
       CREATE_TERNARY_OP_1((yyval.node)->l.expr, F_PARSE_COMMAND, 0,
           (yyvsp[-6].node), (yyvsp[-4].node), (yyvsp[-2].node), p);
     }
-#line 5888 "src/compiler/internal/grammar.autogen.cc"
+#line 5889 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 240: /* @17: %empty  */
-#line 3128 "src/compiler/internal/grammar.y"
+#line 3129 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = PACK_SAVED_CONTEXT(context, current_type);
-      context = SPECIAL_CONTEXT;
+      context = SPECIAL_CONTEXT | NO_SUSPEND_CONTEXT;
     }
-#line 5897 "src/compiler/internal/grammar.autogen.cc"
+#line 5898 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 241: /* time_expression: L_TIME_EXPRESSION @17 expr_or_block  */
-#line 3133 "src/compiler/internal/grammar.y"
+#line 3134 "src/compiler/internal/grammar.y"
     {
       CREATE_TIME_EXPRESSION((yyval.node), (yyvsp[0].node));
       context = SAVED_CONTEXT_FLAGS((yyvsp[-1].number));
       current_type = SAVED_CONTEXT_TYPE((yyvsp[-1].number));
     }
-#line 5907 "src/compiler/internal/grammar.autogen.cc"
+#line 5908 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 242: /* lvalue_list: %empty  */
-#line 3142 "src/compiler/internal/grammar.y"
+#line 3143 "src/compiler/internal/grammar.y"
             {
       (yyval.node) = new_node_no_line();
       (yyval.node)->r.expr = 0;
       (yyval.node)->v.number = 0;
     }
-#line 5917 "src/compiler/internal/grammar.autogen.cc"
+#line 5918 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 243: /* lvalue_list: ',' lvalue lvalue_list  */
-#line 3148 "src/compiler/internal/grammar.y"
+#line 3149 "src/compiler/internal/grammar.y"
     {
       parse_node_t *insert;
 
@@ -5928,103 +5929,103 @@ yyreduce:
       (yyvsp[0].node)->r.expr = insert;
       (yyval.node)->v.number++;
     }
-#line 5932 "src/compiler/internal/grammar.autogen.cc"
+#line 5933 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 244: /* string: string_con2  */
-#line 3162 "src/compiler/internal/grammar.y"
+#line 3163 "src/compiler/internal/grammar.y"
     {
       CREATE_STRING((yyval.node), (yyvsp[0].string));
       scratch_free((yyvsp[0].string));
     }
-#line 5941 "src/compiler/internal/grammar.autogen.cc"
+#line 5942 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 246: /* string_con1: '(' string_con1 ')'  */
-#line 3171 "src/compiler/internal/grammar.y"
+#line 3172 "src/compiler/internal/grammar.y"
     {
       (yyval.string) = (yyvsp[-1].string);
     }
-#line 5949 "src/compiler/internal/grammar.autogen.cc"
+#line 5950 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 247: /* string_con1: string_con1 '+' string_con1  */
-#line 3175 "src/compiler/internal/grammar.y"
+#line 3176 "src/compiler/internal/grammar.y"
     {
       (yyval.string) = scratch_join((yyvsp[-2].string), (yyvsp[0].string));
     }
-#line 5957 "src/compiler/internal/grammar.autogen.cc"
+#line 5958 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 249: /* string_con2: string_con2 L_STRING  */
-#line 3183 "src/compiler/internal/grammar.y"
+#line 3184 "src/compiler/internal/grammar.y"
     {
       (yyval.string) = scratch_join((yyvsp[-1].string), (yyvsp[0].string));
     }
-#line 5965 "src/compiler/internal/grammar.autogen.cc"
+#line 5966 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 250: /* class_init: identifier ':' expr0  */
-#line 3190 "src/compiler/internal/grammar.y"
+#line 3191 "src/compiler/internal/grammar.y"
     {
       (yyval.node) = new_node();
       (yyval.node)->l.expr = (parse_node_t *)(yyvsp[-2].string);
       (yyval.node)->v.expr = (yyvsp[0].node);
       (yyval.node)->r.expr = 0;
     }
-#line 5976 "src/compiler/internal/grammar.autogen.cc"
+#line 5977 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 251: /* opt_class_init: %empty  */
-#line 3200 "src/compiler/internal/grammar.y"
+#line 3201 "src/compiler/internal/grammar.y"
             {
       (yyval.node) = 0;
     }
-#line 5984 "src/compiler/internal/grammar.autogen.cc"
+#line 5985 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 252: /* opt_class_init: opt_class_init ',' class_init  */
-#line 3204 "src/compiler/internal/grammar.y"
+#line 3205 "src/compiler/internal/grammar.y"
     {
       (yyval.node) = (yyvsp[0].node);
       (yyval.node)->r.expr = (yyvsp[-2].node);
     }
-#line 5993 "src/compiler/internal/grammar.autogen.cc"
+#line 5994 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 253: /* @18: %empty  */
-#line 3212 "src/compiler/internal/grammar.y"
+#line 3213 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6003 "src/compiler/internal/grammar.autogen.cc"
+#line 6004 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 254: /* function_call: efun_override '(' @18 expr_list ')'  */
-#line 3218 "src/compiler/internal/grammar.y"
+#line 3219 "src/compiler/internal/grammar.y"
     {
       context = (yyvsp[-2].number);
       (yyval.node) = validate_efun_call((yyvsp[-4].number),(yyvsp[-1].node));
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6014 "src/compiler/internal/grammar.autogen.cc"
+#line 6015 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 255: /* @19: %empty  */
-#line 3225 "src/compiler/internal/grammar.y"
+#line 3226 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6024 "src/compiler/internal/grammar.autogen.cc"
+#line 6025 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 256: /* function_call: L_NEW '(' @19 expr_list ')'  */
-#line 3231 "src/compiler/internal/grammar.y"
+#line 3232 "src/compiler/internal/grammar.y"
     {
       ident_hash_elem_t *ihe;
       int f;
@@ -6049,11 +6050,11 @@ yyreduce:
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6053 "src/compiler/internal/grammar.autogen.cc"
+#line 6054 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 257: /* function_call: L_NEW '(' L_CLASS L_DEFINED_NAME opt_class_init ')'  */
-#line 3256 "src/compiler/internal/grammar.y"
+#line 3257 "src/compiler/internal/grammar.y"
     {
       parse_node_t *node;
 
@@ -6088,11 +6089,11 @@ yyreduce:
         }
       }
     }
-#line 6092 "src/compiler/internal/grammar.autogen.cc"
+#line 6093 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 258: /* function_call: L_NEW '(' L_CLASS L_IDENTIFIER opt_class_init ')'  */
-#line 3291 "src/compiler/internal/grammar.y"
+#line 3292 "src/compiler/internal/grammar.y"
     {
       parse_node_t *node;
       char buf[256];
@@ -6110,21 +6111,21 @@ yyreduce:
         node = node->r.expr;
       }
     }
-#line 6114 "src/compiler/internal/grammar.autogen.cc"
+#line 6115 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 259: /* @20: %empty  */
-#line 3309 "src/compiler/internal/grammar.y"
+#line 3310 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6124 "src/compiler/internal/grammar.autogen.cc"
+#line 6125 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 260: /* function_call: L_DEFINED_NAME '(' @20 expr_list ')'  */
-#line 3315 "src/compiler/internal/grammar.y"
+#line 3316 "src/compiler/internal/grammar.y"
     {
       int f;
       int i;
@@ -6258,21 +6259,21 @@ yyreduce:
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6262 "src/compiler/internal/grammar.autogen.cc"
+#line 6263 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 261: /* @21: %empty  */
-#line 3449 "src/compiler/internal/grammar.y"
+#line 3450 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6272 "src/compiler/internal/grammar.autogen.cc"
+#line 6273 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 262: /* function_call: function_name '(' @21 expr_list ')'  */
-#line 3455 "src/compiler/internal/grammar.y"
+#line 3456 "src/compiler/internal/grammar.y"
     {
       char *name = (yyvsp[-4].string);
 
@@ -6339,21 +6340,21 @@ yyreduce:
       num_refs = (yyvsp[-3].number);
       scratch_free(name);
     }
-#line 6343 "src/compiler/internal/grammar.autogen.cc"
+#line 6344 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 263: /* @22: %empty  */
-#line 3522 "src/compiler/internal/grammar.y"
+#line 3523 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6353 "src/compiler/internal/grammar.autogen.cc"
+#line 6354 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 264: /* function_call: expr4 '[' comma_expr ']' '(' @22 expr_list ')'  */
-#line 3528 "src/compiler/internal/grammar.y"
+#line 3529 "src/compiler/internal/grammar.y"
     {
       parse_node_t *expr;
       parse_node_t *index_expr;
@@ -6398,21 +6399,21 @@ yyreduce:
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6402 "src/compiler/internal/grammar.autogen.cc"
+#line 6403 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 265: /* @23: %empty  */
-#line 3573 "src/compiler/internal/grammar.y"
+#line 3574 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6412 "src/compiler/internal/grammar.autogen.cc"
+#line 6413 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 266: /* function_call: expr4 L_ARROW identifier '(' @23 expr_list ')'  */
-#line 3579 "src/compiler/internal/grammar.y"
+#line 3580 "src/compiler/internal/grammar.y"
     {
       ident_hash_elem_t *ihe;
       int f;
@@ -6457,21 +6458,21 @@ yyreduce:
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6461 "src/compiler/internal/grammar.autogen.cc"
+#line 6462 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 267: /* @24: %empty  */
-#line 3624 "src/compiler/internal/grammar.y"
+#line 3625 "src/compiler/internal/grammar.y"
     {
       (yyval.number) = context;
       (yyvsp[0].number) = num_refs;
       context |= ARG_LIST;
     }
-#line 6471 "src/compiler/internal/grammar.autogen.cc"
+#line 6472 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 268: /* function_call: '(' '*' comma_expr ')' '(' @24 expr_list ')'  */
-#line 3630 "src/compiler/internal/grammar.y"
+#line 3631 "src/compiler/internal/grammar.y"
     {
       parse_node_t *expr;
 
@@ -6493,11 +6494,11 @@ yyreduce:
       (yyval.node) = check_refs(num_refs - (yyvsp[-3].number), (yyvsp[-1].node), (yyval.node));
       num_refs = (yyvsp[-3].number);
     }
-#line 6497 "src/compiler/internal/grammar.autogen.cc"
+#line 6498 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 269: /* efun_override: L_EFUN L_COLON_COLON identifier  */
-#line 3655 "src/compiler/internal/grammar.y"
+#line 3656 "src/compiler/internal/grammar.y"
     {
       svalue_t *res;
       ident_hash_elem_t *ihe;
@@ -6517,11 +6518,11 @@ yyreduce:
       }
       scratch_free((yyvsp[0].string));
     }
-#line 6521 "src/compiler/internal/grammar.autogen.cc"
+#line 6522 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 270: /* efun_override: L_EFUN L_COLON_COLON L_NEW  */
-#line 3675 "src/compiler/internal/grammar.y"
+#line 3676 "src/compiler/internal/grammar.y"
     {
       svalue_t *res;
 
@@ -6534,11 +6535,11 @@ yyreduce:
         (yyval.number) = -1;
       } else (yyval.number) = new_efun;
     }
-#line 6538 "src/compiler/internal/grammar.autogen.cc"
+#line 6539 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 272: /* function_name: L_COLON_COLON identifier  */
-#line 3692 "src/compiler/internal/grammar.y"
+#line 3693 "src/compiler/internal/grammar.y"
     {
       int l = strlen((yyvsp[0].string)) + 1;
       char *p;
@@ -6554,11 +6555,11 @@ yyreduce:
       (yyval.string)[1] = ':';
       (yyval.string)[2] = ':';
     }
-#line 6558 "src/compiler/internal/grammar.autogen.cc"
+#line 6559 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 273: /* function_name: L_BASIC_TYPE L_COLON_COLON identifier  */
-#line 3708 "src/compiler/internal/grammar.y"
+#line 3709 "src/compiler/internal/grammar.y"
     {
       int z, l = strlen((yyvsp[0].string)) + 1;
       char *p;
@@ -6573,11 +6574,11 @@ yyreduce:
       (yyval.string)[z-2] = ':';
       (yyval.string)[z-1] = ':';
     }
-#line 6577 "src/compiler/internal/grammar.autogen.cc"
+#line 6578 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 274: /* function_name: identifier L_COLON_COLON identifier  */
-#line 3723 "src/compiler/internal/grammar.y"
+#line 3724 "src/compiler/internal/grammar.y"
     {
       int l = strlen((yyvsp[-2].string));
       /* "ob" and "name" -> ":ob::name" */
@@ -6589,11 +6590,11 @@ yyreduce:
       scratch_free((yyvsp[-2].string));
       scratch_free((yyvsp[0].string));
     }
-#line 6593 "src/compiler/internal/grammar.autogen.cc"
+#line 6594 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 275: /* cond: L_IF '(' comma_expr ')' statement optional_else_part  */
-#line 3738 "src/compiler/internal/grammar.y"
+#line 3739 "src/compiler/internal/grammar.y"
     {
       /* x != 0 -> x */
       if (IS_NODE((yyvsp[-3].node), NODE_BINARY_OP, F_NE)) {
@@ -6624,27 +6625,27 @@ yyreduce:
       }
       CREATE_IF((yyval.node), (yyvsp[-3].node), (yyvsp[-1].node), (yyvsp[0].node));
     }
-#line 6628 "src/compiler/internal/grammar.autogen.cc"
+#line 6629 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 276: /* optional_else_part: %empty  */
-#line 3772 "src/compiler/internal/grammar.y"
+#line 3773 "src/compiler/internal/grammar.y"
     {
       (yyval.node) = 0;
     }
-#line 6636 "src/compiler/internal/grammar.autogen.cc"
+#line 6637 "src/compiler/internal/grammar.autogen.cc"
     break;
 
   case 277: /* optional_else_part: L_ELSE statement  */
-#line 3776 "src/compiler/internal/grammar.y"
+#line 3777 "src/compiler/internal/grammar.y"
     {
       (yyval.node) = (yyvsp[0].node);
     }
-#line 6644 "src/compiler/internal/grammar.autogen.cc"
+#line 6645 "src/compiler/internal/grammar.autogen.cc"
     break;
 
 
-#line 6648 "src/compiler/internal/grammar.autogen.cc"
+#line 6649 "src/compiler/internal/grammar.autogen.cc"
 
         default: break;
       }
@@ -6879,5 +6880,5 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 3780 "src/compiler/internal/grammar.y"
+#line 3781 "src/compiler/internal/grammar.y"
 

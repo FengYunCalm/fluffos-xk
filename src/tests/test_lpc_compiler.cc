@@ -59,6 +59,121 @@ TEST_F(DriverTest, TestInMemoryCompileFileFail) {
   ASSERT_EQ(prog, nullptr);
 }
 
+TEST_F(DriverTest, TestAwaitProtectedContextCompileContract) {
+  auto expect_rejected = [](const std::string& source, const char* name) {
+    compiler_diag::clear();
+    std::istringstream stream(source);
+    auto* program = compile_file(std::make_unique<IStreamLexStream>(stream), name);
+    ASSERT_EQ(program, nullptr) << name << " must be rejected";
+
+    bool found_context_diagnostic = false;
+    for (size_t i = 0; i < compiler_diag::size(); ++i) {
+      const auto& diagnostic = compiler_diag::at(i);
+      if (diagnostic.message != nullptr &&
+          std::string(diagnostic.message).find("await cannot suspend across a synchronous catch block.") !=
+              std::string::npos) {
+        found_context_diagnostic = true;
+        break;
+      }
+    }
+    EXPECT_TRUE(found_context_diagnostic) << name;
+  };
+
+  auto expect_accepted = [](const std::string& source, const char* name) {
+    compiler_diag::clear();
+    std::istringstream stream(source);
+    auto* program = compile_file(std::make_unique<IStreamLexStream>(stream), name);
+    ASSERT_NE(program, nullptr) << name << " must remain legal";
+    for (size_t i = 0; i < compiler_diag::size(); ++i) {
+      EXPECT_NE(compiler_diag::at(i).severity, compiler_diag::Severity::kError)
+          << name << ": "
+          << (compiler_diag::at(i).message == nullptr ? "<no message>"
+                                                       : compiler_diag::at(i).message);
+    }
+    deallocate_program(program);
+  };
+
+  const char* const protected_prefix = R"(
+async int probe() {
+  mixed ignored = catch {
+)";
+  const char* const protected_suffix = R"(
+  };
+  return 0;
+}
+)";
+
+  expect_rejected(std::string(protected_prefix) +
+                      "    while (0) { await 1; }" + protected_suffix,
+                  "await-in-catch-while");
+  expect_rejected(std::string(protected_prefix) +
+                      "    do { await 1; } while (0);" + protected_suffix,
+                  "await-in-catch-do");
+  expect_rejected(std::string(protected_prefix) +
+                      "    for (int i = 0; i < 1; i++) { await 1; }" + protected_suffix,
+                  "await-in-catch-for");
+  expect_rejected(std::string(protected_prefix) +
+                      "    foreach (int value in ({ 1 })) { value += await 1; }" +
+                      protected_suffix,
+                  "await-in-catch-foreach");
+  expect_rejected(std::string(protected_prefix) +
+                      "    switch (1) { case 1: await 1; break; }" + protected_suffix,
+                  "await-in-catch-switch");
+  expect_rejected(R"(
+async int probe() {
+  mixed ignored = time_expression {
+    while (0) { await 1; }
+  };
+  return 0;
+}
+)", "await-in-time-expression");
+  expect_rejected(R"(
+async int probe() {
+  mixed ignored = catch {
+    function() { return 1; };
+    return await 1;
+  };
+  return 0;
+}
+)", "await-after-function-expression-in-catch");
+  expect_rejected(R"(
+async int probe() {
+  mixed ignored = catch {
+    mixed nested = acatch(await 1);
+    return nested;
+  };
+  return 0;
+}
+)", "await-in-acatch-inside-catch");
+
+  expect_accepted(R"(
+async int probe() {
+  return await 1;
+}
+)", "await-plain-async");
+  expect_accepted(R"(
+async int probe() {
+  mixed ignored = acatch(await 1);
+  while (0) { await 1; }
+  switch (1) { case 1: await 1; break; }
+  return 0;
+}
+)", "await-in-legal-async-contexts");
+  expect_accepted(R"(
+async int probe() {
+  mixed ignored = catch { return 1; };
+  mixed timed = time_expression { return 1; };
+  return await 1;
+}
+)", "await-after-protected-contexts");
+  expect_accepted(R"(
+async int probe() {
+  function callback = function() { return 1; };
+  return await 1;
+}
+)", "await-after-anonymous-function");
+}
+
 TEST_F(DriverTest, TestValidLPC_FunctionDeafultArgument) {
   const char* source = R"(
 // default case
