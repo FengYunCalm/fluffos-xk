@@ -278,8 +278,12 @@ $ mkdir build && cd build
 $ cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug \
   -DMARCH_NATIVE=OFF -DPACKAGE_CRYPTO=OFF \
   -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_DEFAULT_DB=2 -DPACKAGE_DB_SQLITE=2 ..
-$ make -j $(nproc) install
+$ cmake --build . --parallel 1
+$ cmake --install . --prefix "$PWD/install"
 ```
+
+CMake installs `driver`, `lpcc`, `lpcshell`, `symbol`, `o2json`, and `json2o` from their declared targets into `<prefix>/bin`.
+Use a private prefix for verification; do not copy executables from build-tree paths manually.
 
 **Notes**:
 - `-DMARCH_NATIVE=OFF`: Ensures portability across different CPUs

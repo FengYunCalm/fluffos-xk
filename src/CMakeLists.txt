@@ -725,17 +725,8 @@ print_target_properties(driver)
 install(TARGETS ${GENERATED_DOCS}
         RUNTIME DESTINATION bin)
 
-if (WIN32 AND BASH_EXECUTABLE)
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/driver.exe' '${CMAKE_INSTALL_PREFIX}/bin/driver.exe'\")")
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/lpcc.exe' '${CMAKE_INSTALL_PREFIX}/bin/lpcc.exe'\")")
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/symbol.exe' '${CMAKE_INSTALL_PREFIX}/bin/symbol.exe'\")")
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/o2json.exe' '${CMAKE_INSTALL_PREFIX}/bin/o2json.exe'\")")
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/json2o.exe' '${CMAKE_INSTALL_PREFIX}/bin/json2o.exe'\")")
-  install(CODE "execute_process(COMMAND \"${BASH_EXECUTABLE}\" -lc \"cp -f '${CMAKE_CURRENT_BINARY_DIR}/lpcshell.exe' '${CMAKE_INSTALL_PREFIX}/bin/lpcshell.exe'\")")
-else()
-  install(TARGETS driver lpcc lpcshell symbol o2json json2o
-    RUNTIME DESTINATION bin)
-endif()
+install(TARGETS driver lpcc lpcshell symbol o2json json2o
+        RUNTIME DESTINATION bin)
 
 # LPC stdlib files
 install(DIRECTORY ../testsuite/std

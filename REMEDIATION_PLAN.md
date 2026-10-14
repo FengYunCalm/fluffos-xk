@@ -1398,7 +1398,7 @@ done
 - **风险与缓解：**不把 MinGW 的 DLL 依赖解析强行套给 MSVC；只有已支持的生成器才能声明通过。
 - **文档同步：**`docs/build.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。Windows+Bash 的硬编码 `cp` 安装特例已移除，六个工具统一由 `install(TARGETS ... RUNTIME DESTINATION bin)` 管理；Linux 隔离 Debug 构建安装到私有前缀后七个实际安装目标（含 Linux-only `portbind`）均存在且与构建目标字节一致，`driver -V` 返回 0。首次 Linux 配置因主机缺少 PCRE 开发文件保留失败证据；首次安装因未构建 Linux-only `portbind` 保留失败证据，补充隔离构建后通过。Windows 原生单/多配置安装验证在当前 Linux 主机不可取得，状态为 `external-required`，未以 Linux 结果替代。
 
 ### AUD-021 · 供应链清单与实际 vendored 源码身份不一致
 
