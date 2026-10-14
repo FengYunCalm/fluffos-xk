@@ -1750,7 +1750,8 @@ static char* get_user_command(interactive_t* ip) {
   }
 
   /* got a command - return it and set command_giver */
-  debug(connections, "get_user_command: user_command = (%s)\n", user_command);
+  const char* logged_command = (ip->iflags & NOECHO) ? "<redacted>" : user_command;
+  debug(connections, "get_user_command: user_command = (%s)\n", logged_command);
   save_command_giver(ip->ob);
 
   if (ip->iflags & NOECHO) {

@@ -560,7 +560,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能用关闭整个 connections 日志掩盖问题；不能把真实密码写入回归日志；模式位清理后再检查会漏保护。
 - **文档同步：**`docs/efun/interactive/input_to.md`、`docs/efun/interactive/get_char.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施，待原子提交。旧源码 fail-first 在 `build-modernization-evidence/audit-3d7a0127452c-noecho-fail-first-3/` 复现 NOECHO 正文泄漏；修复后 Debug 受监督 runner 的 `DriverTest.TestAuditNoechoLog*` 为 `selected=2, passed=2, skipped=0, failed=0`，证据在 `audit-3d7a0127452c-noecho-debug-pass-2/`；同一过滤器在隔离 ASan 构建中为 `2/2`，证据在 `audit-3d7a0127452c-noecho-asan-run-2/`。既有 gateway input_to、get_char snapshot 和 callback self-destruct 兼容回归为 `3/3`，证据在 `audit-3d7a0127452c-noecho-compat-debug/`。验证覆盖普通输入、NOECHO input_to、NOECHO get_char、原始 callback 参数和固定 `<redacted>` 日志标记；`consume_user_command_snapshot` 无同类正文 debug 点。未运行真实外部 TCP/TLS/WebSocket 客户端，固定 clang-format 18.1.8 仍不可用；这些边界不标为已验证。
 
 ### AUD-006 · 非 Linux 构建没有执行求值时间限制
 

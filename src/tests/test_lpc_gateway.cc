@@ -1,4 +1,5 @@
 #include "test_lpc_support.h"
+#include "base/internal/log.h"
 
 namespace {
 
@@ -309,6 +310,114 @@ TEST_F(DriverTest, TestAuditAsciiCrLfBoundedRandomFragments) {
   }
 }
 #endif
+
+TEST_F(DriverTest, TestAuditNoechoLogRedactsInput) {
+  constexpr const char* kSessionId = "gw-test-noecho-log";
+  auto* ob = create_gateway_session_for_test(kSessionId, "/clone/gateway_login_example");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(ob->interactive, nullptr);
+  ASSERT_TRUE(gateway_is_session(ob));
+  add_ref(ob, "TestAuditNoechoLogRedactsInput");
+
+  auto* enabled = call_lpc_method(ob, "enable_gateway_input_to");
+  ASSERT_NE(enabled, nullptr);
+  ASSERT_EQ(enabled->type, T_NUMBER);
+  ASSERT_EQ(enabled->u.number, 1);
+
+  auto* ip = ob->interactive;
+  const std::string secret = "audit-noecho-secret";
+  const std::string secret_line = secret + "\n";
+  ASSERT_LT(secret_line.size(), sizeof(ip->text));
+  memcpy(ip->text, secret_line.data(), secret_line.size());
+  ip->text_start = 0;
+  ip->text_end = static_cast<int>(secret_line.size());
+  ip->iflags |= CMD_IN_BUF;
+
+  const auto previous_debug_level = debug_level;
+  debug_level_set("connections");
+  testing::internal::CaptureStdout();
+  save_command_giver(ob);
+  const auto processed_secret = process_user_command(ip);
+  restore_command_giver();
+  const auto secret_output = testing::internal::GetCapturedStdout();
+  debug_level = previous_debug_level;
+
+  ASSERT_EQ(processed_secret, 1);
+  EXPECT_EQ(secret_output.find(secret), std::string::npos);
+  EXPECT_NE(secret_output.find("<redacted>"), std::string::npos);
+  auto* received = call_lpc_method(ob, "query_last_input_to_line");
+  ASSERT_NE(received, nullptr);
+  ASSERT_EQ(received->type, T_STRING);
+  EXPECT_STREQ(received->u.string, secret.c_str());
+
+  const std::string normal = "audit-normal-input";
+  const std::string normal_line = normal + "\n";
+  ASSERT_LT(normal_line.size(), sizeof(ip->text));
+  memcpy(ip->text, normal_line.data(), normal_line.size());
+  ip->text_start = 0;
+  ip->text_end = static_cast<int>(normal_line.size());
+  ip->iflags |= CMD_IN_BUF;
+
+  const auto normal_debug_level = debug_level;
+  debug_level_set("connections");
+  testing::internal::CaptureStdout();
+  save_command_giver(ob);
+  const auto processed_normal = process_user_command(ip);
+  restore_command_giver();
+  const auto normal_output = testing::internal::GetCapturedStdout();
+  debug_level = normal_debug_level;
+
+  ASSERT_EQ(processed_normal, 1);
+  EXPECT_NE(normal_output.find(normal), std::string::npos);
+
+  ASSERT_EQ(gateway_destroy_session_internal(kSessionId, "test_done", "done"), 1);
+  ASSERT_EQ(ob->interactive, nullptr);
+  destruct_object(ob);
+  free_object(&ob, "TestAuditNoechoLogRedactsInput");
+}
+
+TEST_F(DriverTest, TestAuditNoechoLogRedactsGetCharInput) {
+  constexpr const char* kSessionId = "gw-test-noecho-get-char-log";
+  auto* ob = create_gateway_session_for_test(kSessionId, "/clone/gateway_login_example");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(ob->interactive, nullptr);
+  ASSERT_TRUE(gateway_is_session(ob));
+  add_ref(ob, "TestAuditNoechoLogRedactsGetCharInput");
+
+  auto* enabled = call_lpc_method(ob, "enable_gateway_get_char");
+  ASSERT_NE(enabled, nullptr);
+  ASSERT_EQ(enabled->type, T_NUMBER);
+  ASSERT_EQ(enabled->u.number, 1);
+
+  auto* ip = ob->interactive;
+  constexpr char secret = 'q';
+  ip->text[0] = secret;
+  ip->text_start = 0;
+  ip->text_end = 1;
+  ip->iflags |= CMD_IN_BUF;
+
+  const auto previous_debug_level = debug_level;
+  debug_level_set("connections");
+  testing::internal::CaptureStdout();
+  save_command_giver(ob);
+  const auto processed = process_user_command(ip);
+  restore_command_giver();
+  const auto output = testing::internal::GetCapturedStdout();
+  debug_level = previous_debug_level;
+
+  ASSERT_EQ(processed, 1);
+  EXPECT_EQ(output.find("user_command = (q)"), std::string::npos);
+  EXPECT_NE(output.find("<redacted>"), std::string::npos);
+  auto* received = call_lpc_method(ob, "query_last_get_char_value");
+  ASSERT_NE(received, nullptr);
+  ASSERT_EQ(received->type, T_STRING);
+  EXPECT_STREQ(received->u.string, "q");
+
+  ASSERT_EQ(gateway_destroy_session_internal(kSessionId, "test_done", "done"), 1);
+  ASSERT_EQ(ob->interactive, nullptr);
+  destruct_object(ob);
+  free_object(&ob, "TestAuditNoechoLogRedactsGetCharInput");
+}
 
 TEST_F(DriverTest, TestAuditOutputBudgetArithmetic) {
   EXPECT_TRUE(comm_output_budget_allows_for_test(0, 0, 4, 4, 8));

@@ -29,7 +29,8 @@ title: interactive / input_to
 
     If optional argument 'flag' is non-zero, the line given by  the  player
     will not be echoed, and is not seen if snooped (this is useful for col‐
-    lecting passwords).
+    lecting passwords). The `connections` debug log uses `<redacted>` for this
+    line, while the callback still receives the original input.
 
     The function 'fun' will be called with the  user  input  as  its  first
     argument (a string). Any additional arguments supplied to input_to will

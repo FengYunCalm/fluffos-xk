@@ -29,7 +29,8 @@ title: interactive / get_char
 
     If optional argument 'flag' is non-zero, the char given by  the  player
     will not be echoed, and is not seen if snooped (this is useful for col‐
-    lecting passwords).
+    lecting passwords). The `connections` debug log uses `<redacted>` for this
+    character, while the callback still receives the original input.
 
     The function 'fun' will be called with the  user  input  as  its  first
     argument (a string). Any additional arguments supplied to get_char will

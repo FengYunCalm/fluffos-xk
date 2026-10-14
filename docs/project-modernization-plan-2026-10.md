@@ -1608,7 +1608,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-002 | 已实施，功能/受监督 runner 通过；性能基准待补 | 当前私有 Debug/ASan 构建直接 GTest 与受监督 `run-targeted.py` 均通过；受控 AF_UNIX loopback 慢读/恢复读取已通过，独立吞吐对照和固定 clang-format 门禁仍未完成 |
 | AUD-003 | 已实施，Debug/ASan/TSan 定向验证通过；边界与格式门禁证据保留 | `REMEDIATION_PLAN.md` AUD-003 卡；证据目录见该卡当前状态 |
 | AUD-004 | 已实施，Debug/ASan/TSan 定向验证通过；格式门禁待工具 | fail-first 2/2 失败→修复后 Debug/ASan 受监督 runner 各 4/4、TSan 4/4；见 U04 合同 |
-| AUD-005 | 待实施 | 按整改卡依赖推进 |
+| AUD-005 | 已实施，待原子提交 | 旧源码 fail-first 复现；修复后 Debug/ASan `TestAuditNoechoLog*` 各 2/2，gateway 兼容回归 3/3；证据见整改卡，真实外部客户端和 formatter 仍未验证 |
 | AUD-006 | 待实施 | 按整改卡依赖推进 |
 | AUD-007 | 待实施 | 按整改卡依赖推进 |
 | AUD-008 | 待实施 | 按整改卡依赖推进 |
@@ -1703,6 +1703,14 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 - Debug/ASan 原生 `lpc_tests` 当前均 `524/524`；`DriverTest.TestAuditOutputBudget*` 各 `5/5`，`DriverTest.TestAuditAsciiLifetime*` 各 `4/4`，AUD-002 新增回归为各 `5/5`，既有 ASCII 生命周期回归为各 `8/8`。最新完整日志为 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/debug-full-after-loopback-fix.log` 和 `asan-full-after-loopback-fix.log`，定向日志为同目录下对应的 `debug-output-budget-after-callback-fix.log` 和 `asan-output-budget-after-callback-fix.log`。
 - 覆盖包括单条精确边界、单条超限、累计超限、空/控制字符、重复连接、失败清理、受控 AF_UNIX loopback 暂停读端、恢复读取、正常 drain、普通/TLS/WebSocket/gateway 兼容回归；没有启动、停止或写入机器上既有 driver。真实 TCP/TLS/WebSocket 网络门禁和独立吞吐对照基准没有执行，不得宣称性能或真实外部平台已验收；固定 clang-format 18.1.8 不可用，也不宣称格式门禁通过。
 - 配置失败证据仍保留于 `build-modernization-evidence/audit-u02-debug-current/config-rejection-after-1/`；旧 runner 的 4 项记录仅作历史证据，当前 5 项监督 runner 结果以 `build-modernization-evidence/audit-u02-rerun-20261014T000000Z/AUD-002-native-debug-systempy/` 和 `.../AUD-002-native-asan-systempy/` 为准。此前默认 Python 因缺少 pidfd 能力拒绝的记录仍保留，但不作为当前通过依据。独立吞吐基准、真实 TCP/TLS/WebSocket 网络和固定 clang-format 18.1.8 尚未验证。
+
+#### AUD-005：NOECHO 输入日志脱敏验证合同
+
+- 原子范围：仅在 `get_user_command()` 的正文 debug 点按当前 `NOECHO` 状态输出固定 `<redacted>` 标记；普通输入继续输出正文，`input_to`/`get_char` callback 继续收到原始值。`consume_user_command_snapshot()` 不含同类正文 debug 点，保留 gateway snapshot 的现有输入/模式时序。
+- fail-first：旧源码在 `build-modernization-evidence/audit-3d7a0127452c-noecho-fail-first-3/` 的受监督 GTest 中让 `audit-noecho-secret` 出现在 `connections` 日志；这证明原始泄漏路径，不把首次错误夹具初始化记录 `...-2/` 当作失败依据。
+- 修复后 Debug 的 `DriverTest.TestAuditNoechoLog*` 为 `selected=2, passed=2, skipped=0, failed=0`，证据目录为 `build-modernization-evidence/audit-3d7a0127452c-noecho-debug-pass-2/`；ASan 同过滤器为 `2/2`，证据目录为 `audit-3d7a0127452c-noecho-asan-run-2/`。两套测试均由 `run-targeted.py` 执行并保留发现、运行和完成记录。
+- 兼容回归覆盖真实 LPC `input_to`/`get_char` snapshot 状态、原始 callback 值和 gateway 自毁会话，Debug 受监督 runner 为 `3/3`，证据目录为 `audit-3d7a0127452c-noecho-compat-debug/`。这不替代真实 TCP/TLS/WebSocket 客户端验证。
+- 文档同步为 `docs/efun/interactive/input_to.md` 与 `docs/efun/interactive/get_char.md`。固定 clang-format 18.1.8 在本机不可用，格式门禁未宣称通过；真实外部客户端和跨平台边界仍按 `external-required` 保留。
 
 ## 附录 A：生产源码差异逐文件索引
 
