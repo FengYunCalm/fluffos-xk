@@ -277,15 +277,16 @@ $ cd fluffos
 $ mkdir build && cd build
 $ cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug \
   -DMARCH_NATIVE=OFF -DPACKAGE_CRYPTO=OFF \
-  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1 ..
+  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_DEFAULT_DB=2 -DPACKAGE_DB_SQLITE=2 ..
 $ make -j $(nproc) install
 ```
 
 **Notes**:
 - `-DMARCH_NATIVE=OFF`: Ensures portability across different CPUs
 - `-DPACKAGE_CRYPTO=OFF`: Crypto package is typically disabled on Windows
-- `-DPACKAGE_DB_SQLITE=1`: Enable SQLite (set to 2 for version 2)
-- `-DPACKAGE_DB_MYSQL=""`: Disable MySQL (or set to enable)
+- `-DPACKAGE_DB_SQLITE=2`: Enable SQLite with type ID 2
+- `-DPACKAGE_DB_MYSQL=""`: Disable MySQL
+- `-DPACKAGE_DB_DEFAULT_DB=2`: Select the enabled SQLite type ID as default
 
 ### Running Tests
 
@@ -311,10 +312,11 @@ $ cmake .. -DPACKAGE_CRYPTO=OFF -DPACKAGE_DB=OFF
 ```
 
 Common package options:
-- `PACKAGE_DB_SQLITE=1` or `=2`: Enable SQLite support
-  - `=1` enables SQLite3 API version 1
-  - `=2` enables SQLite3 API version 2 (recommended, includes newer features)
-- `PACKAGE_DB_MYSQL=""`: Disable MySQL (or set to enable)
+- `PACKAGE_DB_SQLITE=<positive type ID>`: Enable SQLite and assign its database type ID (`1` and `2` are common examples)
+- `PACKAGE_DB_MYSQL=""`: Disable MySQL (or set a distinct positive type ID to enable it)
+- `PACKAGE_DB_DEFAULT_DB=2`: Required when SQLite is the only enabled backend with type ID 2
+- Enabled database backends must use distinct positive type IDs, and the default ID must be enabled
+- Empty strings, `0`, and CMake false values disable a backend
 - `PACKAGE_CRYPTO=OFF`: Disable crypto package (typical on Windows)
 - `PACKAGE_PCRE=OFF`: Disable PCRE package
 

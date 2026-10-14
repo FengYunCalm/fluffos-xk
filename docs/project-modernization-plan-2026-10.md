@@ -1617,7 +1617,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-011 | 已实施，Linux Debug/ASan native 与 Debug LPC 定向验证通过；外部客户端/非 Linux 证据未执行 | Telnet 会话级 UTF-8/ICU 流式状态、编码切换/关闭清理；native runner 各 `3/3`，LPC `1/1`；证据见 `audit-evidence/aud011-current-01/` 与整改卡。
 | AUD-012 | 已实施，Linux Debug/ASan native 与行模式回归通过；外部客户端/非 Linux 证据未执行 | 字符模式 UTF-8/控制字节完整交付、gateway snapshot 共用判定；字符模式 native runner 各 `1/1`，组合字符/行模式 runner 各 `12/12`；证据见 `audit-evidence/aud012-current-01/` 与整改卡 |
 | AUD-013 | 已实施，本地 Debug/ASan 受监督配置解析验证通过 | `DriverTest.TestAuditConfigLine*` 在 Debug、ASan 各发现/执行/通过 `2/2`；119 字节边界、无换行 EOF、长注释和 120/121 字节拒绝均覆盖。首次 ASan 默认 LeakSanitizer 失败证据保留，最终按项目 `detect_leaks=0` 预设通过；非 Linux 原生证据未取得 |
-| AUD-014 | 待实施 | 按整改卡依赖推进 |
+| AUD-014 | 已实施，本地 Linux 配置矩阵与 Debug/ASan DB 定向验证通过；Windows/macOS 实机为 external-required | 14/14 CMake 矩阵符合预期；`db_io_tests` Debug/ASan 各 4/4；证据见 `audit-evidence/aud014-current-01/`，不以 CI 参数静态检查替代外部平台证据 |
 | AUD-015 | 待实施 | 按整改卡依赖推进 |
 | AUD-016 | 待实施 | 按整改卡依赖推进 |
 | AUD-017 | 待实施 | 按整改卡依赖推进 |

@@ -1046,9 +1046,9 @@ endif()
 
 - **验收：**所有非法矩阵在配置阶段非零失败；合法既有编号/默认行为不变；Windows 参数不再重复覆盖。
 - **风险与缓解：**既有有效编号保持原义；不能擅自重排已发布后端数字。配置错误不能降级为换一个后端继续构建。
-- **文档同步：**`docs/driver/config.md`；只更新受影响的合同/流程，不复制历史测试数字。
+- **文档同步：**`docs/build.md`、`docs/efun/db/db_connect.md`；运行时配置合同 `docs/driver/config.md` 不受本单元影响。只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成本地可执行范围验证。`AUD-014-config-matrix-03` 的 14/14 用例符合预期：5 个合法配置通过，9 个非法配置在 configure 阶段拒绝；复用已有 work-dir 按约以返回码 2 拒绝。SQLite type ID 2 配置完成 `db_io_tests` Debug 构建，4/4 native LPC-backed tests 通过；独立 ASan 构建及运行同样为 4/4，通过时使用项目既有 `detect_leaks=0` 预设。首次手工测试命令因在 `cd testsuite` 后重复拼接绝对路径返回 127，保留于 `db-tests.log`，修正路径后 `db_io_tests` 构建与运行结果记录于 `db-io-build.log`、`db-io-tests.log`；该次为命令编排错误，不计产品失败。CI 与构建文档中的 SQLite/default 参数已同步。证据目录：`audit-evidence/aud014-current-01/`。未取得 Windows/macOS 实机证据，不能据此宣称跨平台动态验证完成。
 
 ### AUD-015 · 数据库结果与失败连接的资源清理不完整
 

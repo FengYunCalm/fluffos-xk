@@ -42,7 +42,11 @@ title: db / db_connect
      of the value above. If one value is an empty string, the driver support for
      that DB is disabled.
 
-     X here means an integer representing the "type" parameter in db_connect().
+     X here means a positive decimal integer representing the "type" parameter
+     in db_connect(). Enabled backends must use distinct type IDs, and
+     PACKAGE_DB_DEFAULT_DB must equal one enabled ID. Empty strings, 0, and
+     CMake false values disable a backend; malformed, negative, duplicate, or
+     out-of-range IDs stop configuration with a CMake error.
 
      Driver prvoides following pre-defines constant to lib for DB types.
 
