@@ -36,6 +36,23 @@ title: interactive / get_char
     argument (a string). Any additional arguments supplied to get_char will
     be passed on to 'fun' as arguments following the user input.
 
+### DELIVERY
+
+    Exactly one keystroke is delivered per callback:
+
+    - A printable character arrives as itself. A multi-byte UTF-8 character
+      arrives as one complete valid string; a character split across input
+      chunks waits for the remaining bytes.
+    - Control bytes arrive verbatim, including Backspace (0x08) and Delete
+      (0x7f). Character mode does not perform line editing.
+    - Escape sequences arrive byte-by-byte. ESC, '[', and 'A' are three
+      separate callbacks. Reassembling the sequence is the mudlib's job.
+    - Malformed UTF-8 makes byte-wise progress. It does not stall waiting for
+      an impossible continuation.
+
+    Character mode is one-shot. After each callback the driver returns to line
+    mode unless the callback arms get_char() again.
+
 ### BUGS
 
     Please note that get_char has a significant bug in MudOS 0.9  and  ear‐

@@ -1615,7 +1615,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-009 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-010 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-011 | 已实施，Linux Debug/ASan native 与 Debug LPC 定向验证通过；外部客户端/非 Linux 证据未执行 | Telnet 会话级 UTF-8/ICU 流式状态、编码切换/关闭清理；native runner 各 `3/3`，LPC `1/1`；证据见 `audit-evidence/aud011-current-01/` 与整改卡。
-| AUD-012 | 待实施 | 按整改卡依赖推进 |
+| AUD-012 | 已实施，Linux Debug/ASan native 与行模式回归通过；外部客户端/非 Linux 证据未执行 | 字符模式 UTF-8/控制字节完整交付、gateway snapshot 共用判定；字符模式 native runner 各 `1/1`，组合字符/行模式 runner 各 `12/12`；证据见 `audit-evidence/aud012-current-01/` 与整改卡 |
 | AUD-013 | 待实施 | 按整改卡依赖推进 |
 | AUD-014 | 待实施 | 按整改卡依赖推进 |
 | AUD-015 | 待实施 | 按整改卡依赖推进 |

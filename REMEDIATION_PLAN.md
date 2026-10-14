@@ -898,7 +898,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**按 §7 选择性回移 5f7be1008f28 的相关 hunk，保留 fork 适配并记录未取部分。
 - **优先级/来源：**P2 / fork 未同步上游修复。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/comm.cc:1453–1475`、`src/comm.cc:1504–1530`。
-- **作用范围：**`src/comm.cc`、`src/tests/test_lpc_gateway.cc`、`docs/efun/interactive/get_char.md`、`docs/archive/Bugs`。测试归属 `src/tests/test_lpc_gateway.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/comm.cc`、`src/comm.h`、`src/packages/gateway/gateway_session.cc`、`src/tests/test_lpc_gateway.cc`、`docs/efun/interactive/get_char.md`、`docs/archive/Bugs`。测试归属 `src/tests/test_lpc_gateway.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**AUD-011 已满足；网络/C++ 运行时维护者；4–8 小时。
 - **必须击中的根因：**SINGLE_CHAR 的提取器仍采用单字节/特殊清零规则；ESC 的行模式净化条件没有排除字符模式。
 
@@ -907,7 +907,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 1. 读取 5f7be100 的限定 hunk。删除 first_cmd_in_buf 在 SINGLE_CHAR 下将 BS/DEL 置零的分支；保留 on_user_input 里已经正确的 SINGLE_CHAR 分支。
 2. 将单字符提取改成按完整有效 UTF-8 序列交付，临时缓冲最多 4 字节加终止符；cmd_in_buf 与 first_cmd_in_buf 共用长度判定。不完整前缀等待，畸形字节走已明确的替换/进展合同，不能永久停顿。
 3. ESC 的 no-ANSI/strip-before-process-input 替换只用于非 SINGLE_CHAR；保留 on_user_input 已正确的 BS/DEL 行模式编辑分支和 IAC 解析。
-4. 逐项核对 Telnet、WebSocket Telnet 和 gateway snapshot 的调用路径，测试各配置组合。更新实际 get_char 归属文档；不修改 docs/archive/Bugs。
+4. 逐项核对 Telnet、WebSocket Telnet 和 gateway snapshot 的调用路径，测试各配置组合。让 gateway snapshot 与原生提取共用 UTF-8 长度判定，避免快照消费再次把多字节字符截断或把 BS/DEL 变成空字符串。更新实际 get_char 归属文档；不修改 docs/archive/Bugs。
 
 #### 关键修改示例
 
@@ -944,7 +944,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能直接套用上游整段旧 comm.cc，fork 有额外 owner/gateway 输入路径；字符数和字节数语义须沿用既有 API。
 - **文档同步：**`docs/efun/interactive/get_char.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成本地可执行范围验证。字符模式原生 gateway 夹具覆盖 BS、DEL、ESC、ASCII、完整 3/4 字节 UTF-8、跨分片 UTF-8、非法标量范围、畸形前导字节和 gateway snapshot 消费；Debug 与 ASan 字符模式定向 native runner 各 `1/1`，组合字符/行模式受监督 native runner 各 `12/12`（发现数=执行数=通过数，无跳过），Debug 与 ASan 组合回归各 `12/12`。持久证据见 `audit-evidence/aud012-current-01/`。实际外部 Telnet 客户端、非 Linux 运行证据未执行，不能以本地夹具替代。
 
 ### AUD-013 · 超长配置行使后续配置静默停止解析
 

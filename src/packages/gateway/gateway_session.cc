@@ -1506,14 +1506,11 @@ std::string gateway_pending_command_snapshot(interactive_t* user) {
   }
 
   if (user->iflags & SINGLE_CHAR) {
-    if (user->text_start >= user->text_end) {
+    const int length = comm_single_char_bytes(user);
+    if (length == 0) {
       return {};
     }
-    auto c = user->text[user->text_start];
-    if (c == 8 || c == 127) {
-      return {};
-    }
-    return std::string(1, c);
+    return std::string(user->text + user->text_start, static_cast<size_t>(length));
   }
 
   auto end = user->text_start;

@@ -518,6 +518,75 @@ TEST_F(DriverTest, TestAuditNoechoLogRedactsGetCharInput) {
   free_object(&ob, "TestAuditNoechoLogRedactsGetCharInput");
 }
 
+TEST_F(DriverTest, TestAuditCharMode) {
+  constexpr const char* kSessionId = "gw-test-char-mode";
+  auto* ob = create_gateway_session_for_test(kSessionId, "/clone/gateway_login_example");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(ob->interactive, nullptr);
+  ASSERT_TRUE(gateway_is_session(ob));
+  add_ref(ob, "TestAuditCharMode");
+
+  auto arm_get_char = [&]() {
+    auto* enabled = call_lpc_method(ob, "enable_gateway_get_char");
+    ASSERT_NE(enabled, nullptr);
+    ASSERT_EQ(enabled->type, T_NUMBER);
+    ASSERT_EQ(enabled->u.number, 1);
+  };
+  auto expect_value = [&](const std::string& input, const std::string& expected) {
+    arm_get_char();
+    auto* ip = ob->interactive;
+    ASSERT_NE(ip, nullptr);
+    ASSERT_TRUE((ip->iflags & SINGLE_CHAR) != 0);
+    on_user_input(ip, input.data(), input.size());
+    ASSERT_EQ(ip->text_start, 0);
+    ASSERT_EQ(ip->text_end, static_cast<int>(input.size()));
+    for (size_t index = 0; index < input.size(); index++) {
+      ASSERT_EQ(static_cast<unsigned char>(ip->text[index]),
+                static_cast<unsigned char>(input[index]));
+    }
+    ASSERT_TRUE(cmd_in_buf(ip));
+    ip->iflags |= CMD_IN_BUF;
+    ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
+    auto* value = call_lpc_method(ob, "query_last_get_char_value");
+    ASSERT_NE(value, nullptr);
+    ASSERT_EQ(value->type, T_STRING);
+    EXPECT_EQ(std::string(value->u.string), expected);
+  };
+
+  expect_value(std::string(1, '\x08'), std::string(1, '\x08'));
+  expect_value(std::string(1, '\x7f'), std::string(1, '\x7f'));
+  expect_value(std::string(1, '\x1b'), std::string(1, '\x1b'));
+  expect_value("A", "A");
+  expect_value("\xe4\xb8\xad", "\xe4\xb8\xad");
+  expect_value("\xf0\x9f\x98\x80", "\xf0\x9f\x98\x80");
+
+  // A valid UTF-8 prefix does not become a callback until its continuation arrives.
+  arm_get_char();
+  auto* ip = ob->interactive;
+  ASSERT_NE(ip, nullptr);
+  on_user_input(ip, "\xe4", 1);
+  EXPECT_FALSE(cmd_in_buf(ip));
+  EXPECT_EQ(ip->iflags & CMD_IN_BUF, 0);
+  on_user_input(ip, "\xb8\xad", 2);
+  ASSERT_TRUE(cmd_in_buf(ip));
+  ip->iflags |= CMD_IN_BUF;
+  ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
+  auto* split_value = call_lpc_method(ob, "query_last_get_char_value");
+  ASSERT_NE(split_value, nullptr);
+  ASSERT_EQ(split_value->type, T_STRING);
+  EXPECT_STREQ(split_value->u.string, "\xe4\xb8\xad");
+
+  // A malformed lead byte must make progress instead of waiting forever.
+  expect_value(std::string("\xe2", 1) + "A", std::string(1, '\xe2'));
+  expect_value(std::string("\xe0\x80", 2) + "A", std::string(1, '\xe0'));
+  expect_value(std::string("\xf4\x90", 2) + "A", std::string(1, '\xf4'));
+
+  ASSERT_EQ(gateway_destroy_session_internal(kSessionId, "test_done", "done"), 1);
+  ASSERT_EQ(ob->interactive, nullptr);
+  destruct_object(ob);
+  free_object(&ob, "TestAuditCharMode");
+}
+
 TEST_F(DriverTest, TestAuditOutputBudgetArithmetic) {
   EXPECT_TRUE(comm_output_budget_allows_for_test(0, 0, 4, 4, 8));
   EXPECT_FALSE(comm_output_budget_allows_for_test(4, 0, 1, 4, 8));

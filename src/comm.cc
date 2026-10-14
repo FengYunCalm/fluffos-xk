@@ -1645,7 +1645,8 @@ void on_user_input(interactive_t* ip, const char* data, size_t len) {
         }
         break;
       case 0x1b:
-        if (CONFIG_INT(__RC_NO_ANSI__) && CONFIG_INT(__RC_STRIP_BEFORE_PROCESS_INPUT__)) {
+        if (!(ip->iflags & SINGLE_CHAR) && CONFIG_INT(__RC_NO_ANSI__) &&
+            CONFIG_INT(__RC_STRIP_BEFORE_PROCESS_INPUT__)) {
           ip->text[ip->text_end++] = ANSI_SUBSTITUTE;
           break;
         }
@@ -1657,6 +1658,68 @@ void on_user_input(interactive_t* ip, const char* data, size_t len) {
   }
 }
 
+/*
+ * Single-char (get_char) mode delivers one keystroke per callback. A
+ * keystroke is one byte, except when the buffer starts with a complete,
+ * well-formed UTF-8 multi-byte sequence, which is delivered whole. Incomplete
+ * valid prefixes wait for more input; malformed bytes make progress one byte
+ * at a time.
+ */
+int comm_single_char_bytes(const interactive_t* ip) {
+  if (!ip) {
+    return 0;
+  }
+
+  const auto* p = reinterpret_cast<const unsigned char*>(ip->text) + ip->text_start;
+  const int available = ip->text_end - ip->text_start;
+  if (available <= 0) {
+    return 0;
+  }
+
+  int length;
+  if (p[0] < 0xc2 || p[0] > 0xf4) {
+    return 1;
+  } else if (p[0] < 0xe0) {
+    length = 2;
+  } else if (p[0] < 0xf0) {
+    length = 3;
+  } else {
+    length = 4;
+  }
+  if (available == 1) {
+    return ip->text_end >= static_cast<int>(sizeof(ip->text)) - 1 ? 1 : 0;
+  }
+
+  const auto continuation = [](unsigned char byte) {
+    return (byte & 0xc0) == 0x80;
+  };
+  const unsigned char second = p[1];
+  const bool valid_second =
+      (p[0] == 0xe0) ? (second >= 0xa0 && second <= 0xbf) :
+      (p[0] == 0xed) ? (second >= 0x80 && second <= 0x9f) :
+      (p[0] == 0xf0) ? (second >= 0x90 && second <= 0xbf) :
+      (p[0] == 0xf4) ? (second >= 0x80 && second <= 0x8f) : continuation(second);
+  if (!valid_second) {
+    return 1;
+  }
+  if (length == 2) {
+    return 2;
+  }
+  if (available == 2) {
+    return ip->text_end >= static_cast<int>(sizeof(ip->text)) - 1 ? 1 : 0;
+  }
+  if (!continuation(p[2])) {
+    return 1;
+  }
+  if (length == 3) {
+    return 3;
+  }
+  if (available == 3) {
+    return ip->text_end >= static_cast<int>(sizeof(ip->text)) - 1 ? 1 : 0;
+  }
+  return continuation(p[3]) ? 4 : 1;
+}
+
 // Also used by ws_ascii.
 int cmd_in_buf(interactive_t* ip) {
   char* p;
@@ -1666,9 +1729,9 @@ int cmd_in_buf(interactive_t* ip) {
     return 0;
   }
 
-  /* if we're in single character mode, we've got input */
+  /* In single-character mode, wait for a complete UTF-8 keystroke. */
   if (ip->iflags & SINGLE_CHAR) {
-    return 1;
+    return comm_single_char_bytes(ip) > 0;
   }
 
   for (p = ip->text + ip->text_start; p < ip->text + ip->text_end; p++) {
@@ -1683,7 +1746,7 @@ int cmd_in_buf(interactive_t* ip) {
 
 static char* first_cmd_in_buf(interactive_t* ip) {
   char* p;
-  static char tmp[2];
+  static char tmp[5];
 
   /* do standard input buffer cleanup */
   if (!clean_buf(ip)) {
@@ -1692,13 +1755,18 @@ static char* first_cmd_in_buf(interactive_t* ip) {
 
   p = ip->text + ip->text_start;
 
-  /* if we're in single character mode, we've got input */
+  /* Deliver control bytes verbatim and complete UTF-8 characters whole. */
   if (ip->iflags & SINGLE_CHAR) {
-    if (*p == 8 || *p == 127) {
-      *p = 0;
+    const int length = comm_single_char_bytes(ip);
+    if (length == 0) {
+      ip->iflags &= ~CMD_IN_BUF;
+      return nullptr;
     }
-    tmp[0] = *p;
-    ip->text[ip->text_start++] = 0;
+    memcpy(tmp, p, length);
+    tmp[length] = '\0';
+    for (int index = 0; index < length; index++) {
+      ip->text[ip->text_start++] = 0;
+    }
     if (!clean_buf(ip)) {
       ip->iflags &= ~CMD_IN_BUF;
     }
@@ -1776,18 +1844,14 @@ static int consume_user_command_snapshot(interactive_t* ip, const char* command_
   }
 
   if (ip->iflags & SINGLE_CHAR) {
-    if (ip->text_start >= ip->text_end) {
+    const int length = comm_single_char_bytes(ip);
+    if (length == 0 || command_snapshot_length != static_cast<size_t>(length) ||
+        memcmp(command_snapshot, ip->text + ip->text_start, length) != 0) {
       return 0;
     }
-    auto c = ip->text[ip->text_start];
-    if (c == 8 || c == 127) {
-      c = 0;
+    for (int index = 0; index < length; index++) {
+      ip->text[ip->text_start++] = 0;
     }
-    if (!((command_snapshot_length == 0 && c == 0) ||
-          (command_snapshot_length == 1 && command_snapshot[0] == c))) {
-      return 0;
-    }
-    ip->text[ip->text_start++] = 0;
     if (!clean_buf(ip)) {
       ip->iflags &= ~CMD_IN_BUF;
     }

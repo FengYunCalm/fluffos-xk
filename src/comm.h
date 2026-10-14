@@ -94,6 +94,7 @@ bool comm_output_budget_allows_for_test(size_t pending, size_t total, size_t inc
 size_t comm_pending_output_bytes_for_test();
 size_t comm_output_budget_rejections_for_test();
 
+int comm_single_char_bytes(const interactive_t* ip);
 int cmd_in_buf(interactive_t* ip);
 void on_user_input(interactive_t* ip, const char* data, size_t len);
 void on_user_websocket_received(interactive_t* ip, const char* data, size_t len);
