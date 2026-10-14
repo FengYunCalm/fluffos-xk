@@ -11,6 +11,7 @@
 #include "base/internal/lru_cache.h"
 #include "base/internal/tracing.h"
 #include "comm.h"  // add_vmessage FIXME: reverse API
+#include "mainlib.h"
 #include "thirdparty/scope_guard/scope_guard.hpp"
 #include "vm/context.h"
 #include "vm/internal/base/debug.h"
@@ -2447,6 +2448,7 @@ void eval_instruction(char* p) {
    * entry. (Upstream #1342.) */
   const bool trace_code = CONFIG_INT(__RC_TRACE_CODE__) != 0;
   const bool trace_instr = CONFIG_INT(__RC_TRACE_INSTR__) != 0;
+  unsigned signal_poll_count = 0;
 
   while (true) {
     if (debug_level & DBG_LPC) {
@@ -2473,6 +2475,11 @@ void eval_instruction(char* p) {
       previous_pc[last] = pc - 1;
       stack_size[last] = sp - fp - csp->num_local_variables;
       last = (last + 1) % (sizeof previous_instruction / sizeof(int));
+    }
+
+    if (vm_context_is_main_thread() && (++signal_poll_count & 63u) == 0 &&
+        has_pending_signal_requests()) {
+      process_pending_signal_requests();
     }
 
     if (eval_limit_expired()) {

@@ -2,6 +2,7 @@
 #include "base/std.h"
 
 #include "backend.h"
+#include "mainlib.h"
 #include "base/internal/tracing.h"
 #include "packages/async/async.h"  // for check_reqs
 
@@ -463,6 +464,7 @@ inline size_t call_tick_events() {
 }
 
 void on_game_tick(evutil_socket_t /*fd*/, short /*what*/, void* arg) {
+  process_pending_signal_requests();
   if (MudOS_is_being_shut_down) {
     event_base_loopbreak(g_event_base);
     return;

@@ -6588,6 +6588,36 @@ TEST_F(DriverTest, TestSigtermUsesControlledShutdownWithSuccessExitCode) {
   ASSERT_NE(backend_source.find("event_base_loopbreak(g_event_base);"), std::string::npos);
 }
 
+TEST_F(DriverTest, TestAuditSignalDispatchHandlersOnlyRecordRequestsForMainThread) {
+  const auto source = read_source_file_for_test("../src/mainlib.cc");
+  const char* const handlers[] = {"request_sigint", "sig_usr1", "sig_usr2", "sig_cld"};
+  for (const char* handler : handlers) {
+    const std::string marker = std::string("void ") + handler + "(int";
+    const auto start = source.find(marker);
+    ASSERT_NE(start, std::string::npos) << handler;
+    const auto end = source.find("\n}", start);
+    ASSERT_NE(end, std::string::npos) << handler;
+    const auto body = source.substr(start, end - start);
+    EXPECT_EQ(body.find("apply_master_ob"), std::string::npos) << handler;
+    EXPECT_EQ(body.find("debug_message"), std::string::npos) << handler;
+    EXPECT_EQ(body.find("exit("), std::string::npos) << handler;
+    EXPECT_EQ(body.find("fatal("), std::string::npos) << handler;
+    EXPECT_EQ(body.find("StackTrace"), std::string::npos) << handler;
+    EXPECT_EQ(body.find("vm_owner_thread_stop"), std::string::npos) << handler;
+    EXPECT_EQ(body.find("signal("), std::string::npos) << handler;
+  }
+
+  EXPECT_NE(source.find("std::atomic<unsigned int> g_pending_signal_mask"), std::string::npos);
+  EXPECT_NE(source.find("is_always_lock_free"), std::string::npos);
+  EXPECT_NE(source.find("process_pending_signal_requests()"), std::string::npos);
+  EXPECT_NE(source.find("signal(SIGINT, request_sigint);"), std::string::npos);
+  EXPECT_EQ(source.find("signal(SIGINT, attempt_shutdown);"), std::string::npos);
+
+  const auto interpreter_source = read_source_file_for_test("../src/vm/internal/base/interpret.cc");
+  EXPECT_NE(interpreter_source.find("has_pending_signal_requests()"), std::string::npos);
+  EXPECT_NE(interpreter_source.find("process_pending_signal_requests()"), std::string::npos);
+}
+
 TEST_F(DriverTest, TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown) {
   const auto applies_source = read_source_file_for_test("../src/vm/internal/applies");
   const auto shutdown_source = read_source_file_for_test("../src/vm/internal/simulate.cc");

@@ -1610,8 +1610,8 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-004 | 已实施，Debug/ASan/TSan 定向验证通过；格式门禁待工具 | fail-first 2/2 失败→修复后 Debug/ASan 受监督 runner 各 4/4、TSan 4/4；见 U04 合同 |
 | AUD-005 | 已实施，待原子提交 | 旧源码 fail-first 复现；修复后 Debug/ASan `TestAuditNoechoLog*` 各 2/2，gateway 兼容回归 3/3；证据见整改卡，真实外部客户端和 formatter 仍未验证 |
 | AUD-006 | 已实施，本地可执行范围通过；macOS/Windows 原生 CI 为 `external-required` | Debug/ASan/UBSan `TestAuditEvalBudgetDeadline` 各 1/1，`-U__linux__` deadline 探针通过；Debug 基线/当前 benchmark 交替 7 轮无中位回退超 5%；不能以本地探针替代 macOS/Windows 实机证据，见整改卡当前状态 |
-| AUD-007 | 已完成，待 AUD-007/AUD-018 原子提交 | Promise-aware iterative reclaim、owner-runtime quiescence、Debug/ASan/UBSan 与 LPC 全量证据见 `audit-evidence/aud007-018-current-02/` |
-| AUD-008 | 待实施 | 按整改卡依赖推进 |
+| AUD-007 | 已完成，已纳入 AUD-007/AUD-018 原子提交 | Promise-aware iterative reclaim、owner-runtime quiescence、Debug/ASan/UBSan 与 LPC 全量证据见 `audit-evidence/aud007-018-current-02/` |
+| AUD-008 | 已实施，本地 Linux Debug/ASan/UBSan/TSan 与信号进度夹具通过；macOS 为 `external-required` | lock-free pending mask、backend/interpreter 安全点交接、SIGUSR2 实际运行验证和 `DriverTest.TestAuditSignalDispatch*` 证据见 `audit-evidence/aud008-current-01/`；不能以 Linux 结果替代 macOS 原生 CI |
 | AUD-009 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-010 | 已验证，纳入 U02 原子提交 | U02；见下方验证合同 |
 | AUD-011 | 待实施 | 按整改卡依赖推进 |
@@ -1621,7 +1621,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-015 | 待实施 | 按整改卡依赖推进 |
 | AUD-016 | 待实施 | 按整改卡依赖推进 |
 | AUD-017 | 待实施 | 按整改卡依赖推进 |
-| AUD-018 | 已完成，待 AUD-007/AUD-018 原子提交 | Promise-owned graph roots、settled/pending/chained/coroutine traversal 与 sanitizer/LPC evidence 见 `audit-evidence/aud007-018-current-02/` |
+| AUD-018 | 已完成，已纳入 AUD-007/AUD-018 原子提交 | Promise-owned graph roots、settled/pending/chained/coroutine traversal 与 sanitizer/LPC evidence 见 `audit-evidence/aud007-018-current-02/` |
 | AUD-019 | 待实施 | 按整改卡依赖推进 |
 | AUD-020 | 待实施 | 按整改卡依赖推进 |
 | AUD-021 | 待实施 | 按整改卡依赖推进 |

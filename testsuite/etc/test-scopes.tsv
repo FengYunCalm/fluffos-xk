@@ -15,6 +15,7 @@
 /single/tests/efuns/audit_db_identity	fixture	async,db,sqlite	Fixture controlled by db_io_tests to pause a real SQLite worker before connection reuse.
 /single/tests/efuns/async_nested_callbacks	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/audit_async_budget	runtime	async	Exercises normal asynchronous callback completion under the configured request budget.
+/single/tests/efuns/audit_signal_progress	runtime	-	Runs a bounded LPC progress probe that is interrupted by an operation signal and completes through the event loop.
 /single/tests/efuns/async_info_names	runtime	async	Inherited parked coroutine must report its defining function name through async_info().
 /single/tests/efuns/async_inherit_park	runtime	async	Inherited and local parked coroutines must both resume after a shared gate resolves.
 /single/tests/efuns/async_inherit	runtime	async	Checks inherited async type metadata, qualified calls, overrides, and await results.

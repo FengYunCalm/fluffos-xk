@@ -2,6 +2,7 @@
 
 #include "mainlib.h"
 
+#include <atomic>
 #include <clocale>  // for setlocale, LC_ALL
 #ifdef HAVE_SIGNAL_H
 #include <csignal>  //  for signal, SIG_DFL, SIGABRT, etc
@@ -142,28 +143,33 @@ void sig_cld(int sig) {
    }*/
 }
 
-/* send this signal when the machine is about to reboot.  The script
- which restarts the MUD should take an exit code of 1 to mean don't
- restart
- */
-void sig_usr1(int /*sig*/) {
-  push_constant_string("Host machine shutting down");
-  push_undefined();
-  push_undefined();
-  apply_master_ob(APPLY_CRASH, 3);
-  debug_message("Received SIGUSR1, calling exit(-1)\n");
-  exit(-1);
+enum PendingSignal : unsigned int {
+  kPendingSigint = 1u << 0,
+  kPendingSigusr1 = 1u << 1,
+  kPendingSigusr2 = 1u << 2,
+};
+
+std::atomic<unsigned int> g_pending_signal_mask{0};
+static_assert(std::atomic<unsigned int>::is_always_lock_free,
+              "signal pending mask must be lock-free");
+
+/* Signal handlers only record requests. The main thread performs all VM,
+ * logging, backtrace, and process-exit work at a safe point. */
+void request_sigint(int /*sig*/) {
+  g_pending_signal_mask.fetch_or(kPendingSigint, std::memory_order_relaxed);
 }
 
-/* Abort evaluation */
+void sig_usr1(int /*sig*/) {
+  g_pending_signal_mask.fetch_or(kPendingSigusr1, std::memory_order_relaxed);
+}
+
 void sig_usr2(int /*sig*/) {
-  debug_message("Received SIGUSR2, current eval aborted.\n");
-  outoftime = 1;
+  g_pending_signal_mask.fetch_or(kPendingSigusr2, std::memory_order_relaxed);
 }
 
 /*
- * Actually, doing all this stuff from a signal is probably illegal
- * -Beek
+ * This function is called only by process_pending_signal_requests() on the
+ * main thread. It must not be registered as a signal handler.
  */
 void attempt_shutdown(int sig) {
   using namespace backward;
@@ -217,6 +223,33 @@ void init_tz() {
 #endif
 }
 }  // namespace
+
+bool has_pending_signal_requests() {
+  return g_pending_signal_mask.load(std::memory_order_relaxed) != 0;
+}
+
+void process_pending_signal_requests() {
+  const auto pending = g_pending_signal_mask.exchange(0, std::memory_order_relaxed);
+  if (pending & kPendingSigint) {
+    attempt_shutdown(SIGINT);
+  }
+
+#ifndef _WIN32
+  if (pending & kPendingSigusr1) {
+    push_constant_string("Host machine shutting down");
+    push_undefined();
+    push_undefined();
+    apply_master_ob(APPLY_CRASH, 3);
+    debug_message("Received SIGUSR1, calling exit(-1)\n");
+    exit(-1);
+  }
+
+  if (pending & kPendingSigusr2) {
+    debug_message("Received SIGUSR2, current eval aborted.\n");
+    outoftime = 1;
+  }
+#endif
+}
 
 // Return the argument at the given position, start from 0.
 std::string get_argument(unsigned int pos, int argc, char** argv) {
@@ -279,7 +312,7 @@ struct event_base* init_main(std::string_view config_file) {
 
 void setup_signal_handlers() {
   signal(SIGTERM, startshutdownMudOS);
-  signal(SIGINT, attempt_shutdown);
+  signal(SIGINT, request_sigint);
 
 #ifndef _WIN32
   // User signal
@@ -477,6 +510,7 @@ int driver_main(int argc, char** argv) {
 
   debug_message("Initializations complete.\n\n");
   setup_signal_handlers();
+  process_pending_signal_requests();
   if (MudOS_is_being_shut_down) {
     shutdownMudOS(MudOS_shutdown_exit_code);
   }

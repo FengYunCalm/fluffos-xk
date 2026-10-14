@@ -729,7 +729,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**只把处理推到 backend 不足以打断正在计算的 LPC；不能破坏 Linux 定向求值计时器，也不能从 signal handler 调用会加锁的通用调度器。
 - **文档同步：**`docs/multicore-runtime-v4.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成 Linux 本地可执行范围验证；macOS 原生验证仍为 `external-required`。操作信号 handler 只对进程级 lock-free pending mask 执行 `fetch_or`，并以 `static_assert(std::atomic<unsigned int>::is_always_lock_free)` 固定约束；SIGINT/SIGUSR1/SIGUSR2 的 VM、日志、回溯和退出动作统一在主线程安全点消费。backend tick 和主线程解释器每 64 条指令检查 pending mask，SIGTERM/SIGHUP 仍沿用原有受控关闭路径。旧源码 fail-first 记录在 `audit-evidence/aud008-current-01/fail-first-source.log`。Debug、ASan、UBSan、TSan 的 `DriverTest.TestSigtermUsesControlledShutdownWithSuccessExitCode`、`DriverTest.TestAuditSignalDispatch*`、`DriverTest.TestControlledShutdownPreparesMudlibBeforeRuntimeTeardown` 均为 3/3；TSan 首次未使用 `setarch -R` 的映射失败保留，按项目合同重试成功。隔离 driver 实际发送 SIGUSR2 后继续运行，再发送 SIGTERM 并以 0 退出；日志和状态在 `audit-evidence/aud008-current-01/runtime-signal-final2-status.log`。当前证据未包含 macOS 实机或外部客户端，不能把这些边界标为已验证；隔离 LPC signal-progress fixture 为 1/1，状态和 runner 证据在 `audit-evidence/aud008-current-01/lpc-signal-progress-status-03.log` 与 `lpc-signal-progress-03/`；完整证据目录为 `audit-evidence/aud008-current-01/`。
 
 ### AUD-009 · ASCII 空行在缓冲区起点前读一个字节
 

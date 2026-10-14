@@ -12,6 +12,25 @@ Runtime v4 继承 Runtime v2 的生产多核合同，并围绕模块边界、诊
 object-store fast path、VM profiling、gateway/session FIFO 和 mudlib-facing
 错误报告做加固。它不会开放任意 legacy LPC 后台执行。
 
+## Operation Signal Handoff / 操作信号交接
+
+Operation signal handlers (`SIGINT`, `SIGUSR1`, and `SIGUSR2`) only set bits in
+an always-lock-free process-level pending mask. They do not call the VM, write
+logs, capture backtraces, stop owner threads, join workers, or exit the process.
+The main thread consumes the mask at backend ticks and at interpreter safe
+points, so shutdown, diagnostics, and evaluation interruption run in normal
+runtime context. `SIGTERM` and `SIGHUP` retain their existing controlled-shutdown
+flag path. The contract is protected by
+`DriverTest.TestAuditSignalDispatch*` and the isolated signal-progress LPC
+fixture; native macOS evidence remains an external CI responsibility.
+
+操作信号 handler（`SIGINT`、`SIGUSR1`、`SIGUSR2`）只能向始终无锁的进程级 pending
+mask 置位。handler 不得调用 VM、写日志、采集回溯、停止 owner 线程、join worker 或退出进程。
+主线程在 backend tick 和解释器安全点消费 mask，使关闭、诊断和求值中断运行在正常运行时上下文。
+`SIGTERM` 和 `SIGHUP` 保留既有受控关闭标志路径。合同由
+`DriverTest.TestAuditSignalDispatch*` 和隔离的 signal-progress LPC fixture 保护；
+macOS 原生证据仍由外部 CI 负责。
+
 ## Runtime Layering / Runtime 分层
 
 Owner runtime modules are expected to stay in this order:

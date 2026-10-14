@@ -1,0 +1,18 @@
+string completion_token;
+int progress;
+
+void step() {
+    progress++;
+    if (progress < 4) {
+        call_out("step", 1);
+        return;
+    }
+    ASSERT(progress >= 4);
+    "/command/tests"->complete_async(completion_token);
+}
+
+void do_tests() {
+    completion_token = "/command/tests"->begin_async();
+    progress = 0;
+    call_out("step", 1);
+}
