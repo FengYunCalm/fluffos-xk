@@ -122,7 +122,8 @@ jobs:
         run: |
           python3 -m json.tool docs/evidence/manifest.schema.json >/dev/null
           python3 -m json.tool third_party/sbom.json >/dev/null
-          python3 tools/sbom-generate.py --validate
+          python3 tools/sbom-generate.py --check --validate
+          python3 -B tools/test-sbom.py
 
   evidence-check:
     name: Evidence Gate (non-empty, schema + HEAD)

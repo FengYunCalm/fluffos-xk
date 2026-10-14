@@ -3,108 +3,165 @@ last_reviewed: 2026-10-11
 vendored:
 - name: argparse
   path: src/thirdparty/argparse
-  version: 2.9 (p-ranav/argparse, vendored single-header)
-  upstream: https://github.com/p-ranav/argparse
+  version: 2.9
+  source_url: https://github.com/p-ranav/argparse
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 83ee074cc958e300d8d4f1befb21d6a128c0aa0625fbad9b3148d5b965445448
   license: MIT
-  checksum: 446a310f4c1e5a8d06d7046b00b48278132c7fdca974b52e27ab286509b51038
-  patches: none
-  notes: Single-header library under include/argparse/.
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
+  notes: Single-header library under include/argparse/. Version is declared by the local inventory.
 - name: backward-cpp
   path: src/thirdparty/backward-cpp
   version: 1.3.0
-  upstream: https://github.com/bombela/backward-cpp
+  source_url: https://github.com/bombela/backward-cpp
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 85705774c95c109e9cc07b34993c4263587a617f61a61e7cf78adf17a475a097
   license: MIT
-  checksum: 569586a3fd9bc3b90069218f2eda2e820eb556a2b4cdf086e901aea00486bfcc
-  patches: none
-  notes: Used for crash stack traces. Version from conanfile.py.
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
+  notes: Used for crash stack traces. Version is declared by conanfile.py.
 - name: crypt
   path: src/thirdparty/crypt
-  version: upstream lineage (OpenSSL crypt module, vendored snapshot)
-  upstream: https://github.com/openssl/openssl (crypt module lineage)
+  version: 1.1.24
+  source_url: https://git.musl-libc.org/cgit/musl
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 2f65116e2641d4535746f74ebc868cea37b0d980e074014c2932426e68eb280b
   license: BSD-3-Clause
-  checksum: b6b403a1d5e4202b8346616d913508311b044f9ce44428d2cc8eacbb47df01d2
-  patches: none
-  notes: Legacy DES/MD5 crypt implementations (ENABLE_LEGACY_DES_CRYPT).
+  patches:
+    status: unverified
+    detail: The local README identifies musl 1.1.24, but the exact upstream revision and patch set are not retained.
+  notes: Legacy DES/MD5 crypt implementations from the musl 1.1.24 source lineage (ENABLE_LEGACY_DES_CRYPT).
 - name: ghc-filesystem
   path: src/thirdparty/filesystem
   version: 1.5.12
-  upstream: https://github.com/gulrak/filesystem
+  source_url: https://github.com/gulrak/filesystem
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: f81b5ab3d58637fd5f754c904841a05f5e5fa74a34cb1cb47f46901bd56d924f
   license: MIT
-  checksum: d9d18c7aeae11a40f16c68a5964f93bd517097c23c863ade6b48f16114955f53
-  patches: none
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
   notes: GHC_FILESYSTEM_VERSION 10512L in include/ghc/filesystem.hpp.
 - name: fmt
   path: src/thirdparty/fmt
   version: 10.1.0
-  upstream: https://github.com/fmtlib/fmt
+  source_url: https://github.com/fmtlib/fmt
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 88a4e36597c0b20a016dccb9f24d3f1b826977342c0c439c93bad7123ece118d
   license: MIT
-  checksum: 49027b3a00d55c4886095973180426668b0196ad41f517857b800eb95a9968e7
-  patches: none
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
   notes: FMT_VERSION 100100 in include/fmt/core.h.
 - name: nlohmann-json
   path: src/thirdparty/json
   version: 3.11.2
-  upstream: https://github.com/nlohmann/json
+  source_url: https://github.com/nlohmann/json
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: d3ca110cbe2ed2e5021a59b7d67e3e800adf47f91988b133902573774719519b
   license: MIT
-  checksum: 0ab1ca12c58eff340675695609df49b80c2e53096092ec2620ca50afaba1288e
-  patches: none
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
   notes: Version banner in single_include/nlohmann/json.hpp.
 - name: libevent
   path: src/thirdparty/libevent
-  version: 2.2.1-alpha-dev (vendored snapshot)
-  upstream: https://github.com/libevent/libevent
+  version: 2.2.1-alpha-dev
+  source_url: https://github.com/libevent/libevent
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: d43f95a197fd9b1f5086564a96fe35abaee0a49ab954df49119f20d7d0e5e48b
   license: BSD-3-Clause
-  checksum: 1095096f8aa106a0d7e3aa1854f306ac19de152d7196dec7e3984c821bd805ba
-  patches: none
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
   notes: AC_INIT(libevent,2.2.1-alpha-dev) in configure.ac.
 - name: libtelnet
   path: src/thirdparty/libtelnet
   version: 0.30.0
-  upstream: https://github.com/seanmiddleditch/libtelnet
+  source_url: https://github.com/seanmiddleditch/libtelnet
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 852e2887b998fbf995db4e06bd0b4cb8b528a145503f782beef7d66477abf6f2
   license: Public Domain (UNLICENSE)
-  checksum: 97ab7aaf4102d9ac36ff8401de7d1a03f87091bbf74b78c60772dd67a308315c
-  patches: none
-  notes: Header banner \version 0.23 in libtelnet.h (vendored later).
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
+  notes: CMakeLists.txt and NEWS declare 0.30.0; the historical header banner still says 0.23.
 - name: libwebsockets
   path: src/thirdparty/libwebsockets
-  version: 4.2.1
-  upstream: https://github.com/warmcat/libwebsockets
+  version: 4.5.8
+  source_url: https://github.com/warmcat/libwebsockets
+  source_revision: 1797eaafcd50cf44471b2fcb64fe03180742e620
+  source_revision_status: verified
+  source_tree_sha256: 92d28777da2463605f805daa70e3717b8c6d7ab889007db87b576eb304e4e27a
   license: MIT
-  checksum: cbcecb4ed1b8bedf5a825049d3f90e7aa871627fdc1741bf68cd5429ad8141d0
-  patches: multiple local build tweaks (LWS_WITH_* cache vars in src/CMakeLists.txt)
-  notes: Version banner in libwebsockets.h.
+  patches:
+    status: verified
+    basis: 1797eaafcd50cf44471b2fcb64fe03180742e620
+    entries:
+    - path: include/libwebsockets/lws-context-vhost.h
+      detail: Local ssl_min_proto_version field for the driver TLS contract.
+    - path: lib/tls/openssl/openssl-server.c
+      detail: Local application of ssl_min_proto_version in the OpenSSL backend.
+  notes: 4.5.8 baseline 8fe05a5d and later upstream ws-over-h2 commits are present; local vendor identity is anchored at 1797eaaf.
 - name: scope-guard
   path: src/thirdparty/scope_guard
   version: 0.9.0
-  upstream: https://github.com/ricab/scope_guard
+  source_url: https://github.com/ricab/scope_guard
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 432ab52b40f0130c824d94528802728dfbbee559bd42f6e92a981813524dcd9b
   license: MIT
-  checksum: 941998359d2650340f255a518dff2b5ebb3c8e8042023258a1c42c78b48aba33
-  patches: none
-  notes: Header-only; banner in scope_guard.hpp.
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
+  notes: Header-only; version is declared by the local inventory.
 - name: utf8-decoder-dfa
   path: src/thirdparty/utf8_decoder_dfa
-  version: bjoern.hoehrmann.de dfa decoder (vendored snapshot)
-  upstream: https://github.com/nelhage/utf8_decoder_dfa
+  version: unverified
+  source_url: https://github.com/nelhage/utf8_decoder_dfa
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: 7ae0f8655ee960ee9b02841ee2acd7369bf339023c267f3f3bffcd48982920e3
   license: MIT
-  checksum: 976a128e6d73f2ba9a8336e439a8b71b0fed2af619b7f985061064178cbb1585
-  patches: none
-  notes: Single decoder.h.
+  patches:
+    status: unverified
+    detail: Exact upstream revision and local patch set are not retained.
+  notes: Single decoder.h; no authoritative local version declaration was found.
 - name: utfcpp
   path: src/thirdparty/utfcpp
   version: 3.2
-  upstream: https://github.com/nemtrif/utfcpp
+  source_url: https://github.com/nemtrif/utfcpp
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: dac2d0ca738a2fa5d8ad02af727914b424dc305a1e64e3233e1feb07021eaab0
   license: Boost Software License 1.0
-  checksum: 1fb6608b37fea1dfb3e7a829e257eca02a06d15efeb689a7cc6d36cfbfbdee4f
-  patches: none
+  patches:
+    status: unverified
+    detail: Exact upstream revision is not retained, so the local patch set cannot be proven.
   notes: project() version 3.2.
 - name: widecharwidth
   path: src/thirdparty/widecharwidth
-  version: public-domain tables (vendored snapshot)
-  upstream: https://github.com/ridiculousfish/widecharwidth
+  version: unverified
+  source_url: https://github.com/ridiculousfish/widecharwidth
+  source_revision: unverified
+  source_revision_status: unverified
+  source_tree_sha256: e5fff5ac982b15a8fc8f08c524677b6d03e9faf3fb5810680713b934828f045e
   license: MIT / CC0 (public domain)
-  checksum: 2bc0db7d88788db7bca418d11daa6dad2586c5c025b681fa49ec3abf8732f22b
-  patches: none
-  notes: Header-only width tables.
+  patches:
+    status: unverified
+    detail: Exact upstream revision and local patch set are not retained.
+  notes: Header-only width tables; no authoritative local version declaration was found.
 external_downloads:
 - name: jemalloc
   version: 5.3.0

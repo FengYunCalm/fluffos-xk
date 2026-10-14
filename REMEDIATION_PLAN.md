@@ -1405,8 +1405,8 @@ done
 - **修复目标：**以 manifest 为身份单一来源，记录可核对的 commit/版本/补丁；按 source URL 构建 purl，增加不先覆写产物的 check。
 - **来源处理策略：**保留 fork 的对外能力，修当前实现根因，不借机删除合同或覆盖已有修复。
 - **优先级/来源：**P2 / fork 引入问题。
-- **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`third_party/manifest.yaml:68–76`、`src/thirdparty/libwebsockets/CMakeLists.txt:500–507`、`tools/sbom-generate.py:30–43`。
-- **作用范围：**`third_party/manifest.yaml`、`tools/sbom-generate.py`、`tools/test-sbom.py`、`docs/project-modernization-plan-2026-10.md`。测试归属 `tools/test-sbom.py`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`third_party/manifest.yaml`、`src/thirdparty/libwebsockets/CMakeLists.txt`、`tools/sbom-generate.py`。
+- **作用范围：**`third_party/manifest.yaml`、`third_party/sbom.json`、`tools/sbom-generate.py`、`tools/test-sbom.py`、`.github/workflows/ci.yml`、`docs/project-modernization-plan-2026-10.md`。测试归属 `tools/test-sbom.py`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**构建/依赖维护者；8–16 小时。
 - **必须击中的根因：**自报版本/patch 元数据未与实际 source revision 绑定，purl 用展示 name 拼装；生成后 validate 不能证明提交中的原 SBOM 未漂移。
 
@@ -1442,9 +1442,9 @@ TMPDIR="$E/tmp" "$PY" -B tools/test-sbom.py
 
 - **验收：**manifest/source/SBOM 三方身份可追溯；修改任一输入会使 --check 非零且不改文件；生成两次结果稳定；无法确认项明示。
 - **风险与缓解：**此项不是授权升级全部依赖、发布 SBOM 或上传服务；无法证明精确 vendored 基线时写不确定，不编造 commit。
-- **文档同步：**`docs/vendor-libwebsockets-manifest-2026-08.md`、`docs/project-modernization-plan-2026-10.md`；只更新受影响的合同/流程，不复制历史测试数字。
+- **文档同步：**`third_party/manifest.yaml`、`third_party/sbom.json`、`docs/vendor-libwebsockets-manifest-2026-08.md`、`docs/project-modernization-plan-2026-10.md`、`.github/workflows/ci.yml`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。manifest 现在以规范 `source_url`、版本、源树摘要、source revision 状态和 patch 状态作为身份单一来源；libwebsockets 已修正为 4.5.8，来源锚定到可核对的 `1797eaafcd50cf44471b2fcb64fe03180742e620`，其两处本地 TLS 内容适配单独列出。其余无法从本地历史恢复精确上游 commit 的组件显式标为 `unverified`，未把未知补丁写成 `none`。SBOM 改为按 GitHub owner/repo 规范生成 PURL，并把源树摘要和来源状态写入属性；`--check` 只比较、不覆盖已提交产物。离线 `tools/test-sbom.py` 共 6 项通过；生成、`--check --validate` 均通过；证据见 `audit-evidence/aud021-current-01/`。在线 advisory/registry 核对未执行，不能据此声明无漏洞；精确上游基线仍为 `external-required`。
 
 ### AUD-022 · owner 状态把历史验收写死为当前 ready
 

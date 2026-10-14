@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:07f69607-cc28-5d28-9501-0ffdb63237f0",
+  "serialNumber": "urn:uuid:17ef7707-6b21-512c-9a64-a68fa618688d",
   "version": 1,
   "metadata": {
     "timestamp": "2026-10-11T00:00:00Z",
@@ -9,7 +9,7 @@
       {
         "vendor": "FluffOS",
         "name": "sbom-generate.py",
-        "version": "2"
+        "version": "3"
       }
     ],
     "component": {
@@ -22,7 +22,7 @@
     {
       "type": "library",
       "name": "argparse",
-      "version": "2.9 (p-ranav/argparse, vendored single-header)",
+      "version": "2.9",
       "licenses": [
         {
           "license": {
@@ -39,13 +39,39 @@
       "supplier": {
         "name": "https://github.com/p-ranav/argparse"
       },
-      "purl": "pkg:github/argparse@2.9 (p-ranav/argparse, vendored single-header)",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/argparse"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "83ee074cc958e300d8d4f1befb21d6a128c0aa0625fbad9b3148d5b965445448"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "446a310f4c1e5a8d06d7046b00b48278132c7fdca974b52e27ab286509b51038"
+          "content": "83ee074cc958e300d8d4f1befb21d6a128c0aa0625fbad9b3148d5b965445448"
         }
-      ]
+      ],
+      "purl": "pkg:github/p-ranav/argparse@2.9"
     },
     {
       "type": "library",
@@ -67,18 +93,44 @@
       "supplier": {
         "name": "https://github.com/bombela/backward-cpp"
       },
-      "purl": "pkg:github/backward-cpp@1.3.0",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/backward-cpp"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "85705774c95c109e9cc07b34993c4263587a617f61a61e7cf78adf17a475a097"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "569586a3fd9bc3b90069218f2eda2e820eb556a2b4cdf086e901aea00486bfcc"
+          "content": "85705774c95c109e9cc07b34993c4263587a617f61a61e7cf78adf17a475a097"
         }
-      ]
+      ],
+      "purl": "pkg:github/bombela/backward-cpp@1.3.0"
     },
     {
       "type": "library",
       "name": "crypt",
-      "version": "upstream lineage (OpenSSL crypt module, vendored snapshot)",
+      "version": "1.1.24",
       "licenses": [
         {
           "license": {
@@ -89,17 +141,42 @@
       "externalReferences": [
         {
           "type": "vcs",
-          "url": "https://github.com/openssl/openssl (crypt module lineage)"
+          "url": "https://git.musl-libc.org/cgit/musl"
         }
       ],
       "supplier": {
-        "name": "https://github.com/openssl/openssl (crypt module lineage)"
+        "name": "https://git.musl-libc.org/cgit/musl"
       },
-      "purl": "pkg:github/crypt@upstream lineage (OpenSSL crypt module, vendored snapshot)",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/crypt"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "2f65116e2641d4535746f74ebc868cea37b0d980e074014c2932426e68eb280b"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "The local README identifies musl 1.1.24, but the exact upstream revision and patch set are not retained."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "b6b403a1d5e4202b8346616d913508311b044f9ce44428d2cc8eacbb47df01d2"
+          "content": "2f65116e2641d4535746f74ebc868cea37b0d980e074014c2932426e68eb280b"
         }
       ]
     },
@@ -123,13 +200,39 @@
       "supplier": {
         "name": "https://github.com/gulrak/filesystem"
       },
-      "purl": "pkg:github/ghc-filesystem@1.5.12",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/filesystem"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "f81b5ab3d58637fd5f754c904841a05f5e5fa74a34cb1cb47f46901bd56d924f"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "d9d18c7aeae11a40f16c68a5964f93bd517097c23c863ade6b48f16114955f53"
+          "content": "f81b5ab3d58637fd5f754c904841a05f5e5fa74a34cb1cb47f46901bd56d924f"
         }
-      ]
+      ],
+      "purl": "pkg:github/gulrak/filesystem@1.5.12"
     },
     {
       "type": "library",
@@ -151,13 +254,39 @@
       "supplier": {
         "name": "https://github.com/fmtlib/fmt"
       },
-      "purl": "pkg:github/fmt@10.1.0",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/fmt"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "88a4e36597c0b20a016dccb9f24d3f1b826977342c0c439c93bad7123ece118d"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "49027b3a00d55c4886095973180426668b0196ad41f517857b800eb95a9968e7"
+          "content": "88a4e36597c0b20a016dccb9f24d3f1b826977342c0c439c93bad7123ece118d"
         }
-      ]
+      ],
+      "purl": "pkg:github/fmtlib/fmt@10.1.0"
     },
     {
       "type": "library",
@@ -179,18 +308,44 @@
       "supplier": {
         "name": "https://github.com/nlohmann/json"
       },
-      "purl": "pkg:github/nlohmann-json@3.11.2",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/json"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "d3ca110cbe2ed2e5021a59b7d67e3e800adf47f91988b133902573774719519b"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "0ab1ca12c58eff340675695609df49b80c2e53096092ec2620ca50afaba1288e"
+          "content": "d3ca110cbe2ed2e5021a59b7d67e3e800adf47f91988b133902573774719519b"
         }
-      ]
+      ],
+      "purl": "pkg:github/nlohmann/json@3.11.2"
     },
     {
       "type": "library",
       "name": "libevent",
-      "version": "2.2.1-alpha-dev (vendored snapshot)",
+      "version": "2.2.1-alpha-dev",
       "licenses": [
         {
           "license": {
@@ -207,13 +362,39 @@
       "supplier": {
         "name": "https://github.com/libevent/libevent"
       },
-      "purl": "pkg:github/libevent@2.2.1-alpha-dev (vendored snapshot)",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/libevent"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "d43f95a197fd9b1f5086564a96fe35abaee0a49ab954df49119f20d7d0e5e48b"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "1095096f8aa106a0d7e3aa1854f306ac19de152d7196dec7e3984c821bd805ba"
+          "content": "d43f95a197fd9b1f5086564a96fe35abaee0a49ab954df49119f20d7d0e5e48b"
         }
-      ]
+      ],
+      "purl": "pkg:github/libevent/libevent@2.2.1-alpha-dev"
     },
     {
       "type": "library",
@@ -235,18 +416,44 @@
       "supplier": {
         "name": "https://github.com/seanmiddleditch/libtelnet"
       },
-      "purl": "pkg:github/libtelnet@0.30.0",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/libtelnet"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "852e2887b998fbf995db4e06bd0b4cb8b528a145503f782beef7d66477abf6f2"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "97ab7aaf4102d9ac36ff8401de7d1a03f87091bbf74b78c60772dd67a308315c"
+          "content": "852e2887b998fbf995db4e06bd0b4cb8b528a145503f782beef7d66477abf6f2"
         }
-      ]
+      ],
+      "purl": "pkg:github/seanmiddleditch/libtelnet@0.30.0"
     },
     {
       "type": "library",
       "name": "libwebsockets",
-      "version": "4.2.1",
+      "version": "4.5.8",
       "licenses": [
         {
           "license": {
@@ -263,13 +470,39 @@
       "supplier": {
         "name": "https://github.com/warmcat/libwebsockets"
       },
-      "purl": "pkg:github/libwebsockets@4.2.1",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/libwebsockets"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "1797eaafcd50cf44471b2fcb64fe03180742e620"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "verified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "92d28777da2463605f805daa70e3717b8c6d7ab889007db87b576eb304e4e27a"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "verified"
+        },
+        {
+          "name": "fluffos:patch-basis",
+          "value": "1797eaafcd50cf44471b2fcb64fe03180742e620"
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "cbcecb4ed1b8bedf5a825049d3f90e7aa871627fdc1741bf68cd5429ad8141d0"
+          "content": "92d28777da2463605f805daa70e3717b8c6d7ab889007db87b576eb304e4e27a"
         }
-      ]
+      ],
+      "purl": "pkg:github/warmcat/libwebsockets@4.5.8"
     },
     {
       "type": "library",
@@ -291,18 +524,44 @@
       "supplier": {
         "name": "https://github.com/ricab/scope_guard"
       },
-      "purl": "pkg:github/scope-guard@0.9.0",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/scope_guard"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "432ab52b40f0130c824d94528802728dfbbee559bd42f6e92a981813524dcd9b"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "941998359d2650340f255a518dff2b5ebb3c8e8042023258a1c42c78b48aba33"
+          "content": "432ab52b40f0130c824d94528802728dfbbee559bd42f6e92a981813524dcd9b"
         }
-      ]
+      ],
+      "purl": "pkg:github/ricab/scope_guard@0.9.0"
     },
     {
       "type": "library",
       "name": "utf8-decoder-dfa",
-      "version": "bjoern.hoehrmann.de dfa decoder (vendored snapshot)",
+      "version": "unverified",
       "licenses": [
         {
           "license": {
@@ -319,11 +578,36 @@
       "supplier": {
         "name": "https://github.com/nelhage/utf8_decoder_dfa"
       },
-      "purl": "pkg:github/utf8-decoder-dfa@bjoern.hoehrmann.de dfa decoder (vendored snapshot)",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/utf8_decoder_dfa"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "7ae0f8655ee960ee9b02841ee2acd7369bf339023c267f3f3bffcd48982920e3"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision and local patch set are not retained."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "976a128e6d73f2ba9a8336e439a8b71b0fed2af619b7f985061064178cbb1585"
+          "content": "7ae0f8655ee960ee9b02841ee2acd7369bf339023c267f3f3bffcd48982920e3"
         }
       ]
     },
@@ -347,18 +631,44 @@
       "supplier": {
         "name": "https://github.com/nemtrif/utfcpp"
       },
-      "purl": "pkg:github/utfcpp@3.2",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/utfcpp"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "dac2d0ca738a2fa5d8ad02af727914b424dc305a1e64e3233e1feb07021eaab0"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision is not retained, so the local patch set cannot be proven."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "1fb6608b37fea1dfb3e7a829e257eca02a06d15efeb689a7cc6d36cfbfbdee4f"
+          "content": "dac2d0ca738a2fa5d8ad02af727914b424dc305a1e64e3233e1feb07021eaab0"
         }
-      ]
+      ],
+      "purl": "pkg:github/nemtrif/utfcpp@3.2"
     },
     {
       "type": "library",
       "name": "widecharwidth",
-      "version": "public-domain tables (vendored snapshot)",
+      "version": "unverified",
       "licenses": [
         {
           "license": {
@@ -375,11 +685,36 @@
       "supplier": {
         "name": "https://github.com/ridiculousfish/widecharwidth"
       },
-      "purl": "pkg:github/widecharwidth@public-domain tables (vendored snapshot)",
+      "properties": [
+        {
+          "name": "fluffos:source-path",
+          "value": "src/thirdparty/widecharwidth"
+        },
+        {
+          "name": "fluffos:source-revision",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-revision-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:source-tree-sha256",
+          "value": "e5fff5ac982b15a8fc8f08c524677b6d03e9faf3fb5810680713b934828f045e"
+        },
+        {
+          "name": "fluffos:patch-status",
+          "value": "unverified"
+        },
+        {
+          "name": "fluffos:patch-note",
+          "value": "Exact upstream revision and local patch set are not retained."
+        }
+      ],
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "2bc0db7d88788db7bca418d11daa6dad2586c5c025b681fa49ec3abf8732f22b"
+          "content": "e5fff5ac982b15a8fc8f08c524677b6d03e9faf3fb5810680713b934828f045e"
         }
       ]
     },
@@ -406,7 +741,7 @@
           "content": "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
         }
       ],
-      "purl": "pkg:generic/jemalloc@5.3.0"
+      "purl": "pkg:github/jemalloc/jemalloc@5.3.0"
     },
     {
       "type": "operating-system",
