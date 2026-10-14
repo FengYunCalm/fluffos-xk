@@ -560,7 +560,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能用关闭整个 connections 日志掩盖问题；不能把真实密码写入回归日志；模式位清理后再检查会漏保护。
 - **文档同步：**`docs/efun/interactive/input_to.md`、`docs/efun/interactive/get_char.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**已实施，待原子提交。旧源码 fail-first 在 `build-modernization-evidence/audit-3d7a0127452c-noecho-fail-first-3/` 复现 NOECHO 正文泄漏；修复后 Debug 受监督 runner 的 `DriverTest.TestAuditNoechoLog*` 为 `selected=2, passed=2, skipped=0, failed=0`，证据在 `audit-3d7a0127452c-noecho-debug-pass-2/`；同一过滤器在隔离 ASan 构建中为 `2/2`，证据在 `audit-3d7a0127452c-noecho-asan-run-2/`。既有 gateway input_to、get_char snapshot 和 callback self-destruct 兼容回归为 `3/3`，证据在 `audit-3d7a0127452c-noecho-compat-debug/`。验证覆盖普通输入、NOECHO input_to、NOECHO get_char、原始 callback 参数和固定 `<redacted>` 日志标记；`consume_user_command_snapshot` 无同类正文 debug 点。未运行真实外部 TCP/TLS/WebSocket 客户端，固定 clang-format 18.1.8 仍不可用；这些边界不标为已验证。
+- **当前状态：**已实施并已提交于 `e8ceb350`。旧源码 fail-first 在 `build-modernization-evidence/audit-3d7a0127452c-noecho-fail-first-3/` 复现 NOECHO 正文泄漏；修复后 Debug 受监督 runner 的 `DriverTest.TestAuditNoechoLog*` 为 `selected=2, passed=2, skipped=0, failed=0`，证据在 `audit-3d7a0127452c-noecho-debug-pass-2/`；同一过滤器在隔离 ASan 构建中为 `2/2`，证据在 `audit-3d7a0127452c-noecho-asan-run-2/`。既有 gateway input_to、get_char snapshot 和 callback self-destruct 兼容回归为 `3/3`，证据在 `audit-3d7a0127452c-noecho-compat-debug/`。验证覆盖普通输入、NOECHO input_to、NOECHO get_char、原始 callback 参数和固定 `<redacted>` 日志标记；`consume_user_command_snapshot` 无同类正文 debug 点。未运行真实外部 TCP/TLS/WebSocket 客户端，固定 clang-format 18.1.8 仍不可用；这些边界不标为已验证。
 
 ### AUD-006 · 非 Linux 构建没有执行求值时间限制
 
@@ -669,7 +669,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**已有 owner-wide quiescence 入口已核对，可复用而不重做调度器；仍须通过真实 claim/拒绝/恢复测试。冻结失败不得访问全局对象图，end 必须使用匹配 epoch。mapping key 与 funptr program 引用沿用现有语义，worklist 保活先于重新开放 owner 结束。
 - **文档同步：**`docs/efun/system/reclaim_objects.md`、`docs/owner-multicore-api.md`、`docs/multicore-runtime-v4.md`。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**PASS，待原子提交。Promise settlement、reaction、链式 Promise、协程状态和 Promise root 已接入迭代 worklist，并在 owner-runtime 静止门闩内执行。当前源码的 Debug、ASan、UBSan 与 LPC 全量证据归档于 `audit-evidence/aud007-018-current-02/`：Debug/ASan/UBSan 的可用 C++ 全集均为 529/529（仅排除未构建的 `TestLpcshellInteractiveContract`），Promise/reclaim 定向过滤器为 2/2，LPC 全量为 496/496；lpcc I/O 为 12/12。`TestLpcshellInteractiveContract` 的未执行状态和外部平台限制仍单独保留，不计为通过。
+- **当前状态：**PASS，已纳入提交 `7173f1b6`。Promise settlement、reaction、链式 Promise、协程状态和 Promise root 已接入迭代 worklist，并在 owner-runtime 静止门闩内执行。当前源码的 Debug、ASan、UBSan 与 LPC 全量证据归档于 `audit-evidence/aud007-018-current-02/`：Debug/ASan/UBSan 的可用 C++ 全集均为 529/529（仅排除未构建的 `TestLpcshellInteractiveContract`），Promise/reclaim 定向过滤器为 2/2，LPC 全量为 496/496；lpcc I/O 为 12/12。`TestLpcshellInteractiveContract` 的未执行状态和外部平台限制仍单独保留，不计为通过。
 
 ### AUD-008 · 操作信号处理器直接执行 VM、日志和线程停止
 
