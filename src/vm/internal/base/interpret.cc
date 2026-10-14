@@ -2475,7 +2475,7 @@ void eval_instruction(char* p) {
       last = (last + 1) % (sizeof previous_instruction / sizeof(int));
     }
 
-    if (outoftime) {
+    if (eval_limit_expired()) {
       debug_message("Eval interrupted: object %s cost limit reached, limit: %ld usec.\n",
                     current_object->obname, max_eval_cost);
       set_eval(max_eval_cost);

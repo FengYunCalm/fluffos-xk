@@ -568,7 +568,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P1 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/vm/internal/eval_limit.cc:9–29`、`src/vm/internal/base/interpret.cc:2478–2487`。
-- **作用范围：**`src/vm/internal/eval_limit.cc`、`src/vm/internal/base/interpret.cc`、`src/vm/internal/eval_limit.h`、`src/vm/internal/posix_timers.cc`、`src/vm/internal/base/promise.cc`、`.github/workflows/ci.yml`、`src/tests/lpc_vm_bench.cc`。测试归属 `src/tests/test_lpc.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/vm/internal/eval_limit.cc`、`src/vm/internal/base/interpret.cc`、`src/vm/internal/eval_limit.h`、`src/vm/internal/base/promise.cc`、`.github/workflows/ci.yml`、`src/tests/test_lpc.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**构建/依赖维护者；24–40 小时。
 - **必须击中的根因：**计时实现只编译于 __linux__，其他平台只有警告而无等价保护。
 
@@ -583,9 +583,9 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 ```text
 #ifndef __linux__
-if (++poll_count == 64) {
+if (++poll_count >= 64) {
   poll_count = 0;
-  if (std::chrono::steady_clock::now() >= deadline) {
+  if (steady_clock::now() >= deadline) {
     outoftime = 1;
   }
 }
@@ -594,8 +594,8 @@ if (++poll_count == 64) {
 
 #### 定向验证
 
-- **场景：**真实 macOS 和 Windows 各运行有截止时间的正常计算、超过预算的有限计算、嵌套 catch、set_eval_limit 和不同 owner 互不污染测试。
-- **profile/真实边界：**Linux Debug/UBSan 保持回归；macOS+Windows 原生行为；VM benchmark 对照。
+- **场景：**Linux 运行有截止时间的有限计算；非 Linux 分支在隔离的非 Linux 编译/运行探针中验证 deadline、过期和线程私有状态；macOS 与 Windows 的原生回归由 CI 实际执行。
+- **profile/真实边界：**Linux Debug、ASan、UBSan 定向回归；非 Linux 使用 `-U__linux__` 的同一源码探针；未把 Linux 模拟结果写成 macOS/Windows 实机证据。
 - **新增 native filter：**`DriverTest.TestAuditEvalBudget*`，目标 `lpc_tests`。
 
 ```bash
@@ -607,23 +607,15 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --timeout 180 --evidence-dir "$E/$N-native-debug"
 ```
 
-- **新增 LPC 对象：**`/single/tests/efuns/audit_eval_budget`。测试源是 `testsuite/single/tests/efuns/audit_eval_budget.lpc`；纳入本单元文件清单并注册 scope。
-
-```bash
-N=AUD-006
-L=audit_eval_budget
-HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --driver "$BD/bin/driver" --case "/single/tests/efuns/$L" \
-  --timeout 180 --evidence-dir "$E/$N-lpc-debug"
-```
+- **平台 CI：**`.github/workflows/ci.yml` 在 macOS/Windows 的 Debug 与 RelWithDebInfo 矩阵中运行同一过滤器；该路径必须保留真实失败，不得只编译通过。
 
 #### 完成、风险和回退
 
-- **验收：**两种非 Linux 平台均真实中断超额计算且之后能继续执行；owner 间预算不串扰；Linux 原语义保持；正常 VM benchmark 回退不超过 5%。
+- **验收：**两种非 Linux 平台的 CI 均真实中断超额计算且之后能继续执行；owner 间预算不串扰；Linux 原语义保持；正常 VM benchmark 回退不超过 5%。本地 `-U__linux__` 探针只证明非 Linux 实现可编译并具备独立 deadline 语义，不替代两种真实平台证据。
 - **风险与缓解：**wall time 与线程 CPU 时间不同；不能把跨 await 的等待算成未定义的新预算；必须沿用现有挂起/恢复的 set_eval 调用语义并记录平台差异。 此项保证纯 LPC 运算在安全点响应预算，不承诺可中断任意阻塞 C/外部库调用。
 - **文档同步：**`docs/efun/system/set_eval_limit.md`、`docs/efun/system/eval_cost.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成本地可执行范围。`TestAuditEvalBudgetDeadline`（含不同线程独立预算检查）在隔离 Debug、ASan、UBSan 构建的受监督 runner 中各通过 1/1；最终证据位于 `build-modernization-evidence/audit-aud006-eval-budget-01/native-debug-final2/`、`native-asan-final2/` 和 `native-ubsan-final4/`。同一 `eval_limit.cc` 以 `-U__linux__` 编译并由独立 C++ 探针验证 deadline 到期和重置语义，最终日志在 `build-modernization-evidence/audit-aud006-eval-budget-01/nonlinux-probe-final/probe-run.log`。完整 `lpc_tests` 在 Debug、ASan、UBSan 中各执行并通过 528/528，证据位于 `full-debug-final6/`、`full-asan-final6/` 和 `native-ubsan-final3/`。Linux Debug 基线与当前源码各交替运行 7 轮 `lpc_vm_bench`，无指标中位回退超过拟议 5% 门槛，比较结果在 `benchmark-comparison.json`。macOS/Windows 原生 CI 尚未运行，属于 `external-required`，不能以本地源码探针替代。
 
 ### AUD-007 · reclaim_objects 对共享或循环复合值重复遍历
 

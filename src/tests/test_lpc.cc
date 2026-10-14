@@ -1,4 +1,63 @@
+#include <atomic>
+#include <thread>
+
 #include "test_lpc_support.h"
+
+#include "vm/internal/eval_limit.h"
+
+TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
+  constexpr uint64_t kBudgetMicros = 10'000;
+  constexpr uint64_t kMaxIterations = 100'000'000;
+
+  outoftime = 0;
+  set_eval(kBudgetMicros);
+  const int64_t initial_remaining = get_eval();
+  uint64_t iterations = 0;
+  while (iterations < kMaxIterations && !eval_limit_expired()) {
+    ++iterations;
+  }
+  const bool expired = eval_limit_expired();
+  const int64_t remaining_after_expiry = get_eval();
+
+  set_eval(max_eval_cost);
+  outoftime = 0;
+
+  EXPECT_GT(initial_remaining, 0);
+  EXPECT_TRUE(expired);
+  EXPECT_EQ(remaining_after_expiry, 0);
+  EXPECT_LT(iterations, kMaxIterations);
+
+  constexpr uint64_t kMainThreadBudgetMicros = 100'000;
+  constexpr uint64_t kWorkerThreadBudgetMicros = 5'000;
+  std::atomic<int64_t> worker_initial_remaining{0};
+  std::atomic<int64_t> worker_remaining_after_expiry{0};
+  std::atomic<bool> worker_expired{false};
+
+  set_eval(kMainThreadBudgetMicros);
+  std::thread worker([&] {
+    outoftime = 0;
+    set_eval(kWorkerThreadBudgetMicros);
+    worker_initial_remaining.store(get_eval(), std::memory_order_relaxed);
+    uint64_t worker_iterations = 0;
+    while (worker_iterations < kMaxIterations && !eval_limit_expired()) {
+      ++worker_iterations;
+    }
+    worker_expired.store(eval_limit_expired(), std::memory_order_release);
+    worker_remaining_after_expiry.store(get_eval(), std::memory_order_release);
+    set_eval(max_eval_cost);
+    outoftime = 0;
+  });
+  worker.join();
+
+  const int64_t main_remaining_after_worker = get_eval();
+  set_eval(max_eval_cost);
+  outoftime = 0;
+
+  EXPECT_GT(worker_initial_remaining.load(std::memory_order_relaxed), 0);
+  EXPECT_TRUE(worker_expired.load(std::memory_order_acquire));
+  EXPECT_EQ(worker_remaining_after_expiry.load(std::memory_order_acquire), 0);
+  EXPECT_GT(main_remaining_after_worker, 20'000);
+}
 
 TEST(StrUtilsTest, TrimCharsetMatchesUtf8Scalars) {
   const std::string book =

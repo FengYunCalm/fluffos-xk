@@ -696,7 +696,7 @@ void drain_promise_microtasks() {
 
   while (!g_promise_microtasks.empty()) {
     if (!first) {
-      if (outoftime || max_eval_error) {
+      if (eval_limit_expired() || max_eval_error) {
         break;
       }
       if (budget_us > 0) {

@@ -24,4 +24,9 @@ void set_eval(uint64_t time);
 // Get remaining microseconds, if no, 0.
 int64_t get_eval();
 
+// Poll the current VM evaluation deadline at an interpreter safety point.
+// On Linux this reads the signal-backed flag; other platforms update the
+// thread-local wall-clock deadline in bounded batches.
+bool eval_limit_expired();
+
 #endif

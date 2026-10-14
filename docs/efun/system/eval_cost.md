@@ -14,8 +14,10 @@ title: system / eval_cost
 
 ### DESCRIPTION
 
-    eval_cost()  returns  the  number  of instructions that can be executed
-    before the driver decides it is in an infinite loop.
+    eval_cost()  returns  the remaining evaluation budget. On Linux the
+    budget is measured by thread CPU time; on other platforms it is measured
+    by a thread-private monotonic wall-clock deadline. The budget is checked at
+    VM safety points and does not interrupt a blocking native or external call.
 
 ### SEE ALSO
 

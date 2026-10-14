@@ -362,6 +362,20 @@ jobs:
         if: ${{ !matrix.sanitizer }}
         run: cd build && make test
 
+      - name: Run portable eval-budget tests
+        if: ${{ (matrix.platform == 'macOS' || matrix.platform == 'Windows') && !matrix.sanitizer }}
+        run: |
+          cd build
+          test_binary=src/tests/lpc_tests
+          if [ -x "$test_binary.exe" ]; then
+            test_binary="$test_binary.exe"
+          fi
+          if [ ! -x "$test_binary" ]; then
+            echo "FAIL: lpc_tests binary is missing"
+            exit 1
+          fi
+          "$test_binary" --gtest_color=no --gtest_filter='DriverTest.TestAuditEvalBudget*'
+
       - name: Upload targeted test evidence
         if: ${{ always() && matrix.platform == 'Ubuntu' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
