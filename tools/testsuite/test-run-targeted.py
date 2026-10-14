@@ -546,7 +546,7 @@ class ProcessContractTest(unittest.TestCase):
                     self.assertTrue(pid_file.is_file(), "fixture did not reach its child")
                     pid = int(pid_file.read_text())
                     try:
-                        descriptor = os.pidfd_open(pid)
+                        descriptor = runner.pidfd_open(pid)
                         # A private, unique argv marker prevents signalling a reused PID.
                         if str(pid_file).encode() not in Path(f"/proc/{pid}/cmdline").read_bytes():
                             os.close(descriptor)
@@ -566,7 +566,7 @@ class ProcessContractTest(unittest.TestCase):
                 finally:
                     if descriptor is not None:
                         try:
-                            signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                            runner.pidfd_send_signal(descriptor, signal.SIGKILL)
                         except ProcessLookupError:
                             pass
                         os.close(descriptor)

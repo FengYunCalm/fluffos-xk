@@ -119,8 +119,11 @@ std::vector<std::thread>& owner_threads_instance();
 
 // E3 P1 public API. begin() is main-thread-only, transitions OPEN->CLOSING,
 // waits (bounded by timeout) for active owner claims (worker-side,
-// executor-local) to drain, then FROZEN. Any failure restores OPEN and returns ok=false. end() must be
-// called with the matching epoch; it reopens admission.
+// executor-local) to drain, then FROZEN. Recompile and reclaim_objects() use
+// this same gate before touching shared object/program state. Reclaim also
+// traverses and mutates Promise-owned LPC values only while this gate is held.
+// Any failure restores OPEN and returns ok=false. end() must be called with the
+// matching epoch; it reopens admission.
 OwnerRecompileQuiesceResult vm_owner_recompile_quiesce_begin(std::chrono::milliseconds timeout);
 void vm_owner_recompile_quiesce_end(uint64_t epoch) noexcept;
 // NOTE: there is intentionally no unlocked vm_owner_recompile_context_allowed()

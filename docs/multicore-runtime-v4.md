@@ -250,6 +250,20 @@ Tracked paths / 跟踪路径：
 - string push；
 - apply dispatch cache hit、miss 和 invalidation。
 
+## Promise Reclamation And Quiescence / Promise 回收与静止窗口
+
+Promise settlement, reactions, chained promises, coroutine frames, and
+external Promise roots are part of the reclaim graph. `reclaim_objects()` walks
+these values iteratively, not recursively, and runs only after the shared
+owner-runtime quiescence gate has closed admission and drained active owner
+claims. A failed bounded quiescence wait is a rejected reclamation attempt,
+not permission to inspect Promise state concurrently.
+
+Promise 的 settlement、reaction、链式 Promise、协程 frame 和外部 Promise root 都属于
+回收图。`reclaim_objects()` 使用迭代 worklist 遍历这些值，不使用递归，并且只有在共享
+owner-runtime 静止门闩关闭 admission、排空活动 owner claim 后才运行。有限静止等待失败
+表示本次回收被拒绝，不能借此并发读取 Promise 状态。
+
 ## Benchmark And Stress Entry Points / Benchmark 与 Stress 入口
 
 ```bash

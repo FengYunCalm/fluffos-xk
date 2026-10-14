@@ -13,6 +13,7 @@ import argparse
 from contextlib import contextmanager
 import ctypes
 import dataclasses
+import errno
 import fnmatch
 import hashlib
 import json
@@ -271,7 +272,12 @@ def repository_manifest(root: Path) -> dict[str, tuple[str, int, str]]:
     if process.returncode != 0:
         raise RunnerError(f"cannot discover source identity: {root}")
     names = process.stdout.decode("utf-8", errors="surrogateescape").split("\0")[:-1]
-    return {name: file_identity(root / name) for name in sorted(set(names))}
+    generated_evidence = ("audit-evidence/", "evidence/")
+    return {
+        name: file_identity(root / name)
+        for name in sorted(set(names))
+        if not name.startswith(generated_evidence)
+    }
 
 
 def ignored(name: str) -> bool:
@@ -370,6 +376,51 @@ def command_environment(mudlib: Path) -> dict[str, str]:
     return environment
 
 
+def pidfd_open(pid: int) -> int:
+    native = getattr(os, "pidfd_open", None)
+    if native is not None:
+        return native(pid, 0)
+    libc = ctypes.CDLL(None, use_errno=True)
+    function = getattr(libc, "pidfd_open", None)
+    if function is None:
+        raise OSError(errno.ENOSYS, "pidfd_open is unavailable")
+    function.argtypes = [ctypes.c_int, ctypes.c_uint]
+    function.restype = ctypes.c_int
+    descriptor = function(pid, 0)
+    if descriptor < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    return descriptor
+
+
+def pidfd_send_signal(descriptor: int, sig: int) -> None:
+    native = getattr(signal, "pidfd_send_signal", None)
+    if native is not None:
+        native(descriptor, sig)
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    function = getattr(libc, "pidfd_send_signal", None)
+    if function is None:
+        raise OSError(errno.ENOSYS, "pidfd_send_signal is unavailable")
+    function.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint]
+    function.restype = ctypes.c_int
+    if function(descriptor, sig, None, 0) < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def pidfd_supported() -> bool:
+    try:
+        descriptor = pidfd_open(os.getpid())
+        try:
+            pidfd_send_signal(descriptor, 0)
+        finally:
+            os.close(descriptor)
+    except OSError:
+        return False
+    return True
+
+
 def direct_children() -> list[int]:
     path = Path(f"/proc/self/task/{os.getpid()}/children")
     return [int(pid) for pid in path.read_text().split()]
@@ -418,9 +469,9 @@ def terminate_process(process: subprocess.Popen[bytes], *, force: bool = False) 
     except ProcessLookupError:
         pass
     for pid in adopted_children(process.pid):
-        descriptor = os.pidfd_open(pid)
+        descriptor = pidfd_open(pid)
         try:
-            signal.pidfd_send_signal(descriptor, signal.SIGKILL if force else signal.SIGTERM)
+            pidfd_send_signal(descriptor, signal.SIGKILL if force else signal.SIGTERM)
         except ProcessLookupError:
             pass
         finally:
@@ -438,7 +489,7 @@ def run_process(
     binary: Path | None = None,
 ) -> ProcessResult:
     if (not sys.platform.startswith("linux") or not hasattr(os, "WNOWAIT")
-            or not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal")):
+            or not pidfd_supported()):
         raise RunnerError("bounded process-tree supervision requires Linux /proc, waitid and pidfd")
     environment = {key: value for key, value in environment.items() if key in RUNTIME_ENV_KEYS}
     command_list = [str(item) for item in command]

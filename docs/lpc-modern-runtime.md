@@ -134,6 +134,18 @@ live object 引用使用 ObjectHandle capability 元数据：
 same-owner handle resolve 走 owner-local object store fast path。运行时合同要求
 `object_store_global_fallback_on_owner_fast_path=0`。
 
+## Promise Reclamation / Promise 回收
+
+`reclaim_objects()` includes settled results, pending reactions, chained
+Promises, handler funptrs, coroutine frames, and globally reachable Promise
+roots in one iterative worklist. It enters the owner-runtime quiescence gate
+before traversing these shared values, so a busy owner execution is rejected
+instead of being inspected concurrently.
+
+`reclaim_objects()` 会把 settled result、pending reaction、链式 Promise、handler funptr、
+协程 frame 和全局可达 Promise root 放入同一个迭代 worklist。遍历这些共享值前，它先进入
+owner-runtime 静止门闩；owner 仍在执行时，回收会被拒绝，不会并发检查共享状态。
+
 ## Encoding Boundaries / 编码边界
 
 The VM keeps canonical strings as UTF-8. Other encodings are supported at

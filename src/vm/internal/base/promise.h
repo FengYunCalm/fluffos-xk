@@ -119,6 +119,27 @@ void promise_add_reaction(promise_t* p, funptr_t* on_fulfilled, funptr_t* on_rej
 
 void push_refed_promise(promise_t* p);
 
+/* Internal object-reclamation visitor. Promise reactions and the microtask
+ * queue hold references outside ordinary LPC svalue roots, so reclaim_objects
+ * must traverse these records without recursing through the compound graph. */
+enum class promise_reclaim_object_role : uint8_t {
+  kReactionCommandGiver,
+  kCoroutineObject,
+  kCoroutinePreviousObject,
+  kCoroutineCommandGiver,
+};
+
+struct promise_reclaim_visitor_t {
+  void (*visit_svalue)(svalue_t* value, void* data);
+  void (*visit_object)(object_t** object, promise_reclaim_object_role role, void* data);
+  void (*visit_funptr)(funptr_t* function, void* data);
+  void* data;
+};
+
+void promise_visit_reclaimable_values(promise_t* promise,
+                                      const promise_reclaim_visitor_t& visitor);
+void promise_visit_reclaim_roots(const promise_reclaim_visitor_t& visitor);
+
 /* A promise fulfilled with 0 on the next pass of the event loop -- after the
  * driver has polled sockets, queued commands and fired due timers. This is
  * the cooperative preemption point for a long async function: `await

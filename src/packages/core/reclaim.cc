@@ -9,106 +9,210 @@
 
 #include "packages/core/reclaim.h"
 
-#include <functional>
+#include <chrono>
+#include <cstdint>
+#include <unordered_set>
+#include <vector>
 
 #include "packages/core/call_out.h"
 #include "vm/internal/base/function.h"
+#include "vm/internal/base/promise.h"
+#include "vm/internal/owner_runtime_coordinator.h"
 
-enum { MAX_RECURSION = 25 };
+namespace {
 
-static void gc_mapping(mapping_t* /*m*/);
-static void check_svalue(svalue_t* /*v*/);
+enum class ReclaimCompoundKind : uint8_t {
+  kArray,
+  kMapping,
+  kFunction,
+  kPromise,
+};
 
-static int cleaned, nested;
+struct ReclaimCompound {
+  ReclaimCompoundKind kind;
+  void* pointer;
 
-static void check_svalue(svalue_t* v) {
-  int idx;
+  bool operator==(const ReclaimCompound& other) const {
+    return kind == other.kind && pointer == other.pointer;
+  }
+};
 
-  nested++;
-  if (nested > MAX_RECURSION) {
-    // #1247 RECLAIM-1: keep nested balanced, or reclaim stays disabled for
-    // the rest of the pass after one deep recursion.
-    nested--;
+struct ReclaimCompoundHash {
+  size_t operator()(const ReclaimCompound& compound) const {
+    auto pointer = reinterpret_cast<uintptr_t>(compound.pointer);
+    return (pointer >> 4) ^ (static_cast<size_t>(compound.kind) << 1);
+  }
+};
+
+struct ReclaimContext {
+  std::vector<ReclaimCompound> pending;
+  std::unordered_set<ReclaimCompound, ReclaimCompoundHash> visited;
+  int cleaned = 0;
+};
+
+class ReclaimQuiesceScope {
+ public:
+  explicit ReclaimQuiesceScope(std::chrono::milliseconds timeout)
+      : result_(vm_owner_recompile_quiesce_begin(timeout)) {}
+
+  ReclaimQuiesceScope(const ReclaimQuiesceScope&) = delete;
+  ReclaimQuiesceScope& operator=(const ReclaimQuiesceScope&) = delete;
+
+  ~ReclaimQuiesceScope() {
+    if (result_.ok) {
+      vm_owner_recompile_quiesce_end(result_.epoch);
+    }
+  }
+
+  bool ok() const { return result_.ok; }
+
+ private:
+  OwnerRecompileQuiesceResult result_;
+};
+
+void reclaim_svalue(svalue_t* value, ReclaimContext* context);
+
+void enqueue(ReclaimCompoundKind kind, void* pointer, ReclaimContext* context) {
+  if (pointer == nullptr) {
     return;
   }
-  switch (v->type) {
+  ReclaimCompound compound{kind, pointer};
+  if (context->visited.insert(compound).second) {
+    context->pending.push_back(compound);
+  }
+}
+
+void reclaim_object_ref(object_t** object, promise_reclaim_object_role /*role*/,
+                        void* data) {
+  auto* context = static_cast<ReclaimContext*>(data);
+  if (object != nullptr && *object != nullptr && ((*object)->flags & O_DESTRUCTED)) {
+    free_object(object, "reclaim_promise");
+    *object = nullptr;
+    context->cleaned++;
+  }
+}
+
+void enqueue_function(funptr_t* function, void* data) {
+  enqueue(ReclaimCompoundKind::kFunction, function, static_cast<ReclaimContext*>(data));
+}
+
+void reclaim_function(funptr_t* function, ReclaimContext* context) {
+  if (function->hdr.owner != nullptr &&
+      (function->hdr.owner->flags & O_DESTRUCTED)) {
+    /* Keep the owner/program reference pair symmetric. dealloc_funp() owns
+     * the program decrement through local.prog. */
+    funptr_detach_owner(function);
+    context->cleaned++;
+  }
+  enqueue(ReclaimCompoundKind::kArray, function->hdr.args, context);
+}
+
+void reclaim_promise(promise_t* promise, ReclaimContext* context) {
+  promise_reclaim_visitor_t visitor{
+      .visit_svalue = [](svalue_t* value, void* data) {
+        reclaim_svalue(value, static_cast<ReclaimContext*>(data));
+      },
+      .visit_object = reclaim_object_ref,
+      .visit_funptr = enqueue_function,
+      .data = context,
+  };
+  promise_visit_reclaimable_values(promise, visitor);
+}
+
+void reclaim_mapping(mapping_t* mapping, ReclaimContext* context) {
+  if (mapping == nullptr) {
+    return;
+  }
+
+  /* Destructed mapping keys must be unlinked rather than passed to
+   * reclaim_svalue(), because changing a key in place would invalidate the
+   * hash table. Other keys and all values are traversed through the same
+   * iterative worklist as object variables. */
+  mapping_node_t** previous;
+  mapping_node_t* element;
+  int bucket = mapping->table_size;
+  do {
+    previous = mapping->table + bucket;
+    while ((element = *previous) != nullptr) {
+      if (element->values[0].type == T_OBJECT &&
+          element->values[0].u.ob != nullptr &&
+          (element->values[0].u.ob->flags & O_DESTRUCTED)) {
+        free_object(&element->values[0].u.ob, "gc_mapping");
+        element->values[0].u.ob = nullptr;
+        if (!(*previous = element->next) && !mapping->table[bucket]) {
+          mapping->unfilled++;
+        }
+        context->cleaned++;
+        mapping->count--;
+        total_mapping_nodes--;
+        total_mapping_size -= sizeof(mapping_node_t);
+        free_node(mapping, element);
+        continue;
+      }
+
+      reclaim_svalue(element->values, context);
+      reclaim_svalue(element->values + 1, context);
+      previous = &element->next;
+    }
+  } while (bucket--);
+}
+
+void reclaim_svalue(svalue_t* value, ReclaimContext* context) {
+  if (value == nullptr) {
+    return;
+  }
+  switch (value->type) {
     case T_OBJECT:
-      if (v->u.ob->flags & O_DESTRUCTED) {
-        free_svalue(v, "reclaim_objects");
-        *v = const0u;
-        cleaned++;
+      if (value->u.ob != nullptr && (value->u.ob->flags & O_DESTRUCTED)) {
+        free_svalue(value, "reclaim_objects");
+        *value = const0u;
+        context->cleaned++;
       }
       break;
     case T_MAPPING:
-      gc_mapping(v->u.map);
+      enqueue(ReclaimCompoundKind::kMapping, value->u.map, context);
       break;
     case T_ARRAY:
     case T_CLASS:
-      for (idx = 0; idx < v->u.arr->size; idx++) {
-        check_svalue(&v->u.arr->item[idx]);
-      }
+      enqueue(ReclaimCompoundKind::kArray, value->u.arr, context);
       break;
-    case T_FUNCTION: {
-      svalue_t tmp;
-      program_t* prog;
-
-      if (v->u.fp->hdr.owner &&
-          (v->u.fp->hdr.owner->flags &
-           O_DESTRUCTED)) {  // #1247-equivalent RECLAIM-2 (funptr double-decrement)
-        /* E3 P2: detach the owner only. The funptr keeps pinning its
-         * creation-time program via local.prog's func_ref; dealloc_funp()
-         * performs the single symmetric decrement. The old manual
-         * owner->prog->func_ref-- here double-decremented once
-         * dealloc_funp() switched to local.prog (v0.4 §10.3). */
-        funptr_detach_owner(v->u.fp);
-        cleaned++;
-      }
-
-      tmp.type = T_ARRAY;
-      if ((tmp.u.arr = v->u.fp->hdr.args)) {
-        check_svalue(&tmp);
-      }
+    case T_FUNCTION:
+      enqueue(ReclaimCompoundKind::kFunction, value->u.fp, context);
       break;
+    case T_PROMISE:
+      enqueue(ReclaimCompoundKind::kPromise, value->u.prom, context);
+      break;
+    default:
+      break;
+  }
+}
+
+void drain_worklist(ReclaimContext* context) {
+  while (!context->pending.empty()) {
+    ReclaimCompound compound = context->pending.back();
+    context->pending.pop_back();
+    switch (compound.kind) {
+      case ReclaimCompoundKind::kArray: {
+        auto* array = static_cast<array_t*>(compound.pointer);
+        for (int i = 0; i < array->size; ++i) {
+          reclaim_svalue(&array->item[i], context);
+        }
+        break;
+      }
+      case ReclaimCompoundKind::kMapping:
+        reclaim_mapping(static_cast<mapping_t*>(compound.pointer), context);
+        break;
+      case ReclaimCompoundKind::kFunction:
+        reclaim_function(static_cast<funptr_t*>(compound.pointer), context);
+        break;
+      case ReclaimCompoundKind::kPromise:
+        reclaim_promise(static_cast<promise_t*>(compound.pointer), context);
+        break;
     }
   }
-  nested--;
 }
 
-static void gc_mapping(mapping_t* m) {
-  /* Be careful to correctly handle destructed mapping keys.  We can't
-   * just call check_svalue() b/c the hash would be wrong and the '0'
-   * element we add would be unreferenceable (in most cases)
-   */
-  mapping_node_t **prev, *elt;
-  int j = m->table_size;
-
-  do {
-    prev = m->table + j;
-    while ((elt = *prev)) {
-      if (elt->values[0].type == T_OBJECT) {
-        if (elt->values[0].u.ob->flags & O_DESTRUCTED) {
-          free_object(&elt->values[0].u.ob, "gc_mapping");
-          elt->values[0].u.ob = nullptr;
-          /* found one, do a map_delete() */
-          if (!(*prev = elt->next) && !m->table[j]) {
-            m->unfilled++;
-          }
-          cleaned++;
-          m->count--;
-          total_mapping_nodes--;
-          total_mapping_size -= sizeof(mapping_node_t);
-          free_node(m, elt);
-          continue;
-        }
-      } else {
-        /* in case the key is a mapping or something */
-        check_svalue(elt->values);
-      }
-      check_svalue(elt->values + 1);
-      prev = &(elt->next);
-    }
-  } while (j--);
-}
+}  // namespace
 
 int reclaim_objects(bool is_auto) {
   if (is_auto) {
@@ -117,19 +221,38 @@ int reclaim_objects(bool is_auto) {
                          return reclaim_objects(true);
                        }));
   }
-  int i;
-  object_t* ob;
+
+  int64_t timeout_ms = CONFIG_INT(__RECOMPILE_OBJECT_QUIESCE_TIMEOUT_MS__);
+  if (timeout_ms <= 0) {
+    timeout_ms = 2000;
+  }
+  ReclaimQuiesceScope quiesce{std::chrono::milliseconds(timeout_ms)};
+  if (!quiesce.ok()) {
+    debug_message("reclaim_objects: owner runtime did not quiesce; skipping object scan\n");
+    return 0;
+  }
 
   reclaim_call_outs();
-
-  cleaned = nested = 0;
-  for (ob = obj_list; ob; ob = ob->next_all) {
-    if (ob->prog) {
-      for (i = 0; i < static_cast<int>(ob->variables.count); i++) {
-        check_svalue(&ob->variables.data[i]);
-      }
+  ReclaimContext context;
+  for (object_t* object = obj_list; object != nullptr; object = object->next_all) {
+    if (object->prog == nullptr) {
+      continue;
+    }
+    for (int i = 0; i < static_cast<int>(object->variables.count); ++i) {
+      reclaim_svalue(&object->variables.data[i], &context);
     }
   }
 
-  return cleaned;
+  promise_reclaim_visitor_t visitor{
+      .visit_svalue = [](svalue_t* value, void* data) {
+        reclaim_svalue(value, static_cast<ReclaimContext*>(data));
+      },
+      .visit_object = reclaim_object_ref,
+      .visit_funptr = enqueue_function,
+      .data = &context,
+  };
+  promise_visit_reclaim_roots(visitor);
+  drain_worklist(&context);
+
+  return context.cleaned;
 }

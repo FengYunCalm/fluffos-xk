@@ -2118,7 +2118,10 @@ LpccCliResult RunLpccCli(const std::string& args) {
   if (build_dir.empty()) {
     return result;
   }
-  const auto mudlib = std::filesystem::path(build_dir).parent_path() / "testsuite";
+  const char* const test_mudlib = std::getenv("FLUFFOS_TEST_MUDLIB");
+  const auto mudlib = test_mudlib != nullptr && *test_mudlib != '\0'
+                          ? std::filesystem::path(test_mudlib)
+                          : std::filesystem::path(build_dir).parent_path() / "testsuite";
   const auto lpcc = std::filesystem::path(build_dir) / "bin" / "lpcc";
   if (!std::filesystem::exists(lpcc) || !std::filesystem::exists(mudlib / "etc" / "config.test")) {
     return result;
@@ -2149,7 +2152,10 @@ LpccCliResult RunLpcshellCli(const std::string& args, const std::string& input) 
   if (build_dir.empty()) {
     return result;
   }
-  const auto mudlib = std::filesystem::path(build_dir).parent_path() / "testsuite";
+  const char* const test_mudlib = std::getenv("FLUFFOS_TEST_MUDLIB");
+  const auto mudlib = test_mudlib != nullptr && *test_mudlib != '\0'
+                          ? std::filesystem::path(test_mudlib)
+                          : std::filesystem::path(build_dir).parent_path() / "testsuite";
   const auto shell = std::filesystem::path(build_dir) / "bin" / "lpcshell";
   if (!std::filesystem::exists(shell) || !std::filesystem::exists(mudlib / "etc" / "config.test")) {
     return result;
@@ -2317,6 +2323,10 @@ TEST_F(DriverTest, TestLpccCliArgumentMatrix) {
 }
 
 TEST_F(DriverTest, TestLpccUnknownConfigFailsCleanly) {
+  if (LpccTestBuildDir().empty() ||
+      !std::filesystem::exists(std::filesystem::path(LpccTestBuildDir()) / "bin" / "lpcc")) {
+    GTEST_SKIP() << "lpcc is not built";
+  }
   // An unknown first argument is not a flag error: argc 3 means "compile
   // argv[2] against the config in argv[1]", and an unreadable config must fail
   // with the driver's own config error rather than a crash or a hang.

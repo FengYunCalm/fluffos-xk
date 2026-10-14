@@ -1,5 +1,6 @@
 # case	role	requires	reason
 /single/tests/compiler/0default_args_1	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/reclaim_deep	fixture	-	Helper invoked by the C++ deep reclamation regression; not a standalone do_tests case.
 /single/tests/compiler/foreach_unwind	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/compiler/mixed_declarations	fixture	-	Compilation and execution checked by compiler/positive_compilation.
 /single/tests/compiler/succeed	fixture	-	Compilation and execution checked by compiler/positive_compilation.
@@ -49,6 +50,13 @@
 /single/tests/efuns/input_to	runtime	interactive	Requires an actual interactive player.
 /single/tests/efuns/light	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
 /single/tests/efuns/parser_owner_probe	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.
+/single/tests/efuns/pcre	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_cache	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_error_paths	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_replace	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_replace_callback_zero	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_replace_type_checks	runtime	pcre	Requires PACKAGE_PCRE.
+/single/tests/efuns/pcre_version	runtime	pcre	Requires PACKAGE_PCRE.
 /single/tests/efuns/query_ed_mode	runtime	modern_ed	Requires the non-OLD_ED editor implementation.
 /single/tests/efuns/query_idle	runtime	interactive	Requires an actual interactive player.
 /single/tests/efuns/rp_a	fixture	-	Helper invoked by LPC or C++ tests; not a standalone do_tests case.

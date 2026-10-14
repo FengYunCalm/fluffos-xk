@@ -5,15 +5,16 @@
 
 ## 运行条件
 
-- 监督器需要 Linux `/proc`、`waitid(WNOWAIT)`、child subreaper，以及 Python 的
-  `os.pidfd_open` / `signal.pidfd_send_signal`。缺少能力时拒绝运行，不降级为仅终止进程组。
+- 监督器需要 Linux `/proc`、`waitid(WNOWAIT)`、child subreaper，以及 pidfd 内核能力。
+  优先使用 Python 的 `os.pidfd_open` / `signal.pidfd_send_signal`；当前 Python 未暴露这些接口时，
+  runner 使用 libc 的同一系统调用封装。缺少实际能力时拒绝运行，不降级为仅终止进程组。
 - 以独立、单线程、没有既有子进程的 Python 进程运行。监督期间收养并回收本次任务的孤儿进程，
   包括切换 session 的后代；结束后恢复原 subreaper 设置。不支持嵌入共享的多线程进程。
 - Python 版本号不保证系统调用接口存在。先选择提供所需接口的解释器；下面的 `python3` 指该解释器。
 - C++ 验证使用对应构建缓存指向的源码副本。源码副本必须仍存在；不把当前工作区冒充旧二进制的源码。
+- 仓库根下的 `audit-evidence/` 与 `evidence/` 是 runner 生成的持久证据，不属于源码输入清单；runner 会在清单建立和副本一致性检查中排除这两个目录，避免测试输出改变被测源码身份。
 
 ```bash
-python3 -B -c 'import os, signal; assert hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal")'
 python3 -B tools/testsuite/test-run-targeted.py
 python3 -B tools/testsuite/test-run-targeted.py --live-driver build-dev-debug/bin/driver
 python3 -B tools/testsuite/run-targeted.py --binary build-dev-debug/src/tests/lpc_tests \
@@ -39,8 +40,7 @@ glibc 的 FORTIFY 输出还包装 `__fprintf_chk`，并通过 `__vfprintf_chk` �
 文件故障只作用于夹具路径；进程故障只在专用场景激活，并在子进程启动前返回错误。
 生产 driver 不含注入开关。测试还用私有符号链接访问 `/dev/full`，不填满磁盘。
 夹具要求隔离 mudlib，CTest 通过本 runner 执行，不直接把每个 GTest 注册到源码目录。
-配置需要 Python 3.9 或更新版本；若默认解释器缺少上述 pidfd 能力，用
-`-DPython3_EXECUTABLE=/absolute/path/to/python3` 显式选择具备能力的解释器。
+配置需要 Python 3.9 或更新版本；runner 会检查实际的 pidfd 能力，不能用仅终止进程组的降级路径替代。
 
 ## lpcc I/O 验证
 

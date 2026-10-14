@@ -260,6 +260,20 @@ Do not invent undocumented domain names in mudlib code.
 真实玩法工作应按 owner 或 keyed service shard 路由到这些 domain。mudlib 代码不要发明未记录的
 domain 名称。
 
+## Reclaim Quiescence / reclaim_objects 静止窗口
+
+`reclaim_objects()` acquires the same owner-runtime quiescence gate used by
+recompile. The gate closes new owner admission, waits for active owner claims
+to drain, and exposes Promise-owned LPC values to the iterative reclamation
+worklist only while the gate is held. If the bounded wait fails, reclamation
+returns without traversing shared Promise state; callers must retry after the
+runtime reports a quiescent window.
+
+`reclaim_objects()` 使用与重编译相同的 owner-runtime 静止门闩。门闩先关闭新的
+owner admission，再等待活动 owner claim 排空。Promise 持有的 LPC 值只在门闩持有期间
+进入迭代回收 worklist。有限等待失败时，回收不会遍历共享 Promise 状态；调用方必须在
+运行时重新进入静止窗口后重试。
+
 ## Runtime Status / 运行时状态
 
 Use `vm_owner_runtime_status()` to verify integration. Important fields:

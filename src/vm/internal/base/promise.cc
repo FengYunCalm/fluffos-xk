@@ -1234,7 +1234,120 @@ void resume_coroutine(lpc_coroutine_t* coro, promise_t* source) {
   free_coroutine(coro, nullptr, false);
 }
 
+static void visit_raw_promise(promise_t* promise,
+                              const promise_reclaim_visitor_t& visitor) {
+  if (promise == nullptr) {
+    return;
+  }
+  svalue_t value = {};
+  value.type = T_PROMISE;
+  value.u.prom = promise;
+  visitor.visit_svalue(&value, visitor.data);
+}
+
+static void visit_coroutine_reclaimable_values(
+    lpc_coroutine_t* coroutine, const promise_reclaim_visitor_t& visitor) {
+  if (coroutine == nullptr) {
+    return;
+  }
+  visit_raw_promise(coroutine->result_promise, visitor);
+  if (coroutine->ob != nullptr) {
+    visitor.visit_object(&coroutine->ob,
+                         promise_reclaim_object_role::kCoroutineObject,
+                         visitor.data);
+  }
+  if (coroutine->prev_ob != nullptr) {
+    visitor.visit_object(&coroutine->prev_ob,
+                         promise_reclaim_object_role::kCoroutinePreviousObject,
+                         visitor.data);
+  }
+  if (coroutine->command_giver != nullptr) {
+    visitor.visit_object(&coroutine->command_giver,
+                         promise_reclaim_object_role::kCoroutineCommandGiver,
+                         visitor.data);
+  }
+  for (int i = 0; i < coroutine->frame_size; ++i) {
+    visitor.visit_svalue(&coroutine->frame[i], visitor.data);
+  }
+  for (struct defer_list* defer = coroutine->defers; defer != nullptr;
+       defer = defer->next) {
+    visitor.visit_svalue(&defer->func, visitor.data);
+    visitor.visit_svalue(&defer->tp, visitor.data);
+  }
+  for (auto& marker : coroutine->markers) {
+    for (struct defer_list* defer = marker.defers; defer != nullptr;
+         defer = defer->next) {
+      visitor.visit_svalue(&defer->func, visitor.data);
+      visitor.visit_svalue(&defer->tp, visitor.data);
+    }
+  }
+}
+
+static void visit_queued_reaction(QueuedReaction& reaction,
+                                  const promise_reclaim_visitor_t& visitor) {
+  if (reaction.on_fulfilled != nullptr) {
+    visitor.visit_funptr(reaction.on_fulfilled, visitor.data);
+  }
+  if (reaction.on_rejected != nullptr) {
+    visitor.visit_funptr(reaction.on_rejected, visitor.data);
+  }
+  visit_raw_promise(reaction.next, visitor);
+  visit_raw_promise(reaction.source, visitor);
+  if (reaction.command_giver != nullptr) {
+    visitor.visit_object(&reaction.command_giver,
+                         promise_reclaim_object_role::kReactionCommandGiver,
+                         visitor.data);
+  }
+  visit_coroutine_reclaimable_values(reaction.coro, visitor);
+}
+
 }  // namespace
+
+void promise_visit_reclaimable_values(promise_t* promise,
+                                      const promise_reclaim_visitor_t& visitor) {
+  if (promise == nullptr) {
+    return;
+  }
+  visitor.visit_svalue(&promise->result, visitor.data);
+  if (promise->reactions == nullptr) {
+    return;
+  }
+  for (auto& reaction : *promise->reactions) {
+    if (reaction.on_fulfilled != nullptr) {
+      visitor.visit_funptr(reaction.on_fulfilled, visitor.data);
+    }
+    if (reaction.on_rejected != nullptr) {
+      visitor.visit_funptr(reaction.on_rejected, visitor.data);
+    }
+    visit_raw_promise(reaction.next, visitor);
+    if (reaction.command_giver != nullptr) {
+      visitor.visit_object(&reaction.command_giver,
+                           promise_reclaim_object_role::kReactionCommandGiver,
+                           visitor.data);
+    }
+    visit_coroutine_reclaimable_values(reaction.coro, visitor);
+  }
+}
+
+void promise_visit_reclaim_roots(const promise_reclaim_visitor_t& visitor) {
+  for (promise_t* promise : g_pending_yields) {
+    visit_raw_promise(promise, visitor);
+  }
+  for (auto& reaction : g_promise_microtasks) {
+    visit_queued_reaction(reaction, visitor);
+  }
+  if (g_delivering != nullptr) {
+    visit_queued_reaction(*g_delivering, visitor);
+  }
+  visit_coroutine_reclaimable_values(g_resuming_coro, visitor);
+  visit_coroutine_reclaimable_values(g_freeing_coro, visitor);
+  visit_raw_promise(g_coroutine_promise, visitor);
+#ifdef DEBUGMALLOC_EXTENSIONS
+  for (promise_t* promise : g_active_body_promises) {
+    visit_raw_promise(promise, visitor);
+  }
+#endif
+}
 
 /* Queue depth, for the registration ceiling in promise_then/promise_catch. */
 size_t pending_promise_deliveries() {

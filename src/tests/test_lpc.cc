@@ -3,6 +3,7 @@
 
 #include "test_lpc_support.h"
 
+#include "packages/core/reclaim.h"
 #include "vm/internal/eval_limit.h"
 
 TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
@@ -57,6 +58,39 @@ TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   EXPECT_TRUE(worker_expired.load(std::memory_order_acquire));
   EXPECT_EQ(worker_remaining_after_expiry.load(std::memory_order_acquire), 0);
   EXPECT_GT(main_remaining_after_worker, 20'000);
+}
+
+TEST_F(DriverTest, TestAuditReclaimSharedGraph) {
+  object_t* holder = load_object_for_test("single/tests/reclaim_deep");
+  ASSERT_NE(holder, nullptr);
+  object_t* doomed = clone_object_for_test("single/void");
+  ASSERT_NE(doomed, nullptr);
+
+  push_object(doomed);
+  auto* result = safe_apply("build_deep", holder, 1, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  vm_apply_return_clear();
+
+  destruct_object_for_test(doomed);
+  EXPECT_EQ(reclaim_objects(false), 1);
+  destruct_object_for_test(holder);
+}
+
+TEST_F(DriverTest, TestAuditPromiseReclaimGraph) {
+  object_t* holder = load_object_for_test("single/tests/reclaim_deep");
+  ASSERT_NE(holder, nullptr);
+  object_t* doomed = clone_object_for_test("single/void");
+  ASSERT_NE(doomed, nullptr);
+
+  push_object(doomed);
+  auto* result = safe_apply("build_promise", holder, 1, ORIGIN_DRIVER);
+  ASSERT_NE(result, nullptr);
+  vm_apply_return_clear();
+
+  destruct_object_for_test(doomed);
+  EXPECT_GE(reclaim_objects(false), 1);
+  EXPECT_EQ(reclaim_objects(false), 0);
+  destruct_object_for_test(holder);
 }
 
 TEST(StrUtilsTest, TrimCharsetMatchesUtf8Scalars) {

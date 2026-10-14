@@ -661,15 +661,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --timeout 180 --evidence-dir "$E/$N-native-debug"
 ```
 
-- **新增 LPC 对象：**`/single/tests/efuns/audit_reclaim_graph`。测试源是 `testsuite/single/tests/efuns/audit_reclaim_graph.lpc`；纳入本单元文件清单并注册 scope。
-
-```bash
-N=AUD-007
-L=audit_reclaim_graph
-HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --driver "$BD/bin/driver" --case "/single/tests/efuns/$L" \
-  --timeout 180 --evidence-dir "$E/$N-lpc-debug"
-```
+- **新增 LPC helper：**`testsuite/single/tests/reclaim_deep.c`。它由 `lpc_tests` 的 reclaim 过滤器加载，覆盖深链和 Promise-owned graph；不作为独立 LPC runner 用例，不注册为独立 scope 条目。
 
 #### 完成、风险和回退
 
@@ -677,7 +669,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**已有 owner-wide quiescence 入口已核对，可复用而不重做调度器；仍须通过真实 claim/拒绝/恢复测试。冻结失败不得访问全局对象图，end 必须使用匹配 epoch。mapping key 与 funptr program 引用沿用现有语义，worklist 保活先于重新开放 owner 结束。
 - **文档同步：**`docs/efun/system/reclaim_objects.md`、`docs/owner-multicore-api.md`、`docs/multicore-runtime-v4.md`。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**PASS，待原子提交。Promise settlement、reaction、链式 Promise、协程状态和 Promise root 已接入迭代 worklist，并在 owner-runtime 静止门闩内执行。当前源码的 Debug、ASan、UBSan 与 LPC 全量证据归档于 `audit-evidence/aud007-018-current-02/`：Debug/ASan/UBSan 的可用 C++ 全集均为 529/529（仅排除未构建的 `TestLpcshellInteractiveContract`），Promise/reclaim 定向过滤器为 2/2，LPC 全量为 496/496；lpcc I/O 为 12/12。`TestLpcshellInteractiveContract` 的未执行状态和外部平台限制仍单独保留，不计为通过。
 
 ### AUD-008 · 操作信号处理器直接执行 VM、日志和线程停止
 
@@ -1296,7 +1288,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能在回收中执行 reaction 或改变 settled 状态；后继/共享链只扫描一次，但每条被清理引用都必须减计数。
 - **文档同步：**`docs/lpc-modern-runtime.md`、`docs/efun/system/reclaim_objects.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**PASS。Promise result、pending reaction、后继 Promise、handler funptr、command giver、coroutine frame/defer 值以及外部 Promise roots 均纳入统一迭代回收图，并由 owner-runtime 静止门闩保护。当前源码的 Debug、ASan、UBSan 和 LPC 全量证据归档于 `audit-evidence/aud007-018-current-01/`；Promise 状态不因回收而重新结算。
 
 ### AUD-019 · 函数表查询允许等于函数总数的越界索引
 
