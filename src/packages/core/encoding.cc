@@ -24,6 +24,13 @@ void f_set_encoding() {
       ucnv_close(ip->trans);
       ip->trans = nullptr;
     }
+    if (ip && ip->telnet_input_trans) {
+      ucnv_close(ip->telnet_input_trans);
+      ip->telnet_input_trans = nullptr;
+    }
+    if (ip) {
+      ip->telnet_u8_carry_len = 0;
+    }
     push_malloced_string(string_copy(default_encoding, "f_set_encoding: 1"));
     return;
   }
@@ -32,11 +39,20 @@ void f_set_encoding() {
 
   // ignore if user want utf8
   UConverter* new_trans = nullptr;
+  UConverter* new_input_trans = nullptr;
   if (ucnv_compareNames(default_encoding, sp->u.string) != 0) {
     UErrorCode error_code = U_ZERO_ERROR;
     new_trans = ucnv_open(sp->u.string, &error_code);
     if (U_FAILURE(error_code)) {
       error("Fail to set encoding to '%s', error: %s.", sp->u.string, u_errorName(error_code));
+    }
+
+    error_code = U_ZERO_ERROR;
+    new_input_trans = ucnv_open(sp->u.string, &error_code);
+    if (U_FAILURE(error_code)) {
+      ucnv_close(new_trans);
+      error("Fail to set input encoding to '%s', error: %s.", sp->u.string,
+            u_errorName(error_code));
     }
   }
 
@@ -44,7 +60,13 @@ void f_set_encoding() {
     ucnv_close(ip->trans);
     ip->trans = nullptr;
   }
+  if (ip->telnet_input_trans) {
+    ucnv_close(ip->telnet_input_trans);
+    ip->telnet_input_trans = nullptr;
+  }
   ip->trans = new_trans;
+  ip->telnet_input_trans = new_input_trans;
+  ip->telnet_u8_carry_len = 0;
 
   pop_stack();
 

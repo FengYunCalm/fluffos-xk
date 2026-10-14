@@ -1,0 +1,14 @@
+void do_tests() {
+  string selected;
+
+  ASSERT_EQ("utf-8", query_encoding());
+  ASSERT_EQ("utf-8", set_encoding());
+  ASSERT_EQ("utf-8", query_encoding());
+
+  if (this_player()) {
+    selected = set_encoding("shift_jis");
+    ASSERT_EQ(selected, query_encoding());
+    ASSERT_EQ("utf-8", set_encoding());
+    ASSERT_EQ("utf-8", query_encoding());
+  }
+}

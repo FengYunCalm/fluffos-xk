@@ -2085,11 +2085,18 @@ void release_user_resources(interactive_t* ip) {
     ip->lws = nullptr;
   }
 
-  // Free translator
+  // Free translators.  The input converter has independent streaming state;
+  // close it separately so output conversion cannot retain a half-decoded byte
+  // sequence after the connection is gone.
   if (ip->trans != nullptr) {
     ucnv_close(ip->trans);
     ip->trans = nullptr;
   }
+  if (ip->telnet_input_trans != nullptr) {
+    ucnv_close(ip->telnet_input_trans);
+    ip->telnet_input_trans = nullptr;
+  }
+  ip->telnet_u8_carry_len = 0;
 }
 
 void finish_deferred_user_cleanup(interactive_t* ip) {

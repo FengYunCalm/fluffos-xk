@@ -839,7 +839,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **来源处理策略：**按 §7 选择性回移 5f7be1008f28 的相关 hunk，保留 fork 适配并记录未取部分。
 - **优先级/来源：**P2 / fork 未同步上游修复。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/net/telnet.cc:66–93`。
-- **作用范围：**`src/net/telnet.cc`、`src/comm.h`、`src/comm.cc`、`src/base/internal/strutils.cc`、`src/packages/sockets/socket_efuns.cc`、`src/tests/test_lpc_gateway.cc`。测试归属 `src/tests/test_lpc_gateway.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/net/telnet.cc`、`src/interactive.h`、`src/comm.cc`、`src/packages/core/encoding.cc`、`src/tests/test_lpc_gateway.cc`、`testsuite/single/tests/efuns/audit_telnet_text.lpc`、`testsuite/etc/test-scopes.tsv` 及 `docs/lpc-modern-runtime.md`、`docs/efun/interactive/set_encoding.md`。调用者和既有 encoding/UTF-8 工具只在需要时检查；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**AUD-001 已满足；网络/C++ 运行时维护者；16–24 小时。
 - **必须击中的根因：**on_telnet_data 对每个独立块直接转换/净化，没有保留会话级未完成后缀；临时转换缓冲所有权也需在失败分支保全。
 
@@ -890,7 +890,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能照搬 socket efun 的整个缓存，因为交互入口还有 ICU 转码、Telnet 控制序列和会话替换；EOF 回调可能关闭会话。
 - **文档同步：**`docs/lpc-modern-runtime.md`、`docs/efun/interactive/set_encoding.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施并完成本地可执行范围验证。Fail-first 的基线分片测试确认跨块 UTF-8/非法输入失败；修复后 Debug 与 ASan 受监督 native runner 各 `3/3`（发现数=执行数=通过数，无跳过），Debug LPC case `audit_telnet_text` 为 `1/1`。持久证据见 `audit-evidence/aud011-current-01/`，其中保留基线失败、一次 runner 参数错误和后续成功记录。实际外部 Telnet 客户端、EOF 网络关闭时的真实平台组合及非 Linux 运行证据未执行，不能以本地夹具替代；该边界不阻止 Linux 本单元提交。
 
 ### AUD-012 · get_char 破坏控制字符，并按字节切断 UTF-8 字符
 

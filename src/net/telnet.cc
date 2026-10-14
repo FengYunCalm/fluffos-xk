@@ -5,10 +5,16 @@
 #include "net/msp.h"
 
 #include <event2/buffer.h>
+#include <algorithm>
 #include <event2/bufferevent.h>
+#include <limits>
 #include <string>
+#include <string_view>
+#include <vector>
 #include <unicode/ucnv.h>
+#include <unicode/ustring.h>
 
+#include "base/internal/strutils.h"
 #include "comm.h"
 #include "interactive.h"
 #include "packages/core/mssp.h"
@@ -63,35 +69,115 @@ struct telnet_t* net_telnet_init(interactive_t* user) {
   return telnet_init(user->lws ? my_telopts_ws : my_telopts, telnet_event_handler, 0, user);
 }
 
-static inline void on_telnet_data(const char* buffer, unsigned long size, interactive_t* ip) {
-  char* transdata = const_cast<char*>(buffer);
-  auto translen = size;
+static bool transcode_telnet_input(interactive_t* ip, const char* buffer, unsigned long size,
+                                    std::string* output) {
+  auto* trans = ip->telnet_input_trans ? ip->telnet_input_trans : ip->trans;
+  if (!trans || !buffer || size > static_cast<unsigned long>(std::numeric_limits<int32_t>::max())) {
+    return false;
+  }
 
-  // Handle charset transcoding
-  if (ip->trans) {
+  // A converter can emit a UTF-16 surrogate pair for one input byte.  Grow on
+  // overflow rather than assuming a converter-specific expansion bound.
+  if (size > (std::numeric_limits<std::size_t>::max() - 2) / 2) {
+    return false;
+  }
+  const auto initial_capacity =
+      std::max<std::size_t>(16, static_cast<std::size_t>(size) * 2 + 2);
+  std::vector<UChar> unicode(initial_capacity);
+  const char* source = buffer;
+  const char* source_limit = buffer + size;
+  UChar* target = unicode.data();
+  UChar* target_limit = target + unicode.size();
+
+  for (;;) {
     UErrorCode error_code = U_ZERO_ERROR;
-    translen = ucnv_toAlgorithmic(UConverterType::UCNV_UTF8, ip->trans, nullptr, 0, buffer, size,
-                                  &error_code);
-    if (error_code == U_BUFFER_OVERFLOW_ERROR) {
-      error_code = U_ZERO_ERROR;
-      transdata = (char*)DMALLOC(translen, TAG_TEMPORARY, "on_telnet_data: transcoding");
-      auto written = ucnv_toAlgorithmic(UConverterType::UCNV_UTF8, ip->trans, transdata, translen,
-                                        buffer, size, &error_code);
-      DEBUG_CHECK(written != translen, "Bug: translation buffer size calculation error");
+    ucnv_toUnicode(trans, &target, target_limit, &source, source_limit, nullptr, false,
+                   &error_code);
+    if (error_code != U_BUFFER_OVERFLOW_ERROR) {
       if (U_FAILURE(error_code)) {
-        debug_message("add_message: Translation failed!");
-        transdata = const_cast<char*>(buffer);
-        translen = size;
-      };
+        return false;
+      }
+      break;
     }
+
+    const auto written = static_cast<std::size_t>(target - unicode.data());
+    if (unicode.size() > std::numeric_limits<std::size_t>::max() / 2) {
+      return false;
+    }
+    unicode.resize(unicode.size() * 2);
+    target = unicode.data() + written;
+    target_limit = unicode.data() + unicode.size();
   }
 
-  auto sanitized = u8_sanitize({transdata, translen});
+  const auto unicode_length = static_cast<std::size_t>(target - unicode.data());
+  if (unicode_length > static_cast<std::size_t>(std::numeric_limits<int32_t>::max())) {
+    return false;
+  }
+
+  UErrorCode error_code = U_ZERO_ERROR;
+  int32_t utf8_length = 0;
+  u_strToUTF8(nullptr, 0, &utf8_length, unicode.data(), static_cast<int32_t>(unicode_length),
+              &error_code);
+  if (error_code != U_BUFFER_OVERFLOW_ERROR && U_FAILURE(error_code)) {
+    return false;
+  }
+
+  output->assign(static_cast<std::size_t>(utf8_length), '\0');
+  error_code = U_ZERO_ERROR;
+  u_strToUTF8(output->data(), utf8_length, &utf8_length, unicode.data(),
+              static_cast<int32_t>(unicode_length), &error_code);
+  if (U_FAILURE(error_code)) {
+    output->clear();
+    return false;
+  }
+  output->resize(static_cast<std::size_t>(utf8_length));
+  return true;
+}
+
+static std::string sanitize_telnet_utf8(interactive_t* ip, std::string_view bytes) {
+  std::string input;
+  input.reserve(ip->telnet_u8_carry_len + bytes.size());
+  input.append(reinterpret_cast<const char*>(ip->telnet_u8_carry), ip->telnet_u8_carry_len);
+  input.append(bytes);
+  ip->telnet_u8_carry_len = 0;
+
+  const auto tail_length = u8_incomplete_tail(input);
+  if (tail_length != 0) {
+    for (std::size_t i = 0; i < tail_length; ++i) {
+      ip->telnet_u8_carry[i] = static_cast<unsigned char>(input[input.size() - tail_length + i]);
+    }
+    ip->telnet_u8_carry_len = static_cast<unsigned char>(tail_length);
+    input.resize(input.size() - tail_length);
+  }
+  return u8_sanitize(input);
+}
+
+static inline void on_telnet_data(const char* buffer, unsigned long size, interactive_t* ip) {
+  if (!buffer && size != 0) {
+    debug_message("on_telnet_data: null input buffer");
+    return;
+  }
+  if (size == 0) {
+    return;
+  }
+
+  std::string transdata;
+  std::string_view input(buffer, size);
+  const bool has_input_encoding = ip->trans != nullptr || ip->telnet_input_trans != nullptr;
+  if (has_input_encoding && !transcode_telnet_input(ip, buffer, size, &transdata)) {
+    debug_message("on_telnet_data: translation failed; preserving raw input");
+    auto* trans = ip->telnet_input_trans ? ip->telnet_input_trans : ip->trans;
+    if (trans) {
+      ucnv_reset(trans);
+    }
+    ip->telnet_u8_carry_len = 0;
+    input = std::string_view(buffer, size);
+  } else if (has_input_encoding) {
+    input = transdata;
+  }
+
+  auto sanitized = sanitize_telnet_utf8(ip, input);
   on_user_input(ip, sanitized.c_str(), sanitized.length());
-
-  if (transdata != buffer) {
-    FREE(transdata);
-  }
 }
 
 static inline void on_telnet_send(const char* buffer, unsigned long size, interactive_t* ip) {

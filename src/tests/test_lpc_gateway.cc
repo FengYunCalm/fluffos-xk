@@ -1,5 +1,8 @@
 #include "test_lpc_support.h"
 #include "base/internal/log.h"
+#include "net/telnet.h"
+
+#include <unicode/ucnv.h>
 
 namespace {
 
@@ -108,6 +111,27 @@ class AsciiInputFixture {
     ASSERT_NE(ip->ev_command, nullptr);
   }
 
+  void open_telnet() {
+    open();
+    auto* ip = object_->interactive;
+    ASSERT_NE(ip, nullptr);
+    ip->connection_type = PORT_TYPE_TELNET;
+    ip->telnet = net_telnet_init(ip);
+    ASSERT_NE(ip->telnet, nullptr);
+  }
+
+  void set_input_encoding(const char* name) {
+    ASSERT_NE(object_, nullptr);
+    auto* ip = object_->interactive;
+    ASSERT_NE(ip, nullptr);
+    UErrorCode error_code = U_ZERO_ERROR;
+    ip->trans = ucnv_open(name, &error_code);
+    ASSERT_FALSE(U_FAILURE(error_code));
+    error_code = U_ZERO_ERROR;
+    ip->telnet_input_trans = ucnv_open(name, &error_code);
+    ASSERT_FALSE(U_FAILURE(error_code));
+  }
+
   void receive(const std::string& bytes) {
     ASSERT_NE(object_, nullptr);
     auto* ip = object_->interactive;
@@ -119,6 +143,27 @@ class AsciiInputFixture {
     save_command_giver(object_);
     get_user_data(ip);
     restore_command_giver();
+  }
+
+  void close_transport() {
+    ASSERT_NE(object_, nullptr);
+    ASSERT_NE(object_->interactive, nullptr);
+    remove_interactive(object_, 1);
+  }
+
+  unsigned char telnet_carry_length() const {
+    if (!object_ || !object_->interactive) {
+      return 0;
+    }
+    return object_->interactive->telnet_u8_carry_len;
+  }
+
+  std::string buffered_text() const {
+    if (!object_ || !object_->interactive) {
+      return {};
+    }
+    return {object_->interactive->text,
+            static_cast<std::size_t>(object_->interactive->text_end)};
   }
 
   void expect_lines(const std::vector<std::string>& expected) {
@@ -290,6 +335,60 @@ TEST_F(DriverTest, TestAuditAsciiCrLfEveryPartition) {
       ASSERT_NO_FATAL_FAILURE(check_ascii_chunks(input, expected, chunks));
     }
   }
+}
+
+TEST_F(DriverTest, TestAuditTelnetStreamTextUtf8AndEncodingChunkBoundaries) {
+  const std::string utf8 = std::string("A") + "\xf0\x9f\x98\x80" + "B";
+  for (size_t split = 1; split < utf8.size(); ++split) {
+    SCOPED_TRACE(split);
+    AsciiInputFixture fixture;
+    ASSERT_NO_FATAL_FAILURE(fixture.open_telnet());
+    ASSERT_NO_FATAL_FAILURE(fixture.receive(utf8.substr(0, split)));
+    ASSERT_NO_FATAL_FAILURE(fixture.receive(utf8.substr(split)));
+    EXPECT_EQ(fixture.buffered_text(), utf8);
+    EXPECT_EQ(fixture.telnet_carry_length(), 0);
+  }
+
+  {
+    AsciiInputFixture fixture;
+    ASSERT_NO_FATAL_FAILURE(fixture.open_telnet());
+    const std::string input = "\xf0\x9f\x98\x80";
+    for (const char byte : input) {
+      ASSERT_NO_FATAL_FAILURE(fixture.receive(std::string(1, byte)));
+    }
+    EXPECT_EQ(fixture.buffered_text(), input);
+  }
+
+  {
+    AsciiInputFixture fixture;
+    ASSERT_NO_FATAL_FAILURE(fixture.open_telnet());
+    ASSERT_NO_FATAL_FAILURE(fixture.set_input_encoding("shift_jis"));
+    const std::string input = "\x82\xa0";
+    ASSERT_NO_FATAL_FAILURE(fixture.receive(input.substr(0, 1)));
+    EXPECT_EQ(fixture.buffered_text(), "");
+    ASSERT_NO_FATAL_FAILURE(fixture.receive(input.substr(1)));
+    EXPECT_EQ(fixture.buffered_text(), "\xe3\x81\x82");
+  }
+}
+
+TEST_F(DriverTest, TestAuditTelnetStreamTextMalformedUtf8StillSanitizes) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open_telnet());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive(std::string("\xf0", 1)));
+  EXPECT_EQ(fixture.buffered_text(), "");
+  EXPECT_EQ(fixture.telnet_carry_length(), 1);
+  ASSERT_NO_FATAL_FAILURE(fixture.receive(std::string("\x28", 1)));
+  EXPECT_EQ(fixture.buffered_text(), "\xef\xbf\xbd(");
+  EXPECT_EQ(fixture.telnet_carry_length(), 0);
+}
+
+TEST_F(DriverTest, TestAuditTelnetStreamTextEofAndCloseClearsCarry) {
+  AsciiInputFixture fixture;
+  ASSERT_NO_FATAL_FAILURE(fixture.open_telnet());
+  ASSERT_NO_FATAL_FAILURE(fixture.receive(std::string("\xf0", 1)));
+  EXPECT_EQ(fixture.telnet_carry_length(), 1);
+  ASSERT_NO_FATAL_FAILURE(fixture.close_transport());
+  EXPECT_EQ(fixture.object()->interactive, nullptr);
 }
 
 TEST_F(DriverTest, TestAuditAsciiCrLfBoundedRandomFragments) {

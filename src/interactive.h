@@ -75,8 +75,16 @@ struct interactive_t {
 #endif
   unsigned int iflags; /* interactive flags */
 
-  // iconv handle
+  // iconv handle used by the configured text encoding and output paths.
   UConverter* trans;
+  // Stateful input converter.  Keep it separate from trans because output
+  // conversion must not reset an incomplete inbound character.
+  UConverter* telnet_input_trans;
+
+  // Incomplete UTF-8 suffix for unconverted Telnet input.  The suffix is at
+  // most three bytes and is kept per connection, never in shared state.
+  unsigned char telnet_u8_carry[3];
+  unsigned char telnet_u8_carry_len;
 
   // libtelnet handle
   struct telnet_t* telnet;

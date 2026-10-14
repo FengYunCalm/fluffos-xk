@@ -31,11 +31,16 @@ title: interactive / set_encoding
 
     The VM keeps internal LPC strings in canonical UTF-8. set_encoding() only changes the interactive
     session boundary: input is decoded before entering the VM, and output is encoded before being sent
-    to the player. For source files use #pragma source_encoding("GBK") when a legacy LPC file is not
-    UTF-8. For data buffers use string_encode(), string_decode(), or buffer_transcode().
+    to the player. Telnet text input keeps incomplete source-encoding and UTF-8 state per session across
+    network chunks. Invalid complete UTF-8 is sanitized as usual; changing the encoding or closing the
+    session discards pending state. Binary and MUD frames do not use this text path. For source files
+    use #pragma source_encoding("GBK") when a legacy LPC file is not UTF-8. For data buffers use
+    string_encode(), string_decode(), or buffer_transcode().
 
     VM 内部 LPC 字符串保持规范 UTF-8。set_encoding() 只改变 interactive session 边界：
-    玩家输入进入 VM 前会先解码，输出发送给玩家前会按 session encoding 编码。遗留 LPC
+    玩家输入进入 VM 前会先解码，输出发送给玩家前会按 session encoding 编码。Telnet 文本输入
+    会按会话在网络分片之间保留未完成的源编码和 UTF-8 状态。完整非法 UTF-8 仍按原规则净化；
+    切换编码或关闭会话会丢弃待处理状态。Binary 和 MUD 帧不经过这条文本路径。遗留 LPC
     源文件不是 UTF-8 时，使用 #pragma source_encoding("GBK") 这类源码边界声明。处理外部
     数据 buffer 时，使用 string_encode()、string_decode() 或 buffer_transcode()。
 

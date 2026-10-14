@@ -160,6 +160,13 @@ explicit boundaries:
 Supported names depend on ICU. GBK, GB2312, Big5, and UTF-8 are covered by the
 modern runtime tests.
 
+Telnet text input is decoded as a per-session stream. A split UTF-8 suffix or
+an incomplete source-encoding sequence stays with that interactive session
+until the next data callback; complete invalid UTF-8 is replaced by the
+existing sanitizer. Encoding changes and connection cleanup reset the pending
+state, so bytes from an old session cannot enter a replacement session. Binary
+and MUD frames do not use this text path.
+
 VM 内部规范字符串保持 UTF-8。其他编码通过明确边界支持：
 
 - 源码编码：`#pragma source_encoding("GBK")`；
@@ -168,6 +175,8 @@ VM 内部规范字符串保持 UTF-8。其他编码通过明确边界支持：
 - gateway/session payload：进入 VM 前转为 UTF-8，输出时按 session encoding 转回。
 
 可用编码名称取决于 ICU。GBK、GB2312、Big5 和 UTF-8 已由现代运行时测试覆盖。
+
+Telnet 文本输入按每个 interactive 会话保持流式状态。跨网络分片的 UTF-8 后缀或源编码不完整序列会保留到下一次数据回调；完整非法 UTF-8 仍按现有净化规则替换。切换编码和连接清理都会重置待处理状态，旧会话的字节不会进入替代会话。Binary 和 MUD 帧不经过这条文本路径。
 
 ## ASCII Input Callbacks / ASCII 输入回调
 
