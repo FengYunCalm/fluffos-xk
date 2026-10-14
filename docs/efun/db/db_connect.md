@@ -27,7 +27,11 @@ title: db / db_connect
     valid only until db_close() releases that connection; a later
     connection may reuse the integer, but asynchronous requests retain an
     internal connection generation and reject stale work. Failed connection
-    attempts do not publish a usable handle.
+    attempts do not publish a usable handle. The driver copies the backend
+    diagnostic before cleanup, then releases partial results and connections;
+    a failed backend handle is never left available for slot reuse. Backend
+    cleanup and close paths tolerate partially initialized state, including
+    a null handle returned by a failed connect call.
 
     Driver will call master object's valid_database function to reterive
     password for this database (string) or approvals (positive intgeter).

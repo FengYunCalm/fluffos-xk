@@ -20,7 +20,31 @@ if(${GTEST_FOUND})
     target_link_libraries(db_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
     target_compile_definitions(db_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
-    target_link_options(db_io_tests PRIVATE "-Wl,--wrap=_Z13db_lock_mutexv")
+    target_link_options(db_io_tests PRIVATE
+      "-Wl,--wrap=_Z13db_lock_mutexv"
+      "-Wl,--wrap=mysql_init"
+      "-Wl,--wrap=mysql_real_connect"
+      "-Wl,--wrap=mysql_select_db"
+      "-Wl,--wrap=mysql_error"
+      "-Wl,--wrap=mysql_query"
+      "-Wl,--wrap=mysql_store_result"
+      "-Wl,--wrap=mysql_num_rows"
+      "-Wl,--wrap=mysql_errno"
+      "-Wl,--wrap=mysql_free_result"
+      "-Wl,--wrap=mysql_close"
+      "-Wl,--wrap=PQconnectdbParams"
+      "-Wl,--wrap=PQstatus"
+      "-Wl,--wrap=PQerrorMessage"
+      "-Wl,--wrap=PQfinish"
+      "-Wl,--wrap=PQexec"
+      "-Wl,--wrap=PQresultStatus"
+      "-Wl,--wrap=PQntuples"
+      "-Wl,--wrap=PQresultErrorMessage"
+      "-Wl,--wrap=PQclear"
+      "-Wl,--wrap=sqlite3_open"
+      "-Wl,--wrap=sqlite3_errmsg"
+      "-Wl,--wrap=sqlite3_close"
+      "-Wl,--wrap=sqlite3_finalize")
     gtest_discover_tests(db_io_tests
       DISCOVERY_TIMEOUT 60
       TEST_PREFIX "db_io_tests.")

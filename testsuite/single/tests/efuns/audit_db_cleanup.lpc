@@ -1,0 +1,95 @@
+#if defined(__USE_SQLITE3__)
+mixed sqlite_open_failure() {
+  return db_connect("", "/", "", __USE_SQLITE3__);
+}
+
+int sqlite_exec_sequence() {
+  int handle = db_connect("", "/audit_db_cleanup.sqlite", "", __USE_SQLITE3__);
+  if (handle <= 0) {
+    return 0;
+  }
+  int first = db_exec(handle, "select 1");
+  int second = db_exec(handle, "select 2");
+  int closed = db_close(handle);
+  return first == 1 && second == 1 && closed == 1;
+}
+
+int sqlite_exec_failure() {
+  int handle = db_connect("", "/audit_db_cleanup.sqlite", "", __USE_SQLITE3__);
+  if (handle <= 0) {
+    return 0;
+  }
+  int first = db_exec(handle, "select 1");
+  mixed failed = db_exec(handle, "select from");
+  int closed = db_close(handle);
+  return first == 1 && intp(failed) && failed == 0 && closed == 1;
+}
+#endif
+
+#if defined(__USE_MYSQL__)
+mixed mysql_init_failure() {
+  return db_connect("", "audit", "", __USE_MYSQL__);
+}
+
+mixed mysql_real_connect_failure() {
+  return db_connect("", "audit", "", __USE_MYSQL__);
+}
+
+mixed mysql_select_failure() {
+  return db_connect("", "audit", "", __USE_MYSQL__);
+}
+
+int mysql_exec_sequence() {
+  int handle = db_connect("", "audit", "", __USE_MYSQL__);
+  if (handle <= 0) {
+    return 0;
+  }
+  int first = db_exec(handle, "select 1");
+  int second = db_exec(handle, "select 2");
+  int closed = db_close(handle);
+  return first == 2 && second == 2 && closed == 1;
+}
+
+int mysql_exec_failure() {
+  int handle = db_connect("", "audit", "", __USE_MYSQL__);
+  if (handle <= 0) {
+    return 0;
+  }
+  mixed failed = db_exec(handle, "select 1");
+  int closed = db_close(handle);
+  return stringp(failed) && closed == 1;
+}
+#endif
+
+#if defined(__USE_POSTGRES__)
+mixed postgres_null_connect() {
+  return db_connect("", "audit", "", __USE_POSTGRES__);
+}
+
+mixed postgres_failed_connect() {
+  return db_connect("", "audit", "", __USE_POSTGRES__);
+}
+
+int postgres_exec_sequence() {
+  int handle = db_connect("", "audit", "", __USE_POSTGRES__);
+  if (handle <= 0) {
+    return 0;
+  }
+  int rows = db_exec(handle, "select 1");
+  int command = db_exec(handle, "update audit set value = 1");
+  int closed = db_close(handle);
+  return rows == 2 && command == 0 && closed == 1;
+}
+
+int postgres_exec_failure() {
+  int handle = db_connect("", "audit", "", __USE_POSTGRES__);
+  if (handle <= 0) {
+    return 0;
+  }
+  mixed failed = db_exec(handle, "select 1");
+  int closed = db_close(handle);
+  return stringp(failed) && closed == 1;
+}
+#endif
+
+void close_current() {}

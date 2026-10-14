@@ -14,6 +14,7 @@
 /single/tests/efuns/async_foreach	runtime	async	Covers local foreach binding and rejects async suspension while a foreach iterator is active.
 /single/tests/efuns/async_db_exec_bound_args	runtime	async,db,sqlite	Requires asynchronous SQLite callbacks.
 /single/tests/efuns/audit_db_identity	fixture	async,db,sqlite	Fixture controlled by db_io_tests to pause a real SQLite worker before connection reuse.
+/single/tests/efuns/audit_db_cleanup	fixture	-	Fixture controlled by db_io_tests to inject backend failures and verify result/connection cleanup.
 /single/tests/efuns/async_nested_callbacks	runtime	async	Requires PACKAGE_ASYNC.
 /single/tests/efuns/audit_async_budget	runtime	async	Exercises normal asynchronous callback completion under the configured request budget.
 /single/tests/efuns/audit_signal_progress	runtime	-	Runs a bounded LPC progress probe that is interrupted by an operation signal and completes through the event loop.

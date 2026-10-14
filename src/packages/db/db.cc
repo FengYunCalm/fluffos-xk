@@ -376,6 +376,12 @@ void f_db_connect() {
     } else {
       push_number(0);
     }
+    if (db->type->cleanup) {
+      db->type->cleanup(&(db->c));
+    }
+    if (db->type->close) {
+      db->type->close(&(db->c));
+    }
     free_db_conn(db);
   } else {
     db->flags |= DB_FLAG_READY;
@@ -721,14 +727,24 @@ static char* MySQL_errormsg(dbconn_t* c) {
   if (*(c->mysql.errormsg)) {
     return string_copy(c->mysql.errormsg, "MySQL_errormsg:1");
   }
+  if (!c->mysql.handle) {
+    return string_copy("MySQL connection is not initialized", "MySQL_errormsg:2");
+  }
 
-  return string_copy(mysql_error(c->mysql.handle), "MySQL_errormsg:2");
+  const char* message = mysql_error(c->mysql.handle);
+  return string_copy(message ? message : "MySQL error", "MySQL_errormsg:3");
 }
 
 static int MySQL_close(dbconn_t* c) {
-  mysql_close(c->mysql.handle);
-  FREE(c->mysql.handle);
-  c->mysql.handle = nullptr;
+  if (c->mysql.results) {
+    mysql_free_result(c->mysql.results);
+    c->mysql.results = nullptr;
+  }
+  if (c->mysql.handle) {
+    mysql_close(c->mysql.handle);
+    FREE(c->mysql.handle);
+    c->mysql.handle = nullptr;
+  }
 
   return 1;
 }
@@ -870,31 +886,49 @@ static array_t* MySQL_fetch(dbconn_t* c, int row) {
 static int MySQL_connect(dbconn_t* c, const char* host, const char* database, const char* username,
                          const char* password) {
   int ret;
-  MYSQL* tmp;
+  MYSQL* allocated;
+  MYSQL* initialized;
 
-  tmp = (MYSQL*)DMALLOC(sizeof(MYSQL), TAG_DB, "MySQL_connect");
-  tmp = mysql_init(tmp);
   *(c->mysql.errormsg) = 0;
-  c->mysql.handle = mysql_real_connect(tmp, host, username, password, database, 0, nullptr, 0);
-  // c->mysql.handle = mysql_connect(tmp, host, username, password);
-  if (!c->mysql.handle) {
-    strncpy(c->mysql.errormsg, mysql_error(tmp), sizeof(c->mysql.errormsg));
+  c->mysql.handle = nullptr;
+  c->mysql.results = nullptr;
+  allocated = (MYSQL*)DMALLOC(sizeof(MYSQL), TAG_DB, "MySQL_connect");
+  if (!allocated) {
+    strncpy(c->mysql.errormsg, "mysql allocation failed", sizeof(c->mysql.errormsg));
     c->mysql.errormsg[sizeof(c->mysql.errormsg) - 1] = 0;
-    FREE(tmp);
+    return 0;
+  }
+
+  initialized = mysql_init(allocated);
+  if (!initialized) {
+    strncpy(c->mysql.errormsg, "mysql_init failed", sizeof(c->mysql.errormsg));
+    c->mysql.errormsg[sizeof(c->mysql.errormsg) - 1] = 0;
+    FREE(allocated);
+    return 0;
+  }
+
+  c->mysql.handle = initialized;
+  c->mysql.handle = mysql_real_connect(c->mysql.handle, host, username, password, database, 0,
+                                       nullptr, 0);
+  // c->mysql.handle = mysql_connect(initialized, host, username, password);
+  if (!c->mysql.handle) {
+    const char* message = mysql_error(initialized);
+    strncpy(c->mysql.errormsg, message ? message : "mysql_real_connect failed",
+            sizeof(c->mysql.errormsg));
+    c->mysql.errormsg[sizeof(c->mysql.errormsg) - 1] = 0;
+    c->mysql.handle = initialized;
     return 0;
   }
 
   ret = mysql_select_db(c->mysql.handle, database);
   if (ret) {
-    strncpy(c->mysql.errormsg, mysql_error(c->mysql.handle), sizeof(c->mysql.errormsg));
+    const char* message = mysql_error(c->mysql.handle);
+    strncpy(c->mysql.errormsg, message ? message : "mysql_select_db failed",
+            sizeof(c->mysql.errormsg));
     c->mysql.errormsg[sizeof(c->mysql.errormsg) - 1] = 0;
-    mysql_close(c->mysql.handle);
-    c->mysql.handle = nullptr;
-    FREE(tmp);
     return 0;
   }
 
-  c->mysql.results = nullptr;
   return 1;
 }
 #endif
@@ -911,7 +945,9 @@ static void msql_cleanup(dbconn_t* c) {
 }
 
 static int msql_close(dbconn_t* c) {
-  msqlClose(c->msql.handle);
+  if (c->msql.handle > 0) {
+    msqlClose(c->msql.handle);
+  }
   c->msql.handle = -1;
 
   return 1;
@@ -1002,6 +1038,7 @@ static int msql_connect(dbconn_t* c, char* host, char* database, char* username,
 
   if (msqlSelectDB(c->msql.handle, database) == -1) {
     msqlClose(c->msql.handle);
+    c->msql.handle = -1;
     return 0;
   }
 
@@ -1022,29 +1059,45 @@ static char* msql_errormsg(dbconn_t* c) {
 static int SQLite3_connect(dbconn_t* c, const char* host, const char* database,
                            const char* username, const char* password) {
   const char* filename = check_valid_path(database, master_ob, "sqlite3_connect", 1);
+  const char* message;
+
+  c->SQLite3.handle = nullptr;
+  c->SQLite3.results = nullptr;
+  c->SQLite3.nrows = 0;
+  c->SQLite3.ncolumns = 0;
+  c->SQLite3.last_row = 0;
+  c->SQLite3.step_res = 0;
+  c->SQLite3.errormsg[0] = 0;
 
   if (sqlite3_open(filename, &c->SQLite3.handle)) {
-    strncpy(c->SQLite3.errormsg, sqlite3_errmsg(c->SQLite3.handle), sizeof(c->SQLite3.errormsg));
+    if (c->SQLite3.handle) {
+      message = sqlite3_errmsg(c->SQLite3.handle);
+      strncpy(c->SQLite3.errormsg, message ? message : "sqlite3_open failed",
+              sizeof(c->SQLite3.errormsg));
+      sqlite3_close(c->SQLite3.handle);
+      c->SQLite3.handle = nullptr;
+    } else {
+      strncpy(c->SQLite3.errormsg, "sqlite3_open failed", sizeof(c->SQLite3.errormsg));
+    }
     c->SQLite3.errormsg[sizeof(c->SQLite3.errormsg) - 1] = 0;
-    sqlite3_close(c->SQLite3.handle);
     return 0;
   }
 
-  c->SQLite3.results = 0;
-  c->SQLite3.nrows = 0;
-  c->SQLite3.last_row = 0;
-  c->SQLite3.step_res = 0;
   return 1;
 }
 
 static int SQLite3_close(dbconn_t* c) {
   if (c->SQLite3.results) {
     sqlite3_finalize(c->SQLite3.results);
+    c->SQLite3.results = nullptr;
   }
 
-  sqlite3_close(c->SQLite3.handle);
-  c->SQLite3.handle = 0;
+  if (c->SQLite3.handle) {
+    sqlite3_close(c->SQLite3.handle);
+    c->SQLite3.handle = nullptr;
+  }
   c->SQLite3.nrows = 0;
+  c->SQLite3.ncolumns = 0;
   c->SQLite3.last_row = 0;
   c->SQLite3.step_res = 0;
   return 1;
@@ -1053,10 +1106,10 @@ static int SQLite3_close(dbconn_t* c) {
 static void SQLite3_cleanup(dbconn_t* c) {
   if (c->SQLite3.results) {
     sqlite3_finalize(c->SQLite3.results);
-    c->SQLite3.results = 0;
-    c->SQLite3.last_row = 0;
-    c->SQLite3.step_res = 0;
+    c->SQLite3.results = nullptr;
   }
+  c->SQLite3.last_row = 0;
+  c->SQLite3.step_res = 0;
 }
 
 static int SQLite3_execute(dbconn_t* c, const char* s) {
@@ -1221,8 +1274,12 @@ static char* SQLite3_errormsg(dbconn_t* c) {
   if (*(c->SQLite3.errormsg)) {
     return string_copy((char*)c->SQLite3.errormsg, "SQLite3_errormsg:1");
   }
+  if (!c->SQLite3.handle) {
+    return string_copy("SQLite3 connection is not initialized", "SQLite3_errormsg:2");
+  }
 
-  return string_copy((char*)sqlite3_errmsg(c->SQLite3.handle), "SQLite3_errormsg:2");
+  const char* message = sqlite3_errmsg(c->SQLite3.handle);
+  return string_copy(message ? message : "SQLite3 error", "SQLite3_errormsg:3");
 }
 #endif
 /*
@@ -1230,27 +1287,45 @@ static char* SQLite3_errormsg(dbconn_t* c) {
  */
 #ifdef USE_POSTGRES
 static void Postgres_cleanup(dbconn_t* c) {
-  c->postgres.res = 0;
+  if (c->postgres.res) {
+    PQclear(c->postgres.res);
+    c->postgres.res = nullptr;
+  }
 }
 
 static char* Postgres_errormsg(dbconn_t* c) {
-  return string_copy(PQerrorMessage(c->postgres.conn), "postgresql_errormsg");
+  if (!c->postgres.conn) {
+    return string_copy("Postgres connection is not initialized", "postgresql_errormsg:1");
+  }
+
+  const char* message = PQerrorMessage(c->postgres.conn);
+  return string_copy(message ? message : "Postgres error", "postgresql_errormsg:2");
 }
 
 static int Postgres_close(dbconn_t* c) {
-  PQclear(c->postgres.res);
-  PQfinish(c->postgres.conn);
+  if (c->postgres.res) {
+    PQclear(c->postgres.res);
+    c->postgres.res = nullptr;
+  }
+  if (c->postgres.conn) {
+    PQfinish(c->postgres.conn);
+    c->postgres.conn = nullptr;
+  }
   return 1;
 }
 
 static int Postgres_execute(dbconn_t* c, const char* s) {
   c->postgres.res = PQexec(c->postgres.conn, s);
+  if (!c->postgres.res) {
+    return -1;
+  }
 
-  if ((PQresultStatus(c->postgres.res)) == PGRES_TUPLES_OK) {
+  const ExecStatusType status = PQresultStatus(c->postgres.res);
+  if (status == PGRES_TUPLES_OK) {
     return PQntuples(c->postgres.res);
   }
 
-  if (PQresultStatus(c->postgres.res) == PGRES_COMMAND_OK) {
+  if (status == PGRES_COMMAND_OK) {
     return 0;
   }
 
@@ -1263,12 +1338,14 @@ static int Postgres_connect(dbconn_t* c, const char* host, const char* database,
   const char* keywords[] = {"host", "dbname", "user", "password", nullptr};
   const char* values[] = {host, database, username, password, nullptr};
 
+  c->postgres.conn = nullptr;
+  c->postgres.res = nullptr;
   c->postgres.conn = PQconnectdbParams(keywords, values, 0);
-
-  if ((PQstatus(c->postgres.conn) != CONNECTION_OK)) {
+  if (!c->postgres.conn) {
     return 0;
   }
-  return 1;
+
+  return PQstatus(c->postgres.conn) == CONNECTION_OK;
 }
 
 static array_t* Postgres_fetch(dbconn_t* c, int row) {

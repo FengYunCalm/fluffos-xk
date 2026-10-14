@@ -1056,17 +1056,17 @@ endif()
 - **来源处理策略：**在当前 fork 修残余问题，保留已有 owner/session/现代 LPC 行为；没有经核验的小补丁时不整包覆盖。
 - **优先级/来源：**P2 / 上游继承问题。
 - **输入证据：**[审计发现](AUDIT_FINDINGS.md) 同 ID；`src/packages/db/db.cc:1198–1214`、`src/packages/db/db.cc:1227–1238`、`src/packages/db/db.cc:842–852`、`src/packages/db/db.cc:370–379`。
-- **作用范围：**`src/packages/db/db.cc`、`src/packages/db/db.h`、`src/tests/CMakeLists.txt`、`src/tests/test_db_io.cc`。测试归属 `src/tests/test_db_io.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
+- **作用范围：**`src/packages/db/db.cc`、`src/tests/CMakeLists.txt`、`src/tests/test_db_io.cc`、`testsuite/single/tests/efuns/audit_db_cleanup.lpc`、`testsuite/etc/test-scopes.tsv`、`docs/efun/db/db_close.md`、`docs/efun/db/db_connect.md`、`docs/efun/db/db_exec.md`。测试归属 `src/tests/test_db_io.cc`；只改本问题实际需要的部分，证据/调用者不自动成为修改目标。
 - **前置/责任/工时：**并发/运行时维护者；8–16 小时。
 - **必须击中的根因：**驱动槽位释放与后端资源释放没有统一失败/关闭后置条件；部分连接失败分支只释放外层结构，结果所有权未逐项收口。
 
 #### 操作
 
 1. Postgres_cleanup 在置空前 PQclear；Postgres_execute 的 SELECT 和 PGRES_COMMAND_OK 返回合同保持不变，结果持续拥有到下一次 cleanup/close。当前 PostgreSQL backend 没有独立 commit/rollback callback，本项不新增它们。
-2. 为 MySQL_connect 的 mysql_real_connect 失败分支补 mysql_close(tmp) 后再释放外层结构；检查 mysql_init 失败，不对空指针调用后续 API。
+2. MySQL_connect 保留已初始化的句柄状态交给统一失败清理；检查 mysql_init 失败，不对空指针调用后续 API。统一 close 在释放外层结构前关闭已初始化的 MySQL 句柄。
 3. SQLite_connect 失败关闭后立即置空；各 backend close/cleanup 对部分初始化状态幂等。Postgres_close 只关闭仍拥有的 conn/res。
 4. f_db_connect 失败先复制错误，再完成 backend cleanup/close，最后释放槽位；新代槽位 c 零初始化，不依赖上一连接的残留字节。
-5. 用计数 wrapper 覆盖查询成功/失败、事务成功/失败、连接各阶段失败、重复 cleanup、close 后槽位复用。不能以禁用 PostgreSQL 作为通过。
+5. 用计数 wrapper 覆盖查询/结果成功与失败、连接各阶段失败、重复 cleanup、close 后槽位复用；同时以 SQLite-only 构建验证条件编译。不能以禁用 PostgreSQL 作为全后端通过。
 
 #### 关键修改示例
 
@@ -1094,23 +1094,19 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
   --timeout 180 --evidence-dir "$E/$N-native-debug"
 ```
 
-- **新增 LPC 对象：**`/single/tests/efuns/audit_db_cleanup`。测试源是 `testsuite/single/tests/efuns/audit_db_cleanup.lpc`；纳入本单元文件清单并注册 scope。
+- **新增 LPC 对象：**`/single/tests/efuns/audit_db_cleanup`。测试源是 `testsuite/single/tests/efuns/audit_db_cleanup.lpc`；纳入本单元文件清单并注册 scope。该对象由 `db_io_tests` 通过真实 driver 加载；它是 native fixture，不作为独立 `do_tests()` 用例计数。
 
-```bash
-N=AUD-015
-L=audit_db_cleanup
-HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --driver "$BD/bin/driver" --case "/single/tests/efuns/$L" \
-  --timeout 180 --evidence-dir "$E/$N-lpc-debug"
+```text
+验证入口：db_io_tests。每个测试通过真实 driver 加载 /single/tests/efuns/audit_db_cleanup，native fixture 本身不重复注册为独立 LPC 计数。
 ```
 
 #### 完成、风险和回退
 
 - **验收：**每个成功创建的 PGresult/连接恰好释放一次；失败连接无泄漏/双关，诊断在释放后仍有效；ASan/LSan 和 SQLite 回归通过。
 - **风险与缓解：**不能简单在所有失败路径再 close 一遍：SQLite 已关闭却未置空，MySQL 有手动分配结构；必须先使后端 close 幂等且失败后指针状态清楚。
-- **文档同步：**`docs/efun/db/db_close.md`、`docs/efun/db/db_exec.md`；只更新受影响的合同/流程，不复制历史测试数字。
+- **文档同步：**`docs/efun/db/db_close.md`、`docs/efun/db/db_connect.md`、`docs/efun/db/db_exec.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。Debug、ASan、UBSan 的全量 `DbIoTest.*` 各通过 17/17；新增 `DbIoTest.AuditBackendCleanup*` 各通过 13/13，发现数与执行数一致且无跳过。SQLite-only 配置、构建和 4/4 定向测试通过。证据目录为 `audit-evidence/aud015-current-01/`，包括 fail-first、配置/构建日志、runner summary、sanitizer 输出、源差异和 manifest。首次 runner 使用重命名前的旧二进制，按零选择失败保留；重新构建后 Debug/ASan/UBSan runner 均通过。未执行真实外部 MySQL/PostgreSQL 服务集成，不能据此宣称外部服务验证完成。
 
 ### AUD-016 · 嵌套循环覆盖 catch/time_expression 的禁止挂起上下文
 

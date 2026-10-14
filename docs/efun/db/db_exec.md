@@ -18,7 +18,9 @@ title: db / db_exec
     base handle.
 
     Returns the number of rows in result set on success, or an error string
-    otherwise.
+    otherwise. A new execution releases the previous backend result before it
+    replaces it. Failed results remain owned until cleanup or db_close(), and
+    the diagnostic is copied before a failed connection is released.
 
 ### SEE ALSO
 
