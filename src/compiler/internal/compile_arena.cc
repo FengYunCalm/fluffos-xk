@@ -232,8 +232,13 @@ void ScratchArena::rewind_to(Chunk* chunk, size_t used, Chunk* live_head) noexce
     // the storage handed out inside the binding becomes reusable.
     released += chunk->used > used ? chunk->used - used : 0;
     chunk->used = used;
+  } else if (base_) {
+    // A cold binding has no starting chunk. Its first allocation may lazily
+    // create the base chunk, which is not part of the live chain.
+    released += base_->used;
+    base_->used = 0;
   }
-  current_ = chunk;
+  current_ = chunk ? chunk : base_;
   cycle_bytes_ = cycle_bytes_ > released ? cycle_bytes_ - released : 0;
   bytes_live_ = bytes_live_ > released ? bytes_live_ - released : 0;
 }

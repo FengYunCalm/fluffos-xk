@@ -1628,7 +1628,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-022 | 已实施，本地 Linux Debug native/LPC 与 evidence-gate fail-closed 定向验证完成；固定 clang-format 18.1.8 当前不可得，非 Linux/真实外部压力证据仍为 external-required | owner runtime status 当前统一返回 `production_gate_ready=0`、`unverified`、明确 blocker；历史证据移至独立字段，证据 envelope ready/status/blocker claim 受 current identity/SHA/raw digest 语义约束；证据见 `audit-evidence/aud022-current-01/` |
 | AUD-023 | 已实施，coding-standard 与 CI/checker 的全量 native/LPC 只读门禁范围已对齐；未执行源码或 testsuite 批量重排 | `docs/coding-standard.md` 已移除过时 pilot 表述，固定 clang-format 18.1.8、`--all-native`、完整允许 LPC corpus 与排除边界按当前 CI/工具实现说明；证据见 `audit-evidence/aud023-current-01/` |
 | AUD-024 | 已实施，构建手册静态核对通过；无代码/构建行为变化 | `docs/build.md` 已校准后端 type ID、SQLite-only/多后端参数、build→testsuite cwd 和固定并行上限；证据见 `audit-evidence/aud024-current-01/`，未执行 configure、安装或 driver |
-| AUD-025 | 待实施 | 按整改卡依赖推进 |
+| AUD-025 | 已实施，Debug/ASan/UBSan 定向通过；默认 PCRE2 全包构建与 clang-format 18.1.8 为环境缺口 | `ScratchArenaBinding` 冷启动回退已清零 `base_->used` 并恢复 `current_ = base_`；3 个冷 binding 用例及完整 11 个 `compile_arena_tests` 在三种变体通过，证据见 `audit-evidence/aud025-current-01/`；构建使用 `PACKAGE_PCRE=OFF`，未宣称默认全包构建通过 |
 | AUD-026 | 待实施 | 按整改卡依赖推进 |
 | AUD-027 | 待实施 | 按整改卡依赖推进 |
 | AUD-028 | 待实施 | 按整改卡依赖推进 |

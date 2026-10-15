@@ -1,0 +1,71 @@
+=== AUD-025 final Debug validation (3 cold-binding tests) ===
+2026-10-15T08:25:24+08:00
+[  2%] Built target make_options_defs
+[  2%] Built target build_applies
+[  2%] Built target make_func
+[  7%] Built target event_core_static
+[  7%] Built target libtelnet
+[ 10%] Built target crypt
+[  8%] Built target backward_object
+[ 11%] Built target fmt
+[ 11%] Built target GENHDR
+[ 12%] Built target event_openssl_static
+[ 14%] Built target event_extra_static
+[ 17%] Built target autogen
+[ 17%] Built target event_pthreads_static
+[ 18%] Built target package_db
+[ 18%] Built target package_uids
+[ 18%] Built target package_compress
+[ 20%] Built target package_contrib
+[ 20%] Built target package_crypto
+[ 28%] Built target package_core
+[ 30%] Built target package_develop
+[ 65%] Built target websockets
+[ 65%] Built target package_external
+[ 67%] Built target package_gateway
+[ 67%] Built target package_math
+[ 68%] Built target package_matrix
+[ 68%] Built target package_mudlib_stats
+[ 70%] Built target package_ops
+[ 70%] Built target package_sockets
+[ 71%] Built target package_sha1
+[ 71%] Built target package_parser
+[ 72%] Built target package_trim
+[ 74%] Built target package_async
+[ 75%] Building CXX object src/CMakeFiles/libdriver.dir/compiler/internal/compile_arena.cc.o
+[ 75%] Linking CXX static library liblibdriver.a
+[ 98%] Built target libdriver
+[ 98%] Linking CXX executable compile_arena_tests
+[100%] Built target compile_arena_tests
+aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97  build-dev-debug/src/tests/compile_arena_tests
+aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97  audit-evidence/aud025-current-01/debug-final/private/compile_arena_tests
+evidence_directory: /home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner/run-764981-1792023942193462304
+ERROR: TimeoutExpired: Command '['git', '-c', 'core.fsmonitor=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard']' timed out after 10 seconds
+Internal ctest changing into directory: /home/mechrevo/projects/fluffos-xk/build-dev-debug
+Test project /home/mechrevo/projects/fluffos-xk/build-dev-debug
+      Start  3: compile_arena_tests.CompileArenaTest.SessionArenaIsIndependentFromTheCompilerArena
+ 1/11 Test  #3: compile_arena_tests.CompileArenaTest.SessionArenaIsIndependentFromTheCompilerArena .......   Passed    0.01 sec
+      Start  4: compile_arena_tests.CompileArenaTest.BeginIsResetBeforeUseAndReportsCrossCycleSurvival
+ 2/11 Test  #4: compile_arena_tests.CompileArenaTest.BeginIsResetBeforeUseAndReportsCrossCycleSurvival ...   Passed    0.01 sec
+      Start  5: compile_arena_tests.CompileArenaTest.BindingReleasesOnlyItsOwnStorage
+ 3/11 Test  #5: compile_arena_tests.CompileArenaTest.BindingReleasesOnlyItsOwnStorage ....................   Passed    0.01 sec
+      Start  6: compile_arena_tests.CompileArenaTest.BindingRewindsTheChunkItStartedIn
+ 4/11 Test  #6: compile_arena_tests.CompileArenaTest.BindingRewindsTheChunkItStartedIn ...................   Passed    0.01 sec
+      Start  7: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsBaseAndRemainsUsable
+ 5/11 Test  #7: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsBaseAndRemainsUsable .........   Passed    0.01 sec
+      Start  8: compile_arena_tests.CompileArenaTest.AuditColdBindingReleasesOverflowChunks
+ 6/11 Test  #8: compile_arena_tests.CompileArenaTest.AuditColdBindingReleasesOverflowChunks ..............   Passed    0.01 sec
+      Start  9: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsDuringException
+ 7/11 Test  #9: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsDuringException ..............   Passed    0.01 sec
+      Start 10: compile_arena_tests.CompileArenaTest.NestedBindingsReleaseInnermostFirst
+ 8/11 Test #10: compile_arena_tests.CompileArenaTest.NestedBindingsReleaseInnermostFirst .................   Passed    0.01 sec
+      Start 11: compile_arena_tests.CompileArenaTest.OutOfOrderBindingDestructionIsRefused
+ 9/11 Test #11: compile_arena_tests.CompileArenaTest.OutOfOrderBindingDestructionIsRefused ...............   Passed    0.01 sec
+      Start 12: compile_arena_tests.CompileArenaTest.OversizeChunksAreNotRetainedAndResetDropsThePool
+10/11 Test #12: compile_arena_tests.CompileArenaTest.OversizeChunksAreNotRetainedAndResetDropsThePool ....   Passed    0.01 sec
+      Start 13: compile_arena_tests.CompileArenaTest.StringAllocationIsTerminatedAndAccountingMatches
+11/11 Test #13: compile_arena_tests.CompileArenaTest.StringAllocationIsTerminatedAndAccountingMatches ....   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 11
+
+Total Test time (real) =   0.10 sec

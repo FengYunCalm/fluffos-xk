@@ -1,0 +1,131 @@
+=== AUD-025 final ASan validation (3 cold-binding tests) ===
+2026-10-15T08:27:25+08:00
+[  1%] Built target make_func
+[  1%] Built target make_options_defs
+[  1%] Built target build_applies
+[  7%] Built target event_core_static
+[ 10%] Built target crypt
+[ 10%] Built target libtelnet
+[ 11%] Built target fmt
+[ 11%] Built target backward_object
+[ 11%] Built target GENHDR
+[ 14%] Built target autogen
+[ 15%] Built target event_extra_static
+[ 17%] Built target event_openssl_static
+[ 17%] Built target event_pthreads_static
+[ 18%] Built target package_db
+[ 18%] Built target package_compress
+[ 20%] Built target package_contrib
+[ 28%] Built target package_core
+[ 64%] Built target websockets
+[ 64%] Built target package_crypto
+[ 65%] Built target package_develop
+[ 65%] Built target package_external
+[ 67%] Built target package_gateway
+[ 67%] Built target package_math
+[ 68%] Built target package_matrix
+[ 68%] Built target package_mudlib_stats
+[ 70%] Built target package_ops
+[ 70%] Built target package_parser
+[ 71%] Built target package_sha1
+[ 71%] Built target package_sockets
+[ 72%] Built target package_trim
+[ 72%] Built target package_uids
+[ 74%] Built target package_async
+[ 75%] Building CXX object src/CMakeFiles/libdriver.dir/compiler/internal/compile_arena.cc.o
+[ 75%] Linking CXX static library liblibdriver.a
+[ 98%] Built target libdriver
+[100%] Building CXX object src/tests/CMakeFiles/compile_arena_tests.dir/test_compile_arena.cc.o
+[100%] Linking CXX executable compile_arena_tests
+[100%] Built target compile_arena_tests
+e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8  build-asan/src/tests/compile_arena_tests
+e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8  audit-evidence/aud025-current-01/asan-final/private/compile_arena_tests
+{
+  "capabilities": {},
+  "evidence_directory": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641",
+  "excluded_before_execution": [],
+  "exclusion_details": {},
+  "failed": 0,
+  "mode": "binary",
+  "passed": 3,
+  "records": [
+    {
+      "binary": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/private/compile_arena_tests",
+      "binary_sha256": "e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8",
+      "binary_sha256_before": "e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8",
+      "command": [
+        "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/private/compile_arena_tests",
+        "--gtest_list_tests",
+        "--gtest_filter=CompileArenaTest.AuditColdBinding*"
+      ],
+      "cwd": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/sandbox-001/testsuite",
+      "duration_seconds": 0.022575098999368493,
+      "failure_reason": "",
+      "inputs_after": "16969bcaa762a6856cd76437b5ad8022310a527cae0358a8c3c3e6597e245f19",
+      "inputs_before": "16969bcaa762a6856cd76437b5ad8022310a527cae0358a8c3c3e6597e245f19",
+      "launch_inputs": "353f065fbbc28fccc37f7e1a7300f6e79ccf77e5ca5a1d8a71d45d9137557b3b",
+      "log": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/001-gtest-list.log",
+      "process_returncode": 0,
+      "returncode": 0,
+      "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+      "source_mudlib": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/sandbox-001/testsuite",
+      "timed_out": false
+    },
+    {
+      "binary": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/private/compile_arena_tests",
+      "binary_sha256": "e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8",
+      "binary_sha256_before": "e6416912ffcabde11b2b3daa5f33a910416f11c5c5c0570b53fac41b58e68df8",
+      "command": [
+        "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/private/compile_arena_tests",
+        "--gtest_filter=CompileArenaTest.AuditColdBinding*"
+      ],
+      "cwd": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/sandbox-001/testsuite",
+      "duration_seconds": 0.024285118997795507,
+      "failure_reason": "",
+      "inputs_after": "16969bcaa762a6856cd76437b5ad8022310a527cae0358a8c3c3e6597e245f19",
+      "inputs_before": "16969bcaa762a6856cd76437b5ad8022310a527cae0358a8c3c3e6597e245f19",
+      "launch_inputs": "353f065fbbc28fccc37f7e1a7300f6e79ccf77e5ca5a1d8a71d45d9137557b3b",
+      "log": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/002-gtest-run.log",
+      "process_returncode": 0,
+      "returncode": 0,
+      "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+      "source_mudlib": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641/sandbox-001/testsuite",
+      "timed_out": false
+    }
+  ],
+  "result_contract": "required discovery = unique RUN = unique OK = PASSED; no skips or failures",
+  "selected": 3,
+  "skipped": 0,
+  "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+  "status": "passed",
+  "timeout_seconds": 60
+}
+evidence_directory: /home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/asan-final/runner/run-765539-1792024054355576641
+Internal ctest changing into directory: /home/mechrevo/projects/fluffos-xk/build-asan
+Test project /home/mechrevo/projects/fluffos-xk/build-asan
+      Start  3: compile_arena_tests.CompileArenaTest.SessionArenaIsIndependentFromTheCompilerArena
+ 1/11 Test  #3: compile_arena_tests.CompileArenaTest.SessionArenaIsIndependentFromTheCompilerArena .......   Passed    0.02 sec
+      Start  4: compile_arena_tests.CompileArenaTest.BeginIsResetBeforeUseAndReportsCrossCycleSurvival
+ 2/11 Test  #4: compile_arena_tests.CompileArenaTest.BeginIsResetBeforeUseAndReportsCrossCycleSurvival ...   Passed    0.02 sec
+      Start  5: compile_arena_tests.CompileArenaTest.BindingReleasesOnlyItsOwnStorage
+ 3/11 Test  #5: compile_arena_tests.CompileArenaTest.BindingReleasesOnlyItsOwnStorage ....................   Passed    0.02 sec
+      Start  6: compile_arena_tests.CompileArenaTest.BindingRewindsTheChunkItStartedIn
+ 4/11 Test  #6: compile_arena_tests.CompileArenaTest.BindingRewindsTheChunkItStartedIn ...................   Passed    0.02 sec
+      Start  7: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsBaseAndRemainsUsable
+ 5/11 Test  #7: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsBaseAndRemainsUsable .........   Passed    0.02 sec
+      Start  8: compile_arena_tests.CompileArenaTest.AuditColdBindingReleasesOverflowChunks
+ 6/11 Test  #8: compile_arena_tests.CompileArenaTest.AuditColdBindingReleasesOverflowChunks ..............   Passed    0.02 sec
+      Start  9: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsDuringException
+ 7/11 Test  #9: compile_arena_tests.CompileArenaTest.AuditColdBindingRewindsDuringException ..............   Passed    0.03 sec
+      Start 10: compile_arena_tests.CompileArenaTest.NestedBindingsReleaseInnermostFirst
+ 8/11 Test #10: compile_arena_tests.CompileArenaTest.NestedBindingsReleaseInnermostFirst .................   Passed    0.02 sec
+      Start 11: compile_arena_tests.CompileArenaTest.OutOfOrderBindingDestructionIsRefused
+ 9/11 Test #11: compile_arena_tests.CompileArenaTest.OutOfOrderBindingDestructionIsRefused ...............   Passed    0.02 sec
+      Start 12: compile_arena_tests.CompileArenaTest.OversizeChunksAreNotRetainedAndResetDropsThePool
+10/11 Test #12: compile_arena_tests.CompileArenaTest.OversizeChunksAreNotRetainedAndResetDropsThePool ....   Passed    0.02 sec
+      Start 13: compile_arena_tests.CompileArenaTest.StringAllocationIsTerminatedAndAccountingMatches
+11/11 Test #13: compile_arena_tests.CompileArenaTest.StringAllocationIsTerminatedAndAccountingMatches ....   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 11
+
+Total Test time (real) =   0.29 sec

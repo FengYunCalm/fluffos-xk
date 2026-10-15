@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstring>
 #include <optional>
+#include <stdexcept>
 #include <string>
 
 namespace {
@@ -145,6 +146,85 @@ TEST(CompileArenaTest, BindingRewindsTheChunkItStartedIn) {
   void* reused = session.alloc(64);
   EXPECT_EQ(reused, first) << "the rewound region restarts at the entry mark";
   EXPECT_EQ(session.bytes_live(), live_before + 64);
+  session.end();
+}
+
+TEST(CompileArenaTest, AuditColdBindingRewindsBaseAndRemainsUsable) {
+  ScratchArena session(false);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.chunk_mallocs(), 0u);
+
+  void* first = nullptr;
+  {
+    ScratchArenaBinding binding(session);
+    EXPECT_EQ(session.bindings_active(), 1u);
+    first = session.alloc(128);
+    ASSERT_NE(first, nullptr);
+    write_pattern(first, 128, 17);
+    EXPECT_EQ(session.bytes_live(), 128u);
+  }
+
+  EXPECT_EQ(session.bindings_active(), 0u);
+  EXPECT_EQ(session.binding_rewinds(), 1u);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+
+  // The cold binding reset the lazily-created base cursor instead of leaving
+  // current_ null. The next allocation must reuse that base chunk.
+  void* second = session.alloc(128);
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(second, first);
+  EXPECT_EQ(session.bytes_live(), 128u);
+  EXPECT_TRUE(pattern_intact(second, 128, 17));
+  session.end();
+}
+
+TEST(CompileArenaTest, AuditColdBindingReleasesOverflowChunks) {
+  ScratchArena session(false);
+  {
+    ScratchArenaBinding binding(session);
+    void* base = session.alloc(64);
+    ASSERT_NE(base, nullptr);
+    void* overflow = session.alloc(compile_arena::kBaseChunkSize);
+    ASSERT_NE(overflow, nullptr);
+    EXPECT_EQ(session.bindings_active(), 1u);
+    EXPECT_GT(session.bytes_live(), compile_arena::kBaseChunkSize);
+  }
+
+  EXPECT_EQ(session.bindings_active(), 0u);
+  EXPECT_EQ(session.binding_rewinds(), 1u);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+  EXPECT_EQ(session.retained_chunks(), 1u);
+
+  // The base chunk was rewound and remains available after the overflow chain
+  // was released into the retained pool.
+  void* next = session.alloc(64);
+  ASSERT_NE(next, nullptr);
+  EXPECT_EQ(session.bytes_live(), 64u);
+  session.reset();
+  EXPECT_EQ(session.retained_chunks(), 0u);
+}
+
+TEST(CompileArenaTest, AuditColdBindingRewindsDuringException) {
+  ScratchArena session(false);
+  EXPECT_THROW(
+      {
+        ScratchArenaBinding binding(session);
+        void* allocation = session.alloc(64);
+        EXPECT_NE(allocation, nullptr);
+        throw std::runtime_error("audit cold binding cleanup");
+      },
+      std::runtime_error);
+
+  EXPECT_EQ(session.bindings_active(), 0u);
+  EXPECT_EQ(session.binding_rewinds(), 1u);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+
+  void* next = session.alloc(64);
+  ASSERT_NE(next, nullptr);
+  EXPECT_EQ(session.bytes_live(), 64u);
   session.end();
 }
 

@@ -1,0 +1,61 @@
+{
+  "capabilities": {},
+  "evidence_directory": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252",
+  "excluded_before_execution": [],
+  "exclusion_details": {},
+  "failed": 0,
+  "mode": "binary",
+  "passed": 3,
+  "records": [
+    {
+      "binary": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/private/compile_arena_tests",
+      "binary_sha256": "aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97",
+      "binary_sha256_before": "aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97",
+      "command": [
+        "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/private/compile_arena_tests",
+        "--gtest_list_tests",
+        "--gtest_filter=CompileArenaTest.AuditColdBinding*"
+      ],
+      "cwd": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/sandbox-001/testsuite",
+      "duration_seconds": 0.005915872003242839,
+      "failure_reason": "",
+      "inputs_after": "de181f2e03186d764f5ae3c4b5fe4a40c8ef61046ea24f97c4274778e702a616",
+      "inputs_before": "de181f2e03186d764f5ae3c4b5fe4a40c8ef61046ea24f97c4274778e702a616",
+      "launch_inputs": "b0ea231ca985da689bc9bf6910bafd6eb509bb6e1f69a342b5877a64105a1832",
+      "log": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/001-gtest-list.log",
+      "process_returncode": 0,
+      "returncode": 0,
+      "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+      "source_mudlib": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/sandbox-001/testsuite",
+      "timed_out": false
+    },
+    {
+      "binary": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/private/compile_arena_tests",
+      "binary_sha256": "aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97",
+      "binary_sha256_before": "aba3dc8ce5741d74f9e7bd4fb2d513fa1ea276c80b8beb679bbce4b2433b6c97",
+      "command": [
+        "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/private/compile_arena_tests",
+        "--gtest_filter=CompileArenaTest.AuditColdBinding*"
+      ],
+      "cwd": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/sandbox-001/testsuite",
+      "duration_seconds": 0.007243990999995731,
+      "failure_reason": "",
+      "inputs_after": "de181f2e03186d764f5ae3c4b5fe4a40c8ef61046ea24f97c4274778e702a616",
+      "inputs_before": "de181f2e03186d764f5ae3c4b5fe4a40c8ef61046ea24f97c4274778e702a616",
+      "launch_inputs": "b0ea231ca985da689bc9bf6910bafd6eb509bb6e1f69a342b5877a64105a1832",
+      "log": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/002-gtest-run.log",
+      "process_returncode": 0,
+      "returncode": 0,
+      "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+      "source_mudlib": "/home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252/sandbox-001/testsuite",
+      "timed_out": false
+    }
+  ],
+  "result_contract": "required discovery = unique RUN = unique OK = PASSED; no skips or failures",
+  "selected": 3,
+  "skipped": 0,
+  "source_git_head": "0fcf72fed1afb177b3e0c237b1a5ee843dc04e03",
+  "status": "passed",
+  "timeout_seconds": 60
+}
+evidence_directory: /home/mechrevo/projects/fluffos-xk/audit-evidence/aud025-current-01/debug-final/runner-wrapper/run-765162-1792024032886194252

@@ -22,8 +22,9 @@
 //     cycle N+1 starts (survival is reported by cross_cycle_bytes()).
 //   * ScratchArenaBinding is a nested scope: destroying it releases every
 //     chunk allocated inside it and rewinds the bump cursor of the chunk it
-//     started in. Bindings must be destroyed innermost-first; an out-of-order
-//     destruction is refused instead of corrupting the arena.
+//     started in. A binding created before the first allocation also rewinds
+//     the lazily-created base chunk. Bindings must be destroyed innermost-first;
+//     an out-of-order destruction is refused instead of corrupting the arena.
 
 #include <cstddef>
 #include <cstdint>

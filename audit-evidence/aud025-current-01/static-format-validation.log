@@ -1,0 +1,31 @@
+=== targeted C++ format check ===
+error: clang-format is unavailable (requested 18.1.8)
+=== diff whitespace check ===
+=== changed paths ===
+ M src/compiler/internal/compile_arena.cc
+ M src/compiler/internal/compile_arena.h
+ M src/tests/test_compile_arena.cc
+?? audit-evidence/aud-004-eval-reclaim/
+?? audit-evidence/aud-023/
+?? audit-evidence/aud004-final-01/
+?? audit-evidence/aud007-018-current-01/
+?? audit-evidence/aud007-018-current-02/
+?? audit-evidence/aud007-018-final-01/
+?? audit-evidence/aud008-current-01/
+?? audit-evidence/aud011-current-01/
+?? audit-evidence/aud012-current-01/
+?? audit-evidence/aud013-current-01/
+?? audit-evidence/aud013-final-02/
+?? audit-evidence/aud013-final-03/
+?? audit-evidence/aud014-current-01-config-matrix.log
+?? audit-evidence/aud014-current-01/
+?? audit-evidence/aud015-current-01/
+?? audit-evidence/aud016-current-01/
+?? audit-evidence/aud017-current-01/
+?? audit-evidence/aud019-current-01/
+?? audit-evidence/aud020-current-01/
+?? audit-evidence/aud021-current-01/
+?? audit-evidence/aud022-current-01/
+?? audit-evidence/aud023-current-01/
+?? audit-evidence/aud025-current-01/
+?? evidence/

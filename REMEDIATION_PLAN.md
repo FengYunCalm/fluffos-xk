@@ -1590,7 +1590,7 @@ git diff --check -- docs/build.md
 - **优先级 / 责任视角：**P1；C++ / 内存与编译器。
 - **依赖：**无新增前置依赖；仍遵守 §2 的验收可信度优先与单构建约束。
 - **目标：**冷 binding 记录空 chunk。首次分配建立 base_，回退仍把 current_ 置空，且漏减 base_ 使用量。下一次 alloc 因 base_ 非空而解引用空 current_。 修复后空起始 mark → base_->used 清零、统计回退、current_=base_。
-- **定位 / 改动文件：**src/compiler/internal/compile_arena.cc:174–208、220–240、285–324；`src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc`。先读直接调用者；新增测试必须执行生产入口，不用复制算法替代。
+- **定位 / 改动文件：**src/compiler/internal/compile_arena.cc:174–208、220–240、285–324；`src/compiler/internal/compile_arena.cc`、`src/compiler/internal/compile_arena.h`、`src/tests/test_compile_arena.cc`。先读直接调用者；新增测试必须执行生产入口，不用复制算法替代。
 - **影响：**合法内部调用顺序导致崩溃及 live/cycle 计量失真；未证实普通 LPC 直接控制该顺序。
 - **预计工时：**4–8 小时。
 - **来源处理策略：**保留 fork 的有效功能，在当前实现修根因；不整体回退 owner、异步或测试门禁。
@@ -1609,7 +1609,7 @@ git diff --check -- docs/build.md
 
 - 前：current_ = chunk; // chunk 为空而 base_ 已存在。
 - 后：空起始 mark → base_->used 清零、统计回退、current_=base_。
-- 以下是拟议实现片段，不是已经存在或已验证的补丁。新增私有 helper 要在本卡列出的生产路径接入；不得只在测试包装层生效。
+- 以下是已接入并验证的生产实现片段；新增私有 helper 要在本卡列出的生产路径接入；不得只在测试包装层生效。
 
 ```cpp
 if (chunk) {
@@ -1624,22 +1624,27 @@ current_ = chunk ? chunk : base_;
 
 **定向命令与通过标准**
 
-下列 filter 是拟新增名称；先在本卡测试文件实现并确认 runner 发现数非零。 同一命令先记录修前失败，再用新证据目录记录修后结果。变量来自 §3；重复执行必须更换 E 或末级目录，不覆盖旧证据。
+实际 filter 已在 `src/tests/test_compile_arena.cc` 注册并确认 runner 发现数为 3。修前失败保存在 `audit-evidence/aud025-current-01/fail-first-exception/`，修后 Debug、ASan、UBSan 使用独立证据目录；重复执行必须更换 E 或末级目录，不覆盖旧证据。
 
 ```bash
 N=AUD-025
 B="$BD"
+P="$E/$N-private/compile_arena_tests"
 cmake --build "$B" --target compile_arena_tests --parallel 1
+mkdir -p "$(dirname "$P")"
+cp --reflink=auto "$B/src/tests/compile_arena_tests" "$P"
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --binary "$B/src/tests/compile_arena_tests" --gtest-filter 'CompileArenaTest.AuditColdBinding*' \
-  --timeout 180 --evidence-dir "$E/$N-native-debug"
+  --binary "$P" --gtest-filter 'CompileArenaTest.AuditColdBinding*' \
+  --timeout 180 --evidence-root "$E/$N-native-debug"
 ```
 
-通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“退出冷 binding 后计量归零且可再次分配；内层回退不破坏外层数据；次序/代际错误仍拒绝。”。 涉及语言行为时新增或修正 `testsuite/single/tests/efuns/audit_arena_cold_binding.lpc` 及 scope 分类；用 §3.4 的隔离 LPC 入口运行，不运行未注册的对象来制造零测试通过。
+通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“退出冷 binding 后计量归零且可再次分配；内层回退不破坏外层数据；次序/代际错误仍拒绝。”。本卡只涉及 C++，未新增 LPC testsuite 用例；未注册的对象不计入通过。
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**当前状态：**已实施并完成定向验收。生产回退在冷 binding 的首次分配路径清零 `base_->used`，恢复 `current_ = base_`，并保留 live/retained 链及统计；`compile_arena.h` 已同步生命周期合同。三项 `AuditColdBinding*` 用例在 Debug、ASan、UBSan 中均为发现 3、执行 3、通过 3、跳过 0；每个变体的完整 `compile_arena_tests` 均为 11/11 通过。修前旧实现已由同一完整 filter 记录统计未回退并最终 SIGSEGV。证据见 `audit-evidence/aud025-current-01/`。主机缺少 PCRE2 开发文件，三种定向构建使用 `PACKAGE_PCRE=OFF`；未据此宣称默认全包构建通过。仓库没有可用的 clang-format 18.1.8，`git diff --check` 已通过，但格式化器门禁仍是环境缺口。
+
+**完成条件**：以上检查、归属文档和精确提交均有证据；本卡实现与定向运行时验收已完成，默认全包构建和格式化器缺口按证据单独保留。
 
 <a id="aud-026"></a>
 ### AUD-026 · ScratchArena 尺寸运算可回绕
