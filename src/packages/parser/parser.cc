@@ -131,11 +131,15 @@ static svalue_t* get_the_error(parser_error_t*, int);
  * as non-printable and non-alphanumeric, which used to silently strip every
  * non-ASCII character during tokenization, so non-ASCII words never reached
  * STR rules or OBJ id matching. Matching stays bytewise (no case folding
- * beyond ASCII). */
+ * beyond ASCII). Do not pass high-bit UTF-8 bytes through locale-sensitive
+ * whitespace or case conversion: some platform locales classify them as
+ * single-byte letters and would corrupt the UTF-8 sequence. */
 #define ismultibyte(x) ((unsigned char)(x) >= 0x80)
-#define isignore(x) ((!uisprint(x) && !ismultibyte(x)) || (x) == '\'')
+#define isparser_space(x) (!ismultibyte(x) && uisspace(x))
+#define isparser_upper(x) (!ismultibyte(x) && uisupper(x))
+#define isignore(x) ((!ismultibyte(x) && !uisprint(x)) || (x) == '\'')
 #define iskeep(x)                                                                           \
-  (uisalnum(x) || ismultibyte(x) || (x) == '*' || (x) == '?' || (x) == '!' || (x) == '.' || \
+  (ismultibyte(x) || uisalnum(x) || (x) == '*' || (x) == '?' || (x) == '!' || (x) == '.' || \
    (x) == ':')
 
 #define SHARED_STRING(x) ((x)->subtype == STRING_SHARED ? (x)->u.string : findstring((x)->u.string))
@@ -1481,10 +1485,10 @@ static char* strput_words(char* str, const char* limit, int first, int last) {
   size_t num;
 
   /* strip leading and trailing whitespace */
-  while (uisspace(p[0])) {
+  while (isparser_space(p[0])) {
     p++;
   }
-  while (uisspace(end[0])) {
+  while (isparser_space(end[0])) {
     end--;
   }
 
@@ -1504,10 +1508,10 @@ static void push_words(int first, int last) {
   char* end = words[last].end;
   char* str;
 
-  while (uisspace(p[0])) {
+  while (isparser_space(p[0])) {
     p++;
   }
-  while (uisspace(end[0])) {
+  while (isparser_space(end[0])) {
     end--;
   }
   push_malloced_string(str = new_string(end - p + 1, "push_words"));
@@ -3256,7 +3260,7 @@ static void parse_sentence(const char* input) {
   p = start = buf;
   flag = 0;
   inp = (unsigned char*)input;
-  while (*inp && (uisspace(*inp) || isignore(*inp))) {
+  while (*inp && (isparser_space(*inp) || isignore(*inp))) {
     inp++;
   }
   orig_starts[0] = inp;
@@ -3265,7 +3269,7 @@ static void parse_sentence(const char* input) {
     if (isignore(c)) {
       continue;
     }
-    if (uisupper(c)) {
+    if (isparser_upper(c)) {
       c = tolower(c);
     }
     if (iskeep(c) && p < end) {
@@ -3278,8 +3282,8 @@ static void parse_sentence(const char* input) {
       } /* truncate */
     } else {
       /* whitespace or punctuation */
-      if (!uisspace(c))
-        while (*inp && !iskeep(*inp) && !uisspace(*inp)) {
+      if (!isparser_space(c))
+        while (*inp && !iskeep(*inp) && !isparser_space(*inp)) {
           inp++;
         }
       else {
@@ -3295,7 +3299,7 @@ static void parse_sentence(const char* input) {
           return; /* too many words */
         }
         start = p;
-        while (*inp && uisspace(*inp)) {
+        while (*inp && isparser_space(*inp)) {
           inp++;
         }
         orig_starts[n] = inp;
@@ -3303,7 +3307,7 @@ static void parse_sentence(const char* input) {
           break; /* truncate */
         }
       } else {
-        while (*inp && uisspace(*inp)) {
+        while (*inp && isparser_space(*inp)) {
           inp++;
         }
       }

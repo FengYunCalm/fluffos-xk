@@ -18,9 +18,13 @@ if(${GTEST_FOUND})
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PACKAGE_ASYNC AND PACKAGE_DB AND PACKAGE_DB_SQLITE)
     add_executable(db_io_tests test_db_io.cc)
     target_link_libraries(db_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
-    # --wrap hooks are link-time test seams. Do not let LTO discard the
-    # wrapper definitions before the linker resolves them.
+    # --wrap hooks are link-time test seams. Keep this test's wrapper object
+    # out of IPO, but retain the matching linker plugin for the production
+    # archive when it was built with LTO.
     set_property(TARGET db_io_tests PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+    target_link_options(db_io_tests PRIVATE
+      "$<$<CXX_COMPILER_ID:Clang>:-flto=thin>"
+      "$<$<CXX_COMPILER_ID:GNU>:-flto>")
     target_compile_definitions(db_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
     target_link_options(db_io_tests PRIVATE
