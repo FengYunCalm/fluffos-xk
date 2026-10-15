@@ -1,0 +1,47 @@
+AUD-024 static validation
+HEAD=e5577f99c626a0b6a85b82440e99b9fde11627a1
+WORKTREE=## main...origin/main
+ M docs/build.md
+?? audit-evidence/
+?? evidence/
+--- source contract ---
+20:set(PACKAGE_DB_MYSQL "1" CACHE STRING "DB Type for Mysql")
+22:set(PACKAGE_DB_SQLITE "" CACHE STRING "DB Type for SQLITE")
+23:set(PACKAGE_DB_DEFAULT_DB "1" CACHE STRING "Default DB Handle")
+34:      string(REPLACE "PACKAGE_DB_" "" _db_backend "${_db_variable}")
+35:      string(TOLOWER "${_db_backend}" _db_backend_lower)
+36:      set(_db_${_db_backend_lower}_enabled TRUE)
+44:      message(FATAL_ERROR "PACKAGE_DB is enabled but no database backend is enabled.")
+46:      message(FATAL_ERROR "Enabled database backends must use unique type IDs.")
+49:    if (NOT "${PACKAGE_DB_DEFAULT_DB}" MATCHES "^[1-9][0-9]*$")
+51:              "PACKAGE_DB_DEFAULT_DB must be a positive decimal integer between 1 and 2147483647; "
+52:              "got '${PACKAGE_DB_DEFAULT_DB}'.")
+54:    string(LENGTH "${PACKAGE_DB_DEFAULT_DB}" _db_default_length)
+56:        (_db_default_length EQUAL 10 AND "${PACKAGE_DB_DEFAULT_DB}" GREATER 2147483647))
+58:              "PACKAGE_DB_DEFAULT_DB must be no greater than 2147483647 "
+59:              "(got '${PACKAGE_DB_DEFAULT_DB}').")
+61:    list(FIND _db_enabled_ids "${PACKAGE_DB_DEFAULT_DB}" _db_default_index)
+64:              "PACKAGE_DB_DEFAULT_DB must match an enabled database backend type ID "
+65:              "(got '${PACKAGE_DB_DEFAULT_DB}').")
+68:    target_compile_definitions(package_db PUBLIC "DEFAULT_DB=${PACKAGE_DB_DEFAULT_DB}")
+--- docs command scan ---
+132:$ make -j4 install
+143:$ make -j4 install
+150:$ make -j4 install
+158:$ make -j2 install
+203:$ make -j4 install
+214:$ make -j4 install
+286:$ cmake --build . --parallel 1
+--- semantic assertions ---
+sqlite-only flags: PASS
+multi-backend flags: PASS
+build-to-testsuite cwd: PASS
+ordinary make cap: PASS
+sanitizer make cap: PASS
+cmake build cap: PASS
+no dynamic parallel expression: PASS
+--- docs checker ---
+check-docs: OK (1140 markdown files)
+--- whitespace ---
+PASS: AUD-024 static validation
+exit=0

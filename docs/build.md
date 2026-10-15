@@ -129,30 +129,33 @@ $ sudo pip install --upgrade cmake
 ```shell
 $ mkdir build && cd build
 $ cmake ..
-$ make -j $(nproc) install
+$ make -j4 install
 ```
 
 Binary files and support files will be in `./bin/`
 
 ### Build Types
 
-**Debug Build** (for development):
+**Debug Build** (for development; SQLite-only example):
 ```shell
-$ cmake -DCMAKE_BUILD_TYPE=Debug -DPACKAGE_DB_SQLITE=2 ..
-$ make -j $(nproc) install
+$ cmake -DCMAKE_BUILD_TYPE=Debug \
+  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1 -DPACKAGE_DB_DEFAULT_DB=1 ..
+$ make -j4 install
 ```
 
-**Release Build with Info** (recommended for testing):
+**Release Build with Info** (recommended for testing; SQLite-only example):
 ```shell
-$ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGE_DB_SQLITE=2 ..
-$ make -j $(nproc) install
+$ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1 -DPACKAGE_DB_DEFAULT_DB=1 ..
+$ make -j4 install
 ```
 
-**Sanitizer Build** (for memory debugging):
+**Sanitizer Build** (for memory debugging; SQLite-only example):
 ```shell
 $ export CC=clang CXX=clang++
-$ cmake -DCMAKE_BUILD_TYPE=Debug -DPACKAGE_DB_SQLITE=2 -DENABLE_SANITIZER=ON ..
-$ make -j $(nproc) install
+$ cmake -DCMAKE_BUILD_TYPE=Debug -DPACKAGE_DB_MYSQL="" \
+  -DPACKAGE_DB_SQLITE=1 -DPACKAGE_DB_DEFAULT_DB=1 -DENABLE_SANITIZER=ON ..
+$ make -j2 install
 ```
 
 ### Running Tests
@@ -166,7 +169,7 @@ $ make test
 $ CTEST_OUTPUT_ON_FAILURE=1 make test
 
 # LPC testsuite
-$ cd testsuite
+$ cd ../testsuite
 $ ../build/bin/driver etc/config.test -ftest
 ```
 
@@ -195,8 +198,9 @@ You need to pass environment variables for OpenSSL and ICU locations:
 ```shell
 $ mkdir build && cd build
 $ OPENSSL_ROOT_DIR="/usr/local/opt/openssl" ICU_ROOT="/opt/homebrew/opt/icu4c" \
-  cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGE_DB_SQLITE=2 ..
-$ make -j $(sysctl -n hw.ncpu) install
+  cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGE_DB_MYSQL=1 \
+  -DPACKAGE_DB_SQLITE=2 -DPACKAGE_DB_DEFAULT_DB=1 ..
+$ make -j4 install
 ```
 
 This works for both Apple Silicon and Intel Macs with recent Homebrew installations.
@@ -205,8 +209,9 @@ This works for both Apple Silicon and Intel Macs with recent Homebrew installati
 ```shell
 $ mkdir build && cd build
 $ OPENSSL_ROOT_DIR="/usr/local/opt/openssl" ICU_ROOT="/usr/local/opt/icu4c" \
-  cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGE_DB_SQLITE=2 ..
-$ make -j $(sysctl -n hw.ncpu) install
+  cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPACKAGE_DB_MYSQL=1 \
+  -DPACKAGE_DB_SQLITE=2 -DPACKAGE_DB_DEFAULT_DB=1 ..
+$ make -j4 install
 ```
 
 ### Running Tests
@@ -217,7 +222,7 @@ $ cd build
 $ CTEST_OUTPUT_ON_FAILURE=1 make test
 
 # LPC testsuite
-$ cd testsuite
+$ cd ../testsuite
 $ ../build/bin/driver etc/config.test -ftest
 ```
 
@@ -277,7 +282,7 @@ $ cd fluffos
 $ mkdir build && cd build
 $ cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug \
   -DMARCH_NATIVE=OFF -DPACKAGE_CRYPTO=OFF \
-  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_DEFAULT_DB=2 -DPACKAGE_DB_SQLITE=2 ..
+  -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1 -DPACKAGE_DB_DEFAULT_DB=1 ..
 $ cmake --build . --parallel 1
 $ cmake --install . --prefix "$PWD/install"
 ```
@@ -288,9 +293,9 @@ Use a private prefix for verification; do not copy executables from build-tree p
 **Notes**:
 - `-DMARCH_NATIVE=OFF`: Ensures portability across different CPUs
 - `-DPACKAGE_CRYPTO=OFF`: Crypto package is typically disabled on Windows
-- `-DPACKAGE_DB_SQLITE=2`: Enable SQLite with type ID 2
+- `-DPACKAGE_DB_SQLITE=1`: Enable SQLite with backend type ID 1
 - `-DPACKAGE_DB_MYSQL=""`: Disable MySQL
-- `-DPACKAGE_DB_DEFAULT_DB=2`: Select the enabled SQLite type ID as default
+- `-DPACKAGE_DB_DEFAULT_DB=1`: Select the enabled SQLite backend type ID as default
 
 ### Running Tests
 
@@ -300,7 +305,7 @@ $ cd build
 $ CTEST_OUTPUT_ON_FAILURE=1 make test
 
 # LPC testsuite
-$ cd testsuite
+$ cd ../testsuite
 $ ../build/bin/driver etc/config.test -ftest
 ```
 
@@ -316,11 +321,21 @@ $ cmake .. -DPACKAGE_CRYPTO=OFF -DPACKAGE_DB=OFF
 ```
 
 Common package options:
-- `PACKAGE_DB_SQLITE=<positive type ID>`: Enable SQLite and assign its database type ID (`1` and `2` are common examples)
+- `PACKAGE_DB_SQLITE=<positive type ID>`: Enable SQLite and assign its LPC-visible database backend type ID
 - `PACKAGE_DB_MYSQL=""`: Disable MySQL (or set a distinct positive type ID to enable it)
-- `PACKAGE_DB_DEFAULT_DB=2`: Required when SQLite is the only enabled backend with type ID 2
+- `PACKAGE_DB_DEFAULT_DB=<enabled type ID>`: Select one enabled backend as the default
 - Enabled database backends must use distinct positive type IDs, and the default ID must be enabled
 - Empty strings, `0`, and CMake false values disable a backend
+
+SQLite-only configuration:
+```shell
+$ cmake .. -DPACKAGE_DB_MYSQL="" -DPACKAGE_DB_SQLITE=1 -DPACKAGE_DB_DEFAULT_DB=1
+```
+
+Multi-backend configuration:
+```shell
+$ cmake .. -DPACKAGE_DB_MYSQL=1 -DPACKAGE_DB_SQLITE=2 -DPACKAGE_DB_DEFAULT_DB=1
+```
 - `PACKAGE_CRYPTO=OFF`: Disable crypto package (typical on Windows)
 - `PACKAGE_PCRE=OFF`: Disable PCRE package
 

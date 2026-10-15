@@ -1583,7 +1583,7 @@ git diff --check -- docs/build.md
 - **回滚：**按 §4.2 R1 逆向本 ID 文档提交，不回退其他源码或构建状态。
 - **工时/角色：**2–4 小时；构建文档维护者。
 - **归属文档：**`docs/build.md`。
-- **当前状态：**未实施。
+- **当前状态：**已实施并完成文档静态核对。SQLite-only、多后端编号/默认值、build→testsuite cwd 和普通/ASan 并行上限均已与当前 CMake 合同及项目资源规则对齐；未执行 configure、安装或 driver。证据见 `audit-evidence/aud024-current-01/`。
 <a id="aud-025"></a>
 ### AUD-025 · 冷启动 ScratchArenaBinding 留下空 current_
 
