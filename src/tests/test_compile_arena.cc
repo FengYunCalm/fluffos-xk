@@ -11,6 +11,8 @@
 
 #include <cstddef>
 #include <cstring>
+#include <limits>
+#include <new>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -224,6 +226,47 @@ TEST(CompileArenaTest, AuditColdBindingRewindsDuringException) {
 
   void* next = session.alloc(64);
   ASSERT_NE(next, nullptr);
+  EXPECT_EQ(session.bytes_live(), 64u);
+  session.end();
+}
+
+TEST(CompileArenaTest, AuditAllocationOverflowIsRejected) {
+  constexpr size_t kSizeMax = std::numeric_limits<size_t>::max();
+  constexpr size_t kAlignment = alignof(std::max_align_t);
+  static_assert(kAlignment >= 2);
+
+  ScratchArena session(false);
+  session.begin();
+
+  EXPECT_EQ(session.alloc(0), nullptr);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+  EXPECT_EQ(session.chunk_mallocs(), 0u);
+
+  auto expect_rejected = [&session](size_t size) {
+    EXPECT_THROW(session.alloc(size), std::bad_alloc);
+    EXPECT_EQ(session.bytes_live(), 0u);
+    EXPECT_EQ(session.cycle_bytes(), 0u);
+    EXPECT_EQ(session.chunk_mallocs(), 0u);
+  };
+
+  // The first value is just beyond the largest size whose alignment addition
+  // can fit. The second aligns successfully, but cannot include Chunk's header.
+  expect_rejected(kSizeMax - (kAlignment - 2));
+  expect_rejected(kSizeMax - (kAlignment - 1));
+  EXPECT_THROW(session.alloc(kSizeMax), std::bad_alloc);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+  EXPECT_EQ(session.chunk_mallocs(), 0u);
+
+  // len + 1 must be checked before alloc() sees a wrapped zero size.
+  EXPECT_THROW(session.alloc_string(kSizeMax), std::bad_alloc);
+  EXPECT_EQ(session.bytes_live(), 0u);
+  EXPECT_EQ(session.cycle_bytes(), 0u);
+  EXPECT_EQ(session.chunk_mallocs(), 0u);
+
+  void* usable = session.alloc(64);
+  ASSERT_NE(usable, nullptr);
   EXPECT_EQ(session.bytes_live(), 64u);
   session.end();
 }

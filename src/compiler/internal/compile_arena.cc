@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <new>
 
 #include "base/std.h"
@@ -29,13 +30,25 @@ Chunk g_static_base{nullptr, kBaseChunkSize, 0, false, g_base_data};
 
 constexpr size_t kChunkHeaderSize = sizeof(Chunk);
 
+size_t checked_size_add(size_t left, size_t right) {
+  if (right > std::numeric_limits<size_t>::max() - left) {
+    throw std::bad_alloc();
+  }
+  return left + right;
+}
+
 size_t align_up(size_t n) {
   constexpr size_t kAlign = alignof(max_align_t);
-  return (n + kAlign - 1) & ~(kAlign - 1);
+  size_t const aligned = checked_size_add(n, kAlign - 1);
+  return aligned & ~(kAlign - 1);
 }
 
 Chunk* new_chunk(size_t size, bool oversize, size_t* chunk_mallocs, int tag, const char* desc) {
-  void* mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
+  size_t const allocation_size = checked_size_add(kChunkHeaderSize, size);
+  void* mem = DMALLOC(allocation_size, tag, desc);
+  if (mem == nullptr) {
+    throw std::bad_alloc();
+  }
   (*chunk_mallocs)++;
   Chunk* c = new (mem) Chunk;
   c->next = nullptr;
@@ -176,14 +189,22 @@ void* ScratchArena::alloc(size_t size) {
   if (size == 0) {
     return nullptr;
   }
+  size_t const need = align_up(size);
+  size_t const next_cycle_bytes = checked_size_add(cycle_bytes_, need);
+  size_t const next_bytes_allocated = checked_size_add(bytes_allocated_, need);
+  size_t const next_bytes_live = checked_size_add(bytes_live_, need);
+  if (need > kBaseChunkSize) {
+    // Validate an oversize chunk before lazily allocating the base chunk, so a
+    // rejected request leaves the arena untouched.
+    (void)checked_size_add(kChunkHeaderSize, need);
+  }
   if (base_ == nullptr) {
     // First use of a session arena: the base chunk is allocated on demand.
     base_ = new_chunk(kBaseChunkSize, false, &chunk_mallocs_, tag_, desc_);
     current_ = base_;
   }
-  size_t need = align_up(size);
   Chunk* c = current_;
-  if (c->used + need > c->size) {
+  if (need > c->size - c->used) {
     // Need a fresh chunk. Oversize (exact-fit) when the request exceeds a
     // standard chunk; otherwise take/allocate a standard chunk.
     if (need > kBaseChunkSize) {
@@ -197,9 +218,9 @@ void* ScratchArena::alloc(size_t size) {
   }
   char* p = c->data + c->used;
   c->used += need;
-  cycle_bytes_ += need;
-  bytes_allocated_ += need;
-  bytes_live_ += need;
+  cycle_bytes_ = next_cycle_bytes;
+  bytes_allocated_ = next_bytes_allocated;
+  bytes_live_ = next_bytes_live;
   if (cycle_bytes_ > peak_cycle_bytes_) {
     peak_cycle_bytes_ = cycle_bytes_;
   }
@@ -210,7 +231,7 @@ void* ScratchArena::alloc(size_t size) {
 }
 
 char* ScratchArena::alloc_string(size_t len) {
-  char* p = static_cast<char*>(alloc(len + 1));
+  char* p = static_cast<char*>(alloc(checked_size_add(len, 1)));
   if (p) {
     p[len] = '\0';
   }

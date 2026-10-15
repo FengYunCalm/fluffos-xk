@@ -316,7 +316,7 @@ VM 调用通常经 apply/函数查询建立控制帧，解释器读取 opcode �
 | AUD-023 | P3 | L M O P | fork 引入问题 | 权威排版说明仍描述已被 CI 扩大的 pilot 范围 | docs/coding-standard.md:29–29；.github/workflows/ci.yml:87–104 | `&#124; [CI][up-ci] &#124; 运行 LPC syntax 测试和 testsuite/format.sh --check &#124; 本地 U10f 已接入固定 pilot；完整 native/LPC 存量门禁仍由 U10g 按模块收口，不能把 pilot 写成全库通过 &#124;` | 文档写 pilot 子集，而 CI 已运行 --all-native，贡献者无法按权威说明复现检查范围。它不是新增运行时漏洞。 | 格式门禁扩大后，权威说明和过渡状态未同步。 | 逐字对照 check-format.py 的 --all-native 发现/排除规则、CI 调用与文档，确认 generated/thirdparty/raw-byte fixture 的边界一致。 | 仅更新实际归属文档的范围和命令，去除失效过渡语句；不再次全仓重排代码。 | `tools/style/check-format.py`、`src/.clang-tidy`、`docs/project-modernization-plan-2026-10.md` | 2–4 小时 | 已修复；coding-standard 已与 CI/checker 的全量 native/LPC 只读门禁范围对齐，未执行源码或 testsuite 批量重排 |
 | AUD-024 | P3 | I M O | 上游继承问题 | 构建手册混淆数据库编号，并给出失配的测试/并行命令 | docs/build.md:285–288；docs/build.md:292–301；docs/build.md:312–318；src/CMakeLists.txt:19–23 | `- =2 enables SQLite3 API version 2 (recommended, includes newer features)` | 把后端 ID 误当 SQLite API 版本，会选择与其他后端/默认后端冲突的编号；测试块从 build 直接 cd testsuite 指向错误目录；不限并行的示例与项目 WSL 构建约束冲突。没有声称本轮实际发生 OOM。 | 上游遗留构建说明没有按真实 CMake 参数语义、当前目录和 fork 的资源约束同步校准。 | 静态对照 src/CMakeLists.txt、src/packages/db/CMakeLists.txt、docs/efun/db/db_connect.md 和 AGENTS §4.2；按命令序列推导 cwd；不实际 configure、安装或启动 driver。 | 把 SQLite 参数解释改为唯一后端编号；给出 SQLite-only 与多后端的完整有效编号/默认值示例；修正测试 cwd，并把该页不限并行示例按项目规则改为明确上限。 | `docs/build.md`、`docs/efun/db/db_connect.md`、`src/CMakeLists.txt`、`src/packages/db/CMakeLists.txt`、`AGENTS.md` | 2–4 小时 | 静态确认；未修复 |
 | AUD-025 | P1 | B D H | fork 引入问题 | 冷启动 ScratchArenaBinding 留下空 current_ | src/compiler/internal/compile_arena.cc:174–208、220–240、285–324 | current_ = chunk; // chunk 为空而 base_ 已存在 | 合法内部调用顺序导致崩溃及 live/cycle 计量失真；未证实普通 LPC 直接控制该顺序。 | 冷 binding 记录空 chunk。首次分配建立 base_，回退仍把 current_ 置空，且漏减 base_ 使用量。下一次 alloc 因 base_ 非空而解引用空 current_。 | 退出冷 binding 后计量归零且可再次分配；内层回退不破坏外层数据；次序/代际错误仍拒绝。 | 空起始 mark 回退时归还新 base_ 的 used，并把 current_ 恢复到可复用 base_；保留 retained/live 链。 保持 generation 和严格 LIFO 拒绝逻辑；bytes_released、cycle_bytes、bytes_live 同步回退。 补冷/嵌套 binding、oversize、异常退出和下一次 begin/reset。 | `src/compiler/internal/compile_arena.cc`、`src/compiler/internal/compile_arena.h`、`src/tests/test_compile_arena.cc` | 4–8 小时 | 已修复；Debug/ASan/UBSan 定向回归与完整 native 套件通过，默认 PCRE2 全包构建和 clang-format 18.1.8 仍为环境缺口；证据见 `audit-evidence/aud025-current-01/` |
-| AUD-026 | P2 | B D P | fork 引入问题 | ScratchArena 尺寸运算可回绕 | src/compiler/internal/compile_arena.cc:32–45、174–216 | need=align_up(size); if(used+need>capacity) | 内部分配合同缺口，不能据此宣称远程可利用。 | align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。 | 0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。 | 分配/游标变化前检查 len+1、对齐加数、header+size；非法尺寸抛 std::bad_alloc，不返回可用指针。 用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。 只验证极值被拒绝和状态不变，不实际申请巨量内存；成功分配继续验证无重叠。 | `src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
+| AUD-026 | P2 | B D P | fork 引入问题 | ScratchArena 尺寸运算可回绕 | src/compiler/internal/compile_arena.cc:31–60、188–239 | `checked_size_add` 与 `need > size - used` | 内部分配合同缺口，不能据此宣称远程可利用。 | 修前 align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。 | 0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。 | 已在生产路径统一检查 len+1、对齐加数、Chunk 头部和统计加法；非法尺寸抛 std::bad_alloc，不返回可用指针。用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。 | `src/compiler/internal/compile_arena.cc`、`src/compiler/internal/compile_arena.h`、`src/tests/test_compile_arena.cc` | 4–8 小时 | 已修复；Debug/ASan/UBSan 定向与完整 12/12 通过，证据见 `audit-evidence/aud026-current-01/`；PACKAGE_PCRE=OFF，默认 PCRE2 全包、Windows、真实下游和长期压力未验证 |
 | AUD-027 | P1 | D G | 不确定 | 编译永久改变进程 locale | src/compiler/internal/compiler.cc:2215–2220 | 保存 setlocale(...,"C") 的返回值 | 后续数值转换、格式和并发线程的 locale 行为改变。 | setlocale(LC_ALL,"C") 返回修改后的值而不是原值，DEFER 恢复的仍是 C；切换本身也影响其他线程。 | 非 C locale 下 LPC 小数语义稳定，前后 locale 相同，观察线程不受影响；缺平台记 external-required。 | 移除进程全局 LC_ALL 切换，改为编译器内部线程局部 C-locale 作用域。 POSIX 用 newlocale/uselocale；Windows 用 CRT 线程局部模式；恢复先前线程 locale/模式，失败报告。 覆盖成功、错误和嵌套退出；并行观察线程不得看到 locale 改变。 | `src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
 | AUD-028 | P2 | B D | 不确定 | 内建预定义字符串构造无容量边界 | src/compiler/internal/lex.cc:3219–3225、3263–3276 | 固定数组 strcat；版本先 sprintf 到 1024 字节数组 | 元数据长度合同缺失；未证明玩家输入可达。 | 加引号值由 strcpy/strcat 拼入 MAXLINE，版本先 sprintf 到 1024 字节数组；这些内建构建元数据构造路径实际可达。 | 短值逐字保持；长构建元数据安全构造或按既有宏长度上界明确拒绝；版本不经过固定 sprintf 缓冲。 | 版本和加引号值改为单一动态字符串构造，保持内容不变，直接把 PROJECT_VERSION 传入加引号构造。 只改这条实际使用的构造路径；lpc_predefs 无生产写入者，不恢复 -D，不把旧列表的 sscanf 顺手纳入本单元。 让测试调用同一内部生产构造函数，验证短值、长值及邻界；不新增 LPC 接口。 | `src/compiler/internal/lex.cc`、`src/compiler/internal/lex.h`、`src/tests/test_lpc_compiler.cc` | 4–8 小时 | 源码确认；定向回归待实施 |
 | AUD-029 | P0 | B D | 不确定 | 宏实参采集先越界再报错 | src/compiler/internal/lex.cc:4307–4406、4410–4413 | uisspace(*(out-1)); argv[++argc]=out; | 编译期边界前读和栈越界写，后续诊断不能撤销写入。 | extract_args 的空首参数读 out-1；逗号分支 argv[++argc] 可先写 argv[NARGS]，下一轮才到数量上限检查。调用者传栈数组。 | 合法输入不回归，超量先拒绝；ASan/UBSan 无越界，下一次正常编译成功。 | 收尾先确认 out>argv[argc]；空实参直接写终止符，不读前字节。 递增 argc 和写下一槽前检查槽边界，保留宏形参数量错误语义。 覆盖空首/中/末参数、嵌套括号/引号、数量边界及错误后再次编译。 | `src/compiler/internal/lex.cc`、`src/tests/test_lpc_compiler.cc` | 8–16 小时 | 源码确认；定向回归待实施 |
@@ -1889,34 +1889,45 @@ set(PACKAGE_DB_DEFAULT_DB "1" CACHE STRING "Default DB Handle")
 
 - **级别 / 类别 / 来源：**P2 / B D P / fork 引入问题。
 - **审读视角 / 性质：**C++ / 内存与编译器；产品或工具实现缺陷。
-- **位置：**src/compiler/internal/compile_arena.cc:32–45、174–216。
+- **位置：**src/compiler/internal/compile_arena.cc:31–60、188–239。
 
-**源码摘录：**`src/compiler/internal/compile_arena.cc:32–39`
+**源码摘录：**`src/compiler/internal/compile_arena.cc:33–58`
 
 ```cpp
-size_t align_up(size_t n) {
-  constexpr size_t kAlign = alignof(max_align_t);
-  return (n + kAlign - 1) & ~(kAlign - 1);
+size_t checked_size_add(size_t left, size_t right) {
+  if (right > std::numeric_limits<size_t>::max() - left) {
+    throw std::bad_alloc();
+  }
+  return left + right;
 }
 
-Chunk* new_chunk(size_t size, bool oversize, size_t* chunk_mallocs, int tag, const char* desc) {
-  void* mem = DMALLOC(kChunkHeaderSize + size, tag, desc);
-  (*chunk_mallocs)++;
+size_t align_up(size_t n) {
+  constexpr size_t kAlign = alignof(max_align_t);
+  size_t const aligned = checked_size_add(n, kAlign - 1);
+  return aligned & ~(kAlign - 1);
+}
+
+Chunk* new_chunk(...) {
+  size_t const allocation_size = checked_size_add(kChunkHeaderSize, size);
+  void* mem = DMALLOC(allocation_size, tag, desc);
+  if (mem == nullptr) {
+    throw std::bad_alloc();
+  }
 ```
 
 - **依赖：**无新增前置依赖；遵守方案中的公共准入和可信验证前置。
 - **修复风险与缓解：**arena 回退或溢出拒绝可能破坏嵌套 scope、代际和统计；保留 LIFO 合同，并验证拒绝后用量与原有绑定仍有效。
 - **触发前提：**内部 API 接收接近 SIZE_MAX 的尺寸；普通 LPC 到该极值的路径未证实。
 - **影响：**内部分配合同缺口，不能据此宣称远程可利用。
-- **根因：**align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。
+- **根因：**修复前 align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。
 - **现有上下文（控制流摘要，非逐字代码引用）：**need=align_up(size); if(used+need>capacity)。
-- **证据与确认边界：**源码闭环；Debug/ASan-UBSan oversize 探针均以 86 报告非法长度未被拒绝；未做巨大内存写入。 源码判断不等于已跑本项新增回归；通用套件通过也不补成此项 fail-first。
-- **修复方向：**分配/游标变化前检查 len+1、对齐加数、header+size；非法尺寸抛 std::bad_alloc，不返回可用指针。 用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。 只验证极值被拒绝和状态不变，不实际申请巨量内存；成功分配继续验证无重叠。
-- **验证方式：**0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。
-- **关联源码/测试：**`src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc`。
-- **文档归属：**`src/compiler/internal/compile_arena.h`。只在实际实施并改变相应行为后同步，不预填修复事实。
+- **证据与确认边界：**修前 Debug 定向 runner 发现并执行 1 个 `AuditAllocationOverflow*` 用例，因未抛出 `std::bad_alloc`、计量回绕且后续分配重叠而失败；证据见 `audit-evidence/aud026-current-01/fail-first/`。修后 Debug、ASan、UBSan 各发现/执行/通过 1/1，跳过 0；完整 `compile_arena_tests` 各 12/12 通过。三种构建均使用 `PACKAGE_PCRE=OFF`，仅证明 Linux/WSL2 本地范围，不补成默认 PCRE2 全包、Windows 或真实下游验证。
+- **修复方向：**已在分配/游标变化前用统一 checked_size_add 检查 len+1、对齐加数、Chunk 头部加法和统计加法；用 need > size-used 判断剩余空间；非法尺寸抛 std::bad_alloc，不返回可用指针；保留零尺寸返回空的合同，并在失败前不创建惰性 base chunk。
+- **验证方式：**0、对齐和块边界正常；各溢出邻界拒绝，计量和 chunk malloc 计数不变；后续 64 字节分配可用；未实际申请巨量内存。
+- **关联源码/测试：**`src/compiler/internal/compile_arena.cc`、`src/compiler/internal/compile_arena.h`、`src/tests/test_compile_arena.cc`。
+- **文档归属：**`src/compiler/internal/compile_arena.h`，已同步更新 alloc 失败合同。
 - **预估工作量：**4–8 小时；包含定向回归与必要文档，不含等待外部平台。
-- **修复状态：**未实施；可执行任务卡见 [修复方案](REMEDIATION_PLAN.md#aud-026)。
+- **修复状态：**已实施；证据、静态核对和原子提交见 `audit-evidence/aud026-current-01/`。
 
 ### AUD-027 · 编译永久改变进程 locale
 

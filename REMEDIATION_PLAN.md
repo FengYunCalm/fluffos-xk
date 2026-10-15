@@ -1651,8 +1651,8 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 - **优先级 / 责任视角：**P2；C++ / 内存与编译器。
 - **依赖：**无新增前置依赖；仍遵守 §2 的验收可信度优先与单构建约束。
-- **目标：**align_up、header+size、used+need、alloc_string(len+1) 都先作未检查的 size_t 加法，极端参数可变成小分配或重叠区间。 修复后先检查加法；if(need>capacity-used)。
-- **定位 / 改动文件：**src/compiler/internal/compile_arena.cc:32–45、174–216；`src/compiler/internal/compile_arena.cc`、`src/tests/test_compile_arena.cc`。先读直接调用者；新增测试必须执行生产入口，不用复制算法替代。
+- **目标：**修复 align_up、Chunk 头部、统计、游标和 alloc_string(len+1) 的 size_t 加法回绕，极端参数不得变成小分配或重叠区间。修复后先检查加法；用 `need > capacity - used` 判断剩余空间。
+- **定位 / 改动文件：**src/compiler/internal/compile_arena.cc:31–60、188–239；`src/compiler/internal/compile_arena.cc`、`src/compiler/internal/compile_arena.h`、`src/tests/test_compile_arena.cc`。直接调用者已核对；新增测试执行生产入口，不复制算法替代。
 - **影响：**内部分配合同缺口，不能据此宣称远程可利用。
 - **预计工时：**4–8 小时。
 - **来源处理策略：**保留 fork 的有效功能，在当前实现修根因；不整体回退 owner、异步或测试门禁。
@@ -1660,25 +1660,18 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 **实施步骤**
 
-1. 冻结本卡源码/编译配置与输入身份。核对上述位置和当前调用者，先复现“need=align_up(size); if(used+need>capacity)”；记录预期失败，不把新测试未注册、空 filter 或 skip 当作复现。
-2. 分配/游标变化前检查 len+1、对齐加数、header+size；非法尺寸抛 std::bad_alloc，不返回可用指针。
-3. 用 need > size-used 判断剩余空间；保留零尺寸返回空的合同。
-4. 只验证极值被拒绝和状态不变，不实际申请巨量内存；成功分配继续验证无重叠。
-5. 0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。 正常、精确边界、失败与异常/清理必须分别有断言。内存路径跑 ASan/UBSan；涉及共享线程或回调准入时再跑 TSan。
-6. 同步 `src/compiler/internal/compile_arena.h`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
+1. 已冻结本卡源码/编译配置与输入身份，并用生产入口复现 `need=align_up(size); if(used+need>capacity)` 的失败；修前 1 个定向用例实际失败，未把空 filter 或 skip 当作复现。
+2. 已用抛 `std::bad_alloc` 的 `checked_size_add` 在分配/游标变化前检查 len+1、对齐加数、Chunk 头部加法和统计加法；非法尺寸不返回可用指针。
+3. 已用 `need > size - used` 判断剩余空间；保留零尺寸返回空的合同。
+4. 已验证极值被拒绝、状态不变和后续小分配可用，未实际申请巨量内存；正常分配无重叠。
+5. 0、对齐和块边界、溢出邻界分别有断言；Debug/ASan/UBSan 定向与完整 `compile_arena_tests` 均已运行。三种构建均关闭 PCRE2 全包（`PACKAGE_PCRE=OFF`）；未执行 TSan，因为本单元不涉及共享线程或回调准入。
+6. 已同步 `src/compiler/internal/compile_arena.h`；链接、示例、输入/返回值与实际语义已核对。按 §4 精确提交本卡，不修改或启动现有 driver。
 
 **修改前后示例**
 
 - 前：need=align_up(size); if(used+need>capacity)。
 - 后：先检查加法；if(need>capacity-used)。
-- 以下是拟议实现片段，不是已经存在或已验证的补丁。新增私有 helper 要在本卡列出的生产路径接入；不得只在测试包装层生效。
-
-```cpp
-constexpr bool size_add_fits(size_t left, size_t right) noexcept {
-  return right <= std::numeric_limits<size_t>::max() - left;
-}
-// 对齐加法、Chunk 头部加法、字符串终止字节都须在实际运算前使用同一检查。
-```
+- 实际实现使用统一的 `checked_size_add`，并已接入对齐加法、Chunk 头部加法、统计加法和字符串终止字节；oversize 头部检查先于惰性 base 创建，拒绝路径不改变 arena 状态。新增 helper 已接入生产路径，不是测试包装层替代。
 
 **定向命令与通过标准**
 
@@ -1686,18 +1679,20 @@ constexpr bool size_add_fits(size_t left, size_t right) noexcept {
 
 ```bash
 N=AUD-026
-B="$BD"
-cmake --build "$B" --target compile_arena_tests --parallel 1
+E=audit-evidence/aud026-current-01
+cmake --preset dev-debug -DPACKAGE_PCRE=OFF
+cmake --build --preset dev-debug --target compile_arena_tests --parallel 4
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --binary "$B/src/tests/compile_arena_tests" --gtest-filter 'CompileArenaTest.AuditAllocationOverflow*' \
-  --timeout 180 --evidence-dir "$E/$N-native-debug"
+  --binary "$E/debug-final-02/private/compile_arena_tests" \
+  --gtest-filter 'CompileArenaTest.AuditAllocationOverflow*' \
+  --timeout 180 --evidence-root "$E/debug-final-02/runner"
 ```
 
 通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“0、对齐和块边界正常；各溢出邻界拒绝，计量不变；后续小分配可用。”。 涉及语言行为时新增或修正 `testsuite/single/tests/efuns/audit_arena_size_bounds.lpc` 及 scope 分类；用 §3.4 的隔离 LPC 入口运行，不运行未注册的对象来制造零测试通过。
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：已满足。修前失败、修后 Debug/ASan/UBSan 定向与完整套件、状态不变和静态检查证据见 `audit-evidence/aud026-current-01/`；三种构建均为 `PACKAGE_PCRE=OFF`，默认 PCRE2 全包、Windows、真实下游 mudlib 和长期压力仍未验证。
 
 <a id="aud-027"></a>
 ### AUD-027 · 编译永久改变进程 locale

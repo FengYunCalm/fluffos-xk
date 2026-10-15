@@ -73,10 +73,12 @@ class ScratchArena {
   void reset() noexcept;
 
   // Monotonic bump allocation, max_align_t aligned, never crossing a chunk.
-  // Returns nullptr only for size 0 (callers treat 0 as no-op).
+  // Returns nullptr only for size 0 (callers treat 0 as no-op); arithmetic or
+  // allocator failure throws std::bad_alloc without changing arena state.
   void* alloc(size_t size);
 
-  // Allocate len+1 bytes and NUL-terminate (len excludes the NUL).
+  // Allocate len+1 bytes and NUL-terminate (len excludes the NUL). Arithmetic
+  // or allocator failure throws std::bad_alloc without changing arena state.
   char* alloc_string(size_t len);
 
   // Observability.
