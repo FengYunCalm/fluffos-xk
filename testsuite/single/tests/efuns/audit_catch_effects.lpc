@@ -39,7 +39,7 @@ void do_tests() {
   ASSERT(catch(a[<five]));
   ASSERT(catch(five / zero));
   ASSERT(catch(five % zero));
-  ASSERT(catch(z[0..1]));
+  ASSERT(catch(z[0 ..1]));
   ASSERT(catch(p->x));
   // operands typed mixed so the type errors happen at run time
   ASSERT(catch(-ms));

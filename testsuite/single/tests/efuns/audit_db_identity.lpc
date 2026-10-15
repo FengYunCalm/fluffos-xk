@@ -38,7 +38,7 @@ int grow_connections() {
       close_all_connections();
       return 0;
     }
-    connections += ({handle});
+    connections += ({ handle });
   }
   return sizeof(connections);
 }

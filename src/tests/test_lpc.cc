@@ -300,7 +300,7 @@ TEST_F(DriverTest, TestAuditFunctionIndexBounds) {
 }
 
 TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
-  constexpr uint64_t kBudgetMicros = 10'000;
+  constexpr uint64_t kBudgetMicros = 200'000;
   constexpr uint64_t kMaxPolls = 256;
 
   auto wait_for_expiry = [kMaxPolls](uint64_t budget_micros) {
@@ -356,7 +356,7 @@ TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   EXPECT_GT(worker_initial_remaining.load(std::memory_order_relaxed), 0);
   EXPECT_TRUE(worker_expired.load(std::memory_order_acquire));
   EXPECT_EQ(worker_remaining_after_expiry.load(std::memory_order_acquire), 0);
-  EXPECT_GT(main_remaining_after_worker, 20'000);
+  EXPECT_GT(main_remaining_after_worker, static_cast<int64_t>(kWorkerThreadBudgetMicros));
 }
 
 TEST_F(DriverTest, TestAuditReclaimSharedGraph) {

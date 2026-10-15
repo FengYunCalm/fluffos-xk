@@ -96,7 +96,7 @@ void do_tests() {
   marker = "unhandled-locus-probe-" + time() + "-" + random(1000000);
 
   if (!stringp(log_directory) || log_directory == "" ||
-      !stringp(configured) || configured == "") {
+    !stringp(configured) || configured == "") {
     finish("the debug log is not configured");
     return;
   }
