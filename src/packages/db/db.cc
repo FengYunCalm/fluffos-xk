@@ -87,6 +87,9 @@ static void free_db_conn(db_t*);
 #ifdef PACKAGE_ASYNC
 static pthread_mutex_t db_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
 void db_lock_mutex() {
   pthread_mutex_lock(&db_mutex);
 }

@@ -1710,7 +1710,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 1. 已冻结源码、构建配置和输入身份；修前 fail-first 使用同一生产入口和线程观察断言，确认旧的进程级 `setlocale(LC_ALL, "C")` 会改变观察线程的 locale。
 2. 已移除进程全局 `LC_ALL` 切换，改为编译器内部 RAII 的线程局部 C-locale 作用域。
-3. POSIX 使用 `newlocale`/`uselocale` 并恢复旧线程 locale；Windows 使用 `_configthreadlocale`、`_create_locale` 和 `_free_locale` 的 CRT 线程局部模式；每个失败的切换或恢复都报告错误。
+3. POSIX 使用 `newlocale`/`uselocale` 并恢复旧线程 locale；MSVC Windows 使用 `_configthreadlocale` 的 CRT 线程局部模式；MinGW Windows 检测到 CRT 不支持线程局部 locale 时，在编译器作用域内串行化进程级 `setlocale` 并恢复原值；每个失败的切换或恢复都报告错误。
 4. 已覆盖有效编译、无效源码清理、连续退出，以及每层保存旧状态的嵌套恢复不变量（由 RAII 作用域结构保证），并验证并行观察线程不应看到 locale 改变。
 5. C++ 生产入口测试在 `C.UTF-8` 下编译含 `1.5` 的源码并验证前后 locale；LPC 隔离入口动态加载同一类小数源码。Debug/ASan/UBSan 的 native 与 LPC 定向 runner 均通过；TSan 在当前主机因 instrumented `make_func` 启动时报 `unexpected memory mapping`，证据保留为环境阻塞；Windows 分支未在本机编译，记为 external-required。
 6. 已同步本卡列出的源码、LPC 测试和 scope 分类；未修改或启动既有 driver，除隔离 testsuite runner 外未触碰运行实例。
@@ -1718,13 +1718,13 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 **修改前后示例**
 
 - 前：把 `setlocale(LC_ALL, "C")` 的返回值当作旧 locale 保存，析构时恢复到错误的值，并影响同进程其他线程。
-- 后：`CompilerLocaleScope` 在 POSIX 通过 `newlocale`/`uselocale` 保存并恢复线程 locale；Windows 使用线程 CRT locale；作用域退出先恢复、再释放拥有的 locale。
+- 后：`CompilerLocaleScope` 在 POSIX 通过 `newlocale`/`uselocale` 保存并恢复线程 locale；MSVC 使用线程 CRT locale，MinGW 使用持锁的进程 CRT 回退；作用域退出先恢复、再释放拥有的 locale。
 - 该 RAII 作用域已接入 `compile_file()` 生产路径；测试调用真实编译器，不在测试层复制 locale 算法。
 
 ```cpp
 locale_t previous = uselocale(compiler_locale);
 // 析构：uselocale(previous)，然后 freelocale(compiler_locale)。
-// Windows：_configthreadlocale(_ENABLE_PER_THREAD_LOCALE) + _create_locale。
+// Windows：MSVC 使用 _configthreadlocale；MinGW 在 mutex 内保存/恢复进程 CRT locale。
 ```
 
 **定向命令与通过标准**

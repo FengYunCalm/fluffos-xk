@@ -60,6 +60,16 @@ KNOWN_STALE = {
     "docs/driver/adding_efuns.md": {
         "src/packages/mypkg",
     },
+    # These historical audit references point to commits that are no longer
+    # present in this fork's rewritten history.
+    "docs/coding-standard.md": {
+        "328aaf10635ef8ce636b2b6cebd549bb165e462d",
+    },
+    "docs/project-modernization-plan-2026-10.md": {
+        "f1c242b1db54383d701838ee8aef512a0d923e81",
+        "795eb371f1af522280738f454b8fc81afe231f1c",
+        "328aaf10635ef8ce636b2b6cebd549bb165e462d",
+    },
     # These are future fuzz corpus directories required by the design; Git
     # cannot represent their empty pre-populated state yet.
     "docs/recompile-object-special-design-2026-08.md": {

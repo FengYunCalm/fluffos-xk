@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
@@ -259,15 +260,24 @@ TEST_F(DriverTest, TestAuditFunctionIndexBounds) {
 
 TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   constexpr uint64_t kBudgetMicros = 10'000;
-  constexpr uint64_t kMaxIterations = 100'000'000;
+  constexpr uint64_t kMaxPolls = 256;
+
+  auto wait_for_expiry = [kMaxPolls](uint64_t budget_micros) {
+    // A tight polling loop is faster than the short budget on optimized
+    // Darwin builds. Wait past the deadline first, then exercise the normal
+    // polling path without making the result depend on compiler speed.
+    std::this_thread::sleep_for(std::chrono::microseconds(budget_micros * 2));
+    uint64_t polls = 0;
+    while (polls < kMaxPolls && !eval_limit_expired()) {
+      ++polls;
+    }
+    return polls;
+  };
 
   outoftime = 0;
   set_eval(kBudgetMicros);
   const int64_t initial_remaining = get_eval();
-  uint64_t iterations = 0;
-  while (iterations < kMaxIterations && !eval_limit_expired()) {
-    ++iterations;
-  }
+  const uint64_t polls = wait_for_expiry(kBudgetMicros);
   const bool expired = eval_limit_expired();
   const int64_t remaining_after_expiry = get_eval();
 
@@ -277,7 +287,7 @@ TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   EXPECT_GT(initial_remaining, 0);
   EXPECT_TRUE(expired);
   EXPECT_EQ(remaining_after_expiry, 0);
-  EXPECT_LT(iterations, kMaxIterations);
+  EXPECT_LT(polls, kMaxPolls);
 
   constexpr uint64_t kMainThreadBudgetMicros = 100'000;
   constexpr uint64_t kWorkerThreadBudgetMicros = 5'000;
@@ -290,10 +300,7 @@ TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
     outoftime = 0;
     set_eval(kWorkerThreadBudgetMicros);
     worker_initial_remaining.store(get_eval(), std::memory_order_relaxed);
-    uint64_t worker_iterations = 0;
-    while (worker_iterations < kMaxIterations && !eval_limit_expired()) {
-      ++worker_iterations;
-    }
+    wait_for_expiry(kWorkerThreadBudgetMicros);
     worker_expired.store(eval_limit_expired(), std::memory_order_release);
     worker_remaining_after_expiry.store(get_eval(), std::memory_order_release);
     set_eval(max_eval_cost);

@@ -18,6 +18,9 @@ if(${GTEST_FOUND})
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PACKAGE_ASYNC AND PACKAGE_DB AND PACKAGE_DB_SQLITE)
     add_executable(db_io_tests test_db_io.cc)
     target_link_libraries(db_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
+    # --wrap hooks are link-time test seams. Do not let LTO discard the
+    # wrapper definitions before the linker resolves them.
+    set_property(TARGET db_io_tests PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
     target_compile_definitions(db_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
     target_link_options(db_io_tests PRIVATE
@@ -81,6 +84,10 @@ if(${GTEST_FOUND})
     )
     add_executable(file_io_tests test_file_io.cc)
     target_link_libraries(file_io_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest GTest::Main)
+    # Wrapped symbols are referenced by linked driver objects. They must be
+    # visible from this executable even though production targets hide symbols.
+    target_compile_options(file_io_tests PRIVATE
+      "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-fvisibility=default>")
     target_compile_definitions(file_io_tests PRIVATE
       -DTESTSUITE_DIR="${CMAKE_SOURCE_DIR}/testsuite")
     foreach(symbol open close unlink rename fstat ftruncate fdopen gzdopen fopen fclose fread

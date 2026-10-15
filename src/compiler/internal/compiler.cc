@@ -8,6 +8,10 @@
 #include <cstdio>   // for sprintf
 #include <locale.h>
 
+#if defined(_WIN32) && defined(__MINGW32__)
+#include <mutex>
+#endif
+
 #include <fmt/format.h>
 
 #include "efuns.autogen.h"          // FIXME
@@ -56,10 +60,22 @@ static program_t* epilog(void);
 static void show_overload_warnings(void);
 
 namespace {
+#if defined(_WIN32) && defined(__MINGW32__)
+std::mutex& compiler_locale_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+#endif
+
 class CompilerLocaleScope {
  public:
   CompilerLocaleScope() {
 #ifdef _WIN32
+#if defined(__MINGW32__)
+    // MinGW's MSVCRT does not implement _configthreadlocale(). Serialize the
+    // process-global fallback so concurrent compiler scopes cannot interleave.
+    locale_lock_ = std::unique_lock<std::mutex>(compiler_locale_mutex());
+#endif
     const char* current_locale = setlocale(LC_ALL, nullptr);
     if (current_locale == nullptr) {
       error("Unable to query the compiler locale.\n");
@@ -68,10 +84,14 @@ class CompilerLocaleScope {
 
     previous_thread_locale_ = _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
     if (previous_thread_locale_ == -1) {
+#if !defined(__MINGW32__)
       error("Unable to enable the compiler thread locale.\n");
+#endif
+    } else {
+      thread_locale_enabled_ = true;
     }
     if (setlocale(LC_ALL, "C") == nullptr) {
-      if (_configthreadlocale(previous_thread_locale_) == -1) {
+      if (thread_locale_enabled_ && _configthreadlocale(previous_thread_locale_) == -1) {
         fatal("Unable to restore the compiler thread locale mode.\n");
       }
       error("Unable to set the compiler thread locale to C.\n");
@@ -93,7 +113,7 @@ class CompilerLocaleScope {
   ~CompilerLocaleScope() {
 #ifdef _WIN32
     if (setlocale(LC_ALL, previous_locale_.c_str()) == nullptr ||
-        _configthreadlocale(previous_thread_locale_) == -1) {
+        (thread_locale_enabled_ && _configthreadlocale(previous_thread_locale_) == -1)) {
       fatal("Unable to restore the compiler thread locale.\n");
     }
 #else
@@ -108,6 +128,10 @@ class CompilerLocaleScope {
 #ifdef _WIN32
   std::string previous_locale_;
   int previous_thread_locale_ = -1;
+  bool thread_locale_enabled_ = false;
+#if defined(__MINGW32__)
+  std::unique_lock<std::mutex> locale_lock_;
+#endif
 #else
   locale_t compiler_locale_ = nullptr;
   locale_t previous_locale_ = nullptr;
