@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.4",
-  "serialNumber": "urn:uuid:17ef7707-6b21-512c-9a64-a68fa618688d",
+  "serialNumber": "urn:uuid:923156b6-203b-5490-8538-25c874b2703e",
   "version": 1,
   "metadata": {
     "timestamp": "2026-10-11T00:00:00Z",
@@ -108,7 +108,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "85705774c95c109e9cc07b34993c4263587a617f61a61e7cf78adf17a475a097"
+          "value": "3c43249d8610460f81e81efd21b8ac087e4180dcfa051c5bf77cd601c62cc6bc"
         },
         {
           "name": "fluffos:patch-status",
@@ -122,7 +122,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "85705774c95c109e9cc07b34993c4263587a617f61a61e7cf78adf17a475a097"
+          "content": "3c43249d8610460f81e81efd21b8ac087e4180dcfa051c5bf77cd601c62cc6bc"
         }
       ],
       "purl": "pkg:github/bombela/backward-cpp@1.3.0"
@@ -215,7 +215,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "f81b5ab3d58637fd5f754c904841a05f5e5fa74a34cb1cb47f46901bd56d924f"
+          "value": "9573f1e81debdc76201ca955b66c76c0aaba3c88cdfe14de36dd6171580812b1"
         },
         {
           "name": "fluffos:patch-status",
@@ -229,7 +229,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "f81b5ab3d58637fd5f754c904841a05f5e5fa74a34cb1cb47f46901bd56d924f"
+          "content": "9573f1e81debdc76201ca955b66c76c0aaba3c88cdfe14de36dd6171580812b1"
         }
       ],
       "purl": "pkg:github/gulrak/filesystem@1.5.12"
@@ -269,7 +269,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "88a4e36597c0b20a016dccb9f24d3f1b826977342c0c439c93bad7123ece118d"
+          "value": "0d5ac22d7e9992586a0048d65a7009fc3908a288df28d0d13c25f4287ef80f8c"
         },
         {
           "name": "fluffos:patch-status",
@@ -283,7 +283,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "88a4e36597c0b20a016dccb9f24d3f1b826977342c0c439c93bad7123ece118d"
+          "content": "0d5ac22d7e9992586a0048d65a7009fc3908a288df28d0d13c25f4287ef80f8c"
         }
       ],
       "purl": "pkg:github/fmtlib/fmt@10.1.0"
@@ -377,7 +377,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "d43f95a197fd9b1f5086564a96fe35abaee0a49ab954df49119f20d7d0e5e48b"
+          "value": "01d4272fff2b1b858a93d525c9abe29041568bc2ccfbfc03c9dacb40dce1c3cc"
         },
         {
           "name": "fluffos:patch-status",
@@ -391,7 +391,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "d43f95a197fd9b1f5086564a96fe35abaee0a49ab954df49119f20d7d0e5e48b"
+          "content": "01d4272fff2b1b858a93d525c9abe29041568bc2ccfbfc03c9dacb40dce1c3cc"
         }
       ],
       "purl": "pkg:github/libevent/libevent@2.2.1-alpha-dev"
@@ -485,7 +485,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "92d28777da2463605f805daa70e3717b8c6d7ab889007db87b576eb304e4e27a"
+          "value": "fe895461b654d11de27bd46207540831cd78f9f4a9d40176ed99e238b9748847"
         },
         {
           "name": "fluffos:patch-status",
@@ -499,7 +499,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "92d28777da2463605f805daa70e3717b8c6d7ab889007db87b576eb304e4e27a"
+          "content": "fe895461b654d11de27bd46207540831cd78f9f4a9d40176ed99e238b9748847"
         }
       ],
       "purl": "pkg:github/warmcat/libwebsockets@4.5.8"
@@ -646,7 +646,7 @@
         },
         {
           "name": "fluffos:source-tree-sha256",
-          "value": "dac2d0ca738a2fa5d8ad02af727914b424dc305a1e64e3233e1feb07021eaab0"
+          "value": "59a1ea1d9e76e47ea9dbf124283f1776eefdddcd4db7952ce4fc846893f13b03"
         },
         {
           "name": "fluffos:patch-status",
@@ -660,7 +660,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "dac2d0ca738a2fa5d8ad02af727914b424dc305a1e64e3233e1feb07021eaab0"
+          "content": "59a1ea1d9e76e47ea9dbf124283f1776eefdddcd4db7952ce4fc846893f13b03"
         }
       ],
       "purl": "pkg:github/nemtrif/utfcpp@3.2"

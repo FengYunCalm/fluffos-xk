@@ -2,6 +2,7 @@
 
 #include "/include/tests.h"
 
+#define LOG_DIRECTORY 4
 #define DEBUG_LOG_FILE 10
 #define MAX_TRIES 12
 #define CHUNK_LINES 500
@@ -88,16 +89,18 @@ private void drop_a_rejection() {
 }
 
 void do_tests() {
+  string log_directory = get_config(LOG_DIRECTORY);
   string configured = get_config(DEBUG_LOG_FILE);
 
   async_token = "/command/tests"->begin_async();
   marker = "unhandled-locus-probe-" + time() + "-" + random(1000000);
 
-  if (!stringp(configured) || configured == "") {
+  if (!stringp(log_directory) || log_directory == "" ||
+      !stringp(configured) || configured == "") {
     finish("the debug log is not configured");
     return;
   }
-  logfile = LOG_DIR + "/" + configured;
+  logfile = log_directory + "/" + configured;
 
   drop_a_rejection();
   call_out((: check_log :), 1);

@@ -31,7 +31,7 @@ private string case_key(string name) {
 }
 
 private void init_scopes() {
-  mapping capabilities = ([ "async": 0, "compress": 0, "db": 0, "sqlite": 0, "pcre": 0, "debug": 0, "modern_ed": 0,
+  mapping capabilities = ([ "async": 0, "compress": 0, "db": 0, "sqlite": 0, "pcre": 0, "debug": 0, "develop": 0, "modern_ed": 0,
     "profile": 0, "sockets": 0, "trace": 0, "tls_reload": 0,
     "interactive": !!this_player() && interactive(this_player()) ]);
   string contents = read_file("/etc/test-scopes.tsv");
@@ -47,6 +47,9 @@ private void init_scopes() {
 #endif
 #ifdef __DEBUG__
   capabilities["debug"] = 1;
+#endif
+#ifdef __PACKAGE_DEVELOP__
+  capabilities["develop"] = 1;
 #endif
 #ifdef __USE_SQLITE3__
   capabilities["sqlite"] = 1;

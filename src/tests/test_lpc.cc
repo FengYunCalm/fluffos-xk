@@ -83,9 +83,52 @@ ConfigProbeResult run_config_probe(const std::filesystem::path& config_path) {
   std::string filter = "--gtest_filter=DriverTest.TestAuditConfigLineProbe";
   std::string color = "--gtest_color=no";
   char* argv[] = {executable_string.data(), filter.data(), color.data(), nullptr};
+
+  // The probe is a harness child, not an independent leak-test process. The
+  // parent still runs with the sanitizer's normal leak checking, while the
+  // child would otherwise turn unrelated DriverTest fixture cleanup into a
+  // nonzero exit after its GTest case has passed.
+  size_t environment_size = 0;
+  while (environ[environment_size] != nullptr) {
+    ++environment_size;
+  }
+  std::vector<std::string> child_environment;
+  child_environment.reserve(environment_size + 2);
+  std::vector<char*> environment;
+  environment.reserve(environment_size + 3);
+  bool asan_options_seen = false;
+  bool lsan_options_seen = false;
+  for (size_t i = 0; i < environment_size; ++i) {
+    std::string entry = environ[i];
+    if (entry.rfind("ASAN_OPTIONS=", 0) == 0) {
+      entry += entry.size() > sizeof("ASAN_OPTIONS=") - 1 ? ":" : "";
+      entry += "detect_leaks=0";
+      child_environment.push_back(std::move(entry));
+      environment.push_back(child_environment.back().data());
+      asan_options_seen = true;
+    } else if (entry.rfind("LSAN_OPTIONS=", 0) == 0) {
+      entry += entry.size() > sizeof("LSAN_OPTIONS=") - 1 ? ":" : "";
+      entry += "detect_leaks=0";
+      child_environment.push_back(std::move(entry));
+      environment.push_back(child_environment.back().data());
+      lsan_options_seen = true;
+    } else {
+      environment.push_back(environ[i]);
+    }
+  }
+  if (!asan_options_seen) {
+    child_environment.emplace_back("ASAN_OPTIONS=detect_leaks=0");
+    environment.push_back(child_environment.back().data());
+  }
+  if (!lsan_options_seen) {
+    child_environment.emplace_back("LSAN_OPTIONS=detect_leaks=0");
+    environment.push_back(child_environment.back().data());
+  }
+  environment.push_back(nullptr);
+
   pid_t child = -1;
   const int spawn_result = posix_spawn(&child, executable_string.c_str(), &actions, nullptr,
-                                       argv, environ);
+                                       argv, environment.data());
   posix_spawn_file_actions_destroy(&actions);
   close(output_fd);
   if (had_previous_value) {
