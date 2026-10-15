@@ -64,7 +64,9 @@ class ReclaimQuiesceScope {
     }
   }
 
-  bool ok() const { return result_.ok; }
+  bool ok() const {
+    return result_.ok;
+  }
 
  private:
   OwnerRecompileQuiesceResult result_;
@@ -82,8 +84,7 @@ void enqueue(ReclaimCompoundKind kind, void* pointer, ReclaimContext* context) {
   }
 }
 
-void reclaim_object_ref(object_t** object, promise_reclaim_object_role /*role*/,
-                        void* data) {
+void reclaim_object_ref(object_t** object, promise_reclaim_object_role /*role*/, void* data) {
   auto* context = static_cast<ReclaimContext*>(data);
   if (object != nullptr && *object != nullptr && ((*object)->flags & O_DESTRUCTED)) {
     free_object(object, "reclaim_promise");
@@ -97,8 +98,7 @@ void enqueue_function(funptr_t* function, void* data) {
 }
 
 void reclaim_function(funptr_t* function, ReclaimContext* context) {
-  if (function->hdr.owner != nullptr &&
-      (function->hdr.owner->flags & O_DESTRUCTED)) {
+  if (function->hdr.owner != nullptr && (function->hdr.owner->flags & O_DESTRUCTED)) {
     /* Keep the owner/program reference pair symmetric. dealloc_funp() owns
      * the program decrement through local.prog. */
     funptr_detach_owner(function);
@@ -109,9 +109,10 @@ void reclaim_function(funptr_t* function, ReclaimContext* context) {
 
 void reclaim_promise(promise_t* promise, ReclaimContext* context) {
   promise_reclaim_visitor_t visitor{
-      .visit_svalue = [](svalue_t* value, void* data) {
-        reclaim_svalue(value, static_cast<ReclaimContext*>(data));
-      },
+      .visit_svalue =
+          [](svalue_t* value, void* data) {
+            reclaim_svalue(value, static_cast<ReclaimContext*>(data));
+          },
       .visit_object = reclaim_object_ref,
       .visit_funptr = enqueue_function,
       .data = context,
@@ -134,8 +135,7 @@ void reclaim_mapping(mapping_t* mapping, ReclaimContext* context) {
   do {
     previous = mapping->table + bucket;
     while ((element = *previous) != nullptr) {
-      if (element->values[0].type == T_OBJECT &&
-          element->values[0].u.ob != nullptr &&
+      if (element->values[0].type == T_OBJECT && element->values[0].u.ob != nullptr &&
           (element->values[0].u.ob->flags & O_DESTRUCTED)) {
         free_object(&element->values[0].u.ob, "gc_mapping");
         element->values[0].u.ob = nullptr;
@@ -244,9 +244,10 @@ int reclaim_objects(bool is_auto) {
   }
 
   promise_reclaim_visitor_t visitor{
-      .visit_svalue = [](svalue_t* value, void* data) {
-        reclaim_svalue(value, static_cast<ReclaimContext*>(data));
-      },
+      .visit_svalue =
+          [](svalue_t* value, void* data) {
+            reclaim_svalue(value, static_cast<ReclaimContext*>(data));
+          },
       .visit_object = reclaim_object_ref,
       .visit_funptr = enqueue_function,
       .data = &context,

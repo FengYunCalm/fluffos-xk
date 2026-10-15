@@ -70,7 +70,7 @@ struct telnet_t* net_telnet_init(interactive_t* user) {
 }
 
 static bool transcode_telnet_input(interactive_t* ip, const char* buffer, unsigned long size,
-                                    std::string* output) {
+                                   std::string* output) {
   auto* trans = ip->telnet_input_trans ? ip->telnet_input_trans : ip->trans;
   if (!trans || !buffer || size > static_cast<unsigned long>(std::numeric_limits<int32_t>::max())) {
     return false;
@@ -81,8 +81,7 @@ static bool transcode_telnet_input(interactive_t* ip, const char* buffer, unsign
   if (size > (std::numeric_limits<std::size_t>::max() - 2) / 2) {
     return false;
   }
-  const auto initial_capacity =
-      std::max<std::size_t>(16, static_cast<std::size_t>(size) * 2 + 2);
+  const auto initial_capacity = std::max<std::size_t>(16, static_cast<std::size_t>(size) * 2 + 2);
   std::vector<UChar> unicode(initial_capacity);
   const char* source = buffer;
   const char* source_limit = buffer + size;

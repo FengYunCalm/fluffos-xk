@@ -162,8 +162,7 @@ class AsciiInputFixture {
     if (!object_ || !object_->interactive) {
       return {};
     }
-    return {object_->interactive->text,
-            static_cast<std::size_t>(object_->interactive->text_end)};
+    return {object_->interactive->text, static_cast<std::size_t>(object_->interactive->text_end)};
   }
 
   void expect_lines(const std::vector<std::string>& expected) {

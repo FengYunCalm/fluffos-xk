@@ -50,10 +50,18 @@ void release_pause() {
 
 class PauseGuard {
  public:
-  PauseGuard() { arm_pause(); }
-  ~PauseGuard() { release_pause(); }
-  bool wait() const { return wait_for_pause(); }
-  void release() { release_pause(); }
+  PauseGuard() {
+    arm_pause();
+  }
+  ~PauseGuard() {
+    release_pause();
+  }
+  bool wait() const {
+    return wait_for_pause();
+  }
+  void release() {
+    release_pause();
+  }
 };
 
 class ProbeGuard {
@@ -227,7 +235,9 @@ extern "C" void __wrap__Z13db_lock_mutexv() {
       pause_armed = false;
       pause_observed = true;
       pause_condition.notify_all();
-      pause_condition.wait(lock, [] { return pause_released; });
+      pause_condition.wait(lock, [] {
+        return pause_released;
+      });
     }
   }
   __real__Z13db_lock_mutexv();
@@ -243,8 +253,7 @@ extern "C" MYSQL* __wrap_mysql_init(MYSQL* mysql) {
 }
 
 extern "C" MYSQL* __wrap_mysql_real_connect(MYSQL* mysql, const char*, const char*, const char*,
-                                               const char*, unsigned int, const char*,
-                                               unsigned long) {
+                                            const char*, unsigned int, const char*, unsigned long) {
   ++mysql_real_connect_calls;
   if (mysql_mode.load() == kMySqlRealConnectFailure || !mysql) {
     return nullptr;

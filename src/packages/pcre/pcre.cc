@@ -1067,8 +1067,7 @@ static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* 
           }
           ++used;
           if ((tmpreg->compile_flags & PCRE2_UTF) != 0) {
-            while (used < totalsize &&
-                   (static_cast<unsigned char>(subject[used]) & 0xc0) == 0x80) {
+            while (used < totalsize && (static_cast<unsigned char>(subject[used]) & 0xc0) == 0x80) {
               ++used;
             }
           }

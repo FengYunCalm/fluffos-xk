@@ -46,7 +46,7 @@
 /single/tests/efuns/compressedp	runtime	compress	Requires PACKAGE_COMPRESS.
 /single/tests/efuns/dump_jemalloc	runtime	develop	Requires the develop package; verifies the efun does not throw and emits the configured jemalloc/disabled diagnostic.
 /single/tests/efuns/debug_info	runtime	develop	Requires the develop package; verifies the stable debug_info operation labels and a caught invalid operation.
-/single/tests/efuns/debugmalloc	runtime	develop	Requires the develop package; verifies encoded allocation-chain traversal, report-file output, and an empty mask result.
+/single/tests/efuns/debugmalloc	runtime	debugmalloc	Requires debugmalloc and its extensions; verifies encoded allocation-chain traversal, report-file output, and an empty mask result.
 /single/tests/efuns/dump_stralloc	runtime	develop	Requires the develop package; verifies the non-empty stralloc report and matching file output.
 /single/tests/efuns/db	runtime	db,sqlite	Requires PACKAGE_DB and USE_SQLITE3.
 /single/tests/efuns/ed	runtime	modern_ed	Requires the non-OLD_ED editor implementation.

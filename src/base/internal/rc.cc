@@ -237,8 +237,7 @@ void read_config(const char* filename) {
   }
 
   const auto is_config_space = [](char c) {
-    return c == ' ' || c == '\t' || c == '\n' || c == '\v' ||
-           c == '\f' || c == '\r';
+    return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r';
   };
   const size_t kMaxConfigContent = K_MAX_CONFIG_LINE_LENGTH - 1;
   char tmp[K_MAX_CONFIG_LINE_LENGTH]{};
@@ -305,9 +304,8 @@ void read_config(const char* filename) {
       break;
     }
     if (overlong) {
-      debug_message(
-          "*Error in config file at line %zu: setting line exceeds %zu characters.\n",
-          line_number, kMaxConfigContent);
+      debug_message("*Error in config file at line %zu: setting line exceeds %zu characters.\n",
+                    line_number, kMaxConfigContent);
       exit(-1);
     }
     v = trim(v);
@@ -534,7 +532,8 @@ void read_config(const char* filename) {
 
   if (CONFIG_INT(__RC_MAX_TOTAL_PENDING_OUTPUT_BYTES__) <
       CONFIG_INT(__RC_MAX_PENDING_OUTPUT_BYTES__)) {
-    debug_message("maximum total pending output bytes must be at least the per-connection limit.\n");
+    debug_message(
+        "maximum total pending output bytes must be at least the per-connection limit.\n");
     exit(-1);
   }
 

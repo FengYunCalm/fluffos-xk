@@ -53,10 +53,8 @@ ConfigProbeResult run_config_probe(const std::filesystem::path& config_path) {
     std::filesystem::remove(output_name.data());
     return {127, "unable to initialize probe file actions"};
   }
-  const int redirect_stdout =
-      posix_spawn_file_actions_adddup2(&actions, output_fd, STDOUT_FILENO);
-  const int redirect_stderr =
-      posix_spawn_file_actions_adddup2(&actions, output_fd, STDERR_FILENO);
+  const int redirect_stdout = posix_spawn_file_actions_adddup2(&actions, output_fd, STDOUT_FILENO);
+  const int redirect_stderr = posix_spawn_file_actions_adddup2(&actions, output_fd, STDERR_FILENO);
   int close_output = 0;
   if (output_fd > STDERR_FILENO) {
     close_output = posix_spawn_file_actions_addclose(&actions, output_fd);
@@ -127,8 +125,8 @@ ConfigProbeResult run_config_probe(const std::filesystem::path& config_path) {
   environment.push_back(nullptr);
 
   pid_t child = -1;
-  const int spawn_result = posix_spawn(&child, executable_string.c_str(), &actions, nullptr,
-                                       argv, environment.data());
+  const int spawn_result =
+      posix_spawn(&child, executable_string.c_str(), &actions, nullptr, argv, environment.data());
   posix_spawn_file_actions_destroy(&actions);
   close(output_fd);
   if (had_previous_value) {
@@ -160,8 +158,8 @@ ConfigProbeResult run_config_probe(const std::filesystem::path& config_path) {
 }
 
 std::filesystem::path write_config_fixture(size_t target_length, bool long_comment,
-                                            bool final_newline, size_t* line_number,
-                                            std::string* marker) {
+                                           bool final_newline, size_t* line_number,
+                                           std::string* marker) {
   const std::filesystem::path base_path = std::filesystem::path(TESTSUITE_DIR) / "etc/config.test";
   std::ifstream base_file(base_path);
   if (!base_file.is_open()) {
@@ -1161,8 +1159,7 @@ TEST_F(DriverTest, TestAuditAsyncThreadBudget) {
       CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__) = requests;
       CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__) = bytes;
     }
-  } config_guard{CONFIG_INT(__RC_MAX_ASYNC_WORKERS__),
-                 CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__),
+  } config_guard{CONFIG_INT(__RC_MAX_ASYNC_WORKERS__), CONFIG_INT(__RC_MAX_ASYNC_REQUESTS__),
                  CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__)};
 
   CONFIG_INT(__RC_MAX_ASYNC_WORKERS__) = 1;

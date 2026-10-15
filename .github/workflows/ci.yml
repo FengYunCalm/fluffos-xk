@@ -71,23 +71,25 @@ jobs:
           git cat-file -e "$base^{commit}"
           echo "CI diff base: $base"
 
-      - name: Install clang-format 18
+      - name: Install clang-format 18.1.8
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y clang-format-18
-          test "$(clang-format-18 --version | sed -n 's/.*version //p')" = "18.1.8"
+          format_env="${RUNNER_TEMP}/clang-format-18.1.8"
+          python3 -m venv "$format_env"
+          "$format_env/bin/python" -m pip install --disable-pip-version-check --no-deps --only-binary=:all: "clang-format==18.1.8"
+          echo "$format_env/bin" >> "$GITHUB_PATH"
+          test "$("$format_env/bin/clang-format" --version | sed -n 's/.*version //p')" = "18.1.8"
 
       - name: Run native checker self-test
         env:
-          CLANG_FORMAT: clang-format-18
+          CLANG_FORMAT: clang-format
         run: python3 tools/style/test-check-format.py
 
       # U10g has reviewed and written the module-scoped native backlog.
       # Keep this check read-only; CI must never rewrite the checkout.
       - name: Check all native sources
         env:
-          CLANG_FORMAT: clang-format-18
+          CLANG_FORMAT: clang-format
         run: python3 tools/style/check-format.py --all-native
 
       - name: Run LPC syntax self-tests

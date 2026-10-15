@@ -286,8 +286,7 @@ bool admit_request(Request* req, size_t payload_bytes, size_t path_bytes) {
     accepted = !stop_workers &&
                live_requests.size() <= static_cast<size_t>(max_requests > 0 ? max_requests : 1) &&
                charge <= static_cast<size_t>(max_bytes > 0 ? max_bytes : 1) &&
-               pending_request_bytes <=
-                   static_cast<size_t>(max_bytes > 0 ? max_bytes : 1) - charge;
+               pending_request_bytes <= static_cast<size_t>(max_bytes > 0 ? max_bytes : 1) - charge;
     if (accepted) {
       req->charged_bytes = charge;
       req->admitted = true;
@@ -311,8 +310,7 @@ bool grow_request_data(Request* req, size_t new_size) {
     std::lock_guard<std::mutex> const lock(reqs_lock);
     auto const max_bytes = CONFIG_INT(__RC_MAX_ASYNC_PENDING_BYTES__);
     auto const limit = static_cast<size_t>(max_bytes > 0 ? max_bytes : 1);
-    reserved = req->admitted && additional <= limit &&
-               pending_request_bytes <= limit - additional;
+    reserved = req->admitted && additional <= limit && pending_request_bytes <= limit - additional;
     if (reserved) {
       req->charged_bytes += additional;
       pending_request_bytes += additional;
@@ -351,7 +349,9 @@ void thread_func() {
     {
       std::unique_lock<std::mutex> lock(reqs_lock);
       ++idle_worker_count;
-      reqs_cv.wait(lock, [] { return stop_workers || !reqs.empty(); });
+      reqs_cv.wait(lock, [] {
+        return stop_workers || !reqs.empty();
+      });
       --idle_worker_count;
       if (reqs.empty()) {
         if (stop_workers) {
@@ -742,8 +742,8 @@ int add_write(const char* fname, const char* buf, int size, char flags, function
 }
 
 #ifdef F_ASYNC_DB_EXEC
-int add_db_exec(int handle, uint64_t generation, const char* sql,
-                function_to_call_t* fun, array_t* bound_args) {
+int add_db_exec(int handle, uint64_t generation, const char* sql, function_to_call_t* fun,
+                array_t* bound_args) {
   auto* req = new Request();
   req->fun = fun;
   req->bound_args = bound_args;
@@ -1154,9 +1154,8 @@ void f_async_read_promise() {
   auto* path = check_valid_path(sp->u.string, current_object, "read_file", 0);
   bool admitted = false;
   if (path) {
-    auto const size = static_cast<size_t>(CONFIG_INT(__MAX_READ_FILE_SIZE__) > 0
-                                               ? CONFIG_INT(__MAX_READ_FILE_SIZE__)
-                                               : 1);
+    auto const size = static_cast<size_t>(
+        CONFIG_INT(__MAX_READ_FILE_SIZE__) > 0 ? CONFIG_INT(__MAX_READ_FILE_SIZE__) : 1);
     admitted = admit_request(req, size, std::strlen(path));
     if (admitted) {
       try {

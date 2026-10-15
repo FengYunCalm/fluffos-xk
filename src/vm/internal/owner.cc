@@ -68,8 +68,7 @@ constexpr const char* kOwnerExecutorCallbackAllowlistKinds =
 constexpr const char* kGatewayCommandExecutorActivationBlocker =
     "interactive_command_requires_main_thread_io_adapter";
 constexpr const char* kProductionGateStatus = "unverified";
-constexpr const char* kProductionGateBlocker =
-    "current_evidence_not_bound_to_this_binary";
+constexpr const char* kProductionGateBlocker = "current_evidence_not_bound_to_this_binary";
 
 void clear_owner_apply_return() {
   vm_apply_return_clear();
@@ -1613,9 +1612,8 @@ void add_production_gate_contract_fields(mapping_t* map) {
   add_mapping_string(map, "production_gate_required_durations", "smoke,30m");
   add_mapping_pair(map, "production_gate_pressure_evidence_ready", 0);
   add_mapping_string(map, "production_gate_pressure_evidence", "");
-  add_mapping_string(
-      map, "production_gate_pressure_historical_evidence",
-      "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
+  add_mapping_string(map, "production_gate_pressure_historical_evidence",
+                     "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
   add_mapping_string(map, "production_gate_required_modes", "off,audit,enforced");
   add_mapping_string(map, "production_gate_required_scenarios",
                      "login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
@@ -1636,9 +1634,8 @@ void add_production_gate_contract_fields(mapping_t* map) {
                      "owner_safe_synchronous_release_acquire_handshake");
   add_mapping_pair(map, "production_gate_socket_release_handshake_ready", 0);
   add_mapping_string(map, "production_gate_socket_release_handshake_evidence", "");
-  add_mapping_string(
-      map, "production_gate_socket_release_handshake_historical_evidence",
-      "socket_release_owner_epoch_handshake_contract_v1");
+  add_mapping_string(map, "production_gate_socket_release_handshake_historical_evidence",
+                     "socket_release_owner_epoch_handshake_contract_v1");
   add_mapping_string(map, "production_gate_report_schema", "xkx_gateway_loadtest_report_v1");
   add_mapping_string(
       map, "production_gate_report_required_fields",

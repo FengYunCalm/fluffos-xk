@@ -3295,9 +3295,8 @@ void add_predefines() {
     char namebuf[NSIZE];
     char mtext[MLEN];
     const char* const separator = strchr(tmpf->flag, '=');
-    const size_t name_len = separator == nullptr
-                                ? strlen(tmpf->flag)
-                                : static_cast<size_t>(separator - tmpf->flag);
+    const size_t name_len =
+        separator == nullptr ? strlen(tmpf->flag) : static_cast<size_t>(separator - tmpf->flag);
     const char* const value = separator == nullptr ? "" : separator + 1;
     const size_t value_len = strlen(value);
 

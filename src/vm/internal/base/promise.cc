@@ -1234,8 +1234,7 @@ void resume_coroutine(lpc_coroutine_t* coro, promise_t* source) {
   free_coroutine(coro, nullptr, false);
 }
 
-static void visit_raw_promise(promise_t* promise,
-                              const promise_reclaim_visitor_t& visitor) {
+static void visit_raw_promise(promise_t* promise, const promise_reclaim_visitor_t& visitor) {
   if (promise == nullptr) {
     return;
   }
@@ -1245,38 +1244,33 @@ static void visit_raw_promise(promise_t* promise,
   visitor.visit_svalue(&value, visitor.data);
 }
 
-static void visit_coroutine_reclaimable_values(
-    lpc_coroutine_t* coroutine, const promise_reclaim_visitor_t& visitor) {
+static void visit_coroutine_reclaimable_values(lpc_coroutine_t* coroutine,
+                                               const promise_reclaim_visitor_t& visitor) {
   if (coroutine == nullptr) {
     return;
   }
   visit_raw_promise(coroutine->result_promise, visitor);
   if (coroutine->ob != nullptr) {
-    visitor.visit_object(&coroutine->ob,
-                         promise_reclaim_object_role::kCoroutineObject,
+    visitor.visit_object(&coroutine->ob, promise_reclaim_object_role::kCoroutineObject,
                          visitor.data);
   }
   if (coroutine->prev_ob != nullptr) {
-    visitor.visit_object(&coroutine->prev_ob,
-                         promise_reclaim_object_role::kCoroutinePreviousObject,
+    visitor.visit_object(&coroutine->prev_ob, promise_reclaim_object_role::kCoroutinePreviousObject,
                          visitor.data);
   }
   if (coroutine->command_giver != nullptr) {
     visitor.visit_object(&coroutine->command_giver,
-                         promise_reclaim_object_role::kCoroutineCommandGiver,
-                         visitor.data);
+                         promise_reclaim_object_role::kCoroutineCommandGiver, visitor.data);
   }
   for (int i = 0; i < coroutine->frame_size; ++i) {
     visitor.visit_svalue(&coroutine->frame[i], visitor.data);
   }
-  for (struct defer_list* defer = coroutine->defers; defer != nullptr;
-       defer = defer->next) {
+  for (struct defer_list* defer = coroutine->defers; defer != nullptr; defer = defer->next) {
     visitor.visit_svalue(&defer->func, visitor.data);
     visitor.visit_svalue(&defer->tp, visitor.data);
   }
   for (auto& marker : coroutine->markers) {
-    for (struct defer_list* defer = marker.defers; defer != nullptr;
-         defer = defer->next) {
+    for (struct defer_list* defer = marker.defers; defer != nullptr; defer = defer->next) {
       visitor.visit_svalue(&defer->func, visitor.data);
       visitor.visit_svalue(&defer->tp, visitor.data);
     }
@@ -1295,8 +1289,7 @@ static void visit_queued_reaction(QueuedReaction& reaction,
   visit_raw_promise(reaction.source, visitor);
   if (reaction.command_giver != nullptr) {
     visitor.visit_object(&reaction.command_giver,
-                         promise_reclaim_object_role::kReactionCommandGiver,
-                         visitor.data);
+                         promise_reclaim_object_role::kReactionCommandGiver, visitor.data);
   }
   visit_coroutine_reclaimable_values(reaction.coro, visitor);
 }
@@ -1322,8 +1315,7 @@ void promise_visit_reclaimable_values(promise_t* promise,
     visit_raw_promise(reaction.next, visitor);
     if (reaction.command_giver != nullptr) {
       visitor.visit_object(&reaction.command_giver,
-                           promise_reclaim_object_role::kReactionCommandGiver,
-                           visitor.data);
+                           promise_reclaim_object_role::kReactionCommandGiver, visitor.data);
     }
     visit_coroutine_reclaimable_values(reaction.coro, visitor);
   }

@@ -3168,8 +3168,7 @@ static void reset_error() {
   free_parser_error(&best_error_info);
 }
 
-static void parse_recurse(char** iwords, char** ostart, char** oend,
-                          int* parse_recurse_steps) {
+static void parse_recurse(char** iwords, char** ostart, char** oend, int* parse_recurse_steps) {
   char buf[1024];
   char* p;
   const char* q;
@@ -3359,8 +3358,8 @@ static void parse_sentence(const char* input) {
           num_words = 1;
           words[0].start = (char*)orig_starts[0];
           words[0].end = (char*)orig_ends[i - 1];
-          parse_recurse((char**)&starts[i], (char**)&orig_starts[i],
-                        (char**)&orig_ends[i], &parse_recurse_steps);
+          parse_recurse((char**)&starts[i], (char**)&orig_starts[i], (char**)&orig_ends[i],
+                        &parse_recurse_steps);
         }
         ve = ve->next;
       }

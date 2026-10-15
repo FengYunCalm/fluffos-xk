@@ -80,35 +80,35 @@ mixed* parse_command(string cmd, mixed obarr, string pattern) {
   allword = master()->parse_command_all_word();
 
   /*
-     * Loop through the pattern. Handle %s but not '/'
-     */
+   * Loop through the pattern. Handle %s but not '/'
+   */
   for (six = 0, cix = 0, pix = 0; pix < sizeof(parse_patarr); pix++) {
     value = 0;
     fail = 0;
 
     if (parse_patarr[pix] == "%s") {
       /*
-	     * We are at end of pattern, scrap up the remaining words and put
-	     * them in the fill-in value.
-	     */
+       * We are at end of pattern, scrap up the remaining words and put
+       * them in the fill-in value.
+       */
       if (pix == sizeof(parse_patarr - 1)) {
         store_words_slice(six++, parse_warr, cix, sizeof(parse_warr) - 1);
         cix = sizeof(parse_warr);
       } else {
         /*
-		 * There is something after %s, try to parse with the next
-		 * pattern. Begin with the current word and step one word for
-		 * each fail, until match or end of words.
-		 */
+         * There is something after %s, try to parse with the next
+         * pattern. Begin with the current word and step one word for
+         * each fail, until match or end of words.
+         */
         ocix = fword = cix; /* current word */
         fpix = ++pix;       /* pix == next pattern */
         do {
           /*
-		     * Parse the following pattern, fill-in values:
-		     * stack_args[six] = result of %s stack_args[six + 1] =
-		     * result of following pattern, if it is a fill-in
-		     * pattern
-		     */
+           * Parse the following pattern, fill-in values:
+           * stack_args[six] = result of %s stack_args[six + 1] =
+           * result of following pattern, if it is a fill-in
+           * pattern
+           */
           fail = sub_parse(obarr, parse_patarr, ref pix, parse_warr, ref cix);
           if (fail) {
             cix = ++ocix;
@@ -117,10 +117,10 @@ mixed* parse_command(string cmd, mixed obarr, string pattern) {
         } while (fail && (cix < sizeof(parse_warr)));
 
         /*
-		 * We found something mathing the pattern after %s. First
-		 * stack_args[six + 1] = result of match Then stack_args[six]
-		 * = the skipped words before match
-		 */
+         * We found something mathing the pattern after %s. First
+         * stack_args[six + 1] = result of match Then stack_args[six]
+         * = the skipped words before match
+         */
         if (!fail) {
           if (value) { /* A match with a value fill in param */
             store_value(six + 1, value);
@@ -134,24 +134,24 @@ mixed* parse_command(string cmd, mixed obarr, string pattern) {
       }
     }
     /*
-	 * The pattern was not %s, parse the pattern if it is not '/', a '/'
-	 * here is skipped. If match, put in fill-in value.
-	 */
+     * The pattern was not %s, parse the pattern if it is not '/', a '/'
+     * here is skipped. If match, put in fill-in value.
+     */
     else if (parse_patarr[pix] != "/") {
       fail = sub_parse(obarr, parse_patarr, ref pix, parse_warr, ref cix, ref fail);
       if (!fail && value)
         store_value(six++, value);
     }
     /*
-	 * Terminate parsing if no match
-	 */
+     * Terminate parsing if no match
+     */
     if (fail)
       break;
   }
 
   /*
-     * Also fail when there is words left to parse and pattern exhausted
-     */
+   * Also fail when there is words left to parse and pattern exhausted
+   */
   if (fail || cix < sizeof(parse_warr))
     return 0;
 
@@ -180,8 +180,8 @@ static int sub_parse(mixed* obarr, mixed* patarr, int ref pix_in, mixed* warr, i
   int fail;
 
   /*
-     * Fail if we have a pattern left but no words to parse
-     */
+   * Fail if we have a pattern left but no words to parse
+   */
   if (*cix_in == sizeof(warr))
     return 1;
 
@@ -195,8 +195,8 @@ static int sub_parse(mixed* obarr, mixed* patarr, int ref pix_in, mixed* warr, i
     cix = *cix_in;
 
     /*
-	 * Find the next alternative pattern, consecutive '/' are skipped
-	 */
+     * Find the next alternative pattern, consecutive '/' are skipped
+     */
     while (pix < sizeof(patarr) && patarr[pix] == "/") {
       pix++;
       fail = 0;
@@ -211,8 +211,8 @@ static int sub_parse(mixed* obarr, mixed* patarr, int ref pix_in, mixed* warr, i
   }
 
   /*
-     * If there is alternatives left after the mathing pattern, skip them
-     */
+   * If there is alternatives left after the mathing pattern, skip them
+   */
   if (pix + 1 < sizeof(patarr) && patarr[pix + 1] == "/") {
     while (pix + 1 < sizeof(patarr) && patarr[pix + 1] == "/") {
       pix += 2;
@@ -232,8 +232,8 @@ int one_parse(mixed* obarr, string pat, mixed* warr, int ref cix_in) {
   string str1, str2;
 
   /*
-     * Fail if we have a pattern left but no words to parse
-     */
+   * Fail if we have a pattern left but no words to parse
+   */
   if (*cix_in >= sizeof(warr))
     return 1;
 
@@ -583,18 +583,18 @@ static int find_string(string str, mixed* warr, int ref cix_in) {
       continue;
 
     /*
-	 * If str was multi word we need to make some special checks
-	 */
+     * If str was multi word we need to make some special checks
+     */
     if (*cix_in == sizeof(warr->size) - 1)
       continue;
 
     split = explode(str, " ");
 
     /*
-	 * warr->size - *cix_in ==
-	 * 2: One extra word
-	 * 3: Two extra words
-	 */
+     * warr->size - *cix_in ==
+     * 2: One extra word
+     * 3: Two extra words
+     */
     if (sizeof(split) > sizeof(warr) - *cix_in)
       continue;
 
@@ -628,8 +628,8 @@ int check_adjectiv(int obix, mixed* warr, int from, int to) {
   }
 
   /*
-     * Simple case: all adjs were single word
-     */
+   * Simple case: all adjs were single word
+   */
   if (!fail)
     return 1;
 
@@ -640,8 +640,8 @@ int check_adjectiv(int obix, mixed* warr, int from, int to) {
      * If we now have: "adj1 adj2 adj3 ... adjN"
      * We must test in order: "adj1 adj2 adj3 .... adjN-1 adjN"
                               "adj1 adj2 adj3 .... adjN-1"
-			      "adj1 adj2 adj3 ...."
-			      ....
+                              "adj1 adj2 adj3 ...."
+                              ....
      * if match for adj1 .. adj3 continue with:
      *                        "adj4 adj5 .... adjN-1 adjN"
      *                        "adj4 adj5 .... adjN-1"
@@ -651,11 +651,11 @@ int check_adjectiv(int obix, mixed* warr, int from, int to) {
   for (il = from; il <= to;) {            /* adj1 .. adjN */
     for (back = to; back >= il; back--) { /* back from adjN to adj[il] */
       /*
-	     * Create teststring with "adj[il] .. adj[back]"
-	     */
+       * Create teststring with "adj[il] .. adj[back]"
+       */
       adstr = "";
       for (sum = il; sum <= back; sum++) { /* test "adj[il] ..
-							 * adj[back]" */
+                                            * adj[back]" */
         if (sum > il)
           adstr += " ";
         adstr += warr[sum];

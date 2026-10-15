@@ -291,6 +291,10 @@ add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 include_directories(thirdparty/fmt/include)
 include_directories(AFTER SYSTEM thirdparty/json/include)
 add_subdirectory(thirdparty/backward-cpp EXCLUDE_FROM_ALL)
+# backward.cpp is linked into test executables that intentionally disable LTO
+# for linker-wrap fault injection. Keep its object a native object so those
+# links do not receive LLVM bitcode without the matching LTO driver.
+set_property(TARGET backward_object PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
 include_directories(AFTER SYSTEM thirdparty/argparse/include)
 
 set(DISABLE_WERROR ON CACHE BOOL "" FORCE)

@@ -124,8 +124,7 @@ void update_output_accounting(interactive_t* ip, evbuffer* output) {
 }  // namespace
 
 bool comm_output_budget_allows_for_test(std::size_t pending, std::size_t total,
-                                        std::size_t incoming,
-                                        std::size_t per_connection_limit,
+                                        std::size_t incoming, std::size_t per_connection_limit,
                                         std::size_t total_limit) {
   return output_budget_allows(pending, total, incoming, per_connection_limit, total_limit);
 }
@@ -167,15 +166,17 @@ bool comm_queue_output(interactive_t* ip, evbuffer* output, const void* data, st
   if (!output_budget_allows(ip->pending_output_bytes, g_total_pending_output_bytes, len,
                             per_connection_limit, total_limit)) {
     ++g_output_budget_rejections;
-    debug_message("Closing interactive connection after exceeding output budget "
-                  "(pending=%zu, incoming=%zu, total=%zu).\n",
-                  ip->pending_output_bytes, len, g_total_pending_output_bytes);
+    debug_message(
+        "Closing interactive connection after exceeding output budget "
+        "(pending=%zu, incoming=%zu, total=%zu).\n",
+        ip->pending_output_bytes, len, g_total_pending_output_bytes);
     remove_user_connection(ip);
     return false;
   }
 
   if (evbuffer_add(output, data, len) < 0) {
-    debug_message("Closing interactive connection after output enqueue failure (bytes=%zu).\n", len);
+    debug_message("Closing interactive connection after output enqueue failure (bytes=%zu).\n",
+                  len);
     remove_user_connection(ip);
     return false;
   }
@@ -1694,11 +1695,11 @@ int comm_single_char_bytes(const interactive_t* ip) {
     return (byte & 0xc0) == 0x80;
   };
   const unsigned char second = p[1];
-  const bool valid_second =
-      (p[0] == 0xe0) ? (second >= 0xa0 && second <= 0xbf) :
-      (p[0] == 0xed) ? (second >= 0x80 && second <= 0x9f) :
-      (p[0] == 0xf0) ? (second >= 0x90 && second <= 0xbf) :
-      (p[0] == 0xf4) ? (second >= 0x80 && second <= 0x8f) : continuation(second);
+  const bool valid_second = (p[0] == 0xe0)   ? (second >= 0xa0 && second <= 0xbf)
+                            : (p[0] == 0xed) ? (second >= 0x80 && second <= 0x9f)
+                            : (p[0] == 0xf0) ? (second >= 0x90 && second <= 0xbf)
+                            : (p[0] == 0xf4) ? (second >= 0x80 && second <= 0x8f)
+                                             : continuation(second);
   if (!valid_second) {
     return 1;
   }
@@ -2164,8 +2165,7 @@ void release_user_resources(interactive_t* ip) {
 }
 
 void finish_deferred_user_cleanup(interactive_t* ip) {
-  if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0 ||
-      ip->output_send_depth != 0) {
+  if (!ip || !ip->cleanup_pending || ip->telnet_receive_depth != 0 || ip->output_send_depth != 0) {
     return;
   }
   ip->cleanup_pending = false;

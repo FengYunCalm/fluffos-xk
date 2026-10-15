@@ -136,8 +136,7 @@ struct promise_reclaim_visitor_t {
   void* data;
 };
 
-void promise_visit_reclaimable_values(promise_t* promise,
-                                      const promise_reclaim_visitor_t& visitor);
+void promise_visit_reclaimable_values(promise_t* promise, const promise_reclaim_visitor_t& visitor);
 void promise_visit_reclaim_roots(const promise_reclaim_visitor_t& visitor);
 
 /* A promise fulfilled with 0 on the next pass of the event loop -- after the

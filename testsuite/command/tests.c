@@ -51,6 +51,9 @@ private void init_scopes() {
 #ifdef __PACKAGE_DEVELOP__
   capabilities["develop"] = 1;
 #endif
+#if defined(__DEBUGMALLOC__) && defined(__DEBUGMALLOC_EXTENSIONS__) && defined(__PACKAGE_DEVELOP__)
+  capabilities["debugmalloc"] = 1;
+#endif
 #ifdef __USE_SQLITE3__
   capabilities["sqlite"] = 1;
 #endif

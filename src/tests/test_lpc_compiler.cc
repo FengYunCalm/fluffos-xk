@@ -77,8 +77,8 @@ TEST_F(DriverTest, TestAuditCompilerLocaleIsolation) {
     release.store(true, std::memory_order_release);
   });
 
-  auto stream = std::make_unique<BlockingLexStream>(
-      "float test() { return 1.5; }\n", entered, release);
+  auto stream =
+      std::make_unique<BlockingLexStream>("float test() { return 1.5; }\n", entered, release);
   auto* program = compile_file(std::move(stream), "audit-compiler-locale");
   observer.join();
 
@@ -88,8 +88,8 @@ TEST_F(DriverTest, TestAuditCompilerLocaleIsolation) {
 
   compiler_diag::clear();
   std::istringstream invalid_source("float test( { return 1.5; }\n");
-  auto invalid_program = compile_file(
-      std::make_unique<IStreamLexStream>(invalid_source), "audit-compiler-locale-error");
+  auto invalid_program = compile_file(std::make_unique<IStreamLexStream>(invalid_source),
+                                      "audit-compiler-locale-error");
   EXPECT_EQ(invalid_program, nullptr);
 
   const char* after_locale = std::setlocale(LC_ALL, nullptr);
@@ -123,14 +123,14 @@ TEST_F(DriverTest, TestAuditPredefineBounds) {
 TEST_F(DriverTest, TestAuditPredefineBoundsRecovery) {
   compiler_diag::clear();
   std::istringstream invalid_source("float test( { return 1.5; }\n");
-  auto invalid_program = compile_file(
-      std::make_unique<IStreamLexStream>(invalid_source), "audit-predefine-error");
+  auto invalid_program =
+      compile_file(std::make_unique<IStreamLexStream>(invalid_source), "audit-predefine-error");
   EXPECT_EQ(invalid_program, nullptr);
 
   compiler_diag::clear();
   std::istringstream valid_source("void test() {}\n");
-  auto valid_program = compile_file(
-      std::make_unique<IStreamLexStream>(valid_source), "audit-predefine-recovery");
+  auto valid_program =
+      compile_file(std::make_unique<IStreamLexStream>(valid_source), "audit-predefine-recovery");
   ASSERT_NE(valid_program, nullptr);
   deallocate_program(valid_program);
 }
@@ -205,7 +205,8 @@ TEST_F(DriverTest, TestAwaitProtectedContextCompileContract) {
     for (size_t i = 0; i < compiler_diag::size(); ++i) {
       const auto& diagnostic = compiler_diag::at(i);
       if (diagnostic.message != nullptr &&
-          std::string(diagnostic.message).find("await cannot suspend across a synchronous catch block.") !=
+          std::string(diagnostic.message)
+                  .find("await cannot suspend across a synchronous catch block.") !=
               std::string::npos) {
         found_context_diagnostic = true;
         break;
@@ -223,7 +224,7 @@ TEST_F(DriverTest, TestAwaitProtectedContextCompileContract) {
       EXPECT_NE(compiler_diag::at(i).severity, compiler_diag::Severity::kError)
           << name << ": "
           << (compiler_diag::at(i).message == nullptr ? "<no message>"
-                                                       : compiler_diag::at(i).message);
+                                                      : compiler_diag::at(i).message);
     }
     deallocate_program(program);
   };
@@ -238,21 +239,19 @@ async int probe() {
 }
 )";
 
-  expect_rejected(std::string(protected_prefix) +
-                      "    while (0) { await 1; }" + protected_suffix,
+  expect_rejected(std::string(protected_prefix) + "    while (0) { await 1; }" + protected_suffix,
                   "await-in-catch-while");
-  expect_rejected(std::string(protected_prefix) +
-                      "    do { await 1; } while (0);" + protected_suffix,
-                  "await-in-catch-do");
-  expect_rejected(std::string(protected_prefix) +
-                      "    for (int i = 0; i < 1; i++) { await 1; }" + protected_suffix,
+  expect_rejected(
+      std::string(protected_prefix) + "    do { await 1; } while (0);" + protected_suffix,
+      "await-in-catch-do");
+  expect_rejected(std::string(protected_prefix) + "    for (int i = 0; i < 1; i++) { await 1; }" +
+                      protected_suffix,
                   "await-in-catch-for");
   expect_rejected(std::string(protected_prefix) +
-                      "    foreach (int value in ({ 1 })) { value += await 1; }" +
-                      protected_suffix,
+                      "    foreach (int value in ({ 1 })) { value += await 1; }" + protected_suffix,
                   "await-in-catch-foreach");
-  expect_rejected(std::string(protected_prefix) +
-                      "    switch (1) { case 1: await 1; break; }" + protected_suffix,
+  expect_rejected(std::string(protected_prefix) + "    switch (1) { case 1: await 1; break; }" +
+                      protected_suffix,
                   "await-in-catch-switch");
   expect_rejected(R"(
 async int probe() {
@@ -261,7 +260,8 @@ async int probe() {
   };
   return 0;
 }
-)", "await-in-time-expression");
+)",
+                  "await-in-time-expression");
   expect_rejected(R"(
 async int probe() {
   mixed ignored = catch {
@@ -270,7 +270,8 @@ async int probe() {
   };
   return 0;
 }
-)", "await-after-function-expression-in-catch");
+)",
+                  "await-after-function-expression-in-catch");
   expect_rejected(R"(
 async int probe() {
   mixed ignored = catch {
@@ -279,13 +280,15 @@ async int probe() {
   };
   return 0;
 }
-)", "await-in-acatch-inside-catch");
+)",
+                  "await-in-acatch-inside-catch");
 
   expect_accepted(R"(
 async int probe() {
   return await 1;
 }
-)", "await-plain-async");
+)",
+                  "await-plain-async");
   expect_accepted(R"(
 async int probe() {
   mixed ignored = acatch(await 1);
@@ -293,20 +296,23 @@ async int probe() {
   switch (1) { case 1: await 1; break; }
   return 0;
 }
-)", "await-in-legal-async-contexts");
+)",
+                  "await-in-legal-async-contexts");
   expect_accepted(R"(
 async int probe() {
   mixed ignored = catch { return 1; };
   mixed timed = time_expression { return 1; };
   return await 1;
 }
-)", "await-after-protected-contexts");
+)",
+                  "await-after-protected-contexts");
   expect_accepted(R"(
 async int probe() {
   function callback = function() { return 1; };
   return await 1;
 }
-)", "await-after-anonymous-function");
+)",
+                  "await-after-anonymous-function");
 }
 
 TEST_F(DriverTest, TestValidLPC_FunctionDeafultArgument) {
@@ -2618,8 +2624,7 @@ void plain(mixed value) {
   deallocate_program(program);
 
   size_t index_count = 0;
-  for (size_t position = 0;
-       (position = disassembly.find("index", position)) != std::string::npos;
+  for (size_t position = 0; (position = disassembly.find("index", position)) != std::string::npos;
        position += 1) {
     index_count++;
   }
@@ -2632,9 +2637,8 @@ void plain(mixed value) {
       return;
     }
     const auto next = disassembly.find(";; Function:", start + function_name.size());
-    const auto function = disassembly.substr(start, next == std::string::npos
-                                                       ? std::string::npos
-                                                       : next - start);
+    const auto function =
+        disassembly.substr(start, next == std::string::npos ? std::string::npos : next - start);
     EXPECT_EQ(function.find("local"), std::string::npos) << function;
   };
   assert_no_local_opcode(";; Function: public void pure");

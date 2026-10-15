@@ -11138,8 +11138,7 @@ TEST_F(DriverTest, TestAuditOwnerEvidenceStateFailClosed) {
 
   EXPECT_EQ(number("production_gate_ready"), 0);
   EXPECT_STREQ(string("production_gate_status"), "unverified");
-  EXPECT_STREQ(string("production_gate_blocker"),
-               "current_evidence_not_bound_to_this_binary");
+  EXPECT_STREQ(string("production_gate_blocker"), "current_evidence_not_bound_to_this_binary");
   EXPECT_STREQ(string("production_gate_evidence_kind"), "historical");
   EXPECT_EQ(number("production_gate_current_evidence_bound"), 0);
   EXPECT_EQ(number("mudlib_cross_owner_hotspots_ready"), 0);
@@ -11185,9 +11184,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_blocker"),
                  "current_evidence_not_bound_to_this_binary");
     ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_evidence"), "");
-    ASSERT_STREQ(
-        mapping_string(contract, "mudlib_cross_owner_hotspots_historical_evidence"),
-        "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
+    ASSERT_STREQ(mapping_string(contract, "mudlib_cross_owner_hotspots_historical_evidence"),
+                 "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
     ASSERT_EQ(mapping_number(contract, "production_gate_ready"), 0);
     ASSERT_STREQ(mapping_string(contract, "production_gate_status"), "unverified");
     ASSERT_STREQ(mapping_string(contract, "production_gate_blocker"),
@@ -11198,9 +11196,8 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_durations"), "smoke,30m");
     ASSERT_EQ(mapping_number(contract, "production_gate_pressure_evidence_ready"), 0);
     ASSERT_STREQ(mapping_string(contract, "production_gate_pressure_evidence"), "");
-    ASSERT_STREQ(
-        mapping_string(contract, "production_gate_pressure_historical_evidence"),
-        "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
+    ASSERT_STREQ(mapping_string(contract, "production_gate_pressure_historical_evidence"),
+                 "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_modes"), "off,audit,enforced");
     ASSERT_STREQ(mapping_string(contract, "production_gate_required_scenarios"),
                  "login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"

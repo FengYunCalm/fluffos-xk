@@ -409,10 +409,14 @@ int find_new_socket() {
 /*
  * Create an LPC efun socket
  */
-int socket_create(enum socket_mode mode, svalue_t* read_callback, svalue_t* close_callback) {
+int socket_create(int mode, svalue_t* read_callback, svalue_t* close_callback) {
   int type, i, fd;
   int binary = 0;
   bool tls = false;
+
+  if (mode < MUD || mode > STREAM_TLS_BINARY) {
+    return EEMODENOTSUPP;
+  }
 
   if (mode == STREAM_BINARY) {
     binary = 1;
@@ -510,7 +514,7 @@ int socket_create(enum socket_mode mode, svalue_t* read_callback, svalue_t* clos
       lpc_socks[i].flags |= S_TLS_SUPPORT;
     }
 
-    lpc_socks[i].mode = mode;
+    lpc_socks[i].mode = static_cast<enum socket_mode>(mode);
     lpc_socks[i].state = STATE_UNBOUND;
     lpc_socks[i].owner_ob = current_object;
     current_object->flags |= O_EFUN_SOCKET;

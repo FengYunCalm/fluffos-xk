@@ -26,9 +26,9 @@ void f_socket_create() {
   }
   if (check_valid_socket("create", -1, current_object, "N/A", -1)) {
     if (num_arg == 2) {
-      fd = socket_create(static_cast<enum socket_mode>(arg[0].u.number), &arg[1], nullptr);
+      fd = socket_create(arg[0].u.number, &arg[1], nullptr);
     } else {
-      fd = socket_create(static_cast<enum socket_mode>(arg[0].u.number), &arg[1], &arg[2]);
+      fd = socket_create(arg[0].u.number, &arg[1], &arg[2]);
     }
     pop_n_elems(num_arg - 1);
     sp->u.number = fd;

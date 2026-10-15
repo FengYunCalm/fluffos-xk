@@ -667,8 +667,7 @@ int create_db_conn() {
 }
 
 static db_t* find_db_slot(int handle) {
-  if (handle < 1 || handle > db_conn_alloc ||
-      (db_conn_list[handle - 1].flags & DB_FLAG_EMPTY)) {
+  if (handle < 1 || handle > db_conn_alloc || (db_conn_list[handle - 1].flags & DB_FLAG_EMPTY)) {
     return nullptr;
   }
   return &(db_conn_list[handle - 1]);
@@ -911,8 +910,8 @@ static int MySQL_connect(dbconn_t* c, const char* host, const char* database, co
   }
 
   c->mysql.handle = initialized;
-  c->mysql.handle = mysql_real_connect(c->mysql.handle, host, username, password, database, 0,
-                                       nullptr, 0);
+  c->mysql.handle =
+      mysql_real_connect(c->mysql.handle, host, username, password, database, 0, nullptr, 0);
   // c->mysql.handle = mysql_connect(initialized, host, username, password);
   if (!c->mysql.handle) {
     const char* message = mysql_error(initialized);
