@@ -1545,7 +1545,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **风险与缓解：**不能把排版检查扩大为未授权全仓命名重构；只改文档，不动第三方/生成文件。
 - **文档同步：**`docs/coding-standard.md`、`docs/project-modernization-plan-2026-10.md`；只更新受影响的合同/流程，不复制历史测试数字。
 - **回滚：**执行 §4.2 R1，完整回退本单元及其必要生成/配置/测试内容；依赖本 ID 的单元先回退。回退后恢复 pending/withdrawn 状态，不保留 fixed 声明。
-- **当前状态：**未实施、未运行上述验证。只有本卡和公共前置全部满足才标完成。
+- **当前状态：**已实施。`docs/coding-standard.md` 已改为说明 CI 使用固定 clang-format 18.1.8 的全量 native 与完整允许 LPC corpus 只读门禁；U10g 当前仓库存量整理状态与主计划一致。已完成 CI/checker/排除规则交叉核对、`check-workflows.py --self-test`、文档检查和 `git diff --check`；未重排源码、生成物或 testsuite 存量。证据见 `audit-evidence/aud023-current-01/`；未满足的外部平台门禁仍按 U10/主计划记录。
 
 ### AUD-024 · 构建手册混淆数据库编号，并给出失配的测试/并行命令
 

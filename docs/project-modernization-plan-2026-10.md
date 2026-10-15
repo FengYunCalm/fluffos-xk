@@ -1626,7 +1626,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-020 | 已实施，Linux 隔离构建/私有前缀安装与目标字节一致性通过；Windows 原生证据为 external-required | 六个工具统一由 CMake `install(TARGETS)` 管理；Linux 实际安装目标含 `portbind` 共 `7/7` 比对通过；Windows MSYS2 单/多配置未在当前主机执行，证据见 `audit-evidence/aud020-current-01/` |
 | AUD-021 | 已实施，Linux 离线 SBOM 生成/漂移检查定向验证完成；在线 advisory/registry 与精确上游基线仍为 external-required | manifest/source/SBOM 身份已统一，`tools/test-sbom.py` 6 项通过，证据见 `audit-evidence/aud021-current-01/` |
 | AUD-022 | 已实施，本地 Linux Debug native/LPC 与 evidence-gate fail-closed 定向验证完成；固定 clang-format 18.1.8 当前不可得，非 Linux/真实外部压力证据仍为 external-required | owner runtime status 当前统一返回 `production_gate_ready=0`、`unverified`、明确 blocker；历史证据移至独立字段，证据 envelope ready/status/blocker claim 受 current identity/SHA/raw digest 语义约束；证据见 `audit-evidence/aud022-current-01/` |
-| AUD-023 | 待实施 | 按整改卡依赖推进 |
+| AUD-023 | 已实施，coding-standard 与 CI/checker 的全量 native/LPC 只读门禁范围已对齐；未执行源码或 testsuite 批量重排 | `docs/coding-standard.md` 已移除过时 pilot 表述，固定 clang-format 18.1.8、`--all-native`、完整允许 LPC corpus 与排除边界按当前 CI/工具实现说明；证据见 `audit-evidence/aud023-current-01/` |
 | AUD-024 | 待实施 | 按整改卡依赖推进 |
 | AUD-025 | 待实施 | 按整改卡依赖推进 |
 | AUD-026 | 待实施 | 按整改卡依赖推进 |

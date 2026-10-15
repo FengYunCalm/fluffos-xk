@@ -26,7 +26,7 @@
 | [clang-tidy][up-tidy] | 函数命名允许 aNy_CasE；禁用强制尾置返回、C 数组替换、部分可读性建议 | 不照搬宽松命名或全部通配检查；按 §4 固定新名称，逐项校准检查 |
 | [LPC 风格指南][up-lpc-style] | 2 空格、100 列、K&R、snake_case、LPC 数组标记与 C++ 指针排版不同 | 接受语言差异；不沿用“周围代码优先”或类名二选一 |
 | [LPC formatter][up-lpc-format] | 保序、字面量保护、幂等；保留人工换行；未知/残缺输入拒绝写入 | 接受保护机制；不得把 tokenizer 自洽等同于 driver 语义等价 |
-| [CI][up-ci] | 运行 LPC syntax 测试和 testsuite/format.sh --check | 本地 U10f 已接入固定 pilot；完整 native/LPC 存量门禁仍由 U10g 按模块收口，不能把 pilot 写成全库通过 |
+| [CI][up-ci] | 运行 LPC syntax 测试和 testsuite/format.sh --check | CI 已接入固定 clang-format 18.1.8 的全量 native 与完整允许 LPC corpus 只读门禁；U10g 已完成当前仓库存量整理，后续修改继续由该门禁检查 |
 | [AGENTS 的 package/栈/内存/头文件说明][up-agents] | 强调统一 package 入口、.spec 类型分发、栈平衡、引用标记和异常清理 | 适配到本地真实调用路径，不照搬上游对象、arena 和并发实现 |
 | [ws_common][up-ws]、[matrix][up-matrix] | 提取实际重复逻辑，保留协议差异；数组元素检查与顶层类型检查分开 | 作为职责拆分方法，不作为整文件替换模板 |
 | [tracing][up-trace]、[字符串测试][up-tests] | 有 RAII、匿名 namespace、snake_case 方法和描述性测试名；同时仍有单行无花括号、混合 const 写法 | 吸收明确所有权和测试意图；历史排版不构成新代码的例外 |
