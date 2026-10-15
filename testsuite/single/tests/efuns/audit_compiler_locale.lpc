@@ -1,0 +1,6 @@
+void do_tests() {
+  object probe = load_object("/single/tests/efuns/audit_compiler_locale_probe");
+  ASSERT(probe);
+  ASSERT_EQ(1.5, probe->value());
+  destruct(probe);
+}

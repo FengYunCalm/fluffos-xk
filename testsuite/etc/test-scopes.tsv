@@ -8,6 +8,8 @@
 /single/tests/compiler/constant_expr	runtime	debug	Requires compiler debug introspection.
 /single/tests/efuns/audit_empty_tail_trim	runtime	-	Covers empty and all-space command input without a pre-buffer pointer.
 /single/tests/efuns/audit_telnet_text	runtime	-	Covers session encoding reset used by the Telnet streaming text boundary.
+/single/tests/efuns/audit_compiler_locale	runtime	-	Covers production LPC compilation of a decimal literal without changing the process locale.
+/single/tests/efuns/audit_compiler_locale_probe	fixture	-	Decimal-literal fixture loaded by audit_compiler_locale; not a standalone do_tests case.
 /single/tests/efuns/audit_member_array_indices	runtime	-	Covers wide, boundary, reverse, string, closure, and negative-start member_array contracts.
 /single/tests/efuns/audit_owner_evidence	runtime	-	Covers fail-closed owner production-gate evidence status and historical evidence separation.
 /single/tests/efuns/async	runtime	async	Requires PACKAGE_ASYNC.

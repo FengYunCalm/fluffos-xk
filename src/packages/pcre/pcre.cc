@@ -1009,10 +1009,11 @@ static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* 
       }
     }
 
-    tmp = str->u.string;
+    const char* subject = str->u.string;
     PCRE2_SIZE const totalsize = pcre_checked_length(SVALUE_STRLEN(str));
     PCRE2_SIZE used = 0;
-    while (*tmp) {
+    while (used < totalsize) {
+      tmp = subject + used;
       laststart = 0;
       regindex = -1;
 
@@ -1041,7 +1042,6 @@ static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* 
         if (num_match == (std::numeric_limits<int>::max() - 1) / 2) {
           error("PCRE association result is too large.\n");
         }
-        const char *rmpb_tmp, *rmpe_tmp;
         num_match++;
 
         if (rmp) {
@@ -1053,20 +1053,27 @@ static array_t* pcre_assoc(svalue_t* str, array_t* pat, array_t* tok, svalue_t* 
               (struct RegMatch*)DMALLOC(sizeof(struct RegMatch), TAG_TEMPORARY, "pcre_assoc : rmp");
 
         tmpreg = rgpp[regindex];
-
-        rmpb_tmp = tmp + tmpreg->ovector[0];
-        rmpe_tmp = tmp + tmpreg->ovector[1];
-
-        rmp->begin = rmpb_tmp;
-        rmp->end = tmp = rmpe_tmp;
-        used += tmpreg->ovector[1];
+        const PCRE2_SIZE match_start = tmpreg->ovector[0];
+        const PCRE2_SIZE match_end = tmpreg->ovector[1];
+        rmp->begin = tmp + match_start;
+        rmp->end = tmp + match_end;
         rmp->tok_i = regindex;
         rmp->next = (struct RegMatch*)nullptr;
-      } else {
-        break;
-      }
 
-      if (rmp->begin == tmp && (!*++tmp)) {
+        used += match_end;
+        if (match_end == match_start) {
+          if (used >= totalsize) {
+            break;
+          }
+          ++used;
+          if ((tmpreg->compile_flags & PCRE2_UTF) != 0) {
+            while (used < totalsize &&
+                   (static_cast<unsigned char>(subject[used]) & 0xc0) == 0x80) {
+              ++used;
+            }
+          }
+        }
+      } else {
         break;
       }
     }

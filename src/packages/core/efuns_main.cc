@@ -2173,7 +2173,7 @@ void f_replace_string() {
           // #1247 EFUNS-1: this fast-path copy is not covered by the dlen-based
           // guards below; bound it against the output buffer and count it in
           // dlen so a later match's expansion guard sees the true written length.
-          if (dst2 + skip > dst1 + max_string_length) {
+          if (skip > max_string_length - dlen) {
             pop_n_elems(st_num_arg);
             push_svalue(&const0u);
             FREE_MSTR(dst1);
@@ -2182,6 +2182,7 @@ void f_replace_string() {
           for (climit = dst2 + skip; dst2 < climit; *dst2++ = *src++) {
             ;
           }
+          dlen += skip;
         } else if (memcmp(src, pattern, plen) == 0) {
           cur++;
           if ((cur >= first) && (cur <= last)) {
@@ -2264,14 +2265,21 @@ void f_replace_string() {
     if (plen > 1) {
       while (src < flimit) {
         if ((skip = skip_table[static_cast<unsigned char>(src[probe])])) {
+          if (skip > max_string_length - dlen) {
+            pop_n_elems(st_num_arg);
+            push_svalue(&const0u);
+            FREE_MSTR(dst1);
+            return;
+          }
           for (climit = dst2 + skip; dst2 < climit; *dst2++ = *src++) {
             ;
           }
+          dlen += skip;
 
         } else if (memcmp(src, pattern, plen) == 0) {
           cur++;
           if ((cur >= first) && (cur <= last)) {
-            if (max_string_length - dlen <= rlen) {
+            if (rlen > max_string_length - dlen) {
               pop_n_elems(st_num_arg);
               push_svalue(&const0u);
               FREE_MSTR(dst1);
@@ -2285,23 +2293,21 @@ void f_replace_string() {
               break;
             }
           } else {
-            dlen += plen;
-            if (max_string_length - dlen <= 0) {
+            if (plen > max_string_length - dlen) {
               pop_n_elems(st_num_arg);
               push_svalue(&const0u);
-
               FREE_MSTR(dst1);
               return;
             }
             memmove(dst2, src, plen);
             dst2 += plen;
+            dlen += plen;
             src += plen;
           }
         } else {
-          if (max_string_length - dlen <= 1) {
+          if (dlen >= max_string_length) {
             pop_n_elems(st_num_arg);
             push_svalue(&const0u);
-
             FREE_MSTR(dst1);
             return;
           }
@@ -2309,7 +2315,7 @@ void f_replace_string() {
           dlen++;
         }
       }
-      if (max_string_length - dlen <= (slimit - src)) {
+      if ((slimit - src) > max_string_length - dlen) {
         pop_n_elems(st_num_arg);
         push_svalue(&const0u);
         FREE_MSTR(dst1);
@@ -2324,7 +2330,7 @@ void f_replace_string() {
           cur++;
           if (cur >= first && cur <= last) {
             if (rlen != 0) {
-              if (max_string_length - dlen <= rlen) {
+              if (rlen > max_string_length - dlen) {
                 pop_n_elems(st_num_arg);
                 push_svalue(&const0u);
                 FREE_MSTR(dst1);
@@ -2338,7 +2344,7 @@ void f_replace_string() {
             continue;
           }
         }
-        if (max_string_length - dlen <= 1) {
+        if (dlen >= max_string_length) {
           pop_n_elems(st_num_arg);
           push_svalue(&const0u);
           FREE_MSTR(dst1);

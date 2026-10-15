@@ -6,6 +6,7 @@
 
 #include <cstdlib>  // for qsort
 #include <cstdio>   // for sprintf
+#include <locale.h>
 
 #include <fmt/format.h>
 
@@ -53,6 +54,66 @@ static void clean_parser(void);
 static void prolog(std::unique_ptr<LexStream>, const char* /*name*/);
 static program_t* epilog(void);
 static void show_overload_warnings(void);
+
+namespace {
+class CompilerLocaleScope {
+ public:
+  CompilerLocaleScope() {
+#ifdef _WIN32
+    const char* current_locale = setlocale(LC_ALL, nullptr);
+    if (current_locale == nullptr) {
+      error("Unable to query the compiler locale.\n");
+    }
+    previous_locale_ = current_locale;
+
+    previous_thread_locale_ = _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
+    if (previous_thread_locale_ == -1) {
+      error("Unable to enable the compiler thread locale.\n");
+    }
+    if (setlocale(LC_ALL, "C") == nullptr) {
+      if (_configthreadlocale(previous_thread_locale_) == -1) {
+        fatal("Unable to restore the compiler thread locale mode.\n");
+      }
+      error("Unable to set the compiler thread locale to C.\n");
+    }
+#else
+    compiler_locale_ = newlocale(LC_ALL_MASK, "C", nullptr);
+    if (compiler_locale_ == nullptr) {
+      error("Unable to create the compiler C locale.\n");
+    }
+    previous_locale_ = uselocale(compiler_locale_);
+    if (previous_locale_ == nullptr) {
+      freelocale(compiler_locale_);
+      compiler_locale_ = nullptr;
+      error("Unable to activate the compiler C locale.\n");
+    }
+#endif
+  }
+
+  ~CompilerLocaleScope() {
+#ifdef _WIN32
+    if (setlocale(LC_ALL, previous_locale_.c_str()) == nullptr ||
+        _configthreadlocale(previous_thread_locale_) == -1) {
+      fatal("Unable to restore the compiler thread locale.\n");
+    }
+#else
+    if (uselocale(previous_locale_) == nullptr) {
+      fatal("Unable to restore the compiler thread locale.\n");
+    }
+    freelocale(compiler_locale_);
+#endif
+  }
+
+ private:
+#ifdef _WIN32
+  std::string previous_locale_;
+  int previous_thread_locale_ = -1;
+#else
+  locale_t compiler_locale_ = nullptr;
+  locale_t previous_locale_ = nullptr;
+#endif
+};
+}  // namespace
 
 #define CT(x) (1 << (x))
 #define CT_SIMPLE(x) (CT(TYPE_ANY) | CT(x))
@@ -2213,11 +2274,9 @@ program_t* compile_file(std::unique_ptr<LexStream> stream, const char* name) {
   };
 
   {
-    // make sure we use the C locale during parsing
-    auto* current_locale = setlocale(LC_ALL, "C");
-    DEFER {
-      setlocale(LC_ALL, current_locale);
-    };
+    // Keep C-library parsing rules local to this compiler thread. The process
+    // locale is shared by unrelated threads and must not be changed here.
+    CompilerLocaleScope locale_scope;
 
     symbol_start(name);
     prolog(lpc_source_encoding_stream(std::move(stream)), name);

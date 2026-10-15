@@ -1700,7 +1700,7 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 - **优先级 / 责任视角：**P1；LPC 编译器 / C++。
 - **依赖：**无新增前置依赖；仍遵守 §2 的验收可信度优先与单构建约束。
 - **目标：**setlocale(LC_ALL,"C") 返回修改后的值而不是原值，DEFER 恢复的仍是 C；切换本身也影响其他线程。 修复后只绑定本线程的 C locale，退出恢复原线程状态。
-- **定位 / 改动文件：**src/compiler/internal/compiler.cc:2215–2220；`src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc`。先读直接调用者；新增测试必须执行生产入口，不用复制算法替代。
+- **定位 / 改动文件：**`src/compiler/internal/compiler.cc` 的编译入口 locale 作用域；`src/compiler/internal/compiler.cc`、`src/tests/test_lpc_compiler.cc`、`testsuite/single/tests/efuns/audit_compiler_locale.lpc`、`testsuite/single/tests/efuns/audit_compiler_locale_probe.lpc`、`testsuite/etc/test-scopes.tsv`。测试均执行生产编译入口，不用复制算法替代。
 - **影响：**后续数值转换、格式和并发线程的 locale 行为改变。
 - **预计工时：**8–16 小时。
 - **来源处理策略：**引入来源仍不确定；先核对本地 blame/log 与可用上游 hunk。没有足够证据时保留“不确定”，不凭提交标题归因；有适配且已核验的上游修复时优先按 §7 移植。
@@ -1708,44 +1708,47 @@ HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
 
 **实施步骤**
 
-1. 冻结本卡源码/编译配置与输入身份。核对上述位置和当前调用者，先复现“保存 setlocale(...,"C") 的返回值”；记录预期失败，不把新测试未注册、空 filter 或 skip 当作复现。
-2. 移除进程全局 LC_ALL 切换，改为编译器内部线程局部 C-locale 作用域。
-3. POSIX 用 newlocale/uselocale；Windows 用 CRT 线程局部模式；恢复先前线程 locale/模式，失败报告。
-4. 覆盖成功、错误和嵌套退出；并行观察线程不得看到 locale 改变。
-5. 非 C locale 下 LPC 小数语义稳定，前后 locale 相同，观察线程不受影响；缺平台记 external-required。 正常、精确边界、失败与异常/清理必须分别有断言。内存路径跑 ASan/UBSan；涉及共享线程或回调准入时再跑 TSan。
-6. 同步 `src/compiler/internal/compiler.cc`；核对链接、示例、输入/返回值与实际语义。按 §4 精确提交本卡，不修改或启动现有 driver。
+1. 已冻结源码、构建配置和输入身份；修前 fail-first 使用同一生产入口和线程观察断言，确认旧的进程级 `setlocale(LC_ALL, "C")` 会改变观察线程的 locale。
+2. 已移除进程全局 `LC_ALL` 切换，改为编译器内部 RAII 的线程局部 C-locale 作用域。
+3. POSIX 使用 `newlocale`/`uselocale` 并恢复旧线程 locale；Windows 使用 `_configthreadlocale`、`_create_locale` 和 `_free_locale` 的 CRT 线程局部模式；每个失败的切换或恢复都报告错误。
+4. 已覆盖有效编译、无效源码清理、连续退出，以及每层保存旧状态的嵌套恢复不变量（由 RAII 作用域结构保证），并验证并行观察线程不应看到 locale 改变。
+5. C++ 生产入口测试在 `C.UTF-8` 下编译含 `1.5` 的源码并验证前后 locale；LPC 隔离入口动态加载同一类小数源码。Debug/ASan/UBSan 的 native 与 LPC 定向 runner 均通过；TSan 在当前主机因 instrumented `make_func` 启动时报 `unexpected memory mapping`，证据保留为环境阻塞；Windows 分支未在本机编译，记为 external-required。
+6. 已同步本卡列出的源码、LPC 测试和 scope 分类；未修改或启动既有 driver，除隔离 testsuite runner 外未触碰运行实例。
 
 **修改前后示例**
 
-- 前：保存 setlocale(...,"C") 的返回值。
-- 后：只绑定本线程的 C locale，退出恢复原线程状态。
-- 以下是拟议实现片段，不是已经存在或已验证的补丁。新增私有 helper 要在本卡列出的生产路径接入；不得只在测试包装层生效。
+- 前：把 `setlocale(LC_ALL, "C")` 的返回值当作旧 locale 保存，析构时恢复到错误的值，并影响同进程其他线程。
+- 后：`CompilerLocaleScope` 在 POSIX 通过 `newlocale`/`uselocale` 保存并恢复线程 locale；Windows 使用线程 CRT locale；作用域退出先恢复、再释放拥有的 locale。
+- 该 RAII 作用域已接入 `compile_file()` 生产路径；测试调用真实编译器，不在测试层复制 locale 算法。
 
 ```cpp
-// POSIX 路径的关键动作；compiler_locale 由本次作用域拥有。
 locale_t previous = uselocale(compiler_locale);
-// RAII 析构先恢复 previous，再 freelocale(compiler_locale)。
-// Windows 用已验证的线程 CRT locale 作用域，不退回进程全局切换。
+// 析构：uselocale(previous)，然后 freelocale(compiler_locale)。
+// Windows：_configthreadlocale(_ENABLE_PER_THREAD_LOCALE) + _create_locale。
 ```
 
 **定向命令与通过标准**
 
-下列 filter 是拟新增名称；先在本卡测试文件实现并确认 runner 发现数非零。 同一命令先记录修前失败，再用新证据目录记录修后结果。变量来自 §3；重复执行必须更换 E 或末级目录，不覆盖旧证据。
+修前失败保存在 `audit-evidence/aud027-current-01/fail-first/fail-first.log`；修后使用独立二进制副本和异步完成屏障执行。Debug、ASan、UBSan 的 C++ runner 各发现并执行 1 个用例且通过；LPC runner 各执行 1 个注册用例且通过。证据分别见 `debug-runner/`、`asan-runner/`、`ubsan-runner/`、`debug-lpc-runner/`、`asan-lpc-runner/`、`ubsan-lpc-runner-02/`。
 
 ```bash
 N=AUD-027
-B="$BD"
-cmake --build "$B" --target lpc_tests --parallel 1
+E=audit-evidence/aud027-current-01
 HOME="$E/home" "$PY" -B tools/testsuite/run-targeted.py \
-  --binary "$B/src/tests/lpc_tests" --gtest-filter 'DriverTest.TestAuditCompilerLocale*' \
-  --timeout 180 --evidence-dir "$E/$N-native-debug"
+  --binary "$E/debug-final/private/lpc_tests" \
+  --gtest-filter 'DriverTest.TestAuditCompilerLocale*' \
+  --timeout 180 --evidence-dir "$E/debug-runner"
+HOME="$E/home-lpc" "$PY" -B tools/testsuite/run-targeted.py \
+  --driver "$E/debug-final/private/driver" --config etc/config.test \
+  --case /single/tests/efuns/audit_compiler_locale \
+  --timeout 180 --evidence-dir "$E/debug-lpc-runner"
 ```
 
-通过标准是本卡全部选中用例执行、断言/异步屏障完成、预期拒绝不留资源，且“非 C locale 下 LPC 小数语义稳定，前后 locale 相同，观察线程不受影响；缺平台记 external-required。”。 涉及语言行为时新增或修正 `testsuite/single/tests/efuns/audit_compiler_locale.lpc` 及 scope 分类；用 §3.4 的隔离 LPC 入口运行，不运行未注册的对象来制造零测试通过。
+通过标准是发现数与执行数一致、无 skip/失败、源码输入前后摘要一致、有效/无效编译均恢复 locale、观察线程不被改变，且 LPC probe 返回 `1.5`。TSan 和 Windows 的不可得证据不得以 Debug/ASan/UBSan 或 POSIX 结果替代。
 
 **失败与回滚**：遵守 R1。保留原始失败、源码/二进制摘要、命令、返回码、发现/执行数量、超时和清理记录；失败或缺平台时保持 blocked，不能降低门禁。仅逆向本卡完整原子提交；已有依赖时先退依赖，运行实例/数据的回滚不在本方案授权中。
 
-**完成条件**：以上检查、归属文档和精确提交均有证据；目前本卡未实施。
+**完成条件**：源码修复、native/LPC 回归、Debug/ASan/UBSan 定向证据和静态检查已完成，证据索引见 `audit-evidence/aud027-current-01/summary.md`。本机 TSan 构建被 instrumented `make_func` 的 `unexpected memory mapping` 阻塞，Windows 分支未取得编译证据，默认 PCRE2 全包、真实下游 mudlib 和长期压力未验证；因此本卡实现完成但保留 external-required/blocked 验收边界，不标记全局 release-ready。
 
 <a id="aud-028"></a>
 ### AUD-028 · 内建预定义字符串构造无容量边界

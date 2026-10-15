@@ -817,66 +817,73 @@ void f_replace_objects() {
 }
 
 void f_replace_dollars() {
-  auto const max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
-
-  char* newstr;
+  const size_t max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
   const char* oldstr = (sp - 1)->u.string;
-  char* currentnew;
-  const char* currentold = oldstr;
-  int i;
+  const size_t source_length = COUNTED_STRLEN(oldstr);
+  size_t source_pos = 0;
+  size_t scan = 0;
+  size_t output_length = 0;
+  bool matched = false;
+
   if (sp->u.arr->size & 1) {
     error("wrong array length for replace_dollars()");
   }
-  for (i = 0; i < sp->u.arr->size; i++)
+  for (int i = 0; i < sp->u.arr->size; i++) {
     if (sp->u.arr->item[i].type != T_STRING) {
       error("replace array should only contain strings");
     }
-  newstr = new_string(max_string_length, "replace_dollars");
-  currentnew = newstr;
-  for (i = 0; i < COUNTED_STRLEN(oldstr); i++) {
-    if (oldstr[i] == '$') {
-      int j;
-      for (j = 0; j < sp->u.arr->size; j += 2) {
-        const char* one = sp->u.arr->item[j].u.string;
-        if (!strncmp(one, oldstr + i, COUNTED_STRLEN(one))) {
-          const char* two = sp->u.arr->item[j + 1].u.string;
-          int const len = i - (currentold - oldstr);
-          if (currentnew + len - newstr > max_string_length) {
-            FREE_MSTR(newstr);
-            error("string too long");
-          }
-          strncpy(currentnew, currentold, len);
-          currentnew += len;
-          currentold += len;
-          currentold += COUNTED_STRLEN(one);
-          // #1247 DWLIB-1: check against the replacement length actually
-          // written below ('two'), not the matched pattern ('one'): a
-          // replacement longer than its pattern would otherwise overrun newstr.
-          if (currentnew + COUNTED_STRLEN(two) - newstr > max_string_length) {
-            FREE_MSTR(newstr);
-            error("string too long");
-          }
-          strcpy(currentnew, two);
-          currentnew += COUNTED_STRLEN(two);
-          break;
+  }
+
+  char* newstr = new_string(static_cast<int>(max_string_length), "replace_dollars");
+  while (scan < source_length) {
+    bool replaced = false;
+    if (oldstr[scan] == '$') {
+      for (int j = 0; j < sp->u.arr->size; j += 2) {
+        const char* key = sp->u.arr->item[j].u.string;
+        const size_t key_length = COUNTED_STRLEN(key);
+        if (key_length == 0 || key_length > source_length - scan ||
+            memcmp(key, oldstr + scan, key_length) != 0) {
+          continue;
         }
+
+        const char* replacement = sp->u.arr->item[j + 1].u.string;
+        const size_t replacement_length = COUNTED_STRLEN(replacement);
+        const size_t prefix_length = scan - source_pos;
+        if (prefix_length > max_string_length - output_length ||
+            replacement_length > max_string_length - output_length - prefix_length) {
+          FREE_MSTR(newstr);
+          error("string too long");
+        }
+        memcpy(newstr + output_length, oldstr + source_pos, prefix_length);
+        output_length += prefix_length;
+        memcpy(newstr + output_length, replacement, replacement_length);
+        output_length += replacement_length;
+        source_pos = scan + key_length;
+        scan = source_pos;
+        matched = true;
+        replaced = true;
+        break;
       }
     }
+    if (!replaced) {
+      ++scan;
+    }
   }
-  if (newstr == currentnew) {
-    // nothing happened!
+
+  if (!matched) {
     FREE_MSTR(newstr);
     pop_stack();
     return;
   }
 
-  if (currentnew + COUNTED_STRLEN(oldstr) - currentold + oldstr - newstr > max_string_length) {
+  const size_t tail_length = source_length - source_pos;
+  if (tail_length > max_string_length - output_length) {
     FREE_MSTR(newstr);
     error("string too long");
   }
+  memcpy(newstr + output_length, oldstr + source_pos, tail_length);
+  output_length += tail_length;
 
-  strcpy(currentnew, currentold);
   pop_2_elems();
-  push_malloced_string(
-      extend_string(newstr, currentnew - newstr + COUNTED_STRLEN(oldstr) - (currentold - oldstr)));
+  push_malloced_string(extend_string(newstr, static_cast<int>(output_length)));
 }

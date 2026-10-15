@@ -1067,7 +1067,10 @@ static svalue_t* living_parse(array_t* obarr, array_t* warr, int* cix_in, int* f
       continue;
     }
     if (obarr->item[obix].u.ob->flags & O_ENABLE_COMMANDS) {
-      assign_svalue_no_free(&live->item[tix++], &obarr->item[obix]);
+      // The cached identifier arrays are indexed by the original candidate
+      // position.  Keep that index when building the filtered working array.
+      assign_svalue_no_free(&live->item[obix], &obarr->item[obix]);
+      tix++;
     }
   }
 
@@ -1095,6 +1098,7 @@ static svalue_t* living_parse(array_t* obarr, array_t* warr, int* cix_in, int* f
   }
 
   if (ob) {
+    *fail = 0;
     parse_ret.type = T_OBJECT;
     parse_ret.u.ob = ob;
     add_ref(ob, "living_parse");
@@ -1343,6 +1347,9 @@ static int find_string(const char* str, array_t* warr, int* cix_in) {
       if (split) {
         free_array(split);
       }
+      // single_parse() advances by one after this function returns.  Leave
+      // the cursor on the final consumed word, just as the one-word path does.
+      --*cix_in;
       return fpos;
     }
 

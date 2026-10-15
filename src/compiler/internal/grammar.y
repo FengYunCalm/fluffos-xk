@@ -1234,11 +1234,11 @@ constant:
     }
   | constant L_LSH constant
     {
-      $$ = $1 << $3;
+      $$ = static_cast<LPC_INT>(static_cast<uint64_t>($1) << ($3 & 63));
     }
   | constant L_RSH constant
     {
-      $$ = $1 >> $3;
+      $$ = $1 >> ($3 & 63);
     }
   | constant '+' constant
     {

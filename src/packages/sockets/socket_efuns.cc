@@ -1206,6 +1206,14 @@ int socket_write(int fd, svalue_t* message, const char* name) {
     return EESEND;
   }
 
+  // A retryable SSL error consumes no application bytes.  SSL_write returns
+  // a negative value for WANT_READ/WANT_WRITE (and the retryable syscall
+  // cases above), but the queued-write contract only accepts a non-negative
+  // offset.
+  if (off < 0) {
+    off = 0;
+  }
+
 #ifdef F_NETWORK_STATS
   if (!(lpc_socks[fd].flags & S_EXTERNAL)) {
     inet_out_packets++;
@@ -2048,9 +2056,22 @@ int socket_close(int fd, int flags) {
     call_callback(fd, S_CLOSE_FP, 1);
   }
 
+  set_read_callback(fd, nullptr);
+  set_write_callback(fd, nullptr);
+  set_close_callback(fd, nullptr);
+
+  /* if we're linkdead, we'll never flush, so don't even try :-) */
+  if ((lpc_socks[fd].flags & S_BLOCKED) && !(lpc_socks[fd].flags & S_LINKDEAD) &&
+      !(flags & SC_FINAL_CLOSE)) {
+    /* Can't close now; we still have data to write.  Tell the mudlib
+     * it is closed, but we really finish up later.
+     */
+    lpc_socks[fd].state = STATE_FLUSHING;
+    return EESUCCESS;
+  }
+
   if (lpc_socks[fd].ssl != nullptr) {
     SSL_shutdown(lpc_socks[fd].ssl);
-    // TODO: process write
     SSL_free(lpc_socks[fd].ssl);
     lpc_socks[fd].ssl = nullptr;
   }
@@ -2058,19 +2079,6 @@ int socket_close(int fd, int flags) {
   if (lpc_socks[fd].ssl_ctx != nullptr) {
     SSL_CTX_free(lpc_socks[fd].ssl_ctx);
     lpc_socks[fd].ssl_ctx = nullptr;
-  }
-
-  set_read_callback(fd, nullptr);
-  set_write_callback(fd, nullptr);
-  set_close_callback(fd, nullptr);
-
-  /* if we're linkdead, we'll never flush, so don't even try :-) */
-  if ((lpc_socks[fd].flags & S_BLOCKED) && !(lpc_socks[fd].flags & S_LINKDEAD)) {
-    /* Can't close now; we still have data to write.  Tell the mudlib
-     * it is closed, but we really finish up later.
-     */
-    lpc_socks[fd].state = STATE_FLUSHING;
-    return EESUCCESS;
   }
 
   // cleanup event listeners

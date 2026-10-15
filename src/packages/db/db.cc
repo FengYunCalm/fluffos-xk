@@ -1113,7 +1113,7 @@ static void SQLite3_cleanup(dbconn_t* c) {
 }
 
 static int SQLite3_execute(dbconn_t* c, const char* s) {
-  char** result;
+  char** result = nullptr;
 
   if (sqlite3_prepare(c->SQLite3.handle, s, -1, &c->SQLite3.results, 0) != SQLITE_OK) {
     strncpy(c->SQLite3.errormsg, sqlite3_errmsg(c->SQLite3.handle), sizeof(c->SQLite3.errormsg));
@@ -1134,13 +1134,19 @@ static int SQLite3_execute(dbconn_t* c, const char* s) {
   if (c->SQLite3.results) {
     if (sqlite3_get_table(c->SQLite3.handle, s, &result, &c->SQLite3.nrows, &c->SQLite3.ncolumns,
                           NULL) != SQLITE_OK) {
-      sqlite3_free_table(result);
+      if (result != nullptr) {
+        sqlite3_free_table(result);
+        result = nullptr;
+      }
       sqlite3_finalize(c->SQLite3.results);
       c->SQLite3.results = 0;
       return 0;
     }
 
-    sqlite3_free_table(result);
+    if (result != nullptr) {
+      sqlite3_free_table(result);
+      result = nullptr;
+    }
     c->SQLite3.last_row = 0;
     c->SQLite3.step_res = 0;
     return c->SQLite3.nrows;

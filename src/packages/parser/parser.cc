@@ -3168,7 +3168,8 @@ static void reset_error() {
   free_parser_error(&best_error_info);
 }
 
-static void parse_recurse(char** iwords, char** ostart, char** oend) {
+static void parse_recurse(char** iwords, char** ostart, char** oend,
+                          int* parse_recurse_steps) {
   char buf[1024];
   char* p;
   const char* q;
@@ -3185,9 +3186,8 @@ static void parse_recurse(char** iwords, char** ostart, char** oend) {
   // return chain, not an error() that would skip it). (Upstream 8b0aee8a
   // shares parse_rule's counter; the local parser has no such counter, so a
   // dedicated budget is used instead.)
-  static int parse_recurse_steps = 0;
   constexpr int kMaxParseRecurseSteps = 1000000;
-  if (++parse_recurse_steps > kMaxParseRecurseSteps) {
+  if (++*parse_recurse_steps > kMaxParseRecurseSteps) {
     return;
   }
 
@@ -3204,7 +3204,7 @@ static void parse_recurse(char** iwords, char** ostart, char** oend) {
         words[num_words].end = oend[iwp - iwords - 1];
         words[num_words++].string = const_cast<char*>(q);
         idx = iwp - iwords;
-        parse_recurse(iwp, ostart + idx, oend + idx);
+        parse_recurse(iwp, ostart + idx, oend + idx, parse_recurse_steps);
         num_words--;
       } else if (first) {
         l = p - buf;
@@ -3215,7 +3215,7 @@ static void parse_recurse(char** iwords, char** ostart, char** oend) {
         memcpy(words[num_words].string, buf, l);
         words[num_words++].string[l] = 0;
         idx = iwp - iwords;
-        parse_recurse(iwp, ostart + idx, oend + idx);
+        parse_recurse(iwp, ostart + idx, oend + idx, parse_recurse_steps);
         num_words--;
         FREE_MSTR(words[num_words].string);
       }
@@ -3332,6 +3332,7 @@ static void parse_sentence(const char* input) {
   }
 
   /* find an interpretation, first word must be shared (verb) */
+  int parse_recurse_steps = 0;
   for (i = 1; i <= n; i++) {
     auto* vb = (unsigned char*)findstring((char*)buf);
     verb_t* ve;
@@ -3358,7 +3359,8 @@ static void parse_sentence(const char* input) {
           num_words = 1;
           words[0].start = (char*)orig_starts[0];
           words[0].end = (char*)orig_ends[i - 1];
-          parse_recurse((char**)&starts[i], (char**)&orig_starts[i], (char**)&orig_ends[i]);
+          parse_recurse((char**)&starts[i], (char**)&orig_starts[i],
+                        (char**)&orig_ends[i], &parse_recurse_steps);
         }
         ve = ve->next;
       }

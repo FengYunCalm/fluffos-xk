@@ -5422,10 +5422,13 @@ int inter_sscanf(svalue_t* arg, svalue_t* s0, svalue_t* s1, int num_arg) {
               tmp++;
             }
             if (*tmp == '0') {
+              if (tmp[1] == '\0') {
+                break;
+              }
               if ((tmp[1] == 'x' || tmp[1] == 'X') && uisxdigit(tmp[2])) {
                 break;
               }
-              tmp += 2;
+              ++tmp;
             }
           } while (*tmp);
           break;

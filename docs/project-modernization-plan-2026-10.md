@@ -1630,7 +1630,7 @@ U17 soak 先固定负载及预算，baseline/candidate 各预热 5 分钟、稳�
 | AUD-024 | 已实施，构建手册静态核对通过；无代码/构建行为变化 | `docs/build.md` 已校准后端 type ID、SQLite-only/多后端参数、build→testsuite cwd 和固定并行上限；证据见 `audit-evidence/aud024-current-01/`，未执行 configure、安装或 driver |
 | AUD-025 | 已实施，Debug/ASan/UBSan 定向通过；默认 PCRE2 全包构建与 clang-format 18.1.8 为环境缺口 | `ScratchArenaBinding` 冷启动回退已清零 `base_->used` 并恢复 `current_ = base_`；3 个冷 binding 用例及完整 11 个 `compile_arena_tests` 在三种变体通过，证据见 `audit-evidence/aud025-current-01/`；构建使用 `PACKAGE_PCRE=OFF`，未宣称默认全包构建通过 |
 | AUD-026 | 已实施，Debug/ASan/UBSan 定向及完整 `compile_arena_tests` 通过；`PACKAGE_PCRE=OFF` | `checked_size_add` 已覆盖对齐、Chunk 头部、统计和 `len+1`；溢出拒绝不改 arena 状态，证据见 `audit-evidence/aud026-current-01/`；默认 PCRE2 全包、Windows、真实下游和长期压力未验证 |
-| AUD-027 | 待实施 | 按整改卡依赖推进 |
+| AUD-027 | 已实施；POSIX Debug/ASan/UBSan native 与 LPC 定向通过；TSan 当前主机启动 `make_func` 时发生 `unexpected memory mapping`，Windows 未验证 | `CompilerLocaleScope` 将编译器 locale 限制在当前线程并恢复旧状态；修前失败、修后 runner、TSan 阻塞和平台边界见 `audit-evidence/aud027-current-01/summary.md` 与 `REMEDIATION_PLAN.md`；不据此宣称全局 release-ready |
 | AUD-028 | 待实施 | 按整改卡依赖推进 |
 | AUD-029 | 待实施 | 按整改卡依赖推进 |
 | AUD-030 | 待实施 | 按整改卡依赖推进 |

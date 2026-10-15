@@ -1177,7 +1177,7 @@ static void include_error(const char* msg, int global) {
 
 static void handle_include(char* name, int global) {
   char* p;
-  static char buf[MAXLINE];
+  char buf[MAXLINE];
   incstate_t* is;
   int delim, f;
 
@@ -3216,13 +3216,18 @@ void end_new_file() {
   }
 }
 
-static void add_quoted_predefine(const char* def, const char* val) {
-  char save_buf[MAXLINE];
+std::string quote_predefine_value(const char* val) {
+  std::string quoted;
 
-  strcpy(save_buf, "\"");
-  strcat(save_buf, val);
-  strcat(save_buf, "\"");
-  add_predefine(def, -1, save_buf);
+  quoted.push_back('\"');
+  quoted.append(val);
+  quoted.push_back('\"');
+  return quoted;
+}
+
+static void add_quoted_predefine(const char* def, const char* val) {
+  const std::string quoted = quote_predefine_value(val);
+  add_predefine(def, -1, quoted.c_str());
 }
 
 void add_predefines() {
@@ -3260,8 +3265,7 @@ void add_predefines() {
 #endif
 
   // Adding version
-  sprintf(save_buf, "%s", PROJECT_VERSION);
-  add_quoted_predefine("__VERSION__", save_buf);
+  add_quoted_predefine("__VERSION__", PROJECT_VERSION);
 
   sprintf(save_buf, "%d", external_port[0].port);
   add_predefine("__PORT__", -1, save_buf);
@@ -3290,15 +3294,22 @@ void add_predefines() {
   for (tmpf = lpc_predefs; tmpf; tmpf = tmpf->next) {
     char namebuf[NSIZE];
     char mtext[MLEN];
+    const char* const separator = strchr(tmpf->flag, '=');
+    const size_t name_len = separator == nullptr
+                                ? strlen(tmpf->flag)
+                                : static_cast<size_t>(separator - tmpf->flag);
+    const char* const value = separator == nullptr ? "" : separator + 1;
+    const size_t value_len = strlen(value);
 
-    *mtext = '\0';
-    sscanf(tmpf->flag, "%[^=]=%[ -~=]", namebuf, mtext);
-    if (strlen(namebuf) >= NSIZE) {
+    if (name_len >= NSIZE) {
       fatal("NSIZE exceeded");
     }
-    if (strlen(mtext) >= MLEN) {
+    if (value_len >= MLEN) {
       fatal("MLEN exceeded");
     }
+    memcpy(namebuf, tmpf->flag, name_len);
+    namebuf[name_len] = '\0';
+    memcpy(mtext, value, value_len + 1);
     add_predefine(namebuf, -1, mtext);
   }
   sprintf(save_buf, "%zu", sizeof(LPC_INT));
@@ -3811,6 +3822,18 @@ struct directive_capture_t {
     append(' ');
   }
 
+  bool append_char_candidate(char c) {
+    if (size + char_candidate.size() + 1 >= DEFMAX) {
+      lexerror("Preprocessor character literal too long");
+      char_candidate.clear();
+      state = directive_scan_state_t::kCode;
+      char_state = directive_char_state_t::kBody;
+      return false;
+    }
+    char_candidate.push_back(c);
+    return true;
+  }
+
   void process_code_char(char c);
 
   void replay_char_candidate() {
@@ -3828,11 +3851,15 @@ struct directive_capture_t {
   void process_char_candidate_char(char c) {
     if (char_state == directive_char_state_t::kHex) {
       if (directive_is_hex(static_cast<unsigned char>(c))) {
-        char_candidate.push_back(c);
+        if (!append_char_candidate(c)) {
+          return;
+        }
         return;
       }
       if (c == '\'') {
-        char_candidate.push_back(c);
+        if (!append_char_candidate(c)) {
+          return;
+        }
         for (char candidate_char : char_candidate)
           append(candidate_char);
         char_candidate.clear();
@@ -3846,11 +3873,15 @@ struct directive_capture_t {
     }
     if (char_state == directive_char_state_t::kOctal) {
       if (directive_is_octal(static_cast<unsigned char>(c))) {
-        char_candidate.push_back(c);
+        if (!append_char_candidate(c)) {
+          return;
+        }
         return;
       }
       if (c == '\'') {
-        char_candidate.push_back(c);
+        if (!append_char_candidate(c)) {
+          return;
+        }
         for (char candidate_char : char_candidate)
           append(candidate_char);
         char_candidate.clear();
@@ -3864,7 +3895,9 @@ struct directive_capture_t {
     }
     if (char_state == directive_char_state_t::kClose) {
       if (c == '\'') {
-        char_candidate.push_back(c);
+        if (!append_char_candidate(c)) {
+          return;
+        }
         for (char candidate_char : char_candidate)
           append(candidate_char);
         char_candidate.clear();
@@ -3877,7 +3910,9 @@ struct directive_capture_t {
       return;
     }
 
-    char_candidate.push_back(c);
+    if (!append_char_candidate(c)) {
+      return;
+    }
     if (char_state == directive_char_state_t::kBody) {
       char_state = c == '\\' ? directive_char_state_t::kEscape : directive_char_state_t::kClose;
     } else if (char_state == directive_char_state_t::kEscape) {
@@ -3974,7 +4009,9 @@ void directive_capture_t::process_code_char(char c) {
     state = c == '"' ? directive_scan_state_t::kString : directive_scan_state_t::kTemplate;
   } else if (c == '\'' && !replaying_candidate) {
     char_candidate.clear();
-    char_candidate.push_back(c);
+    if (!append_char_candidate(c)) {
+      return;
+    }
     char_state = directive_char_state_t::kBody;
   } else {
     append(c);
@@ -4373,13 +4410,17 @@ static int extract_args(char** argv, char* argb) {
     /* negative parcnt means we're done collecting args */
     if (parcnt < 0 || (c == ',' && !parcnt && !dquote && !squote)) {
       /* strip off trailing whitespace char if there was one */
-      if (uisspace(*(out - 1))) {
+      if (out > argv[argc] && uisspace(*(out - 1))) {
         *(out - 1) = 0;
       } else {
         *out++ = 0;
       }
       if (parcnt < 0) {
         return argc + 1;
+      }
+      if (argc + 1 >= NARGS) {
+        lexerror("Maximum macro argument count exceeded");
+        return -1;
       }
       argv[++argc] = out;
     } else {

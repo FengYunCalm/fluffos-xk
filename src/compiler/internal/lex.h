@@ -2,6 +2,7 @@
 #define _LEX_H_
 
 #include <functional>
+#include <string>
 #include <string_view>
 
 #include "compiler/internal/LexStream.h"
@@ -130,6 +131,7 @@ void set_inc_list(char*);
 void start_new_file(std::unique_ptr<LexStream>);
 void end_new_file(void);
 int lookup_predef(const char*);
+std::string quote_predefine_value(const char*);
 void add_predefines(void);
 const char* main_file_name(void);
 char* get_defined_name(defined_name_t*);

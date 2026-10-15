@@ -1,6 +1,139 @@
 #include "test_lpc_support.h"
 
+#include <clocale>
+
 #include "compiler/internal/disassembler.h"
+
+namespace {
+class BlockingLexStream final : public LexStream {
+ public:
+  BlockingLexStream(std::string source, std::atomic<bool>& entered, std::atomic<bool>& release)
+      : source_(std::move(source)), entered_(entered), release_(release) {}
+
+  size_t read(char* buffer, size_t size) override {
+    if (!blocked_) {
+      blocked_ = true;
+      entered_.store(true, std::memory_order_release);
+      while (!release_.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+    }
+
+    if (offset_ == source_.size()) {
+      return 0;
+    }
+    const size_t count = std::min(size, source_.size() - offset_);
+    std::memcpy(buffer, source_.data() + offset_, count);
+    offset_ += count;
+    return count;
+  }
+
+  void close() override {}
+
+ private:
+  std::string source_;
+  size_t offset_ = 0;
+  std::atomic<bool>& entered_;
+  std::atomic<bool>& release_;
+  bool blocked_ = false;
+};
+
+class GlobalLocaleRestore final {
+ public:
+  explicit GlobalLocaleRestore(const char* locale) : locale_(locale) {}
+
+  ~GlobalLocaleRestore() {
+    std::setlocale(LC_ALL, locale_.c_str());
+  }
+
+ private:
+  std::string locale_;
+};
+}  // namespace
+
+TEST_F(DriverTest, TestAuditCompilerLocaleIsolation) {
+  const char* current_locale = std::setlocale(LC_ALL, nullptr);
+  ASSERT_NE(current_locale, nullptr);
+  GlobalLocaleRestore restore(current_locale);
+
+  if (std::strcmp(current_locale, "C") == 0 || std::strcmp(current_locale, "POSIX") == 0) {
+    current_locale = std::setlocale(LC_ALL, "C.UTF-8");
+    if (current_locale == nullptr || std::strcmp(current_locale, "C") == 0) {
+      GTEST_SKIP() << "no non-C locale is available on this host";
+    }
+  }
+  const std::string baseline_locale(current_locale);
+
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+  std::atomic<bool> observed_c_locale{false};
+  std::thread observer([&] {
+    while (!entered.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    const char* observed = std::setlocale(LC_ALL, nullptr);
+    observed_c_locale.store(observed != nullptr && std::strcmp(observed, "C") == 0,
+                            std::memory_order_release);
+    release.store(true, std::memory_order_release);
+  });
+
+  auto stream = std::make_unique<BlockingLexStream>(
+      "float test() { return 1.5; }\n", entered, release);
+  auto* program = compile_file(std::move(stream), "audit-compiler-locale");
+  observer.join();
+
+  ASSERT_NE(program, nullptr);
+  EXPECT_FALSE(observed_c_locale.load(std::memory_order_acquire));
+  deallocate_program(program);
+
+  compiler_diag::clear();
+  std::istringstream invalid_source("float test( { return 1.5; }\n");
+  auto invalid_program = compile_file(
+      std::make_unique<IStreamLexStream>(invalid_source), "audit-compiler-locale-error");
+  EXPECT_EQ(invalid_program, nullptr);
+
+  const char* after_locale = std::setlocale(LC_ALL, nullptr);
+  ASSERT_NE(after_locale, nullptr);
+  EXPECT_STREQ(after_locale, baseline_locale.c_str());
+}
+
+TEST_F(DriverTest, TestAuditPredefineBounds) {
+  auto expect_quoted = [](size_t value_size) {
+    const std::string value(value_size, 'x');
+    const std::string quoted = quote_predefine_value(value.c_str());
+
+    ASSERT_EQ(quoted.size(), value.size() + 2);
+    ASSERT_FALSE(quoted.empty());
+    EXPECT_EQ(quoted.front(), '"');
+    EXPECT_EQ(quoted.back(), '"');
+    EXPECT_EQ(quoted.substr(1, value.size()), value);
+  };
+
+  constexpr size_t kMaxQuotedValue = MAXLINE - 3;
+  expect_quoted(0);
+  expect_quoted(1);
+  expect_quoted(kMaxQuotedValue);
+  expect_quoted(kMaxQuotedValue + 1);
+  expect_quoted(MAXLINE * 2);
+
+  const std::string version(PROJECT_VERSION);
+  EXPECT_EQ(quote_predefine_value(PROJECT_VERSION), std::string("\"") + version + "\"");
+}
+
+TEST_F(DriverTest, TestAuditPredefineBoundsRecovery) {
+  compiler_diag::clear();
+  std::istringstream invalid_source("float test( { return 1.5; }\n");
+  auto invalid_program = compile_file(
+      std::make_unique<IStreamLexStream>(invalid_source), "audit-predefine-error");
+  EXPECT_EQ(invalid_program, nullptr);
+
+  compiler_diag::clear();
+  std::istringstream valid_source("void test() {}\n");
+  auto valid_program = compile_file(
+      std::make_unique<IStreamLexStream>(valid_source), "audit-predefine-recovery");
+  ASSERT_NE(valid_program, nullptr);
+  deallocate_program(valid_program);
+}
 
 TEST_F(DriverTest, TestInMemoryCompileFile) {
   program_t* prog = nullptr;
