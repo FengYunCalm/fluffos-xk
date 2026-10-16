@@ -120,7 +120,11 @@ class EGCIterator {
   bool setup_icu() {
     UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
-    utext_openUTF8(&text, src_, len_, &status);
+    // ICU versions used by the Windows build may inspect the input pointer
+    // even for an empty range. A subrange ending at std::string::data()+size
+    // is a valid empty range but is not required to point at readable storage.
+    const char* const text_src = len_ == 0 ? "" : src_;
+    utext_openUTF8(&text, text_src, len_, &status);
     if (!U_SUCCESS(status)) {
       utext_close(&text);
       return false;
