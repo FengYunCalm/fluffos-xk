@@ -1116,10 +1116,12 @@ case:
     }
   | L_CASE case_label L_RANGE case_label ':'
     {
-      if ( $2->kind != NODE_CASE_NUMBER
-          || $4->kind != NODE_CASE_NUMBER )
+      const bool numeric_bounds = $2->kind == NODE_CASE_NUMBER && $4->kind == NODE_CASE_NUMBER;
+      if (!numeric_bounds) {
         yyerror("String case labels not allowed as range bounds");
-      if ($2->r.number > $4->r.number) break;
+      } else if ($2->r.number > $4->r.number) {
+        yyerror("Case range lower bound is greater than its upper bound");
+      }
 
       context |= SWITCH_RANGES;
 
@@ -1155,18 +1157,18 @@ case:
 
       add_to_mem_block(A_CASES, (char *)&($$), sizeof($$));
     }
-  |  L_DEFAULT ':'
+  | L_DEFAULT ':'
     {
       if (context & SWITCH_DEFAULT) {
         yyerror("Duplicate default");
         $$ = 0;
-        break;
+      } else {
+        $$ = new_node();
+        $$->kind = NODE_DEFAULT;
+        $$->v.expr = 0;
+        add_to_mem_block(A_CASES, (char *)&($$), sizeof($$));
+        context |= SWITCH_DEFAULT;
       }
-      $$ = new_node();
-      $$->kind = NODE_DEFAULT;
-      $$->v.expr = 0;
-      add_to_mem_block(A_CASES, (char *)&($$), sizeof($$));
-      context |= SWITCH_DEFAULT;
     }
 ;
 

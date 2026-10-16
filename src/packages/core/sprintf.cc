@@ -1072,6 +1072,7 @@ char* string_print_formatted(const char* format_str, int argc, svalue_t* argv) {
       /*
        * now handle the different arg types...
        */
+      const int array_finfo = finfo;
       if (finfo & INFO_ARRAY) {
         if (carg->type != T_ARRAY) {
           SPRINTF_ERROR(ERR_ARRAY_EXPECTED);
@@ -1085,6 +1086,12 @@ char* string_print_formatted(const char* format_str, int argc, svalue_t* argv) {
         nelemno = 1; /* next element number */
       }
       while (true) {
+        if (finfo & INFO_ARRAY) {
+          // Conversion of one element must not change the format flags used
+          // for the next element in the same array.
+          finfo = array_finfo;
+        }
+        svalue_t numeric_carg = const0u;
         if ((finfo & INFO_T) == INFO_T_LPC) {
           outbuffer_t outbuf;
 
@@ -1355,13 +1362,23 @@ char* string_print_formatted(const char* format_str, int argc, svalue_t* argv) {
               SPRINTF_ERROR(ERR_BAD_INT_TYPE);
           }
           if ((cheat[i - 1] == 'f' && carg->type == T_NUMBER)) {
-            // convert to T_REAL
-            LPC_FLOAT temp = carg->u.number;
+            // Convert through a local value for array elements. Formatting
+            // must not rewrite the caller's array slot.
+            if (finfo & INFO_ARRAY) {
+              numeric_carg = *carg;
+              carg = &numeric_carg;
+            }
             carg->type = T_REAL;
-            carg->u.real = temp;
+            carg->u.real = carg->u.number;
           } else if ((cheat[i - 1] == 'd' && carg->type == T_REAL)) {
-            // convert to T_NUMBER
-            LPC_INT temp = floor(carg->u.real);
+            if (finfo & INFO_ARRAY) {
+              numeric_carg = *carg;
+              carg = &numeric_carg;
+            }
+            LPC_INT temp;
+            if (!lpc_float_to_int(floor(carg->u.real), &temp)) {
+              error("sprintf: floating point value is outside the LPC integer range.\n");
+            }
             carg->type = T_NUMBER;
             carg->u.number = temp;
           } else if ((cheat[i - 1] == 'f' && carg->type != T_REAL) ||

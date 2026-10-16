@@ -259,7 +259,21 @@ int check_valid_socket(const char* const what, int fd, object_t* owner, const ch
   return MASTER_APPROVED(mret);
 }
 
+static void free_socket_events(int which) {
+  if (lpc_socks[which].ev_read != nullptr) {
+    event_free(lpc_socks[which].ev_read);
+    lpc_socks[which].ev_read = nullptr;
+  }
+  if (lpc_socks[which].ev_write != nullptr) {
+    event_free(lpc_socks[which].ev_write);
+    lpc_socks[which].ev_write = nullptr;
+  }
+  delete lpc_socks[which].ev_data;
+  lpc_socks[which].ev_data = nullptr;
+}
+
 static void clear_socket(int which, int dofree) {
+  free_socket_events(which);
   if (dofree) {
     set_read_callback(which, nullptr);
     set_write_callback(which, nullptr);
@@ -286,8 +300,6 @@ static void clear_socket(int which, int dofree) {
   lpc_socks[which].w_buf = nullptr;
   lpc_socks[which].w_off = 0;
   lpc_socks[which].w_len = 0;
-  lpc_socks[which].ev_read = nullptr;
-  lpc_socks[which].ev_write = nullptr;
   lpc_socks[which].text_input.clear();
   for (int i = 0; i < NUM_SOCKET_OPTIONS; i++) {
     if (lpc_socks[which].options[i].type != T_NUMBER || lpc_socks[which].options[i].u.number != 0) {
@@ -2085,19 +2097,6 @@ int socket_close(int fd, int flags) {
     lpc_socks[fd].ssl_ctx = nullptr;
   }
 
-  // cleanup event listeners
-  if (lpc_socks[fd].ev_read != nullptr) {
-    event_free(lpc_socks[fd].ev_read);
-    lpc_socks[fd].ev_read = nullptr;
-  }
-  if (lpc_socks[fd].ev_write != nullptr) {
-    event_free(lpc_socks[fd].ev_write);
-    lpc_socks[fd].ev_write = nullptr;
-  }
-  if (lpc_socks[fd].ev_data != nullptr) {
-    delete lpc_socks[fd].ev_data;
-    lpc_socks[fd].ev_data = nullptr;
-  }
   evutil_closesocket(lpc_socks[fd].fd);
   if (lpc_socks[fd].r_buf != nullptr) {
     FREE(lpc_socks[fd].r_buf);
@@ -2403,7 +2402,7 @@ array_t* socket_status(int which) {
       sockaddr_to_lpcaddr((struct sockaddr*)&lpc_socks[which].r_addr, lpc_socks[which].r_addrlen),
       "socket_status");
 
-  if (!(lpc_socks[which].flags & STATE_FLUSHING) && lpc_socks[which].owner_ob &&
+  if (lpc_socks[which].state != STATE_FLUSHING && lpc_socks[which].owner_ob &&
       !(lpc_socks[which].owner_ob->flags & O_DESTRUCTED)) {
     ret->item[5].type = T_OBJECT;
     ret->item[5].u.ob = lpc_socks[which].owner_ob;

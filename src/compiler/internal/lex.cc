@@ -1178,26 +1178,26 @@ static void include_error(const char* msg, int global) {
 static void handle_include(char* name, int global) {
   char* p;
   char buf[MAXLINE];
+  int macro_expansions = 0;
   incstate_t* is;
   int delim, f;
 
   symbol_record(OP_SYMBOL_INC, current_file, current_line, name);
 
-  if (*name != '"' && *name != '<') {
-    defn_t* d;
-
-    if ((d = lookup_define(name)) && d->nargs == -1) {
-      char* q;
-
-      q = d->exps;
-      while (uisspace(*q)) {
-        q++;
-      }
-      handle_include(q, global);
-    } else {
+  while (*name != '"' && *name != '<') {
+    defn_t* d = lookup_define(name);
+    if (d == nullptr || d->nargs != -1) {
       include_error("Missing leading \" or < in #include", global);
+      return;
     }
-    return;
+    if (++macro_expansions > EXPANDMAX) {
+      include_error("Too many macro expansions in #include", global);
+      return;
+    }
+    name = d->exps;
+    while (uisspace(*name)) {
+      name++;
+    }
   }
   name = string_copy(name, "handle_include");
   push_malloced_string(name);

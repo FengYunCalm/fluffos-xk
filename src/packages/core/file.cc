@@ -306,8 +306,10 @@ array_t* get_dir(const char* path, int flags) {
     return nullptr;
   }
   /*
-   * Count files
+   * Count files. A non-null readdir result is not enough to distinguish
+   * normal EOF from an I/O error, so preserve errno for the failure path.
    */
+  errno = 0;
   for (de = readdir(dirp); de; de = readdir(dirp)) {
     namelen = strlen(de->d_name);
     if (!do_match && (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)) {
@@ -320,6 +322,10 @@ array_t* get_dir(const char* path, int flags) {
     if (count >= max_array_size) {
       break;
     }
+  }
+  if (de == nullptr && errno != 0) {
+    closedir(dirp);
+    return nullptr;
   }
 
   /*
@@ -342,7 +348,8 @@ array_t* get_dir(const char* path, int flags) {
     *endtemp = '\0';
   }
 
-  for (i = 0, de = readdir(dirp); i < count; de = readdir(dirp)) {
+  errno = 0;
+  for (i = 0, de = readdir(dirp); i < count && de != nullptr; de = readdir(dirp)) {
     namelen = strlen(de->d_name);
     if (!do_match && (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)) {
       continue;
@@ -356,22 +363,33 @@ array_t* get_dir(const char* path, int flags) {
        * We'll have to .... sigh.... stat() the file to get some add'tl
        * info.
        */
-      // #1247 FILE-2: bound the combined path; if it can't fit, report
-      // zeroed stat info instead of overflowing temppath.
+      // #1247 FILE-2: bound the combined path and do not manufacture
+      // metadata when the target cannot be represented or stat() fails.
       size_t const avail = sizeof(temppath) - (size_t)(endtemp - temppath);
-      if (namelen < avail) {
-        memcpy(endtemp, de->d_name, namelen + 1);
-        large_file_stat(temppath, &st); /* We assume it works. */
-      } else {
-        memset(&st, 0, sizeof(st));
+      if (namelen >= avail) {
+        free_array(v);
+        closedir(dirp);
+        return nullptr;
+      }
+      memcpy(endtemp, de->d_name, namelen + 1);
+      if (large_file_stat(temppath, &st) < 0) {
+        free_array(v);
+        closedir(dirp);
+        return nullptr;
       }
     }
     encode_stat(&v->item[i], flags, de->d_name, &st);
     i++;
   }
+  if (de == nullptr && errno != 0) {
+    free_array(v);
+    closedir(dirp);
+    return nullptr;
+  }
   closedir(dirp);
+  v->size = i;
   /* Sort the names. */
-  qsort((void*)v->item, count, sizeof v->item[0], (flags == -1) ? parrcmp : pstrcmp);
+  qsort((void*)v->item, i, sizeof v->item[0], (flags == -1) ? parrcmp : pstrcmp);
   return v;
 }
 
@@ -937,9 +955,20 @@ static int do_move(const char* from, const char* to, int flag) {
   }
 #ifdef F_LINK
   else if (flag == F_LINK) {
-    if (symlink(from, to) == 0) { /* symbolic link */
+    fs::path symlink_target(from);
+    const fs::path target_parent = fs::path(to).parent_path();
+    if (!symlink_target.is_absolute() && !target_parent.empty()) {
+      symlink_target = symlink_target.lexically_relative(target_parent);
+      if (symlink_target.empty()) {
+        error("cannot calculate link target for `/%s'\n", to);
+        return 1;
+      }
+    }
+    if (symlink(symlink_target.string().c_str(), to) == 0) { /* symbolic link */
       return 0;
     }
+    error("cannot create symbolic link `/%s' to `/%s'\n", to, from);
+    return 1;
   }
 #endif
   return 0;

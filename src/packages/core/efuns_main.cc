@@ -3140,7 +3140,9 @@ void f__to_int() {
   LPC_INT temp = 0;
   switch (sp->type) {
     case T_REAL:
-      temp = sp->u.real;
+      if (!lpc_float_to_int(sp->u.real, &temp)) {
+        error("to_int: floating point value is outside the LPC integer range.\n");
+      }
       sp->type = T_NUMBER;
       sp->u.number = temp;
       break;

@@ -1910,10 +1910,14 @@ parse_node_t* promote_to_float(parse_node_t* node) {
 parse_node_t* promote_to_int(parse_node_t* node) {
   parse_node_t* expr;
   if (node->kind == NODE_REAL) {
-    node->kind = NODE_NUMBER;
-    decltype(node->v.number) tmp = node->v.real;
-    node->v.number = tmp;
-    return node;
+    LPC_INT tmp;
+    if (lpc_float_to_int(node->v.real, &tmp)) {
+      node->kind = NODE_NUMBER;
+      node->v.number = tmp;
+      return node;
+    }
+    // Keep an out-of-range constant as a runtime conversion so the shared
+    // VM range contract reports the error before any invalid cast occurs.
   }
   expr = new_node();
   expr->kind = NODE_EFUN;

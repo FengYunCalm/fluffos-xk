@@ -7,6 +7,7 @@
 
 #include "packages/core/file.h"
 
+#include <climits>
 #include <memory>
 #include <string>
 #include <fcntl.h>
@@ -346,11 +347,15 @@ void f_uncompress() {
     push_undefined();
     return;
   }
+  if (buffer->size > UINT_MAX) {
+    pop_n_elems(st_num_arg);
+    error("uncompress: input is too large.\n");
+  }
 
   compressed =
       reinterpret_cast<z_stream*>(DMALLOC(sizeof(z_stream), TAG_INTERACTIVE, "start_compression"));
   compressed->next_in = buffer->item;
-  compressed->avail_in = buffer->size;
+  compressed->avail_in = static_cast<unsigned int>(buffer->size);
   compressed->next_out = compress_buf;
   compressed->avail_out = COMPRESS_BUF_SIZE;
   compressed->zalloc = zlib_alloc;

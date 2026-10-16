@@ -121,17 +121,22 @@ void reject_with_number(promise_t* p, LPC_INT n) {
   pop_stack();
 }
 
-void append_capped(std::string& dest, const char* data, size_t len) {
-  if (!data || len == 0) {
-    return;
+bool append_capped(std::string& dest, const char* data, size_t len) {
+  if (len == 0) {
+    return true;
+  }
+  if (!data) {
+    return false;
   }
   auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
   size_t room = (max_string_length > 0 && static_cast<size_t>(max_string_length) > dest.size())
                     ? static_cast<size_t>(max_string_length) - dest.size()
                     : 0;
-  if (room > 0) {
-    dest.append(data, std::min(len, room));
+  if (len > room) {
+    return false;
   }
+  dest.append(data, len);
+  return true;
 }
 
 ExternalHandle* lookup_handle(int id, int require_owner) {
@@ -680,7 +685,11 @@ int queue_stdin(ExternalHandle* h, int id, const char* data, size_t len) {
   if (h->in_closed || h->close_stdin_after_flush || h->state == HandleState::Done) {
     return 0;
   }
-  append_capped(h->in_buf, data, len);
+  if (!append_capped(h->in_buf, data, len)) {
+    // Reject the whole write. The capped input buffer remains unchanged, so
+    // callers never receive success for a partially queued stdin payload.
+    return 0;
+  }
   if (h->state == HandleState::Running) {
     flush_stdin(h, id);
   }
@@ -1339,7 +1348,14 @@ void f_external_create() {
   int const num_arg = st_num_arg;
   svalue_t* arg = sp - num_arg + 1;
 
-  /* Allocation is not privileged; valid_socket is checked at run. */
+  /* A handle consumes a global slot, so apply the same permission contract
+   * before allocating it rather than waiting until external_run(). */
+  if (!check_valid_socket("external", -1, current_object, "N/A", -1)) {
+    pop_n_elems(num_arg);
+    push_number(EESECURITY);
+    return;
+  }
+  st_num_arg = num_arg;
   int const cmd = validate_cmd_index(arg[0].u.number);
   std::vector<std::string> extra;
   parse_cmd_args(arg + 1, &extra);

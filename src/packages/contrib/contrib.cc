@@ -9,6 +9,7 @@
 #include "packages/core/heartbeat.h"
 #include "packages/core/add_action.h"
 #include "packages/core/file.h"
+#include "vm/internal/eval_limit.h"
 
 enum { MAX_COLOUR_STRING = 200 };
 
@@ -2834,7 +2835,7 @@ void f_abs() {
 
 void f_roll_MdN() {
   int const num_arg = st_num_arg;
-  int sides, rolls, bonus;
+  LPC_INT sides, rolls, bonus;
   LPC_INT roll = 0;
 
   rolls = (sp - 2)->u.number;
@@ -2842,7 +2843,10 @@ void f_roll_MdN() {
   bonus = sp->u.number;
 
   if (rolls > 0 && sides > 0) {
-    while (rolls--) {
+    while (rolls-- > 0) {
+      if (eval_limit_expired()) {
+        break;
+      }
       roll += 1 + random_number(sides);
     }
     roll += bonus;
@@ -2891,9 +2895,15 @@ int levenshtein(char* a, int as, char* b, int bs) {
   }
 
   for (i = 0; i < as; i++) {
+    if (eval_limit_expired()) {
+      break;
+    }
     table[0] = i + 1;
     skew = i;
     for (j = 1; j <= bs; j++) {
+      if ((j & 0xff) == 0 && eval_limit_expired()) {
+        break;
+      }
       if (a[i] != b[j - 1]) {
         skew++;
       }
