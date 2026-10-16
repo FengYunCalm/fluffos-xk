@@ -1,5 +1,9 @@
 # FluffOS_XK 全面整理与优化执行方案
 
+> **2026-10-16 当前执行收口（以当前 HEAD 为准）**
+> 本地 Linux 实施已完成；收口提交 `eb226071` 已完成定向 Debug/ASan/UBSan、完整 LPC、SQLite、Release DB/file、生成一致性和文档/格式门禁。TSan 因工具链 unexpected memory mapping、PCRE2 因开发依赖缺失、Windows/真实下游与长期 soak 尚未取得证据；状态仍为 external-required/blocked，不标记 release-ready。
+> 持久证据目录：`audit-evidence/modernization-final-20261016/`。历史证据不替代当前 HEAD 证据；外部缺口不得以本地结果补记。
+
 日期：2026-10-06。状态：**本地 Linux 可执行范围已完成；总体状态为 `complete-local/external-required`，详见 §11.73。Windows、真实下游 mudlib、真实交互/数据库和长时生产 soak 未验证，不得标为无条件 `release-ready`。**
 
 调查与最终审计阶段仅修改文档。用户随后批准严格按本方案连续开发；源码、测试、构建和隔离验证按各单元范围执行。独立的[代码规范](coding-standard.md)继续适用。§1.2 的排除项、单列策略审批、工作区归属和外部操作授权不因开发启动而取消；不部署、重启运行实例或操作下游业务数据。

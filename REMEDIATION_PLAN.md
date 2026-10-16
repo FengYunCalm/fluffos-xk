@@ -1,5 +1,9 @@
 # FluffOS_XK 审计修复方案
 
+> **2026-10-16 当前执行收口（以当前 HEAD 为准）**
+> 本地 Linux 实施已完成；收口提交 `eb226071` 已完成定向 Debug/ASan/UBSan、完整 LPC、SQLite、Release DB/file、生成一致性和文档/格式门禁。TSan 因工具链 unexpected memory mapping、PCRE2 因开发依赖缺失、Windows/真实下游与长期 soak 尚未取得证据；状态仍为 external-required/blocked，不标记 release-ready。
+> 持久证据目录：`audit-evidence/modernization-final-20261016/`。历史证据不替代当前 HEAD 证据；外部缺口不得以本地结果补记。
+
 > 对应 [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md) 的 AUD-001–AUD-069。
 > **本方案已获准连续实施；执行状态以[主计划审计账本](docs/project-modernization-plan-2026-10.md#audit-remediation-ledger)为准。** 各卡保留修复步骤、依赖与验收合同，不把历史审计结果当作当前修复证据。
 > 现行唯一实施主计划仍是 [docs/project-modernization-plan-2026-10.md](docs/project-modernization-plan-2026-10.md)。问题 ID、依赖和证据挂靠到该计划的对应单元；本文件不取代主计划，也不授权安装、部署、发布或回退。
