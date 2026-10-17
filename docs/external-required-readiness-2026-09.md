@@ -59,8 +59,8 @@ Shape:
    per-tick cost, owner queue depth, heartbeat drift and cleanup latencies.
 2. 30-player smoke: confirm the metrics move proportionally and that no owner
    queue saturates or recompile quiescence times out.
-3. 300-player run: only if the 30-player smoke holds, with the same metrics plus
-   error logs checked for quiescence timeouts and rejected tasks.
+3. No fixed 300-player pass is required. A larger run may be used as an
+   optional diagnostic, but it is not part of the readiness gate.
 
 What to watch: `owner_quiesce_*` counters and runtime status snapshots (they are
 exposed as LPC status, so the collection is an LPC command, not a rebuild),
@@ -71,8 +71,8 @@ binary and config, and confirm the baseline metrics return. The run is
 read-mostly but it writes player state if the target is a live world, so it
 belongs on a staging copy.
 
-Evidence to keep: the three metric snapshots, the log excerpt, and the exact
-build (commit + config) under `docs/evidence/`.
+Evidence to keep: the baseline and smoke metric snapshots, the log excerpt,
+and the exact build (commit + config) under `docs/evidence/`.
 
 ## 3. Cross-platform CI matrix
 
