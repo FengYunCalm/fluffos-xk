@@ -2,6 +2,7 @@
 
 #include "packages/async/async.h"
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
@@ -132,6 +133,24 @@ size_t pending_request_bytes = 0;
 
 std::deque<struct Request*> finished_reqs;
 std::mutex finished_reqs_lock;
+
+// complete_all_asyncio() is a synchronous main-thread barrier used by tests
+// and shutdown. While it drains callbacks, dispatch them through the main
+// queue instead of an owner executor: the barrier cannot wait for an owner
+// task by blocking the same main thread that must admit its follow-up work.
+std::atomic<bool> completion_barrier_active{false};
+
+class CompletionBarrierScope {
+ public:
+  CompletionBarrierScope()
+      : previous_(completion_barrier_active.exchange(true, std::memory_order_acq_rel)) {}
+  ~CompletionBarrierScope() {
+    completion_barrier_active.store(previous_, std::memory_order_release);
+  }
+
+ private:
+  bool previous_;
+};
 
 class ControlledLpcScope {
  public:
@@ -954,10 +973,12 @@ void dispatch_finished_request(Request* req, enum atypes type) {
   }
 
   auto executor_available = vm_owner_executor_available();
+  auto use_executor =
+      executor_available && !completion_barrier_active.load(std::memory_order_acquire);
   // Promise settlement queues VM microtasks and may resume an LPC coroutine;
   // keep that transition on the main/owner admission path rather than
   // mutating promise references from an executor worker.
-  if (executor_available && req->promise == nullptr) {
+  if (use_executor && req->promise == nullptr) {
     auto task_id = vm_owner_enqueue_executor_task(
         owner, "async_callback", operation.c_str(),
         [req, type, operation] {
@@ -1008,6 +1029,7 @@ void check_reqs() {
 }
 
 void complete_all_asyncio() {
+  CompletionBarrierScope const barrier_scope;
   // A callback may submit another request (for example, an async read from an
   // async write callback), so one wait-and-dispatch pass is not sufficient.
   // Also account for work already popped by a worker: reqs can be empty while
