@@ -330,7 +330,10 @@ TEST_F(DriverTest, TestAuditEvalBudgetDeadline) {
   EXPECT_EQ(remaining_after_expiry, 0);
   EXPECT_LT(polls, kMaxPolls);
 
-  constexpr uint64_t kMainThreadBudgetMicros = 100'000;
+  // Leave enough scheduling margin for thread creation and join on shared
+  // macOS CI runners; the assertion below only requires isolation from the
+  // worker's much shorter budget.
+  constexpr uint64_t kMainThreadBudgetMicros = 5'000'000;
   constexpr uint64_t kWorkerThreadBudgetMicros = 5'000;
   std::atomic<int64_t> worker_initial_remaining{0};
   std::atomic<int64_t> worker_remaining_after_expiry{0};
