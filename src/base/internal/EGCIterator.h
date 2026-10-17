@@ -118,13 +118,28 @@ class EGCIterator {
   }
 
   bool setup_icu() {
+    // Do not bind an empty range through ICU's UTF-8 UText adapter. The
+    // Windows ICU build dereferences the adapter's source during this path,
+    // even though a zero-length range has no bytes to read. A native empty
+    // UnicodeString preserves the same zero-boundary iterator semantics
+    // without exposing a one-past string pointer to that adapter.
+    if (len_ == 0) {
+      // Keep the zero-length value backed by a non-null storage address. Some
+      // Windows ICU builds dereference UnicodeString's backing pointer while
+      // binding an empty text, even though no code unit is in range.
+      static const UChar empty_storage[1] = {0};
+      static const icu::UnicodeString empty(false, empty_storage, 0);
+      // BreakIterator retains the UnicodeString reference after setText();
+      // the text must therefore outlive this iterator and its pool entry.
+      brk_->setText(empty);
+      brk_->first();
+      icu_ready_ = true;
+      return true;
+    }
+
     UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
-    // ICU versions used by the Windows build may inspect the input pointer
-    // even for an empty range. A subrange ending at std::string::data()+size
-    // is a valid empty range but is not required to point at readable storage.
-    const char* const text_src = len_ == 0 ? "" : src_;
-    utext_openUTF8(&text, text_src, len_, &status);
+    utext_openUTF8(&text, src_, len_, &status);
     if (!U_SUCCESS(status)) {
       utext_close(&text);
       return false;
