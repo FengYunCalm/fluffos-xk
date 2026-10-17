@@ -58,6 +58,20 @@ TEST(EgcResetTest, SubrangesMatchFreshIterator) {
   }
 }
 
+TEST(EgcResetTest, PooledIteratorDoesNotRetainDestroyedSource) {
+  {
+    const std::string source = "👩‍💻|🙂|x";
+    EGCIterator iterator(source.data(), static_cast<int32_t>(source.size()));
+    EXPECT_EQ((std::vector<int32_t>{0, 11, 12, 16, 17, 18}), boundaries(iterator));
+  }
+
+  {
+    const std::string replacement = "中|文|尾";
+    EGCIterator iterator(replacement.data(), static_cast<int32_t>(replacement.size()));
+    EXPECT_EQ((std::vector<int32_t>{0, 3, 4, 7, 8, 11}), boundaries(iterator));
+  }
+}
+
 TEST(EgcResetTest, SmartIteratorClearsCachedCursorAndCount) {
   const std::string source = "中|é|plain";
   EGCSmartIterator iterator(source.data(), static_cast<int32_t>(source.size()));

@@ -117,6 +117,12 @@ class EGCIterator {
     return (acc & 0x80u) == 0 && cr == 0;
   }
 
+  static const icu::UnicodeString& empty_icu_text() {
+    static const UChar empty_storage[1] = {0};
+    static const icu::UnicodeString empty(false, empty_storage, 0);
+    return empty;
+  }
+
   bool setup_icu() {
     // Do not bind an empty range through ICU's UTF-8 UText adapter. The
     // Windows ICU build dereferences the adapter's source during this path,
@@ -127,11 +133,7 @@ class EGCIterator {
       // Keep the zero-length value backed by a non-null storage address. Some
       // Windows ICU builds dereference UnicodeString's backing pointer while
       // binding an empty text, even though no code unit is in range.
-      static const UChar empty_storage[1] = {0};
-      static const icu::UnicodeString empty(false, empty_storage, 0);
-      // BreakIterator retains the UnicodeString reference after setText();
-      // the text must therefore outlive this iterator and its pool entry.
-      brk_->setText(empty);
+      brk_->setText(empty_icu_text());
       brk_->first();
       icu_ready_ = true;
       return true;
@@ -243,6 +245,12 @@ class EGCIterator {
     reset(src, slen);
   }
 
-  virtual ~EGCIterator() {}
+  virtual ~EGCIterator() {
+    // BreakIterator retains the input text. Clear that reference before the
+    // pooled iterator outlives this object and its source buffer.
+    if (brk_) {
+      brk_->setText(empty_icu_text());
+    }
+  }
 };
 #endif  // FLUFFOS_SRC_BASE_INTERNAL_STRUTILS_CC_EGCSTRINGVIEW_H_
