@@ -170,8 +170,8 @@ bool uncompress_file_contents(const char* input, const char* output) {
   // Some zlib builds report a truncated stream as an EOF-sized read and only
   // expose the data error through gzerror(). Do not accept that as a valid
   // transparent or gzip input stream.
-  return count == 0 && wrote_all && output_ok && source_error == Z_OK &&
-         source_close == Z_OK && destination_close == 0 && unlink(input) == 0;
+  return count == 0 && wrote_all && output_ok && source_error == Z_OK && source_close == Z_OK &&
+         destination_close == 0 && unlink(input) == 0;
 }
 
 }  // namespace
