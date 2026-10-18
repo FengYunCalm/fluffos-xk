@@ -38,9 +38,8 @@ TEST(EgcResetTest, CrLfSuffixRetainsIcuPath) {
   EXPECT_EQ((std::vector<int32_t>{0, 1, 2, 3, 4, 5}), boundaries(iterator));
 }
 
-void expect_subranges_match_fresh_iterator(const std::string& source,
-                                            int32_t first_start = 0,
-                                            int32_t last_start = -1) {
+void expect_subranges_match_fresh_iterator(const std::string& source, int32_t first_start = 0,
+                                           int32_t last_start = -1) {
   const auto size = static_cast<int32_t>(source.size());
   if (last_start < 0)
     last_start = size;
@@ -78,9 +77,8 @@ TEST_P(EgcEmojiSubrangeTest, MatchesFreshIterator) {
 }
 
 INSTANTIATE_TEST_SUITE_P(AllByteStarts, EgcEmojiSubrangeTest,
-                         ::testing::Values(0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-                                           10, 11, 12, 13, 14, 15, 16, 17,
-                                           18));
+                         ::testing::Values(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                                           17, 18));
 
 TEST(EgcResetTest, SubrangesMatchFreshIteratorCrLf) {
   expect_subranges_match_fresh_iterator("a\r\nb\r\nc");
