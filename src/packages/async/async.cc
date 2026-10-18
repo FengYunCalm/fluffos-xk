@@ -5,7 +5,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -1031,22 +1030,23 @@ void check_reqs() {
 
 void complete_all_asyncio() {
   CompletionBarrierScope const barrier_scope;
-  auto diagnostic_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
   // A callback may submit another request (for example, an async read from an
   // async write callback), so one wait-and-dispatch pass is not sufficient.
   // Also account for work already popped by a worker: reqs can be empty while
   // current_works is still about to publish a finished request.
   while (true) {
+    bool work_in_flight = false;
     {
       std::lock_guard<std::mutex> const lock(reqs_lock);
-      if (!reqs.empty() || !current_works.empty()) {
-        // A pure yield is not a scheduling guarantee on Windows: the main
-        // thread can repeatedly resume while the worker that owns the queued
-        // request has not run yet. Sleep briefly so completion barriers cannot
-        // starve their workers on that platform.
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        continue;
-      }
+      work_in_flight = !reqs.empty() || !current_works.empty();
+    }
+    if (work_in_flight) {
+      // A pure yield is not a scheduling guarantee on Windows: the main
+      // thread can repeatedly resume while the worker that owns the queued
+      // request has not run yet. Sleep outside reqs_lock so the worker can
+      // acquire the lock and publish its completion.
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      continue;
     }
 
     check_reqs();
@@ -1066,37 +1066,6 @@ void complete_all_asyncio() {
     }
     if (!pending && vm_owner_main_queue_total_depth() == 0) {
       break;
-    }
-    auto const now = std::chrono::steady_clock::now();
-    if (now >= diagnostic_at) {
-      size_t queued = 0;
-      size_t current = 0;
-      size_t live = 0;
-      size_t bytes = 0;
-      std::vector<std::string> paths;
-      {
-        std::lock_guard<std::mutex> const lock(reqs_lock);
-        queued = reqs.size();
-        current = current_works.size();
-        live = live_requests.size();
-        bytes = pending_request_bytes;
-        paths.reserve(live_requests.size());
-        for (auto const* req : live_requests) {
-          paths.push_back(req->path);
-        }
-      }
-      size_t finished = 0;
-      {
-        std::lock_guard<std::mutex> const lock(finished_reqs_lock);
-        finished = finished_reqs.size();
-      }
-      std::fprintf(stderr, "async completion barrier pending: reqs=%zu current=%zu finished=%zu live=%zu bytes=%zu main=%lld\\n",
-                   queued, current, finished, live, bytes,
-                   static_cast<long long>(vm_owner_main_queue_total_depth()));
-      for (auto const& path : paths) {
-        std::fprintf(stderr, "async request path=%s\\n", path.c_str());
-      }
-      diagnostic_at = now + std::chrono::seconds(10);
     }
     // Keep the synchronous barrier cooperative on platforms where yield()
     // may immediately return without giving a worker a time slice.
