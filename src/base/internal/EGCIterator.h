@@ -80,6 +80,8 @@ class EGCIterator {
   bool icu_ready_ = false;
   const char* src_;
   int32_t len_;
+  UText text_ = UTEXT_INITIALIZER;
+  bool text_open_ = false;
 
   static BreakIteratorPool* pool() {
     // thread_local: the pool's stack is not synchronized, and FluffOS_XK's
@@ -123,19 +125,18 @@ class EGCIterator {
     return empty;
   }
 
-  static const icu::UnicodeString& cleared_icu_text() {
-    static const UChar cleared_storage[2] = {'x', 0};
-    static const icu::UnicodeString cleared(false, cleared_storage, 1);
-    return cleared;
-  }
-
   void clear_icu() {
     if (icu_ready_) {
-      // Do not return a pooled BreakIterator while it still references the
-      // caller's buffer. Use a non-empty, stable text for this cleanup path;
-      // some Windows ICU builds mishandle an empty UnicodeString here.
-      brk_->setText(cleared_icu_text());
+      // BreakIterator may retain the UText wrapper on Windows even though the
+      // API documentation describes setText() as copying it. Detach it while
+      // the wrapper is still valid, then close the wrapper below.
+      brk_->setText(empty_icu_text());
       icu_ready_ = false;
+    }
+    if (text_open_) {
+      utext_close(&text_);
+      text_ = UTEXT_INITIALIZER;
+      text_open_ = false;
     }
   }
 
@@ -155,22 +156,21 @@ class EGCIterator {
       return true;
     }
 
-    UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
-    utext_openUTF8(&text, src_, len_, &status);
+    utext_openUTF8(&text_, src_, len_, &status);
     if (!U_SUCCESS(status)) {
-      utext_close(&text);
+      utext_close(&text_);
+      text_ = UTEXT_INITIALIZER;
       return false;
     }
+    text_open_ = true;
 
     status = U_ZERO_ERROR;
-    brk_->setText(&text, status);  // copies text
+    brk_->setText(&text_, status);
     if (!U_SUCCESS(status)) {
-      utext_close(&text);
+      clear_icu();
       return false;
     }
-    // no longer needed.
-    utext_close(&text);
 
     brk_->first();
     icu_ready_ = true;
