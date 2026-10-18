@@ -38,24 +38,40 @@ TEST(EgcResetTest, CrLfSuffixRetainsIcuPath) {
   EXPECT_EQ((std::vector<int32_t>{0, 1, 2, 3, 4, 5}), boundaries(iterator));
 }
 
-TEST(EgcResetTest, SubrangesMatchFreshIterator) {
-  const std::vector<std::string> sources = {"ascii", "中|文|尾", "é|x", "👩‍💻|🙂|x",
-                                            "a\r\nb\r\nc"};
-  for (const auto& source : sources) {
-    const auto size = static_cast<int32_t>(source.size());
-    for (int32_t start = 0; start <= size; ++start) {
-      for (int32_t length = 0; length <= size - start; ++length) {
-        SCOPED_TRACE(::testing::Message() << source << ":" << start << ":" << length);
-        EGCIterator iterator(source.data(), size);
-        iterator->last();
-        iterator.reset(source.data() + start, length);
-        EGCIterator fresh(source.data() + start, length);
-        ASSERT_TRUE(iterator.ok());
-        ASSERT_TRUE(fresh.ok());
-        EXPECT_EQ(boundaries(fresh), boundaries(iterator));
-      }
+void expect_subranges_match_fresh_iterator(const std::string& source) {
+  const auto size = static_cast<int32_t>(source.size());
+  for (int32_t start = 0; start <= size; ++start) {
+    for (int32_t length = 0; length <= size - start; ++length) {
+      SCOPED_TRACE(::testing::Message() << source << ":" << start << ":" << length);
+      EGCIterator iterator(source.data(), size);
+      iterator->last();
+      iterator.reset(source.data() + start, length);
+      EGCIterator fresh(source.data() + start, length);
+      ASSERT_TRUE(iterator.ok());
+      ASSERT_TRUE(fresh.ok());
+      EXPECT_EQ(boundaries(fresh), boundaries(iterator));
     }
   }
+}
+
+TEST(EgcResetTest, SubrangesMatchFreshIteratorAscii) {
+  expect_subranges_match_fresh_iterator("ascii");
+}
+
+TEST(EgcResetTest, SubrangesMatchFreshIteratorCjk) {
+  expect_subranges_match_fresh_iterator("中|文|尾");
+}
+
+TEST(EgcResetTest, SubrangesMatchFreshIteratorCombining) {
+  expect_subranges_match_fresh_iterator("é|x");
+}
+
+TEST(EgcResetTest, SubrangesMatchFreshIteratorEmoji) {
+  expect_subranges_match_fresh_iterator("👩‍💻|🙂|x");
+}
+
+TEST(EgcResetTest, SubrangesMatchFreshIteratorCrLf) {
+  expect_subranges_match_fresh_iterator("a\r\nb\r\nc");
 }
 
 TEST(EgcResetTest, IteratorDoesNotRetainDestroyedSource) {
