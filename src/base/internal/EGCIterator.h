@@ -8,97 +8,10 @@
 #include <locale>
 #include <string>
 #include <memory>
-#include <utility>
 #include <unicode/utf8.h>
 #include <unicode/uchar.h>
 #include <unicode/brkiter.h>
 #include <unicode/utext.h>
-#include <unicode/unistr.h>
-
-#include <stack>
-
-class BreakIteratorPool {
-  class EmptyUText {
-   public:
-    EmptyUText() {
-      UErrorCode status = U_ZERO_ERROR;
-      utext_openUTF8(&text_, empty_storage_, 0, &status);
-      initialized_ = U_SUCCESS(status);
-    }
-    ~EmptyUText() {
-      if (initialized_)
-        utext_close(&text_);
-    }
-    UText* get() {
-      return initialized_ ? &text_ : nullptr;
-    }
-
-   private:
-    static constexpr char empty_storage_[1] = {0};
-    UText text_ = UTEXT_INITIALIZER;
-    bool initialized_ = false;
-  };
-
-  class BreakIteratorPoolInner {
-   public:
-    // Declare the stable empty UText before the iterator stack so the stack
-    // is destroyed first. Pooled BreakIterators can retain this wrapper.
-    EmptyUText empty_text_;
-    std::stack<std::unique_ptr<icu::BreakIterator>> stack_;
-  };
-
-  struct ReturnToPool_Deleter {
-    explicit ReturnToPool_Deleter(std::weak_ptr<BreakIteratorPoolInner> origin)
-        : origin_(std::move(origin)) {}
-    void operator()(icu::BreakIterator* ptr) {
-      auto origin = origin_.lock();
-      if (origin) {
-        origin->stack_.emplace(ptr);
-      } else {
-        delete ptr;
-      }
-    }
-
-   private:
-    std::weak_ptr<BreakIteratorPoolInner> origin_;
-  };
-
- private:
-  std::shared_ptr<BreakIteratorPoolInner> inner_;
-
- public:
-  UText* empty_text() {
-    return inner_->empty_text_.get();
-  }
-
- private:
-  void add() {
-    UErrorCode status = U_ZERO_ERROR;
-    std::unique_ptr<icu::BreakIterator> ptr(
-        icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), status));
-    if (!U_SUCCESS(status)) {
-      ptr.reset();
-    }
-    inner_->stack_.emplace(std::move(ptr));
-  }
-
- public:
-  using item_type = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>;
-
-  explicit BreakIteratorPool(int initial) : inner_(std::make_shared<BreakIteratorPoolInner>()) {
-    for (int i = 0; i < initial; i++)
-      add();
-  }
-
-  item_type accquire() {
-    if (inner_->stack_.empty())
-      add();
-    auto res = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>(
-        inner_->stack_.top().release(), ReturnToPool_Deleter(inner_));
-    inner_->stack_.pop();
-    return res;
-  }
-};
 
 // Grapheme iterator with a byte-offset path for CR-free ASCII ranges.
 // New buffers are classified once; subranges retain the previous ASCII/ICU
@@ -114,17 +27,6 @@ class EGCIterator {
   UText text_ = UTEXT_INITIALIZER;
   bool text_open_ = false;
   std::string icu_source_;
-
-  static BreakIteratorPool* pool() {
-    // thread_local: the pool's stack is not synchronized, and FluffOS_XK's
-    // owner threads run VM code concurrently (the upstream tree is
-    // single-threaded and tolerates a process-wide pool; we do not). Local
-    // pre-P2 versions had thread_local here; P2's wholesale file swap lost
-    // it and reintroduced a data race (R5, TestStringIndexHandlesConcurrent
-    // EgcIterators SIGSEGV).
-    static thread_local BreakIteratorPool pool(32);
-    return &pool;
-  }
 
   // True when the string is pure ASCII (so trivially valid UTF-8) AND contains
   // no CR.
@@ -151,28 +53,12 @@ class EGCIterator {
     return (acc & 0x80u) == 0 && cr == 0;
   }
 
-  static UText* empty_icu_text() {
-    return pool()->empty_text();
-  }
-
-  bool bind_empty_icu() {
-    auto* const empty_text = empty_icu_text();
-    if (empty_text == nullptr)
-      return false;
-    UErrorCode status = U_ZERO_ERROR;
-    brk_->setText(empty_text, status);
-    return U_SUCCESS(status);
-  }
-
   void clear_icu() {
-    if (icu_ready_) {
-      // BreakIterator may retain the UText wrapper on Windows even though the
-      // API documentation describes setText() as copying it. Detach it while
-      // the wrapper is still valid, then close the wrapper below. The empty
-      // wrapper belongs to the pool and outlives its pooled iterators.
-      bind_empty_icu();
-      icu_ready_ = false;
-    }
+    // ICU's UText overload may retain the wrapper and its backing bytes. Each
+    // iterator owns its BreakIterator, so destroy that object before closing
+    // the wrapper or releasing the backing storage.
+    icu_ready_ = false;
+    brk_.reset();
     if (text_open_) {
       utext_close(&text_);
       text_ = UTEXT_INITIALIZER;
@@ -224,20 +110,19 @@ class EGCIterator {
   }
 
   bool setup_icu() {
-    // Do not bind an empty range through ICU's UTF-8 UText adapter. The
-    // Windows ICU build dereferences the adapter's source during this path,
-    // even though a zero-length range has no bytes to read. The pool-owned
-    // empty UText preserves the same zero-boundary iterator semantics without
-    // exposing a one-past source pointer to that adapter.
-    if (len_ == 0) {
-      if (!bind_empty_icu())
+    if (!brk_) {
+      UErrorCode status = U_ZERO_ERROR;
+      brk_.reset(icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), status));
+      if (!U_SUCCESS(status) || !brk_) {
+        brk_.reset();
         return false;
-      brk_->first();
-      icu_ready_ = true;
-      return true;
+      }
     }
 
-    const char* text_source = src_;
+    // Do not bind an empty range to a one-past caller pointer. Use stable
+    // storage while retaining the same zero-boundary iterator semantics.
+    static constexpr char empty_storage[] = "";
+    const char* text_source = len_ == 0 ? empty_storage : src_;
     if (!valid_utf8(src_, len_)) {
       // ICU's UTF-8 UText provider on Windows assumes that the first byte is
       // a code-point boundary and can read outside a partial UTF-8 subrange.
@@ -269,7 +154,7 @@ class EGCIterator {
   }
 
  protected:
-  BreakIteratorPool::item_type brk_;
+  std::unique_ptr<icu::BreakIterator> brk_;
 
   // Materialize the ICU iterator for a string that skipped setup because it
   // is ASCII. Must be called before ANY use of brk_.
@@ -285,10 +170,8 @@ class EGCIterator {
   [[nodiscard]] bool is_ascii() const {
     return ascii_;
   }
-  // The raw predicate, WITHOUT constructing an iterator. Constructing one
-  // acquires an ICU break iterator from the pool, which builds 32 of them on
-  // first touch -- absurd overhead when all you want is a byte scan. Callers
-  // that only need the answer (u8_string_is_ascii_cached) use this.
+  // The raw predicate, WITHOUT constructing an iterator. Callers that only
+  // need the answer (u8_string_is_ascii_cached) use this.
   static bool scan_is_ascii(const char* src, int32_t slen) {
     return all_ascii(src, slen);
   }
@@ -341,20 +224,14 @@ class EGCIterator {
   }
   auto operator->() {
     ensure_icu();
-    return brk_.operator->();
+    return brk_.get();
   }
 
-  static BreakIteratorPool::item_type GetBreakIterator() {
-    return pool()->accquire();
-  }
-
-  EGCIterator(const char* src, int32_t slen) : src_(src), len_(slen), brk_(GetBreakIterator()) {
+  EGCIterator(const char* src, int32_t slen) : src_(src), len_(slen) {
     reset(src, slen);
   }
 
   virtual ~EGCIterator() {
-    // BreakIterator retains the input text. Clear that reference before the
-    // pooled iterator outlives this object and its source buffer.
     clear_icu();
   }
 };

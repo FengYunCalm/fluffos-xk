@@ -30,6 +30,7 @@
 #include <utility>      // for pair, make_pair
 #include <algorithm>
 #include <atomic>
+#include <deque>
 #include <mutex>
 #include <unordered_set>
 #include <vector>

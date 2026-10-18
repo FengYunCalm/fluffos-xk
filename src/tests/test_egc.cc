@@ -58,7 +58,7 @@ TEST(EgcResetTest, SubrangesMatchFreshIterator) {
   }
 }
 
-TEST(EgcResetTest, PooledIteratorDoesNotRetainDestroyedSource) {
+TEST(EgcResetTest, IteratorDoesNotRetainDestroyedSource) {
   {
     const std::string source = "👩‍💻|🙂|x";
     EGCIterator iterator(source.data(), static_cast<int32_t>(source.size()));
