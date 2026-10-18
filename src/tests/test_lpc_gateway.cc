@@ -448,6 +448,21 @@ TEST_F(DriverTest, TestAuditNoechoLogRedactsInput) {
   ASSERT_EQ(received->type, T_STRING);
   EXPECT_STREQ(received->u.string, secret.c_str());
 
+  ASSERT_EQ(gateway_destroy_session_internal(kSessionId, "secret_done", "done"), 1);
+  ASSERT_EQ(ob->interactive, nullptr);
+  destruct_object(ob);
+  free_object(&ob, "TestAuditNoechoLogRedactsInput");
+
+  // Use a fresh session for the normal-input assertion. The noecho callback
+  // intentionally exercises terminal-mode restoration; reusing that
+  // interactive in the same test would couple the logging assertion to
+  // session teardown timing on Windows.
+  constexpr const char* kNormalSessionId = "gw-test-normal-log";
+  ob = create_gateway_session_for_test(kNormalSessionId, "/clone/gateway_login_example");
+  ASSERT_NE(ob, nullptr);
+  ASSERT_NE(ob->interactive, nullptr);
+  add_ref(ob, "TestAuditNoechoLogRedactsInputNormal");
+  ip = ob->interactive;
   const std::string normal = "audit-normal-input";
   const std::string normal_line = normal + "\n";
   ASSERT_LT(normal_line.size(), sizeof(ip->text));
@@ -468,10 +483,10 @@ TEST_F(DriverTest, TestAuditNoechoLogRedactsInput) {
   ASSERT_EQ(processed_normal, 1);
   EXPECT_NE(normal_output.find(normal), std::string::npos);
 
-  ASSERT_EQ(gateway_destroy_session_internal(kSessionId, "test_done", "done"), 1);
+  ASSERT_EQ(gateway_destroy_session_internal(kNormalSessionId, "test_done", "done"), 1);
   ASSERT_EQ(ob->interactive, nullptr);
   destruct_object(ob);
-  free_object(&ob, "TestAuditNoechoLogRedactsInput");
+  free_object(&ob, "TestAuditNoechoLogRedactsInputNormal");
 }
 
 TEST_F(DriverTest, TestAuditNoechoLogRedactsGetCharInput) {
