@@ -80,6 +80,7 @@ class EGCIterator {
   bool icu_ready_ = false;
   const char* src_;
   int32_t len_;
+  std::string icu_source_;
 
   static BreakIteratorPool* pool() {
     // thread_local: the pool's stack is not synchronized, and FluffOS_XK's
@@ -123,6 +124,13 @@ class EGCIterator {
     return empty;
   }
 
+  void clear_icu_binding() {
+    if (brk_)
+      brk_->setText(empty_icu_text());
+    icu_ready_ = false;
+    icu_source_.clear();
+  }
+
   bool setup_icu() {
     // Do not bind an empty range through ICU's UTF-8 UText adapter. The
     // Windows ICU build dereferences the adapter's source during this path,
@@ -139,9 +147,16 @@ class EGCIterator {
       return true;
     }
 
+    if (len_ == -1) {
+      icu_source_.assign(src_);
+    } else {
+      icu_source_.assign(src_, static_cast<size_t>(len_));
+    }
+
     UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
-    utext_openUTF8(&text, src_, len_, &status);
+    const char* const text_src = icu_source_.c_str();
+    utext_openUTF8(&text, text_src, len_, &status);
     if (!U_SUCCESS(status)) {
       utext_close(&text);
       return false;
@@ -200,6 +215,7 @@ class EGCIterator {
     const char* const prev_src = src_;
     const int32_t prev_len = len_;
 
+    clear_icu_binding();
     ok_ = false;
     icu_ready_ = false;
     ascii_ = false;
@@ -248,9 +264,7 @@ class EGCIterator {
   virtual ~EGCIterator() {
     // BreakIterator retains the input text. Clear that reference before the
     // pooled iterator outlives this object and its source buffer.
-    if (brk_) {
-      brk_->setText(empty_icu_text());
-    }
+    clear_icu_binding();
   }
 };
 #endif  // FLUFFOS_SRC_BASE_INTERNAL_STRUTILS_CC_EGCSTRINGVIEW_H_
