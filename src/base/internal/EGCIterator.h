@@ -12,7 +12,6 @@
 #include <unicode/utf8.h>
 #include <unicode/uchar.h>
 #include <unicode/brkiter.h>
-#include <unicode/utext.h>
 #include <unicode/unistr.h>
 
 #include <stack>
@@ -20,9 +19,6 @@
 class BreakIteratorPool {
   class BreakIteratorPoolInner {
    public:
-    // The stable empty text is declared before the iterator stack so pooled
-    // iterators are destroyed before the text they may reference.
-    icu::UnicodeString empty_text_;
     std::stack<std::unique_ptr<icu::BreakIterator>> stack_;
   };
 
@@ -42,14 +38,16 @@ class BreakIteratorPool {
     std::weak_ptr<BreakIteratorPoolInner> origin_;
   };
 
+ private:
   std::shared_ptr<BreakIteratorPoolInner> inner_;
 
   void add() {
     UErrorCode status = U_ZERO_ERROR;
     std::unique_ptr<icu::BreakIterator> ptr(
         icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), status));
-    if (!U_SUCCESS(status))
+    if (!U_SUCCESS(status)) {
       ptr.reset();
+    }
     inner_->stack_.emplace(std::move(ptr));
   }
 
@@ -57,20 +55,17 @@ class BreakIteratorPool {
   using item_type = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>;
 
   explicit BreakIteratorPool(int initial) : inner_(std::make_shared<BreakIteratorPoolInner>()) {
-    for (int i = 0; i < initial; ++i)
+    for (int i = 0; i < initial; i++)
       add();
   }
 
-  const icu::UnicodeString& empty_text() const {
-    return inner_->empty_text_;
-  }
-
-  item_type acquire() {
+  item_type accquire() {
     if (inner_->stack_.empty())
       add();
-    auto result = item_type(inner_->stack_.top().release(), ReturnToPool_Deleter(inner_));
+    auto res = std::unique_ptr<icu::BreakIterator, ReturnToPool_Deleter>(
+        inner_->stack_.top().release(), ReturnToPool_Deleter(inner_));
     inner_->stack_.pop();
-    return result;
+    return res;
   }
 };
 
@@ -85,15 +80,14 @@ class EGCIterator {
   bool icu_ready_ = false;
   const char* src_;
   int32_t len_;
-  UText text_ = UTEXT_INITIALIZER;
-  bool text_open_ = false;
-  std::string icu_source_;
-  icu::UnicodeString unicode_text_;
 
   static BreakIteratorPool* pool() {
-    // Each owner thread uses its own pool. The pool avoids repeatedly
-    // destroying ICU BreakIterators on Windows while keeping mutable ICU
-    // objects out of cross-thread shared state.
+    // thread_local: the pool's stack is not synchronized, and FluffOS_XK's
+    // owner threads run VM code concurrently (the upstream tree is
+    // single-threaded and tolerates a process-wide pool; we do not). Local
+    // pre-P2 versions had thread_local here; P2's wholesale file swap lost
+    // it and reintroduced a data race (R5, TestStringIndexHandlesConcurrent
+    // EgcIterators SIGSEGV).
     static thread_local BreakIteratorPool pool(32);
     return &pool;
   }
@@ -123,128 +117,44 @@ class EGCIterator {
     return (acc & 0x80u) == 0 && cr == 0;
   }
 
-  void clear_icu() {
-    // ICU's UText overload may retain the wrapper and its backing bytes. Detach
-    // the pooled iterator before closing the wrapper or releasing storage.
-    if (brk_) {
-      brk_->setText(pool()->empty_text());
-      icu_ready_ = false;
-    }
-    unicode_text_.remove();
-    if (text_open_) {
-      utext_close(&text_);
-      text_ = UTEXT_INITIALIZER;
-      text_open_ = false;
-    }
-    icu_source_.clear();
-  }
-
-  static bool valid_utf8(const char* source, int32_t length) {
-    auto const* bytes = reinterpret_cast<const unsigned char*>(source);
-    for (int32_t index = 0; index < length;) {
-      unsigned char const first = bytes[index];
-      if (first <= 0x7f) {
-        ++index;
-        continue;
-      }
-      int required = 0;
-      uint32_t codepoint = 0;
-      uint32_t minimum = 0;
-      if (first >= 0xc2 && first <= 0xdf) {
-        required = 1;
-        codepoint = first & 0x1f;
-        minimum = 0x80;
-      } else if (first >= 0xe0 && first <= 0xef) {
-        required = 2;
-        codepoint = first & 0x0f;
-        minimum = 0x800;
-      } else if (first >= 0xf0 && first <= 0xf4) {
-        required = 3;
-        codepoint = first & 0x07;
-        minimum = 0x10000;
-      } else {
-        return false;
-      }
-      if (index + required >= length)
-        return false;
-      for (int offset = 1; offset <= required; ++offset) {
-        unsigned char const continuation = bytes[index + offset];
-        if ((continuation & 0xc0) != 0x80)
-          return false;
-        codepoint = (codepoint << 6) | (continuation & 0x3f);
-      }
-      if (codepoint < minimum || codepoint > 0x10ffff ||
-          (codepoint >= 0xd800 && codepoint <= 0xdfff))
-        return false;
-      index += required + 1;
-    }
-    return true;
+  static const icu::UnicodeString& empty_icu_text() {
+    static const UChar empty_storage[1] = {0};
+    static const icu::UnicodeString empty(false, empty_storage, 0);
+    return empty;
   }
 
   bool setup_icu() {
-    if (!brk_)
-      return false;
-
-    // Do not bind an empty range through ICU's UTF-8 UText adapter. Some
-    // Windows ICU builds inspect the adapter's source even when its length is
-    // zero. A stable empty UnicodeString preserves zero-boundary semantics.
+    // Do not bind an empty range through ICU's UTF-8 UText adapter. The
+    // Windows ICU build dereferences the adapter's source during this path,
+    // even though a zero-length range has no bytes to read. A native empty
+    // UnicodeString preserves the same zero-boundary iterator semantics
+    // without exposing a one-past string pointer to that adapter.
     if (len_ == 0) {
-      static const UChar empty_storage[1] = {0};
-      static const icu::UnicodeString empty(false, empty_storage, 0);
-      brk_->setText(empty);
+      // Keep the zero-length value backed by a non-null storage address. Some
+      // Windows ICU builds dereference UnicodeString's backing pointer while
+      // binding an empty text, even though no code unit is in range.
+      brk_->setText(empty_icu_text());
       brk_->first();
       icu_ready_ = true;
       return true;
     }
 
-    if (ascii_) {
-      // ASCII byte offsets are identical to ICU's UTF-16 offsets. Use the
-      // UnicodeString overload so ASCII never enters the Windows UTF-8 UText
-      // provider.
-      unicode_text_ = icu::UnicodeString(src_, len_, US_INV);
-      brk_->setText(unicode_text_);
-      brk_->first();
-      icu_ready_ = true;
-      return true;
-    }
-
-    static constexpr char empty_storage[] = "";
-    const char* text_source = empty_storage;
-    if (len_ > 0) {
-      // Keep ICU away from interior pointers into a larger string. The
-      // Windows UTF-8 UText provider has historically read beyond an
-      // explicitly bounded subrange; this owned copy is NUL-terminated and
-      // keeps the returned native offsets one-to-one with source bytes.
-      icu_source_.assign(src_, static_cast<size_t>(len_));
-      if (!valid_utf8(src_, len_)) {
-        // ICU's UTF-8 UText provider can also mishandle a partial code point
-        // at a bounded range edge. Preserve the existing one-byte/one-offset
-        // fallback for malformed input.
-        icu_source_.assign(static_cast<size_t>(len_), 'x');
-      }
-      text_source = icu_source_.data();
-    } else if (len_ == -1) {
-      // A negative length means a NUL-terminated source. Copy it as well so
-      // an interior pointer never becomes ICU's backing storage.
-      icu_source_.assign(src_);
-      text_source = icu_source_.c_str();
-    }
-
+    UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
-    utext_openUTF8(&text_, text_source, len_, &status);
+    utext_openUTF8(&text, src_, len_, &status);
     if (!U_SUCCESS(status)) {
-      utext_close(&text_);
-      text_ = UTEXT_INITIALIZER;
+      utext_close(&text);
       return false;
     }
-    text_open_ = true;
 
     status = U_ZERO_ERROR;
-    brk_->setText(&text_, status);
+    brk_->setText(&text, status);  // copies text
     if (!U_SUCCESS(status)) {
-      clear_icu();
+      utext_close(&text);
       return false;
     }
+    // no longer needed.
+    utext_close(&text);
 
     brk_->first();
     icu_ready_ = true;
@@ -268,8 +178,10 @@ class EGCIterator {
   [[nodiscard]] bool is_ascii() const {
     return ascii_;
   }
-  // The raw predicate, WITHOUT constructing an iterator. Callers that only
-  // need the answer (u8_string_is_ascii_cached) use this.
+  // The raw predicate, WITHOUT constructing an iterator. Constructing one
+  // acquires an ICU break iterator from the pool, which builds 32 of them on
+  // first touch -- absurd overhead when all you want is a byte scan. Callers
+  // that only need the answer (u8_string_is_ascii_cached) use this.
   static bool scan_is_ascii(const char* src, int32_t slen) {
     return all_ascii(src, slen);
   }
@@ -289,7 +201,7 @@ class EGCIterator {
     const int32_t prev_len = len_;
 
     ok_ = false;
-    clear_icu();
+    icu_ready_ = false;
     ascii_ = false;
     src_ = src;
     len_ = slen;
@@ -326,7 +238,7 @@ class EGCIterator {
   }
 
   static BreakIteratorPool::item_type GetBreakIterator() {
-    return pool()->acquire();
+    return pool()->accquire();
   }
 
   EGCIterator(const char* src, int32_t slen) : src_(src), len_(slen), brk_(GetBreakIterator()) {
@@ -334,7 +246,11 @@ class EGCIterator {
   }
 
   virtual ~EGCIterator() {
-    clear_icu();
+    // BreakIterator retains the input text. Clear that reference before the
+    // pooled iterator outlives this object and its source buffer.
+    if (brk_) {
+      brk_->setText(empty_icu_text());
+    }
   }
 };
 #endif  // FLUFFOS_SRC_BASE_INTERNAL_STRUTILS_CC_EGCSTRINGVIEW_H_
