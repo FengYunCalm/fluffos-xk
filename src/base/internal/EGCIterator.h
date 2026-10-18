@@ -28,6 +28,7 @@ class EGCIterator {
   UText text_ = UTEXT_INITIALIZER;
   bool text_open_ = false;
   std::string icu_source_;
+  icu::UnicodeString unicode_text_;
 
   // True when the string is pure ASCII (so trivially valid UTF-8) AND contains
   // no CR.
@@ -60,6 +61,7 @@ class EGCIterator {
     // the wrapper or releasing the backing storage.
     icu_ready_ = false;
     brk_.reset();
+    unicode_text_.remove();
     if (text_open_) {
       utext_close(&text_);
       text_ = UTEXT_INITIALIZER;
@@ -127,6 +129,17 @@ class EGCIterator {
       static const UChar empty_storage[1] = {0};
       static const icu::UnicodeString empty(false, empty_storage, 0);
       brk_->setText(empty);
+      brk_->first();
+      icu_ready_ = true;
+      return true;
+    }
+
+    if (ascii_) {
+      // ASCII byte offsets are identical to ICU's UTF-16 offsets. Use the
+      // UnicodeString overload so ASCII never enters the Windows UTF-8 UText
+      // provider.
+      unicode_text_ = icu::UnicodeString(src_, len_, US_INV);
+      brk_->setText(unicode_text_);
       brk_->first();
       icu_ready_ = true;
       return true;
