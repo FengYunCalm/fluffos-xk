@@ -11,9 +11,12 @@ private int same_bytes(buffer expected, buffer actual) {
   return 1;
 }
 
+private int diagnostic_step;
+
 private void check_condition(int condition, string message) {
+  diagnostic_step++;
   if (!condition)
-    error("compress_file_integrity: " + message);
+    shutdown(40 + diagnostic_step);
 }
 
 void do_tests() {
