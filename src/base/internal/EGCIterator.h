@@ -61,8 +61,9 @@ class EGCIterator {
   }
 
   void clear_icu_binding() {
-    if (brk_)
-      brk_->setText(empty_icu_text());
+    // Destroy the BreakIterator before closing the UText it may retain. This
+    // avoids relying on setText() to detach a stateful emoji UText on Windows.
+    brk_.reset();
     icu_ready_ = false;
     if (text_open_) {
       utext_close(&text_);
@@ -115,6 +116,15 @@ class EGCIterator {
   }
 
   bool setup_icu() {
+    if (!brk_) {
+      UErrorCode status = U_ZERO_ERROR;
+      brk_.reset(icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), status));
+      if (!U_SUCCESS(status) || !brk_) {
+        brk_.reset();
+        return false;
+      }
+    }
+
     // Do not bind an empty range through ICU's UTF-8 UText adapter. The
     // Windows ICU build dereferences the adapter's source during this path,
     // even though a zero-length range has no bytes to read. A native empty
