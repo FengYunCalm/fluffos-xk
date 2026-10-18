@@ -11,6 +11,11 @@ private int same_bytes(buffer expected, buffer actual) {
   return 1;
 }
 
+private void check_condition(int condition, string message) {
+  if (!condition)
+    error("compress_file_integrity: " + message);
+}
+
 void do_tests() {
   string source = "/compress_integrity_input";
   string compressed = source + ".gz";
@@ -23,60 +28,65 @@ void do_tests() {
       payload[i] = 255;
     }
     int empty_write = write_file(source, "", 1);
-    ASSERT2(empty_write == 1, sprintf("size=%d empty_write=%d", size, empty_write));
+    check_condition(empty_write == 1,
+      sprintf("size=%d empty_write=%d", size, empty_write));
     if (size) {
       int buffer_write = write_buffer(source, 0, payload);
-      ASSERT2(buffer_write == 1,
+      check_condition(buffer_write == 1,
         sprintf("size=%d buffer_write=%d", size, buffer_write));
     }
     int destination_write = write_file(compressed, "previous destination", 1);
-    ASSERT2(destination_write == 1,
-      sprintf("size=%d destination_write=%d", size, destination_write));
+    check_condition(destination_write == 1,
+      sprintf("size=%d destination_write=%d", size,
+        destination_write));
     int compress_result = compress_file(source);
-    ASSERT2(compress_result == 1,
+    check_condition(compress_result == 1,
       sprintf("size=%d compress=%d", size, compress_result));
     int source_after_compress = file_size(source);
-    ASSERT2(source_after_compress == -1,
+    check_condition(source_after_compress == -1,
       sprintf("size=%d source_after_compress=%d", size,
         source_after_compress));
     int uncompress_result = uncompress_file(compressed);
-    ASSERT2(uncompress_result == 1,
+    check_condition(uncompress_result == 1,
       sprintf("size=%d uncompress=%d", size, uncompress_result));
     int compressed_after_uncompress = file_size(compressed);
-    ASSERT2(compressed_after_uncompress == -1,
+    check_condition(compressed_after_uncompress == -1,
       sprintf("size=%d compressed_after_uncompress=%d", size,
         compressed_after_uncompress));
     int source_after_uncompress = file_size(source);
-    ASSERT2(source_after_uncompress == size,
+    check_condition(source_after_uncompress == size,
       sprintf("size=%d source_after_uncompress=%d", size,
         source_after_uncompress));
     if (size) {
-      ASSERT(same_bytes(payload, read_buffer(source)));
+      check_condition(same_bytes(payload, read_buffer(source)),
+        sprintf("size=%d payload mismatch", size));
     }
     ASSERT_EQ(1, rm(source));
   }
 
   // zlib's existing transparent-read contract also accepts non-gzip input.
   int transparent_write = write_file(source, "plain input", 1);
-  ASSERT2(transparent_write == 1,
+  check_condition(transparent_write == 1,
     sprintf("transparent write=%d", transparent_write));
   int transparent_result = uncompress_file(source, compressed);
-  ASSERT2(transparent_result == 1,
+  check_condition(transparent_result == 1,
     sprintf("transparent uncompress=%d", transparent_result));
   string transparent_payload = read_file(compressed);
-  ASSERT2(transparent_payload == "plain input", "transparent payload mismatch");
+  check_condition(transparent_payload == "plain input",
+    "transparent payload mismatch");
   int transparent_remove = rm(compressed);
-  ASSERT2(transparent_remove == 1,
+  check_condition(transparent_remove == 1,
     sprintf("transparent remove=%d", transparent_remove));
 
   foreach (int truncated in ({ 0, 1 })) {
     buffer damaged;
     int damaged_write = write_file(source, "gzip payload", 3);
-    ASSERT2(damaged_write == 1,
+    check_condition(damaged_write == 1,
       sprintf("corrupt=%d write=%d", truncated, damaged_write));
     damaged = read_buffer(source);
-    ASSERT2(sizeof(damaged) > 8,
-      sprintf("corrupt=%d gzip_size=%d", truncated, sizeof(damaged)));
+    check_condition(sizeof(damaged) > 8,
+      sprintf("corrupt=%d gzip_size=%d", truncated,
+        sizeof(damaged)));
     if (truncated) {
       damaged = damaged[0 ..<2];
     } else {
@@ -84,23 +94,25 @@ void do_tests() {
       damaged[crc_offset] = damaged[crc_offset] ^ 64;
     }
     int corrupt_empty_write = write_file(source, "", 1);
-    ASSERT2(corrupt_empty_write == 1,
+    check_condition(corrupt_empty_write == 1,
       sprintf("corrupt=%d empty_write=%d", truncated,
         corrupt_empty_write));
     int corrupt_buffer_write = write_buffer(source, 0, damaged);
-    ASSERT2(corrupt_buffer_write == 1,
+    check_condition(corrupt_buffer_write == 1,
       sprintf("corrupt=%d buffer_write=%d", truncated,
         corrupt_buffer_write));
     int corrupt_result = uncompress_file(source, compressed);
-    ASSERT2(corrupt_result == 0,
-      sprintf("corrupt=%d uncompress=%d", truncated, corrupt_result));
-    ASSERT(same_bytes(damaged, read_buffer(source)));
+    check_condition(corrupt_result == 0,
+      sprintf("corrupt=%d uncompress=%d", truncated,
+        corrupt_result));
+    check_condition(same_bytes(damaged, read_buffer(source)),
+      sprintf("corrupt=%d payload mismatch", truncated));
     int corrupt_source_remove = rm(source);
-    ASSERT2(corrupt_source_remove == 1,
+    check_condition(corrupt_source_remove == 1,
       sprintf("corrupt=%d source_remove=%d", truncated,
         corrupt_source_remove));
     int corrupt_compressed_remove = rm(compressed);
-    ASSERT2(corrupt_compressed_remove == 1,
+    check_condition(corrupt_compressed_remove == 1,
       sprintf("corrupt=%d compressed_remove=%d", truncated,
         corrupt_compressed_remove));
   }
