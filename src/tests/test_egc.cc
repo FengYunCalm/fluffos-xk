@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -9,9 +10,29 @@ namespace {
 
 std::vector<int32_t> boundaries(EGCIterator& iterator) {
   std::vector<int32_t> result;
-  for (auto offset = iterator->first(); offset != icu::BreakIterator::DONE;
-       offset = iterator->next()) {
+  if (iterator.len() == 0) {
+    std::fprintf(stderr, "EGC empty boundaries begin data=%p\\n",
+                 static_cast<const void*>(iterator.data()));
+    std::fflush(stderr);
+  }
+  auto* break_iterator = iterator.operator->();
+  if (iterator.len() == 0) {
+    std::fprintf(stderr, "EGC empty operator-> returned=%p\\n",
+                 static_cast<void*>(break_iterator));
+    std::fflush(stderr);
+  }
+  auto offset = break_iterator->first();
+  if (iterator.len() == 0) {
+    std::fprintf(stderr, "EGC empty first=%d\\n", offset);
+    std::fflush(stderr);
+  }
+  while (offset != icu::BreakIterator::DONE) {
     result.push_back(offset);
+    offset = break_iterator->next();
+    if (iterator.len() == 0) {
+      std::fprintf(stderr, "EGC empty next=%d\\n", offset);
+      std::fflush(stderr);
+    }
   }
   return result;
 }
