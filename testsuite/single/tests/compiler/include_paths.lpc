@@ -75,12 +75,12 @@ private void merge_limit_case() {
   object compiled;
   mixed failure;
   string deep = root;
-  string component = sprintf("%200s", "x");
+  string component = sprintf("%80s", "x");
   // Keep the materialized source path below Windows MAX_PATH while retaining
   // a merged include candidate above the compiler's MAXLINE boundary. The
   // long relative candidate is only passed to the compiler; it is not created
   // on disk.
-  string relative = implode(allocate(21, component), "/") + "/absent.h";
+  string relative = implode(allocate(52, component), "/") + "/absent.h";
 
   directories = ({ root + "/inc", ":DEFAULT:" });
   for (int i = 0; i < 1; i++) {
