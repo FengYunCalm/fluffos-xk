@@ -12,13 +12,38 @@
 #include <unicode/utf8.h>
 #include <unicode/uchar.h>
 #include <unicode/brkiter.h>
+#include <unicode/utext.h>
 #include <unicode/unistr.h>
 
 #include <stack>
 
 class BreakIteratorPool {
+  class EmptyUText {
+   public:
+    EmptyUText() {
+      UErrorCode status = U_ZERO_ERROR;
+      utext_openUTF8(&text_, empty_storage_, 0, &status);
+      initialized_ = U_SUCCESS(status);
+    }
+    ~EmptyUText() {
+      if (initialized_)
+        utext_close(&text_);
+    }
+    UText* get() {
+      return initialized_ ? &text_ : nullptr;
+    }
+
+   private:
+    static constexpr char empty_storage_[1] = {0};
+    UText text_ = UTEXT_INITIALIZER;
+    bool initialized_ = false;
+  };
+
   class BreakIteratorPoolInner {
    public:
+    // Declare the stable empty UText before the iterator stack so the stack
+    // is destroyed first. Pooled BreakIterators can retain this wrapper.
+    EmptyUText empty_text_;
     std::stack<std::unique_ptr<icu::BreakIterator>> stack_;
   };
 
@@ -41,6 +66,12 @@ class BreakIteratorPool {
  private:
   std::shared_ptr<BreakIteratorPoolInner> inner_;
 
+ public:
+  UText* empty_text() {
+    return inner_->empty_text_.get();
+  }
+
+ private:
   void add() {
     UErrorCode status = U_ZERO_ERROR;
     std::unique_ptr<icu::BreakIterator> ptr(
@@ -120,15 +151,7 @@ class EGCIterator {
   }
 
   static UText* empty_icu_text() {
-    static const char empty_storage[] = "";
-    static thread_local UText empty_text = UTEXT_INITIALIZER;
-    static thread_local bool initialized = false;
-    if (!initialized) {
-      UErrorCode status = U_ZERO_ERROR;
-      utext_openUTF8(&empty_text, empty_storage, 0, &status);
-      initialized = U_SUCCESS(status);
-    }
-    return initialized ? &empty_text : nullptr;
+    return pool()->empty_text();
   }
 
   bool bind_empty_icu() {
@@ -145,7 +168,7 @@ class EGCIterator {
       // BreakIterator may retain the UText wrapper on Windows even though the
       // API documentation describes setText() as copying it. Detach it while
       // the wrapper is still valid, then close the wrapper below. The empty
-      // wrapper is thread-local and remains alive with the pooled iterator.
+      // wrapper belongs to the pool and outlives its pooled iterators.
       bind_empty_icu();
       icu_ready_ = false;
     }
@@ -159,13 +182,13 @@ class EGCIterator {
   bool setup_icu() {
     // Do not bind an empty range through ICU's UTF-8 UText adapter. The
     // Windows ICU build dereferences the adapter's source during this path,
-    // even though a zero-length range has no bytes to read. A native empty
-    // UnicodeString preserves the same zero-boundary iterator semantics
-    // without exposing a one-past string pointer to that adapter.
+    // even though a zero-length range has no bytes to read. The pool-owned
+    // empty UText preserves the same zero-boundary iterator semantics without
+    // exposing a one-past source pointer to that adapter.
     if (len_ == 0) {
-      // Keep the zero-length value backed by a non-null storage address. Some
-      // Windows ICU builds dereference UnicodeString's backing pointer while
-      // binding an empty text, even though no code unit is in range.
+      // Keep the zero-length value backed by a stable, non-null UText. Some
+      // Windows ICU builds dereference the adapter's source even though no
+      // byte is in range.
       if (!bind_empty_icu())
         return false;
       brk_->first();
