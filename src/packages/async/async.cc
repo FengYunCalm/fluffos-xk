@@ -5,8 +5,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -480,9 +478,11 @@ int aio_gzread(struct Request* req) {
 }
 
 void* gzwritethread(struct Request* req) {
-  int const fd = open(req->path.c_str(),
-                      req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
-                      S_IRWXU | S_IRWXG);
+  int flags = req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND;
+#ifdef O_BINARY
+  flags |= O_BINARY;
+#endif
+  int const fd = open(req->path.c_str(), flags, S_IRWXU | S_IRWXG);
   if (fd < 0) {
     req->ret = -1;
     req->status = DONE;
@@ -508,9 +508,11 @@ int aio_gzwrite(struct Request* req) {
 }
 
 void* writethread(struct Request* req) {
-  int const fd = open(req->path.c_str(),
-                      req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND,
-                      S_IRWXU | S_IRWXG);
+  int flags = req->flags & 1 ? O_CREAT | O_WRONLY | O_TRUNC : O_CREAT | O_WRONLY | O_APPEND;
+#ifdef O_BINARY
+  flags |= O_BINARY;
+#endif
+  int const fd = open(req->path.c_str(), flags, S_IRWXU | S_IRWXG);
 
   req->ret = fd < 0 ? -1 : write(fd, req->data.data(), req->data.size());
 
@@ -1032,7 +1034,6 @@ void check_reqs() {
 
 void complete_all_asyncio() {
   CompletionBarrierScope const barrier_scope;
-  auto diagnostic_at = std::chrono::steady_clock::now() + std::chrono::seconds(10);
   // A callback may submit another request (for example, an async read from an
   // async write callback), so one wait-and-dispatch pass is not sufficient.
   // Also account for work already popped by a worker: reqs can be empty while
@@ -1069,39 +1070,6 @@ void complete_all_asyncio() {
     }
     if (!pending && vm_owner_main_queue_total_depth() == 0) {
       break;
-    }
-    auto const now = std::chrono::steady_clock::now();
-    if (now >= diagnostic_at) {
-      size_t queued = 0;
-      size_t current = 0;
-      size_t live = 0;
-      size_t bytes = 0;
-      std::vector<std::pair<int, std::string>> requests;
-      {
-        std::lock_guard<std::mutex> const lock(reqs_lock);
-        queued = reqs.size();
-        current = current_works.size();
-        live = live_requests.size();
-        bytes = pending_request_bytes;
-        requests.reserve(live_requests.size());
-        for (auto const* req : live_requests) {
-          requests.emplace_back(static_cast<int>(req->type), req->path);
-        }
-      }
-      size_t finished = 0;
-      {
-        std::lock_guard<std::mutex> const lock(finished_reqs_lock);
-        finished = finished_reqs.size();
-      }
-      std::fprintf(stderr, "async completion barrier pending: reqs=%zu current=%zu finished=%zu live=%zu bytes=%zu main=%lld\\n",
-                   queued, current, finished, live, bytes,
-                   static_cast<long long>(vm_owner_main_queue_total_depth()));
-      for (auto const& request : requests) {
-        std::fprintf(stderr, "async request type=%d path=%s\\n", request.first,
-                     request.second.c_str());
-      }
-      std::fflush(stderr);
-      std::abort();
     }
     // Keep the synchronous barrier cooperative on platforms where yield()
     // may immediately return without giving a worker a time slice.
