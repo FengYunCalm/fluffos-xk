@@ -163,10 +163,15 @@ bool uncompress_file_contents(const char* input, const char* output) {
     }
   }
   const bool output_ok = !ferror(destination.get());
+  int source_error = Z_OK;
+  gzerror(source.get(), &source_error);
   const int source_close = gzclose(source.release());
   const int destination_close = fclose(destination.release());
-  return count == 0 && wrote_all && output_ok && source_close == Z_OK && destination_close == 0 &&
-         unlink(input) == 0;
+  // Some zlib builds report a truncated stream as an EOF-sized read and only
+  // expose the data error through gzerror(). Do not accept that as a valid
+  // transparent or gzip input stream.
+  return count == 0 && wrote_all && output_ok && source_error == Z_OK &&
+         source_close == Z_OK && destination_close == 0 && unlink(input) == 0;
 }
 
 }  // namespace
