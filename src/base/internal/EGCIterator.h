@@ -12,6 +12,7 @@
 #include <unicode/uchar.h>
 #include <unicode/brkiter.h>
 #include <unicode/utext.h>
+#include <unicode/unistr.h>
 
 // Grapheme iterator with a byte-offset path for CR-free ASCII ranges.
 // New buffers are classified once; subranges retain the previous ASCII/ICU
@@ -119,8 +120,18 @@ class EGCIterator {
       }
     }
 
-    // Do not bind an empty range to a one-past caller pointer. Use stable
-    // storage while retaining the same zero-boundary iterator semantics.
+    // Do not bind an empty range through ICU's UTF-8 UText adapter. Some
+    // Windows ICU builds inspect the adapter's source even when its length is
+    // zero. A stable empty UnicodeString preserves zero-boundary semantics.
+    if (len_ == 0) {
+      static const UChar empty_storage[1] = {0};
+      static const icu::UnicodeString empty(false, empty_storage, 0);
+      brk_->setText(empty);
+      brk_->first();
+      icu_ready_ = true;
+      return true;
+    }
+
     static constexpr char empty_storage[] = "";
     const char* text_source = empty_storage;
     if (len_ > 0) {
