@@ -113,6 +113,7 @@ class EGCIterator {
   int32_t len_;
   UText text_ = UTEXT_INITIALIZER;
   bool text_open_ = false;
+  std::string icu_source_;
 
   static BreakIteratorPool* pool() {
     // thread_local: the pool's stack is not synchronized, and FluffOS_XK's
@@ -177,6 +178,49 @@ class EGCIterator {
       text_ = UTEXT_INITIALIZER;
       text_open_ = false;
     }
+    icu_source_.clear();
+  }
+
+  static bool valid_utf8(const char* source, int32_t length) {
+    auto const* bytes = reinterpret_cast<const unsigned char*>(source);
+    for (int32_t index = 0; index < length;) {
+      unsigned char const first = bytes[index];
+      if (first <= 0x7f) {
+        ++index;
+        continue;
+      }
+      int required = 0;
+      uint32_t codepoint = 0;
+      uint32_t minimum = 0;
+      if (first >= 0xc2 && first <= 0xdf) {
+        required = 1;
+        codepoint = first & 0x1f;
+        minimum = 0x80;
+      } else if (first >= 0xe0 && first <= 0xef) {
+        required = 2;
+        codepoint = first & 0x0f;
+        minimum = 0x800;
+      } else if (first >= 0xf0 && first <= 0xf4) {
+        required = 3;
+        codepoint = first & 0x07;
+        minimum = 0x10000;
+      } else {
+        return false;
+      }
+      if (index + required >= length)
+        return false;
+      for (int offset = 1; offset <= required; ++offset) {
+        unsigned char const continuation = bytes[index + offset];
+        if ((continuation & 0xc0) != 0x80)
+          return false;
+        codepoint = (codepoint << 6) | (continuation & 0x3f);
+      }
+      if (codepoint < minimum || codepoint > 0x10ffff ||
+          (codepoint >= 0xd800 && codepoint <= 0xdfff))
+        return false;
+      index += required + 1;
+    }
+    return true;
   }
 
   bool setup_icu() {
@@ -186,9 +230,6 @@ class EGCIterator {
     // empty UText preserves the same zero-boundary iterator semantics without
     // exposing a one-past source pointer to that adapter.
     if (len_ == 0) {
-      // Keep the zero-length value backed by a stable, non-null UText. Some
-      // Windows ICU builds dereference the adapter's source even though no
-      // byte is in range.
       if (!bind_empty_icu())
         return false;
       brk_->first();
@@ -196,8 +237,18 @@ class EGCIterator {
       return true;
     }
 
+    const char* text_source = src_;
+    if (!valid_utf8(src_, len_)) {
+      // ICU's UTF-8 UText provider on Windows assumes that the first byte is
+      // a code-point boundary and can read outside a partial UTF-8 subrange.
+      // Keep byte offsets stable by mapping malformed input to one ASCII byte
+      // per source byte before handing it to ICU.
+      icu_source_.assign(static_cast<size_t>(len_), 'x');
+      text_source = icu_source_.data();
+    }
+
     UErrorCode status = U_ZERO_ERROR;
-    utext_openUTF8(&text_, src_, len_, &status);
+    utext_openUTF8(&text_, text_source, len_, &status);
     if (!U_SUCCESS(status)) {
       utext_close(&text_);
       text_ = UTEXT_INITIALIZER;

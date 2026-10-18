@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -42,30 +41,18 @@ TEST(EgcResetTest, CrLfSuffixRetainsIcuPath) {
 TEST(EgcResetTest, SubrangesMatchFreshIterator) {
   const std::vector<std::string> sources = {"ascii", "中|文|尾", "é|x", "👩‍💻|🙂|x",
                                             "a\r\nb\r\nc"};
-  for (size_t source_index = 0; source_index < sources.size(); ++source_index) {
-    const auto& source = sources[source_index];
+  for (const auto& source : sources) {
     const auto size = static_cast<int32_t>(source.size());
     for (int32_t start = 0; start <= size; ++start) {
       for (int32_t length = 0; length <= size - start; ++length) {
         SCOPED_TRACE(::testing::Message() << source << ":" << start << ":" << length);
-        std::fprintf(stderr, "EGC case %zu:%d:%d begin\\n", source_index, start,
-                     length);
-        std::fflush(stderr);
-        {
-          EGCIterator iterator(source.data(), size);
-          iterator->last();
-          iterator.reset(source.data() + start, length);
-          EGCIterator fresh(source.data() + start, length);
-          ASSERT_TRUE(iterator.ok());
-          ASSERT_TRUE(fresh.ok());
-          EXPECT_EQ(boundaries(fresh), boundaries(iterator));
-          std::fprintf(stderr, "EGC case %zu:%d:%d compared\\n", source_index,
-                       start, length);
-          std::fflush(stderr);
-        }
-        std::fprintf(stderr, "EGC case %zu:%d:%d destroyed\\n", source_index,
-                     start, length);
-        std::fflush(stderr);
+        EGCIterator iterator(source.data(), size);
+        iterator->last();
+        iterator.reset(source.data() + start, length);
+        EGCIterator fresh(source.data() + start, length);
+        ASSERT_TRUE(iterator.ok());
+        ASSERT_TRUE(fresh.ok());
+        EXPECT_EQ(boundaries(fresh), boundaries(iterator));
       }
     }
   }
