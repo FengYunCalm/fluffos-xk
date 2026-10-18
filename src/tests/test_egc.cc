@@ -38,9 +38,13 @@ TEST(EgcResetTest, CrLfSuffixRetainsIcuPath) {
   EXPECT_EQ((std::vector<int32_t>{0, 1, 2, 3, 4, 5}), boundaries(iterator));
 }
 
-void expect_subranges_match_fresh_iterator(const std::string& source) {
+void expect_subranges_match_fresh_iterator(const std::string& source,
+                                            int32_t first_start = 0,
+                                            int32_t last_start = -1) {
   const auto size = static_cast<int32_t>(source.size());
-  for (int32_t start = 0; start <= size; ++start) {
+  if (last_start < 0)
+    last_start = size;
+  for (int32_t start = first_start; start <= last_start; ++start) {
     for (int32_t length = 0; length <= size - start; ++length) {
       SCOPED_TRACE(::testing::Message() << source << ":" << start << ":" << length);
       EGCIterator iterator(source.data(), size);
@@ -66,9 +70,17 @@ TEST(EgcResetTest, SubrangesMatchFreshIteratorCombining) {
   expect_subranges_match_fresh_iterator("é|x");
 }
 
-TEST(EgcResetTest, SubrangesMatchFreshIteratorEmoji) {
-  expect_subranges_match_fresh_iterator("👩‍💻|🙂|x");
+class EgcEmojiSubrangeTest : public ::testing::TestWithParam<int32_t> {};
+
+TEST_P(EgcEmojiSubrangeTest, MatchesFreshIterator) {
+  const auto start = GetParam();
+  expect_subranges_match_fresh_iterator("👩‍💻|🙂|x", start, start);
 }
+
+INSTANTIATE_TEST_SUITE_P(AllByteStarts, EgcEmojiSubrangeTest,
+                         ::testing::Values(0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                           10, 11, 12, 13, 14, 15, 16, 17,
+                                           18));
 
 TEST(EgcResetTest, SubrangesMatchFreshIteratorCrLf) {
   expect_subranges_match_fresh_iterator("a\r\nb\r\nc");
