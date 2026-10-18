@@ -131,6 +131,48 @@ class EGCIterator {
     icu_source_.clear();
   }
 
+  static bool valid_utf8(const char* source, int32_t length) {
+    auto const* bytes = reinterpret_cast<const unsigned char*>(source);
+    for (int32_t index = 0; index < length;) {
+      unsigned char const first = bytes[index];
+      if (first <= 0x7f) {
+        ++index;
+        continue;
+      }
+      int required = 0;
+      uint32_t codepoint = 0;
+      uint32_t minimum = 0;
+      if (first >= 0xc2 && first <= 0xdf) {
+        required = 1;
+        codepoint = first & 0x1f;
+        minimum = 0x80;
+      } else if (first >= 0xe0 && first <= 0xef) {
+        required = 2;
+        codepoint = first & 0x0f;
+        minimum = 0x800;
+      } else if (first >= 0xf0 && first <= 0xf4) {
+        required = 3;
+        codepoint = first & 0x07;
+        minimum = 0x10000;
+      } else {
+        return false;
+      }
+      if (index + required >= length)
+        return false;
+      for (int offset = 1; offset <= required; ++offset) {
+        unsigned char const continuation = bytes[index + offset];
+        if ((continuation & 0xc0) != 0x80)
+          return false;
+        codepoint = (codepoint << 6) | (continuation & 0x3f);
+      }
+      if (codepoint < minimum || codepoint > 0x10ffff ||
+          (codepoint >= 0xd800 && codepoint <= 0xdfff))
+        return false;
+      index += required + 1;
+    }
+    return true;
+  }
+
   bool setup_icu() {
     // Do not bind an empty range through ICU's UTF-8 UText adapter. The
     // Windows ICU build dereferences the adapter's source during this path,
@@ -152,6 +194,8 @@ class EGCIterator {
     } else {
       icu_source_.assign(src_, static_cast<size_t>(len_));
     }
+    if (!valid_utf8(icu_source_.data(), static_cast<int32_t>(icu_source_.size())))
+      icu_source_.assign(icu_source_.size(), 'x');
 
     UText text = UTEXT_INITIALIZER;
     UErrorCode status = U_ZERO_ERROR;
