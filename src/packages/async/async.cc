@@ -1038,7 +1038,11 @@ void complete_all_asyncio() {
     {
       std::lock_guard<std::mutex> const lock(reqs_lock);
       if (!reqs.empty() || !current_works.empty()) {
-        std::this_thread::yield();
+        // A pure yield is not a scheduling guarantee on Windows: the main
+        // thread can repeatedly resume while the worker that owns the queued
+        // request has not run yet. Sleep briefly so completion barriers cannot
+        // starve their workers on that platform.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         continue;
       }
     }
@@ -1061,7 +1065,9 @@ void complete_all_asyncio() {
     if (!pending && vm_owner_main_queue_total_depth() == 0) {
       break;
     }
-    std::this_thread::yield();
+    // Keep the synchronous barrier cooperative on platforms where yield()
+    // may immediately return without giving a worker a time slice.
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
