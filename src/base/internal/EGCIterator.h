@@ -122,14 +122,25 @@ class EGCIterator {
     // Do not bind an empty range to a one-past caller pointer. Use stable
     // storage while retaining the same zero-boundary iterator semantics.
     static constexpr char empty_storage[] = "";
-    const char* text_source = len_ == 0 ? empty_storage : src_;
-    if (!valid_utf8(src_, len_)) {
-      // ICU's UTF-8 UText provider on Windows assumes that the first byte is
-      // a code-point boundary and can read outside a partial UTF-8 subrange.
-      // Keep byte offsets stable by mapping malformed input to one ASCII byte
-      // per source byte before handing it to ICU.
-      icu_source_.assign(static_cast<size_t>(len_), 'x');
+    const char* text_source = empty_storage;
+    if (len_ > 0) {
+      // Keep ICU away from interior pointers into a larger string. The
+      // Windows UTF-8 UText provider has historically read beyond an
+      // explicitly bounded subrange; this owned copy is NUL-terminated and
+      // keeps the returned native offsets one-to-one with source bytes.
+      icu_source_.assign(src_, static_cast<size_t>(len_));
+      if (!valid_utf8(src_, len_)) {
+        // ICU's UTF-8 UText provider can also mishandle a partial code point
+        // at a bounded range edge. Preserve the existing one-byte/one-offset
+        // fallback for malformed input.
+        icu_source_.assign(static_cast<size_t>(len_), 'x');
+      }
       text_source = icu_source_.data();
+    } else if (len_ == -1) {
+      // A negative length means a NUL-terminated source. Copy it as well so
+      // an interior pointer never becomes ICU's backing storage.
+      icu_source_.assign(src_);
+      text_source = icu_source_.c_str();
     }
 
     UErrorCode status = U_ZERO_ERROR;
