@@ -119,18 +119,34 @@ class EGCIterator {
     return (acc & 0x80u) == 0 && cr == 0;
   }
 
-  static const icu::UnicodeString& empty_icu_text() {
-    static const UChar empty_storage[1] = {0};
-    static const icu::UnicodeString empty(false, empty_storage, 0);
-    return empty;
+  static UText* empty_icu_text() {
+    static const char empty_storage[] = "";
+    static thread_local UText empty_text = UTEXT_INITIALIZER;
+    static thread_local bool initialized = false;
+    if (!initialized) {
+      UErrorCode status = U_ZERO_ERROR;
+      utext_openUTF8(&empty_text, empty_storage, 0, &status);
+      initialized = U_SUCCESS(status);
+    }
+    return initialized ? &empty_text : nullptr;
+  }
+
+  bool bind_empty_icu() {
+    auto* const empty_text = empty_icu_text();
+    if (empty_text == nullptr)
+      return false;
+    UErrorCode status = U_ZERO_ERROR;
+    brk_->setText(empty_text, status);
+    return U_SUCCESS(status);
   }
 
   void clear_icu() {
     if (icu_ready_) {
       // BreakIterator may retain the UText wrapper on Windows even though the
       // API documentation describes setText() as copying it. Detach it while
-      // the wrapper is still valid, then close the wrapper below.
-      brk_->setText(empty_icu_text());
+      // the wrapper is still valid, then close the wrapper below. The empty
+      // wrapper is thread-local and remains alive with the pooled iterator.
+      bind_empty_icu();
       icu_ready_ = false;
     }
     if (text_open_) {
@@ -150,7 +166,8 @@ class EGCIterator {
       // Keep the zero-length value backed by a non-null storage address. Some
       // Windows ICU builds dereference UnicodeString's backing pointer while
       // binding an empty text, even though no code unit is in range.
-      brk_->setText(empty_icu_text());
+      if (!bind_empty_icu())
+        return false;
       brk_->first();
       icu_ready_ = true;
       return true;
