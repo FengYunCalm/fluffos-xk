@@ -5,7 +5,7 @@
 
 ## 证据新鲜度边界（2026-08-09 审计）
 
-历史材料仍保留在仓库，但不再作为当前验收依据。2026-10-19 的原始 partial evidence 位于 `audit-evidence/xiakexing-main-dd99-current-driver-fbc08/`，记录的 FluffOS source commit 为 `fbc08a1674f52a19007ad5327b2e4b5066cf5575`，driver artifact 的 code commit 为 `b6068b8f6aff67a63ea30965017c8cb532571763`，Xiakexing commit 为 `dd99a9bb5946298090c0d144ea3142a9e03fa0a0`。当前目录缺少 `final-audit/final-audit-envelope.json`、`final-audit/final-audit-record.json` 和 `final-audit/check-evidence.log`；因此不能把这些 partial evidence 绑定为当前生产验收，也不能声称 `tools/docs/check-evidence.py` 已通过。
+历史材料仍保留在仓库，但不再作为当前验收依据。2026-10-19 的原始 partial evidence 位于 `audit-evidence/xiakexing-main-dd99-current-driver-fbc08/`，记录的 FluffOS source commit 为 `fbc08a1674f52a19007ad5327b2e4b5066cf5575`，driver artifact 的 code commit 为 `b6068b8f6aff67a63ea30965017c8cb532571763`，Xiakexing commit 为 `dd99a9bb`。当前目录缺少 `final-audit/final-audit-envelope.json`、`final-audit/final-audit-record.json` 和 `final-audit/check-evidence.log`；因此不能把这些 partial evidence 绑定为当前生产验收，也不能声称 `tools/docs/check-evidence.py` 已通过。
 
 ## 当前结论
 
