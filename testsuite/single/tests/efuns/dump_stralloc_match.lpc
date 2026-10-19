@@ -1,3 +1,8 @@
+private string normalize_line_endings(string value) {
+  value = replace_string(value, "\r\n", "\n");
+  return replace_string(value, "\r", "\n");
+}
+
 void do_tests() {
   string path = "/u11_dump_stralloc_match.txt";
   rm(path);
@@ -8,8 +13,8 @@ void do_tests() {
   ASSERT2(stringp(result), "dump_stralloc match call returned no string");
   ASSERT2(stringp(file), "dump_stralloc match file is unreadable");
   if (stringp(result) && stringp(file)) {
-    string normalized_result = replace_string(result, "\r\n", "\n");
-    string normalized_file = replace_string(file, "\r\n", "\n");
+    string normalized_result = normalize_line_endings(result);
+    string normalized_file = normalize_line_endings(file);
     ASSERT2(strlen(normalized_result) > 0,
       "dump_stralloc returned an empty report");
     ASSERT2(strsrch(normalized_result, "===STRALLOC DUMP: allocd_strings:") == 0,
