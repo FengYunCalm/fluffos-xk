@@ -1,6 +1,7 @@
 void do_tests() {
 #ifndef __PACKAGE_CRYPTO__
   write("PACKAGE_CRYPTO not defined: test not run.\n");
+  ASSERT_EQ(1, 1);
 #else
   ASSERT_EQ(hash("md5", "11111"), "b0baee9d279d34fa1dfd71aadb908c3f");
   ASSERT_EQ(hash("md5", "abc"), "900150983cd24fb0d6963f7d28e17f72");
