@@ -5,15 +5,15 @@
 
 ## 证据新鲜度边界（2026-08-09 审计）
 
-本节中的 10 用户 30 分钟 audit 压测、XiaKeXing mudlib final audit 和 `socket_release` handshake 结论均为 **2026-06 历史证据**（`historical`），产生于旧 checkout；当时记录使用的 checkout（`24bd5f4f`，2026-08-09）只验证了 CTest 392/392、ASan CTest 392/392 与短时 runtime smoke。`docs/reports/multicore-mudlib-audit-2026-06-25.md` 在当前 checkout **不存在**（链接漂移，已修正）。历史结论不会自动绑定到当前二进制。`tools/docs/check-evidence.py` 只验证 `fluffos.evidence.manifest.v1` 的当前身份、清理状态、原始日志摘要和 ready/status/blocker 一致性；它不会加载或修改 driver 的运行时状态。更大规模的外部压测不属于本独立 fork 的默认验收范围。
+历史材料仍保留在仓库，但不再作为当前验收依据。2026-10-19 的原始 partial evidence 位于 `audit-evidence/xiakexing-main-dd99-current-driver-fbc08/`，记录的 FluffOS source commit 为 `fbc08a1674f52a19007ad5327b2e4b5066cf5575`，driver artifact 的 code commit 为 `b6068b8f6aff67a63ea30965017c8cb532571763`，Xiakexing commit 为 `dd99a9bb5946298090c0d144ea3142a9e03fa0a0`。当前目录缺少 `final-audit/final-audit-envelope.json`、`final-audit/final-audit-record.json` 和 `final-audit/check-evidence.log`；因此不能把这些 partial evidence 绑定为当前生产验收，也不能声称 `tools/docs/check-evidence.py` 已通过。
 
 ## 当前结论
 
-当前 driver 侧多核化执行面具备本 fork 的 runtime contract：owner-local lifecycle、OwnerExecutor callback task boundary、heartbeat、callout、async/file/db、DNS、socket read/write/close callback、gateway command execute 和 `socket_release` owner-safe release/acquire handshake 都已经具备运行时合同。正常运行路径要求 `normal_path_main_fallback_count=0`；`off`、owner executor 不可用和 rollback/failure 场景只能作为显式兼容 fallback，不计入正常业务热路径。运行时合同不等于当前生产验收；由于本 checkout 仍没有绑定完整生产 envelope，`production_gate_ready` 保持 `0`，状态为 `unverified`。
+当前 driver 侧多核化执行面保留本 fork 的 runtime contract：owner-local lifecycle、OwnerExecutor callback task boundary、heartbeat、callout、async/file/db、DNS、socket read/write/close callback、gateway command execute 和 `socket_release` owner-safe release/acquire handshake。正常运行路径要求 `normal_path_main_fallback_count=0`；`off`、owner executor 不可用和 rollback/failure 场景只能作为显式兼容 fallback，不计入正常业务热路径。由于当前缺少完整 envelope，`production_gate_ready` 必须保持 `0`，状态为 `unverified`；公开 Release 状态也不因此改变。
 
-截至 2026-10-19，当前 FluffOS `b6068b8f` 已绑定新的 Xiakexing partial evidence：core、owner、10 用户 30 分钟 enforced 压测均通过，Windows Debug/RelWithDebInfo CI 也已通过。原始材料位于 `audit-evidence/xiakexing-main-ca37185-current-driver-b6068b8f/`。该材料不能替代完整门禁，因为尚未覆盖 1/3 用户档位、`off,audit,enforced` 全模式、final mudlib audit 和当前 `socket_release` handshake。
+截至 2026-10-19，现有原始材料记录了 core/owner sandbox、1/3 用户 smoke 的 `off`/`audit`/`enforced` 模式、10 用户约 30 分钟 `audit` 压测、static gate 和 `socket_release` 合同测试的通过结果。压力报告实际记录 5839/5839 条命令成功、0 failure、0 timeout、0 disconnect，static gate 记录 318 modules、2148 tests、0 reds，`socket-release.log` 记录 195 个测试全部通过。这些是 source/artifact 为旧 checkout 的 partial evidence，不是当前 main 的完整 production envelope；该结论不等同于公开 Release 的 `release-ready`。
 
-> **证据边界**：本文保留的历史 10 用户压测、final audit 和 `socket_release` 记录仍不能绑定当前二进制。当前 partial evidence 只证明已列出的检查；只有绑定当前二进制、构建身份、测试 SHA、源 SHA、清理状态和原始日志摘要的完整 envelope 才能恢复 ready。
+> **证据边界**：当前目录中的 JSON 和日志只证明各自列出的检查。缺少绑定当前二进制、构建身份、测试 SHA、源 SHA、清理状态和原始日志摘要的完整 envelope 前，不得把这些 partial evidence 写入 current evidence 字段，也不得将 `production_gate_ready` 置为 `1`。
 
 ## 机器可读状态
 
@@ -22,19 +22,19 @@
 | 字段 | 当前值 | 含义 |
 | --- | --- | --- |
 | `mudlib_audit_required` | `1` | 真实下游 mudlib audit 是自用验收的硬前置 |
-| `mudlib_cross_owner_hotspots_ready` | `0` | 当前构建没有绑定有效的 mudlib audit 证据 |
-| `mudlib_cross_owner_hotspots_blocker` | `current_evidence_not_bound_to_this_binary` | 当前二进制尚未绑定有效证据 |
-| `mudlib_cross_owner_hotspots_evidence` | `` | 当前证据标识为空；历史标识见单独字段 |
+| `mudlib_cross_owner_hotspots_ready` | `0` | 当前没有绑定有效 production envelope |
+| `mudlib_cross_owner_hotspots_blocker` | `current_evidence_not_bound_to_this_binary` | 当前 partial evidence 不能绑定当前二进制 |
+| `mudlib_cross_owner_hotspots_evidence` | `` | 当前证据标识为空；partial evidence 见下文 |
 | `mudlib_cross_owner_hotspots_historical_evidence` | `xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads` | 可辨认但不能置 current-ready 的历史证据 |
-| `production_gate_ready` | `0` | 无当前绑定证据时强制 fail-closed |
-| `production_gate_status` | `unverified` | 当前生产验收尚未由有效 envelope 证明 |
-| `production_gate_blocker` | `current_evidence_not_bound_to_this_binary` | 当前二进制尚未绑定有效证据 |
-| `production_gate_evidence_kind` | `historical` | 保留的证据标识属于历史记录 |
-| `production_gate_current_evidence_bound` | `0` | 没有证据绑定当前二进制 |
+| `production_gate_ready` | `0` | 缺少当前有效 envelope 时强制 fail-closed |
+| `production_gate_status` | `unverified` | 当前 production gate 尚未由有效 envelope 证明 |
+| `production_gate_blocker` | `current_evidence_not_bound_to_this_binary` | partial evidence 不能绑定当前二进制 |
+| `production_gate_evidence_kind` | `historical` | 记录来自旧 source/artifact checkout |
+| `production_gate_current_evidence_bound` | `0` | 没有证据绑定当前 main 和二进制 |
 | `production_gate_required_users` | `1,3,10` | 恢复验收时必须覆盖的并发用户档位 |
 | `production_gate_required_durations` | `smoke,30m` | 恢复验收时必须覆盖的时长档位 |
-| `production_gate_pressure_evidence_ready` | `0` | 历史压力证据不能满足当前压力口径 |
-| `production_gate_pressure_evidence` | `` | 当前压力证据标识为空；历史标识见单独字段 |
+| `production_gate_pressure_evidence_ready` | `0` | 压力报告存在，但尚未通过当前 envelope 绑定 |
+| `production_gate_pressure_evidence` | `` | 当前压力证据标识为空；partial report 见下文 |
 | `production_gate_pressure_historical_evidence` | `xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors` | 可辨认但不能置 current-ready 的历史证据 |
 | `production_gate_required_modes` | `off,audit,enforced` | 必须覆盖的 driver 多核模式 |
 | `production_gate_required_scenarios` | `login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,gateway_callback,socket_callback,heartbeat,callout` | 必须覆盖的真实 mudlib 场景 |
@@ -48,7 +48,7 @@
 | `production_gate_same_owner_claim_conflict_required_zero` | `1` | same-owner claim conflict 必须为 0 |
 | `production_gate_gateway_error_delta_required_zero` | `1` | gateway rejected/dropped/queue-full/write-error 增量必须为 0 |
 | `production_gate_socket_release_policy` | `owner_safe_synchronous_release_acquire_handshake` | `socket_release` 保持同步返回语义，但 release/acquire 受 owner epoch guard 保护 |
-| `production_gate_socket_release_handshake_ready` | `0` | 历史 handshake 合同未绑定当前二进制证据 |
+| `production_gate_socket_release_handshake_ready` | `0` | 测试日志存在，但尚未绑定当前二进制 |
 | `production_gate_socket_release_handshake_evidence` | `` | 当前 handshake 证据标识为空 |
 | `production_gate_socket_release_handshake_historical_evidence` | `socket_release_owner_epoch_handshake_contract_v1` | 可辨认但不能置 current-ready 的历史证据 |
 | `production_gate_report_schema` | `xkx_gateway_loadtest_report_v1` | loadtest JSON 报告 schema |
@@ -69,21 +69,21 @@
 
 这些字段表达运行时验收状态和正常路径边界：业务命令、heartbeat、callout、async/DNS/socket callback 和 target-handle owner message 必须走 owner executor；main 线程只保留网络 IO、reply/prompt/telnet 适配、LPC 引用 cleanup、显式 fallback 和 documented main-required compatibility surface。
 
-## 当前 smoke 证据
+## 当前 smoke 与压力证据
 
-2026-06-24 本地真实 mudlib gateway smoke 已覆盖 `enforced` 模式下的单用户 WebSocket 登录和基础命令闭环。覆盖动作包括：新角色创建、查看环境、背包、技能、状态、移动、地图和聊天。
+当前证据根目录：`audit-evidence/xiakexing-main-dd99-current-driver-fbc08/`。
 
-2026-06-25 10 用户 `audit` 模式 30 分钟短压已通过，使用 `--command-timeout 5`，`commands_ok=32539`、`timeouts=0`、`gateway_metrics_delta` 全 0。这个结果说明 5 秒预算可以稳定覆盖当前 audit 长压，不应再把 2 秒默认值当成后续矩阵的基线。
+| 运行 | 结果 | 原始报告 |
+| --- | --- | --- |
+| core sandbox | PASS | `core-v7/evidence/sandbox.json` |
+| owner sandbox | PASS | `owner-v7/evidence/sandbox.json` |
+| 1 用户 smoke | `off`/`audit`/`enforced` 均 PASS | `production-matrix-v3-mode-{off,audit,enforced}/smoke-1.json` |
+| 3 用户 smoke | `off`/`audit`/`enforced` 均 PASS | `production-matrix-v3-mode-{off,audit,enforced}/smoke-3.json` |
+| 10 用户压力 | 请求 1800 秒，实际 1862.1 秒；5839/5839 命令成功，0 failure、0 timeout、0 disconnect，gateway error delta 全 0 | `production-matrix-v3-pressure/pressure-10u-30m.json` |
+| static gate | PASS；318 modules，2148 tests，0 reds | `final-audit/static-gate.log`、`final-audit/static-gate.result` |
+| socket release | PASS；195 个选中的 socket/gateway/release/transport 合同测试全部通过 | `final-audit/socket-release.log` |
 
-观察结果：
-
-- 客户端能完成登录并进入场景。
-- 基础玩家命令有响应。
-- smoke 期间未观察到新增 driver fatal error 或新增 enforced cross-owner 阻断错误。
-- gateway command 已走 `gateway_command_execute` owner executor 合同；网络 reply、prompt、telnet 和 cleanup 仍按合同保留 main-required adapter 边界，不承载正常业务写路径。
-
-单用户 smoke 只能证明最小路径没有立即回归；需要长时运行的下游部署应按实际负载复核，不默认要求追加固定的公开发布压力档位。
-
+`final-audit` 当前缺少 `final-audit-record.json`、`final-audit-envelope.json` 和 `check-evidence.log`。因此上述日志和 JSON 只能作为 partial evidence，不能证明当前 production gate ready。
 ## Loadtest 入口
 
 仓库内自包含入口为 `tools/loadtest/xkx_gateway_loadtest.py`。最小 smoke 运行形式：
@@ -100,9 +100,9 @@ python3 tools/loadtest/xkx_gateway_loadtest.py --host <gateway-host> --port <gat
 
 ## 当前阻塞项
 
-真实 XiaKeXing mudlib final audit 已在仓内报告 `docs/reports/multicore-mudlib-audit-2026-06-25.md` 收口（**注意：该报告路径在当前 checkout 已不存在，属历史证据；`external-required` 重跑前不得作为当前 ready 依据**）：generic callback dispatch 已归类到 timer/heartbeat owner callback helper，network/command/daemon message wrapper 已归类到 session output facade，原有 delayed callback 裸 `object` payload 已改为 key/path/snapshot 并有静态合同覆盖。`socket_release` owner-safe release/acquire handshake 已由 driver 合同收口。
+真实 XiaKeXing mudlib final audit 的报告 `docs/reports/multicore-mudlib-audit-2026-06-25.md` 在当前 checkout 不存在，属历史证据；`external-required` 重跑前不得作为当前 ready 依据。当前 evidence 目录虽有 core/owner、smoke、压力、static gate 和 `socket_release` 原始材料，但缺少 `final-audit-record.json`、`final-audit-envelope.json` 和 checker 输出，不能完成当前身份、SHA、清理状态和原始摘要绑定。
 
-当前仍有一个明确的验收 blocker：缺少绑定当前二进制的完整证据 envelope。`socket_release` 仍保持 efun 同步返回语义；release 时捕获目标 owner epoch，acquire 时校验同一 owner epoch，成功、拒绝、stale 和 owner mismatch 都记录 `socket_release` task trace。历史 handshake 合同不能替代当前证据。
+当前仍有明确的验收 blocker：`current_evidence_not_bound_to_this_binary`。`socket_release` 仍保持 efun 同步返回语义；release 时捕获目标 owner epoch，acquire 时校验同一 owner epoch，成功、拒绝、stale 和 owner mismatch 都记录 `socket_release` task trace。现有合同测试日志不能替代当前 envelope。
 
 ## 验收矩阵
 
@@ -136,4 +136,4 @@ python3 tools/loadtest/xkx_gateway_loadtest.py --host <gateway-host> --port <gat
 
 ## 下一步
 
-当前 runtime contract 无剩余多核化实现尾项，但生产验收状态仍为 `unverified`。后续必须在当前二进制上补齐 1/3 用户 smoke、`off,audit,enforced` 全模式、final audit 和 `socket_release` handshake，并用 checker 校验身份、SHA、清理状态和原始日志摘要；在此之前不得把任何历史标识写入 current evidence 字段或将 `production_gate_ready` 置为 `1`。新增 executor callback 或受控 owner domain 类型时必须先补 allowlist、payload policy、stale/drop cleanup、normal-path fallback 计数和合同测试。
+当前 runtime contract 代码路径已有上述 partial evidence，但 production gate 仍为 `unverified`。后续必须在当前二进制上重新生成完整 record/envelope，并用 checker 校验身份、SHA、清理状态和原始日志摘要；在此之前不得把 partial evidence 写入 current evidence 字段或将 `production_gate_ready` 置为 `1`。公开 Release 仍不自动标记 `release-ready`；若后续要申请公开发布，必须另外满足项目级 fuzz、安全、性能、供应链、签名、provenance 和外部环境门禁。新增 executor callback 或受控 owner domain 类型时，必须先补 allowlist、payload policy、stale/drop cleanup、normal-path fallback 计数和合同测试。
