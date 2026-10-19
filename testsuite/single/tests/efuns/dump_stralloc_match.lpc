@@ -1,0 +1,21 @@
+void do_tests() {
+  string path = "/u11_dump_stralloc_match.txt";
+  rm(path);
+  mixed result;
+  mixed failure = catch(result = dump_stralloc(path));
+  mixed file = read_file(path);
+  ASSERT2(!failure, "dump_stralloc match call raised an error");
+  ASSERT2(stringp(result), "dump_stralloc match call returned no string");
+  ASSERT2(stringp(file), "dump_stralloc match file is unreadable");
+  if (stringp(result) && stringp(file)) {
+    string normalized_result = replace_string(result, "\r\n", "\n");
+    string normalized_file = replace_string(file, "\r\n", "\n");
+    ASSERT2(strlen(normalized_result) > 0,
+      "dump_stralloc returned an empty report");
+    ASSERT2(strsrch(normalized_result, "===STRALLOC DUMP: allocd_strings:") == 0,
+      "dump_stralloc return missing header");
+    ASSERT2(strcmp(normalized_result, normalized_file) == 0,
+      "dump_stralloc return/file mismatch");
+  }
+  rm(path);
+}

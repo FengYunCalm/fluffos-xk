@@ -1,0 +1,15 @@
+void do_tests() {
+  string path = "/u11_dump_stralloc_file.txt";
+  rm(path);
+  mixed result;
+  mixed failure = catch(result = dump_stralloc(path));
+  mixed file = read_file(path);
+  ASSERT2(!failure, "dump_stralloc file call raised an error");
+  ASSERT2(stringp(result), "dump_stralloc file call returned no string");
+  ASSERT2(stringp(file), "dump_stralloc did not create a readable file");
+  if (stringp(file)) {
+    ASSERT2(strsrch(file, "===STRALLOC DUMP: allocd_strings:") == 0,
+      "dump_stralloc file missing header");
+  }
+  rm(path);
+}
