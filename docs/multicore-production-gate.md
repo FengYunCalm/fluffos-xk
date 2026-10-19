@@ -9,9 +9,11 @@
 
 ## 当前结论
 
-当前 driver 侧多核化执行面具备本 fork 的 runtime contract：owner-local lifecycle、OwnerExecutor callback task boundary、heartbeat、callout、async/file/db、DNS、socket read/write/close callback、gateway command execute 和 `socket_release` owner-safe release/acquire handshake 都已经具备运行时合同。正常运行路径要求 `normal_path_main_fallback_count=0`；`off`、owner executor 不可用和 rollback/failure 场景只能作为显式兼容 fallback，不计入正常业务热路径。运行时合同不等于当前生产验收；由于本 checkout 没有绑定当前构建的完整证据，`production_gate_ready` 保持 `0`，状态为 `unverified`。
+当前 driver 侧多核化执行面具备本 fork 的 runtime contract：owner-local lifecycle、OwnerExecutor callback task boundary、heartbeat、callout、async/file/db、DNS、socket read/write/close callback、gateway command execute 和 `socket_release` owner-safe release/acquire handshake 都已经具备运行时合同。正常运行路径要求 `normal_path_main_fallback_count=0`；`off`、owner executor 不可用和 rollback/failure 场景只能作为显式兼容 fallback，不计入正常业务热路径。运行时合同不等于当前生产验收；由于本 checkout 仍没有绑定完整生产 envelope，`production_gate_ready` 保持 `0`，状态为 `unverified`。
 
-> **证据边界**：下面的 10 用户 30 分钟 audit 压测、final audit 和 `socket_release` 记录只说明历史运行结果。当前 checkout 尚未重新产生等效当前证据，因此机器可读 ready 字段保持 fail-closed；只有绑定当前二进制、构建身份、测试 SHA、源 SHA、清理状态和原始日志摘要的有效 envelope 才能作为恢复 ready 的前置。
+截至 2026-10-19，当前 FluffOS `b6068b8f` 已绑定新的 Xiakexing partial evidence：core、owner、10 用户 30 分钟 enforced 压测均通过，Windows Debug/RelWithDebInfo CI 也已通过。原始材料位于 `audit-evidence/xiakexing-main-ca37185-current-driver-b6068b8f/`。该材料不能替代完整门禁，因为尚未覆盖 1/3 用户档位、`off,audit,enforced` 全模式、final mudlib audit 和当前 `socket_release` handshake。
+
+> **证据边界**：本文保留的历史 10 用户压测、final audit 和 `socket_release` 记录仍不能绑定当前二进制。当前 partial evidence 只证明已列出的检查；只有绑定当前二进制、构建身份、测试 SHA、源 SHA、清理状态和原始日志摘要的完整 envelope 才能恢复 ready。
 
 ## 机器可读状态
 
@@ -134,4 +136,4 @@ python3 tools/loadtest/xkx_gateway_loadtest.py --host <gateway-host> --port <gat
 
 ## 下一步
 
-当前 runtime contract 无剩余多核化实现尾项，但生产验收状态仍为 `unverified`。后续必须在当前二进制上重跑所需 smoke、压力、final audit 和 `socket_release` handshake，并用 checker 校验身份、SHA、清理状态和原始日志摘要；在此之前不得把任何历史标识写入 current evidence 字段或将 `production_gate_ready` 置为 `1`。新增 executor callback 或受控 owner domain 类型时必须先补 allowlist、payload policy、stale/drop cleanup、normal-path fallback 计数和合同测试。
+当前 runtime contract 无剩余多核化实现尾项，但生产验收状态仍为 `unverified`。后续必须在当前二进制上补齐 1/3 用户 smoke、`off,audit,enforced` 全模式、final audit 和 `socket_release` handshake，并用 checker 校验身份、SHA、清理状态和原始日志摘要；在此之前不得把任何历史标识写入 current evidence 字段或将 `production_gate_ready` 置为 `1`。新增 executor callback 或受控 owner domain 类型时必须先补 allowlist、payload policy、stale/drop cleanup、normal-path fallback 计数和合同测试。
