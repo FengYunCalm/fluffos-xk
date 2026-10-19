@@ -1623,6 +1623,12 @@ static int file_length(const char* file) {
   if (!file) {
     return -1;
   }
+  // Check the path before opening it. Windows may reject a directory with
+  // fopen(), while POSIX permits an open descriptor and lets fstat() identify
+  // it; both platforms must expose the same -2 directory result.
+  if (stat(file, &st) == 0 && S_ISDIR(st.st_mode)) {
+    return -2;
+  }
   if (!(f = fopen(file, "rb"))) {
     return -1;
   }
