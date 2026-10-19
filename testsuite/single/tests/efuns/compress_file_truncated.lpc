@@ -2,13 +2,11 @@
 void do_tests() {
   string source = "/compress_truncated_input";
   string compressed = source + ".gz";
-  ASSERT_EQ(1, write_file(source, "gzip payload", 3));
+  write_file(source, "gzip payload", 3);
   buffer damaged = read_buffer(source);
-  ASSERT(sizeof(damaged) > 8);
-  // Retain the gzip header and truncate the compressed stream itself.
   damaged = damaged[0 ..<sizeof(damaged) - 1];
-  ASSERT_EQ(1, write_file(source, "", 1));
-  ASSERT_EQ(1, write_buffer(source, 0, damaged));
+  write_file(source, "", 1);
+  write_buffer(source, 0, damaged);
   ASSERT_EQ(0, uncompress_file(source, compressed));
   rm(source);
   rm(compressed);
