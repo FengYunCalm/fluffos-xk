@@ -4,7 +4,9 @@ void do_tests() {
   string compressed = source + ".gz";
   write_file(source, "gzip payload", 3);
   buffer damaged = read_buffer(source);
-  damaged = damaged[0 ..<sizeof(damaged) - 1];
+  // Remove the complete gzip trailer so platform zlib builds cannot treat a
+  // trailing padding byte as part of a valid member.
+  damaged = damaged[0 ..<sizeof(damaged) - 8];
   write_file(source, "", 1);
   write_buffer(source, 0, damaged);
   ASSERT_EQ(0, uncompress_file(source, compressed));
