@@ -76,52 +76,6 @@ void assert_dispatch_entry_ex(mapping dispatch_contract, string task_type,
   ASSERT_EQ("observe_then_reject_new_tasks", entry["backpressure_policy"]);
 }
 
-void assert_production_gate_contract(mapping contract) {
-  ASSERT_EQ(1, contract["mudlib_audit_required"]);
-  ASSERT_EQ(0, contract["mudlib_cross_owner_hotspots_ready"]);
-  ASSERT_EQ("current_evidence_not_bound_to_this_binary",
-    contract["mudlib_cross_owner_hotspots_blocker"]);
-  ASSERT_EQ("", contract["mudlib_cross_owner_hotspots_evidence"]);
-  ASSERT_EQ("xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads",
-    contract["mudlib_cross_owner_hotspots_historical_evidence"]);
-  ASSERT_EQ(0, contract["production_gate_ready"]);
-  ASSERT_EQ("unverified", contract["production_gate_status"]);
-  ASSERT_EQ("current_evidence_not_bound_to_this_binary", contract["production_gate_blocker"]);
-  ASSERT_EQ("historical", contract["production_gate_evidence_kind"]);
-  ASSERT_EQ(0, contract["production_gate_current_evidence_bound"]);
-  ASSERT_EQ("1,3,10", contract["production_gate_required_users"]);
-  ASSERT_EQ("smoke,30m", contract["production_gate_required_durations"]);
-  ASSERT_EQ(0, contract["production_gate_pressure_evidence_ready"]);
-  ASSERT_EQ("", contract["production_gate_pressure_evidence"]);
-  ASSERT_EQ("xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors",
-    contract["production_gate_pressure_historical_evidence"]);
-  ASSERT_EQ("off,audit,enforced", contract["production_gate_required_modes"]);
-  ASSERT_EQ("login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
-    "gateway_callback,socket_callback,heartbeat,callout",
-    contract["production_gate_required_scenarios"]);
-  ASSERT_EQ("multicore_production_gate_evidence_v1", contract["production_gate_evidence_schema"]);
-  ASSERT_EQ(1, contract["production_gate_evidence_required"]);
-  ASSERT_EQ(0, contract["production_gate_short_smoke_sufficient"]);
-  ASSERT_EQ("accepted_30m_pressure_scope_final_audit_and_socket_release_handshake",
-    contract["production_gate_minimum_ready_evidence"]);
-  ASSERT_EQ(1, contract["production_gate_unclassified_hotspots_required_zero"]);
-  ASSERT_EQ(1, contract["production_gate_direct_cross_owner_writes_required_zero"]);
-  ASSERT_EQ(1, contract["production_gate_context_leaks_required_zero"]);
-  ASSERT_EQ(1, contract["production_gate_future_backlog_required_zero"]);
-  ASSERT_EQ(1, contract["production_gate_same_owner_claim_conflict_required_zero"]);
-  ASSERT_EQ(1, contract["production_gate_gateway_error_delta_required_zero"]);
-  ASSERT_EQ("owner_safe_synchronous_release_acquire_handshake",
-    contract["production_gate_socket_release_policy"]);
-  ASSERT_EQ(0, contract["production_gate_socket_release_handshake_ready"]);
-  ASSERT_EQ("", contract["production_gate_socket_release_handshake_evidence"]);
-  ASSERT_EQ("socket_release_owner_epoch_handshake_contract_v1",
-    contract["production_gate_socket_release_handshake_historical_evidence"]);
-  ASSERT_EQ("xkx_gateway_loadtest_report_v1", contract["production_gate_report_schema"]);
-  ASSERT_EQ("schema,run_id,mode,users_requested,duration_seconds,scenario,commands_ok,timeouts,"
-    "gateway_metrics_delta,production_gate_observations",
-    contract["production_gate_report_required_fields"]);
-}
-
 void assert_vm_context_contract(mapping contract) {
   mixed *gates = contract["ordinary_lpc_readiness_gates"];
   mapping gate_by_name = ([]);
@@ -358,7 +312,6 @@ void assert_gateway_owner_task_contract(mapping contract) {
   ASSERT(mapp(contract));
   ASSERT_EQ(1, contract["contract_version"]);
   ASSERT_EQ("owner_executor_with_main_fallback", contract["input_model"]);
-  ASSERT_EQ("owner_executor_active", contract["executor_migration_state"]);
   ASSERT_EQ("gateway_command_buffer_metadata_v1",
     contract["command_payload_model"]);
   ASSERT_EQ("interactive_text_buffer", contract["command_input_source"]);
@@ -482,7 +435,6 @@ void assert_gateway_owner_task_contract(mapping contract) {
     contract["command_executor_readiness_gate_model"]);
   ASSERT_EQ("", contract["command_executor_next_gate"]);
   ASSERT_EQ("", contract["command_executor_next_blocker"]);
-  assert_production_gate_contract(contract);
   ASSERT_EQ(7, contract["command_executor_readiness_gate_count"]);
   ASSERT_EQ(7, contract["command_executor_satisfied_gate_count"]);
   ASSERT_EQ(0, contract["command_executor_blocked_gate_count"]);
@@ -622,7 +574,6 @@ void assert_gateway_owner_task_contract(mapping contract) {
   ASSERT_EQ("current_evidence_not_bound_to_this_binary", contract["next_blocker"]);
   ASSERT_EQ("production_gate_evidence_required",
     contract["next_blocker_chain"]);
-  assert_production_gate_contract(contract);
   ASSERT(arrayp(tasks));
   ASSERT_EQ(4, sizeof(tasks));
   for (i = 0; i < sizeof(tasks); i++) {
@@ -699,13 +650,10 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT(mapp(boundary_contract));
   ASSERT_EQ(1, boundary_contract["contract_version"]);
   ASSERT_EQ("owner_executor_boundary_v1", boundary_contract["boundary_model"]);
-  ASSERT_EQ("compilation_unit_active", boundary_contract["implementation_state"]);
   ASSERT_EQ("OwnerExecutor", boundary_contract["class_name"]);
   ASSERT_EQ(1, boundary_contract["class_extracted"]);
   ASSERT_EQ(1, boundary_contract["module_extracted"]);
-  ASSERT_EQ("vm/internal/owner_executor.h", boundary_contract["module_file"]);
   ASSERT_EQ(1, boundary_contract["compilation_unit_extracted"]);
-  ASSERT_EQ("vm/internal/owner_executor.cc", boundary_contract["compilation_unit_file"]);
   ASSERT_EQ(0, boundary_contract["depends_on_owner_cc_internal_state"]);
   ASSERT_EQ(1, boundary_contract["owner_runtime_split_ready"]);
   ASSERT_EQ(
@@ -724,12 +672,7 @@ void assert_owner_executor_contract(mapping status) {
   );
   ASSERT_EQ(1, boundary_contract["owner_runtime_layering_guard_ready"]);
   ASSERT_EQ(1, boundary_contract["owner_runtime_coordinator_module_ready"]);
-  ASSERT_EQ(
-    "vm/internal/owner_runtime_coordinator.cc",
-    boundary_contract["owner_runtime_coordinator_file"]
-  );
   ASSERT_EQ("OwnerRuntimeCoordinator", boundary_contract["owner_runtime_store_owner"]);
-  ASSERT_EQ("runtime_status_facade_and_legacy_glue", boundary_contract["owner_cc_runtime_role"]);
   ASSERT_EQ(1, boundary_contract["lpc_modern_profile_ready"]);
   ASSERT_EQ("lpc_modern_profile_v1", boundary_contract["lpc_modern_profile_schema"]);
   ASSERT_EQ("opt_in_pragma", boundary_contract["lpc_modern_profile_mode"]);
@@ -765,10 +708,6 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ(1, boundary_contract["gateway_encoding_boundary_ready"]);
   ASSERT_EQ(1, boundary_contract["encoding_audit_ready"]);
   ASSERT_EQ(1, boundary_contract["legacy_lpc_default_closed"]);
-  ASSERT_EQ(
-    "compiler/internal/lpc_modern_profile.cc",
-    boundary_contract["lpc_modern_profile_module_file"]
-  );
   ASSERT_EQ(1, boundary_contract["owner_safe_future_api_ready"]);
   ASSERT_EQ(1, boundary_contract["owner_safe_lpc_api_failure_schema_ready"]);
   ASSERT_EQ("owner_safe_lpc_api_failure_v1",
@@ -791,28 +730,15 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ(1, boundary_contract["owner_snapshot_direct_save_hot_path_audit_ready"]);
   ASSERT_EQ(1, boundary_contract["owner_commit_api_ready"]);
   ASSERT_EQ("owner_commit_boundary_record", boundary_contract["owner_commit_model"]);
-  ASSERT_EQ("packages/core/vm_owner.cc", boundary_contract["lpc_modern_api_file"]);
   ASSERT_EQ(1, boundary_contract["owner_task_manifest_module_ready"]);
-  ASSERT_EQ(
-    "vm/internal/owner_task_manifest.cc",
-    boundary_contract["owner_task_manifest_module_file"]
-  );
   ASSERT_EQ(1, boundary_contract["owner_trace_store_ready"]);
-  ASSERT_EQ("vm/internal/owner_trace_store.cc", boundary_contract["owner_trace_store_file"]);
   ASSERT_EQ(1, boundary_contract["owner_future_store_ready"]);
-  ASSERT_EQ("vm/internal/owner_future_store.cc", boundary_contract["owner_future_store_file"]);
   ASSERT_EQ(1, boundary_contract["owner_scheduler_state_ready"]);
-  ASSERT_EQ(
-    "vm/internal/owner_scheduler_state.cc",
-    boundary_contract["owner_scheduler_state_file"]
-  );
   ASSERT_EQ(1, boundary_contract["owner_metrics_store_ready"]);
-  ASSERT_EQ("vm/internal/owner_runtime_metrics.cc", boundary_contract["owner_metrics_store_file"]);
   ASSERT_EQ(1, boundary_contract["object_store_owner_fast_path_ready"]);
   ASSERT_EQ(0, boundary_contract["object_store_global_fallback_on_owner_fast_path"]);
   ASSERT_EQ(1, boundary_contract["object_handle_capability_ready"]);
   ASSERT_EQ("object_handle_capability_v1", boundary_contract["object_handle_capability_model"]);
-  ASSERT_EQ("vm/object_handle.h", boundary_contract["object_handle_capability_file"]);
   ASSERT_EQ("owner_runtime", boundary_contract["object_handle_permission_intent_default"]);
   ASSERT_EQ(1, boundary_contract["owner_scheduler_backpressure_ready"]);
   ASSERT_EQ(
@@ -827,16 +753,10 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ("owner_scheduler_state,owner_task_manifest,owner_trace_store,owner_future_store,"
     "owner_runtime_metrics,task_dispatch,vm_context",
     boundary_contract["dependency_domains"]);
-  ASSERT_EQ(1, boundary_contract["scheduler_state_dependency"]);
-  ASSERT_EQ(1, boundary_contract["mailbox_state_dependency"]);
-  ASSERT_EQ(1, boundary_contract["task_dispatch_dependency"]);
-  ASSERT_EQ(1, boundary_contract["vm_context_dependency"]);
-  ASSERT_EQ(1, boundary_contract["metric_counter_dependency"]);
   ASSERT_EQ(1, boundary_contract["future_completion_dependency"]);
   ASSERT_EQ(1, boundary_contract["owner_runtime_facade_required"]);
   ASSERT_EQ(1, boundary_contract["owner_runtime_facade_ready"]);
   ASSERT_EQ("owner_executor_runtime_facade_v1", boundary_contract["owner_runtime_facade_model"]);
-  ASSERT_EQ("vm/internal/owner.cc", boundary_contract["owner_runtime_facade_file"]);
   ASSERT_EQ(
     "scheduler_state,mailbox_state,future_completion",
     boundary_contract["owner_runtime_facade_domains"]
@@ -1026,8 +946,6 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ(0, boundary_contract["target_owner_message_main_fallback"]);
   ASSERT_EQ(1, boundary_contract["production_perfect_contract_ready"]);
   ASSERT_EQ(0, boundary_contract["facade_only_runtime_claims"]);
-  ASSERT_EQ("", boundary_contract["next_refactor_target"]);
-  assert_production_gate_contract(boundary_contract);
   ASSERT(mapp(fairness));
   ASSERT_EQ("owner_executor_v2", status["executor_contract_version"]);
   ASSERT_EQ("owner_executor", status["executor_model"]);

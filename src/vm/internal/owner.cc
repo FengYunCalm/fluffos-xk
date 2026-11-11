@@ -1596,59 +1596,10 @@ array_t* gateway_owner_task_contract_entries_array() {
   return entries;
 }
 
-void add_production_gate_contract_fields(mapping_t* map) {
-  add_mapping_pair(map, "mudlib_audit_required", 1);
-  add_mapping_pair(map, "mudlib_cross_owner_hotspots_ready", 0);
-  add_mapping_string(map, "mudlib_cross_owner_hotspots_blocker", kProductionGateBlocker);
-  add_mapping_string(map, "mudlib_cross_owner_hotspots_evidence", "");
-  add_mapping_string(
-      map, "mudlib_cross_owner_hotspots_historical_evidence",
-      "xkx_5513c8a12_multicore_mudlib_audit_2026_06_25_zero_delayed_object_payloads");
-  add_mapping_pair(map, "production_gate_ready", 0);
-  add_mapping_string(map, "production_gate_status", kProductionGateStatus);
-  add_mapping_string(map, "production_gate_blocker", kProductionGateBlocker);
-  add_mapping_string(map, "production_gate_evidence_kind", "historical");
-  add_mapping_pair(map, "production_gate_current_evidence_bound", 0);
-  add_mapping_string(map, "production_gate_required_users", "1,3,10");
-  add_mapping_string(map, "production_gate_required_durations", "smoke,30m");
-  add_mapping_pair(map, "production_gate_pressure_evidence_ready", 0);
-  add_mapping_string(map, "production_gate_pressure_evidence", "");
-  add_mapping_string(map, "production_gate_pressure_historical_evidence",
-                     "xkx_audit_10_users_30m_2026_06_25_zero_timeouts_zero_gateway_errors");
-  add_mapping_string(map, "production_gate_required_modes", "off,audit,enforced");
-  add_mapping_string(map, "production_gate_required_scenarios",
-                     "login,create,move,chat,inventory,shop,quest,combat,skills,mail,reconnect,"
-                     "gateway_callback,socket_callback,heartbeat,callout");
-  add_mapping_string(map, "production_gate_evidence_schema",
-                     "multicore_production_gate_evidence_v1");
-  add_mapping_pair(map, "production_gate_evidence_required", 1);
-  add_mapping_pair(map, "production_gate_short_smoke_sufficient", 0);
-  add_mapping_string(map, "production_gate_minimum_ready_evidence",
-                     "accepted_30m_pressure_scope_final_audit_and_socket_release_handshake");
-  add_mapping_pair(map, "production_gate_unclassified_hotspots_required_zero", 1);
-  add_mapping_pair(map, "production_gate_direct_cross_owner_writes_required_zero", 1);
-  add_mapping_pair(map, "production_gate_context_leaks_required_zero", 1);
-  add_mapping_pair(map, "production_gate_future_backlog_required_zero", 1);
-  add_mapping_pair(map, "production_gate_same_owner_claim_conflict_required_zero", 1);
-  add_mapping_pair(map, "production_gate_gateway_error_delta_required_zero", 1);
-  add_mapping_string(map, "production_gate_socket_release_policy",
-                     "owner_safe_synchronous_release_acquire_handshake");
-  add_mapping_pair(map, "production_gate_socket_release_handshake_ready", 0);
-  add_mapping_string(map, "production_gate_socket_release_handshake_evidence", "");
-  add_mapping_string(map, "production_gate_socket_release_handshake_historical_evidence",
-                     "socket_release_owner_epoch_handshake_contract_v1");
-  add_mapping_string(map, "production_gate_report_schema", "xkx_gateway_loadtest_report_v1");
-  add_mapping_string(
-      map, "production_gate_report_required_fields",
-      "schema,run_id,mode,users_requested,duration_seconds,scenario,commands_ok,timeouts,"
-      "gateway_metrics_delta,production_gate_observations");
-}
-
 mapping_t* gateway_owner_task_contract_mapping() {
   auto* map = allocate_mapping(136);
   add_mapping_pair(map, "contract_version", 1);
   add_mapping_string(map, "input_model", "owner_executor_with_main_fallback");
-  add_mapping_string(map, "executor_migration_state", "owner_executor_active");
   add_mapping_string(map, "command_payload_model", "gateway_command_buffer_metadata_v1");
   add_mapping_string(map, "command_input_source", "interactive_text_buffer");
   add_mapping_string(map, "command_text_snapshot_policy", "owner_private_redacted_from_trace");
@@ -1792,7 +1743,6 @@ mapping_t* gateway_owner_task_contract_mapping() {
   free_array(tasks);
   add_mapping_string(map, "next_blocker", kProductionGateBlocker);
   add_mapping_string(map, "next_blocker_chain", "production_gate_evidence_required");
-  add_production_gate_contract_fields(map);
   return map;
 }
 
@@ -1900,13 +1850,10 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   auto* contract = allocate_mapping(156);
   add_mapping_pair(contract, "contract_version", 1);
   add_mapping_string(contract, "boundary_model", "owner_executor_boundary_v1");
-  add_mapping_string(contract, "implementation_state", "compilation_unit_active");
   add_mapping_string(contract, "class_name", "OwnerExecutor");
   add_mapping_pair(contract, "class_extracted", 1);
   add_mapping_pair(contract, "module_extracted", 1);
-  add_mapping_string(contract, "module_file", "vm/internal/owner_executor.h");
   add_mapping_pair(contract, "compilation_unit_extracted", 1);
-  add_mapping_string(contract, "compilation_unit_file", "vm/internal/owner_executor.cc");
   add_mapping_pair(contract, "depends_on_owner_cc_internal_state", 0);
   add_mapping_pair(contract, "owner_runtime_split_ready", 1);
   add_mapping_string(contract, "owner_runtime_split_model",
@@ -1920,10 +1867,7 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   add_mapping_string(contract, "lpc_modern_runtime_stress_entry", kLpcModernRuntimeStressEntry);
   add_mapping_pair(contract, "owner_runtime_layering_guard_ready", 1);
   add_mapping_pair(contract, "owner_runtime_coordinator_module_ready", 1);
-  add_mapping_string(contract, "owner_runtime_coordinator_file",
-                     "vm/internal/owner_runtime_coordinator.cc");
   add_mapping_string(contract, "owner_runtime_store_owner", "OwnerRuntimeCoordinator");
-  add_mapping_string(contract, "owner_cc_runtime_role", "runtime_status_facade_and_legacy_glue");
   add_mapping_pair(contract, "lpc_modern_profile_ready", 1);
   add_mapping_string(contract, "lpc_modern_profile_schema", kLpcModernProfileSchemaV1);
   add_mapping_string(contract, "lpc_modern_profile_mode", kLpcModernProfileModeOptIn);
@@ -1959,8 +1903,6 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   add_mapping_pair(contract, "gateway_encoding_boundary_ready", 1);
   add_mapping_pair(contract, "encoding_audit_ready", 1);
   add_mapping_pair(contract, "legacy_lpc_default_closed", 1);
-  add_mapping_string(contract, "lpc_modern_profile_module_file",
-                     "compiler/internal/lpc_modern_profile.cc");
   add_mapping_pair(contract, "owner_safe_future_api_ready", 1);
   add_mapping_pair(contract, "owner_safe_lpc_api_failure_schema_ready", 1);
   add_mapping_string(contract, "owner_safe_lpc_api_failure_schema",
@@ -1983,24 +1925,15 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   add_mapping_pair(contract, "owner_snapshot_direct_save_hot_path_audit_ready", 1);
   add_mapping_pair(contract, "owner_commit_api_ready", 1);
   add_mapping_string(contract, "owner_commit_model", "owner_commit_boundary_record");
-  add_mapping_string(contract, "lpc_modern_api_file", "packages/core/vm_owner.cc");
   add_mapping_pair(contract, "owner_task_manifest_module_ready", 1);
-  add_mapping_string(contract, "owner_task_manifest_module_file",
-                     "vm/internal/owner_task_manifest.cc");
   add_mapping_pair(contract, "owner_trace_store_ready", 1);
-  add_mapping_string(contract, "owner_trace_store_file", "vm/internal/owner_trace_store.cc");
   add_mapping_pair(contract, "owner_future_store_ready", 1);
-  add_mapping_string(contract, "owner_future_store_file", "vm/internal/owner_future_store.cc");
   add_mapping_pair(contract, "owner_scheduler_state_ready", 1);
-  add_mapping_string(contract, "owner_scheduler_state_file",
-                     "vm/internal/owner_scheduler_state.cc");
   add_mapping_pair(contract, "owner_metrics_store_ready", 1);
-  add_mapping_string(contract, "owner_metrics_store_file", "vm/internal/owner_runtime_metrics.cc");
   add_mapping_pair(contract, "object_store_owner_fast_path_ready", 1);
   add_mapping_pair(contract, "object_store_global_fallback_on_owner_fast_path", 0);
   add_mapping_pair(contract, "object_handle_capability_ready", 1);
   add_mapping_string(contract, "object_handle_capability_model", kVMObjectHandleCapabilityModelV1);
-  add_mapping_string(contract, "object_handle_capability_file", "vm/object_handle.h");
   add_mapping_string(contract, "object_handle_permission_intent_default",
                      kVMObjectHandleDefaultPermissionIntent);
   add_mapping_pair(contract, "owner_scheduler_backpressure_ready", 1);
@@ -2016,16 +1949,10 @@ mapping_t* owner_executor_boundary_contract_mapping() {
       contract, "dependency_domains",
       "owner_scheduler_state,owner_task_manifest,owner_trace_store,owner_future_store,"
       "owner_runtime_metrics,task_dispatch,vm_context");
-  add_mapping_pair(contract, "scheduler_state_dependency", 1);
-  add_mapping_pair(contract, "mailbox_state_dependency", 1);
-  add_mapping_pair(contract, "task_dispatch_dependency", 1);
-  add_mapping_pair(contract, "vm_context_dependency", 1);
-  add_mapping_pair(contract, "metric_counter_dependency", 1);
   add_mapping_pair(contract, "future_completion_dependency", 1);
   add_mapping_pair(contract, "owner_runtime_facade_required", 1);
   add_mapping_pair(contract, "owner_runtime_facade_ready", 1);
   add_mapping_string(contract, "owner_runtime_facade_model", "owner_executor_runtime_facade_v1");
-  add_mapping_string(contract, "owner_runtime_facade_file", "vm/internal/owner.cc");
   add_mapping_string(contract, "owner_runtime_facade_domains",
                      "scheduler_state,mailbox_state,future_completion");
   add_mapping_pair(contract, "owner_runtime_facade_scheduler_ready", 1);
@@ -2181,8 +2108,6 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   add_mapping_pair(contract, "target_owner_message_main_fallback", 0);
   add_mapping_pair(contract, "production_perfect_contract_ready", 1);
   add_mapping_pair(contract, "facade_only_runtime_claims", 0);
-  add_mapping_string(contract, "next_refactor_target", "");
-  add_production_gate_contract_fields(contract);
   return contract;
 }
 
