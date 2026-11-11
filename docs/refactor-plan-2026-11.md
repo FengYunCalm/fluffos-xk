@@ -638,7 +638,7 @@ evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
 批准后把整条链搭起来了，并确实跑到了 `ownercheck full`：
 
 1. 起驱动（副本，端口 33939）+ 起 `gateway-go`（副本配置，listen 38080），
-   用下游自己的 `tools/loadtest/xkx_websocket_loadtest.py` 作客户端（它封装了真实
+   用下游自己的 `xkx_websocket_loadtest.py`（位于下游 `tools/loadtest/`）作客户端（它封装了真实
    XK 协议登录与建角流程）。
 2. 副本内做三处**仅限副本**的改动：临时账号、`admins.cfg` 加名、
    跳过 `identity_migration_not_ready` 闸门（并在启动时跑一次 migration）。
