@@ -2332,6 +2332,67 @@ static void add_gateway_status_backend(mapping_t* map) {
                    backend_status.owner_main_continuation_pending ? 1 : 0);
 }
 
+// Room output projection: worker/inline thread CPU, publish/retry latency and the
+// projection queue counters, kept out of gateway_status_internal().
+static void add_gateway_status_room_projection(mapping_t* map) {
+  gateway_add_latency_fields(map, "gateway_room_output_projection_snapshot",
+                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_total,
+                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_max,
+                             g_gateway_runtime_counters.room_output_projection_snapshot_samples);
+  gateway_add_latency_fields(
+      map, "gateway_room_output_projection_submit_watch",
+      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_total,
+      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_max,
+      g_gateway_runtime_counters.room_output_projection_submit_watch_samples);
+  gateway_add_latency_fields(map, "gateway_room_output_projection_worker",
+                             g_gateway_runtime_counters.room_output_projection_worker_ns_total,
+                             g_gateway_runtime_counters.room_output_projection_worker_ns_max,
+                             g_gateway_runtime_counters.room_output_projection_worker_samples);
+  gateway_add_latency_fields(
+      map, "gateway_room_output_projection_worker_thread_cpu",
+      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
+      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_max,
+      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples);
+  add_mapping_pair(
+      map, "gateway_room_output_projection_worker_thread_cpu_avg_us",
+      gateway_avg_us(g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
+                     g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples));
+  GATEWAY_COUNTER(map, room_output_projection_worker_thread_cpu_unavailable);
+  gateway_add_latency_fields(
+      map, "gateway_room_output_projection_inline_thread_cpu",
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_max,
+      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples);
+  add_mapping_pair(
+      map, "gateway_room_output_projection_inline_thread_cpu_avg_us",
+      gateway_avg_us(g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
+                     g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples));
+  GATEWAY_COUNTER(map, room_output_projection_inline_thread_cpu_unavailable);
+  gateway_add_latency_fields(map, "gateway_room_output_projection_publish",
+                             g_gateway_runtime_counters.room_output_projection_publish_ns_total,
+                             g_gateway_runtime_counters.room_output_projection_publish_ns_max,
+                             g_gateway_runtime_counters.room_output_projection_publish_samples);
+  GATEWAY_COUNTER(map, room_output_projection_submitted);
+  GATEWAY_COUNTER(map, room_output_projection_completed);
+  GATEWAY_COUNTER(map, room_output_projection_released);
+  add_mapping_pair(map, "gateway_room_output_projection_pending",
+                   gateway_room_output_projection_pending_count());
+  add_mapping_pair(map, "gateway_room_output_projection_waves",
+                   gateway_room_output_projection_wave_count());
+  add_mapping_pair(map, "gateway_room_output_projection_reservations",
+                   gateway_room_output_projection_reservation_count());
+  add_mapping_pair(map, "gateway_room_output_projection_retry_pending",
+                   gateway_room_output_projection_retry_count());
+  GATEWAY_COUNTER(map, room_output_projection_inline_fallbacks);
+  GATEWAY_COUNTER(map, room_output_projection_failed);
+  GATEWAY_COUNTER(map, room_output_projection_forced_cleanup);
+  GATEWAY_COUNTER(map, room_output_projection_retry_enqueued);
+  GATEWAY_COUNTER(map, room_output_projection_retry_attempted);
+  GATEWAY_COUNTER(map, room_output_projection_retry_exhausted);
+  GATEWAY_COUNTER(map, room_output_projection_retry_budget_hits);
+  GATEWAY_COUNTER(map, room_output_projection_retry_wall_budget_hits);
+}
+
 mapping_t* gateway_status_internal() {
   mapping_t* map;
   int uptime;
@@ -2804,74 +2865,7 @@ mapping_t* gateway_status_internal() {
   GATEWAY_COUNTER(map, message_event_template_cache_misses);
   GATEWAY_COUNTER(map, message_event_template_cache_evictions);
   GATEWAY_COUNTER(map, message_event_template_cache_bypasses);
-  gateway_add_latency_fields(map, "gateway_room_output_projection_snapshot",
-                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_snapshot_samples);
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_submit_watch",
-      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_total,
-      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_max,
-      g_gateway_runtime_counters.room_output_projection_submit_watch_samples);
-  gateway_add_latency_fields(map, "gateway_room_output_projection_worker",
-                             g_gateway_runtime_counters.room_output_projection_worker_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_worker_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_worker_samples);
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_worker_thread_cpu",
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_max,
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples);
-  add_mapping_pair(
-      map, "gateway_room_output_projection_worker_thread_cpu_avg_us",
-      gateway_avg_us(g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
-                     g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples));
-  add_mapping_pair(
-      map, "gateway_room_output_projection_worker_thread_cpu_unavailable",
-      static_cast<LPC_INT>(
-          g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_unavailable.load(
-              std::memory_order_relaxed)));
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_inline_thread_cpu",
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_max,
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples);
-  add_mapping_pair(
-      map, "gateway_room_output_projection_inline_thread_cpu_avg_us",
-      gateway_avg_us(g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
-                     g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples));
-  add_mapping_pair(
-      map, "gateway_room_output_projection_inline_thread_cpu_unavailable",
-      static_cast<LPC_INT>(
-          g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_unavailable.load(
-              std::memory_order_relaxed)));
-  gateway_add_latency_fields(map, "gateway_room_output_projection_publish",
-                             g_gateway_runtime_counters.room_output_projection_publish_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_publish_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_publish_samples);
-  GATEWAY_COUNTER(map, room_output_projection_submitted);
-  GATEWAY_COUNTER(map, room_output_projection_completed);
-  GATEWAY_COUNTER(map, room_output_projection_released);
-  add_mapping_pair(map, "gateway_room_output_projection_pending",
-                   gateway_room_output_projection_pending_count());
-  add_mapping_pair(map, "gateway_room_output_projection_waves",
-                   gateway_room_output_projection_wave_count());
-  add_mapping_pair(map, "gateway_room_output_projection_reservations",
-                   gateway_room_output_projection_reservation_count());
-  add_mapping_pair(map, "gateway_room_output_projection_retry_pending",
-                   gateway_room_output_projection_retry_count());
-  GATEWAY_COUNTER(map, room_output_projection_inline_fallbacks);
-  GATEWAY_COUNTER(map, room_output_projection_failed);
-  GATEWAY_COUNTER(map, room_output_projection_forced_cleanup);
-  GATEWAY_COUNTER(map, room_output_projection_retry_enqueued);
-  GATEWAY_COUNTER(map, room_output_projection_retry_attempted);
-  GATEWAY_COUNTER(map, room_output_projection_retry_exhausted);
-  GATEWAY_COUNTER(map, room_output_projection_retry_budget_hits);
-  add_mapping_pair(
-      map, "gateway_room_output_projection_retry_wall_budget_hits",
-      static_cast<LPC_INT>(
-          g_gateway_runtime_counters.room_output_projection_retry_wall_budget_hits.load(
-              std::memory_order_relaxed)));
+  add_gateway_status_room_projection(map);
   add_mapping_string(map, "gateway_io_boundary", "main_thread_io_adapter");
   add_mapping_pair(map, "debug", g_gateway_debug);
   add_mapping_pair(map, "max_packet_size", static_cast<LPC_INT>(g_gateway_max_packet_size));
