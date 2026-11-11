@@ -1,5 +1,6 @@
 #include "base/package_api.h"
 #include "test_mudlib.h"
+#include "tests/bench_support.h"
 
 #include "backend.h"
 #include "mainlib.h"
@@ -79,49 +80,8 @@ extern "C" void* __wrap__Znwm(size_t size) {
 #endif
 
 namespace {
-using Clock = std::chrono::steady_clock;
+using namespace bench;
 constexpr const char* kObjectStoreBenchSchemaV1 = "object_store_bench_v1";
-
-struct Metric {
-  std::string name;
-  long long value{0};
-};
-
-struct StringMetric {
-  std::string name;
-  std::string value;
-};
-
-struct Report {
-  std::vector<Metric> metrics;
-  std::vector<StringMetric> strings;
-
-  void add(const std::string& name, long long value) {
-    metrics.push_back({name, value});
-  }
-  void add_string(const std::string& name, std::string value) {
-    strings.push_back({name, std::move(value)});
-  }
-};
-
-long long elapsed_ns(Clock::time_point start) {
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count();
-}
-
-long long percentile(std::vector<long long> samples, double rank) {
-  if (samples.empty()) {
-    return 0;
-  }
-  std::sort(samples.begin(), samples.end());
-  const auto index = static_cast<size_t>((samples.size() - 1) * rank);
-  return samples[index];
-}
-
-void require(bool condition, const std::string& message) {
-  if (!condition) {
-    throw std::runtime_error(message);
-  }
-}
 
 object_t* clone_object_for_bench(const char* path) {
   error_context_t econ{};
@@ -200,25 +160,6 @@ std::string report_json(const Report& report) {
   json << "  }\n";
   json << "}\n";
   return json.str();
-}
-
-void write_json_report(const std::string& path, const std::string& json) {
-  if (path.empty()) {
-    return;
-  }
-  auto output_path = std::filesystem::path(path);
-  if (output_path.has_parent_path()) {
-    std::filesystem::create_directories(output_path.parent_path());
-  }
-  std::ofstream output(output_path);
-  if (!output.is_open()) {
-    throw std::runtime_error("failed to open benchmark json output: " + path);
-  }
-  output << json;
-  output.close();
-  if (!output) {
-    throw std::runtime_error("failed to write benchmark json output: " + path);
-  }
 }
 
 void run_object_handle_resolve_bench(Report& report) {
