@@ -18,7 +18,7 @@
 #include "vm/internal/lpc_vm_profile.h"
 #include "vm/internal/recompile.h"
 #include "vm/internal/apply.h"
-#include "compiler/internal/lpc_modern_profile.h"
+#include "compiler/internal/lpc_source_encoding.h"
 
 #include <array>
 #include <atomic>
@@ -50,6 +50,12 @@ constexpr const char* kObjectStoreBenchmarkSchemaV1 = "object_store_bench_v1";
 constexpr const char* kLpcModernRuntimeStressEntry = "tools/lpc-modern-runtime-stress.sh";
 constexpr const char* kOwnerCallbackDiagnosticsSchemaV1 = "owner_callback_diagnostics_v1";
 constexpr const char* kOwnerCallbackFailureCodeSchemaV1 = "owner_callback_failure_code_v1";
+// Reported by vm_owner_runtime_status() until the observability cleanup (plan
+// U5b) retires these keys; they describe the opt-in LPC profile, not the audit
+// tool that used to live next to them.
+constexpr const char* kLpcModernProfileSchemaV1 = "lpc_modern_profile_v1";
+constexpr const char* kLpcModernProfileModeOptIn = "opt_in_pragma";
+constexpr const char* kLpcStrictOwnerPolicyV1 = "strict_owner_owner_safe_payloads_v1";
 constexpr const char* kOwnerCallbackDropReasonSchemaV1 = "owner_callback_drop_reason_v1";
 constexpr const char* kOwnerCallbackPayloadPolicySchemaV1 = "owner_callback_payload_policy_v1";
 constexpr const char* kOwnerCallbackFailureReasonSchemaV1 = "owner_callback_failure_reason_v1";
@@ -819,11 +825,6 @@ void add_owner_runtime_v2_status_fields(mapping_t* map, const OwnerStatusSnapsho
   add_mapping_pair(map, "modern_lpc_pragma_ready", 1);
   add_mapping_pair(map, "strict_owner_pragma_ready", 1);
   add_mapping_string(map, "strict_owner_policy", kLpcStrictOwnerPolicyV1);
-  add_mapping_pair(map, "lpcc_owner_audit_ready", 1);
-  add_mapping_string(map, "lpcc_owner_audit_schema", kLpcOwnerAuditSchemaV1);
-  add_mapping_pair(map, "lpcc_owner_audit_cli_ready", 1);
-  add_mapping_string(map, "lpcc_owner_audit_cli", "lpcc --owner-audit --format=json");
-  add_mapping_pair(map, "lpcc_owner_audit_static_scanner_ready", 1);
   add_mapping_pair(map, "lpc_source_encoding_ready", 1);
   add_mapping_string(map, "lpc_source_encoding_schema", kLpcSourceEncodingSchemaV1);
   add_mapping_string(map, "vm_internal_string_encoding", kLpcInternalStringEncoding);
@@ -1951,11 +1952,6 @@ mapping_t* owner_executor_boundary_contract_mapping() {
   add_mapping_pair(contract, "modern_lpc_pragma_ready", 1);
   add_mapping_pair(contract, "strict_owner_pragma_ready", 1);
   add_mapping_string(contract, "strict_owner_policy", kLpcStrictOwnerPolicyV1);
-  add_mapping_pair(contract, "lpcc_owner_audit_ready", 1);
-  add_mapping_string(contract, "lpcc_owner_audit_schema", kLpcOwnerAuditSchemaV1);
-  add_mapping_pair(contract, "lpcc_owner_audit_cli_ready", 1);
-  add_mapping_string(contract, "lpcc_owner_audit_cli", "lpcc --owner-audit --format=json");
-  add_mapping_pair(contract, "lpcc_owner_audit_static_scanner_ready", 1);
   add_mapping_pair(contract, "lpc_source_encoding_ready", 1);
   add_mapping_string(contract, "lpc_source_encoding_schema", kLpcSourceEncodingSchemaV1);
   add_mapping_string(contract, "vm_internal_string_encoding", kLpcInternalStringEncoding);

@@ -34,6 +34,8 @@ testsuite/.run-isolated.lockdir/
 /testsuite/log/
 /testsuite/*.sqlite
 /testsuite/**/*.o
+# Fixture: ofile_tests parses this committed sample object.
+!/testsuite/test.o
 /testsuite/.targeted-*
 
 # Local agent workflow artifacts

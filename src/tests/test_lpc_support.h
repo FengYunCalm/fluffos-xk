@@ -60,7 +60,7 @@
 
 #include "compiler/internal/compiler.h"
 #include "compiler/internal/lex.h"
-#include "compiler/internal/lpc_modern_profile.h"
+#include "compiler/internal/lpc_source_encoding.h"
 #include "vm/internal/owner_executor.h"
 #include "vm/internal/base/scoped_current_object_as_master.h"
 #include "packages/core/call_out.h"

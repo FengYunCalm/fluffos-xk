@@ -616,27 +616,6 @@ mapping_t* worker_poll_batch_response(array_t* task_ids) {
 
 }  // namespace
 
-#ifdef F_VM_WORKER_BENCH
-void f_vm_worker_bench() {
-  auto millis = sp->u.number;
-  auto tasks = (sp - 1)->u.number;
-  pop_2_elems();
-
-  auto result = vm_worker_benchmark(static_cast<int>(tasks), static_cast<int>(millis));
-  auto stats = vm_worker_stats();
-  auto* map = allocate_mapping(8);
-  add_mapping_pair(map, "tasks", result.tasks);
-  add_mapping_pair(map, "worker_count", result.worker_count);
-  add_mapping_pair(map, "max_parallel", result.max_parallel);
-  add_mapping_pair(map, "elapsed_ms", result.elapsed_ms);
-  add_mapping_pair(map, "checksum", static_cast<LPC_INT>(result.checksum));
-  add_mapping_pair(map, "submitted", static_cast<LPC_INT>(stats.submitted));
-  add_mapping_pair(map, "completed", static_cast<LPC_INT>(stats.completed));
-  add_mapping_pair(map, "active", stats.active);
-  push_refed_mapping(map);
-}
-#endif
-
 #ifdef F_VM_WORKER_TASK
 void f_vm_worker_task() {
   auto* options = sp;
@@ -668,21 +647,6 @@ void f_vm_worker_task() {
 
   pop_3_elems();
   push_refed_mapping(response);
-}
-#endif
-
-#ifdef F_VM_WORKER_ACTOR_BENCH
-void f_vm_worker_actor_bench() {
-  auto millis = sp->u.number;
-  auto tasks_per_owner = (sp - 1)->u.number;
-  auto owners = (sp - 2)->u.number;
-  pop_3_elems();
-
-  auto result = vm_worker_actor_benchmark(
-      static_cast<int>(owners), static_cast<int>(tasks_per_owner), static_cast<int>(millis));
-  auto* map = allocate_mapping(9);
-  add_actor_bench_result(map, result);
-  push_refed_mapping(map);
 }
 #endif
 

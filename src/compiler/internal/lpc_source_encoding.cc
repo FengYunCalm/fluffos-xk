@@ -1,10 +1,10 @@
 #include "compiler/internal/lpc_source_encoding.h"
 
-#include "compiler/internal/lpc_modern_profile.h"
-
 #include <unicode/ucnv.h>
 
+#include <cctype>
 #include <cstring>
+#include <sstream>
 #include <utility>
 
 namespace {
@@ -33,6 +33,46 @@ class OwnedStringLexStream : public LexStream {
 
 bool is_utf8_encoding(const std::string& encoding) {
   return ucnv_compareNames(kLpcInternalStringEncoding, encoding.c_str()) == 0;
+}
+
+// --- `#pragma source_encoding("...")` parsing -------------------------------
+// One implementation for the literal pragma, shared by compile and diagnostics.
+
+std::string strip_line_comment(const std::string& line) {
+  auto comment = line.find("//");
+  return comment == std::string::npos ? line : line.substr(0, comment);
+}
+
+std::string trim_copy(std::string value) {
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+    value.erase(value.begin());
+  }
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+    value.pop_back();
+  }
+  return value;
+}
+
+std::string extract_source_encoding_pragma(const std::string& line) {
+  auto pragma = line.find("#pragma");
+  if (pragma == std::string::npos) {
+    return {};
+  }
+  auto source_encoding = line.find("source_encoding", pragma);
+  if (source_encoding == std::string::npos) {
+    return {};
+  }
+  auto open = line.find('(', source_encoding);
+  auto close = line.find(')', open == std::string::npos ? source_encoding : open);
+  if (open == std::string::npos || close == std::string::npos || close <= open + 1) {
+    return {};
+  }
+  auto value = trim_copy(line.substr(open + 1, close - open - 1));
+  if (value.size() >= 2 && ((value.front() == '"' && value.back() == '"') ||
+                            (value.front() == '\'' && value.back() == '\''))) {
+    value = value.substr(1, value.size() - 2);
+  }
+  return value;
 }
 
 std::string read_all(LexStream* stream) {
@@ -83,6 +123,19 @@ std::string convert_to_utf8(const std::string& source, const std::string& encodi
   return result;
 }
 }  // namespace
+
+std::string lpc_source_encoding_from_source(const std::string& source) {
+  std::istringstream input(source);
+  std::string line;
+  int scanned_lines = 0;
+  while (std::getline(input, line) && scanned_lines++ < 32) {
+    auto encoding = extract_source_encoding_pragma(strip_line_comment(line));
+    if (!encoding.empty()) {
+      return encoding;
+    }
+  }
+  return kLpcInternalStringEncoding;
+}
 
 LpcSourceEncodingResult lpc_source_decode_to_utf8(const std::string& source) {
   LpcSourceEncodingResult result;

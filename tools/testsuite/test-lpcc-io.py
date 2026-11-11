@@ -67,26 +67,6 @@ class LpccIoTest(unittest.TestCase):
         self.assertEqual(result.returncode, expected, result.log_path)
         return result.output
 
-    def test_owner_audit_success(self) -> None:
-        output = self.run_lpcc(
-            ["--owner-audit", "--format=json", "etc/config.test", "cli_io_case.lpc"], 0
-        )
-        self.assertTrue(json.loads(output)["success"])
-
-    def test_owner_audit_output_failure(self) -> None:
-        self.run_lpcc(
-            ["--owner-audit", "--format=json", "etc/config.test", "cli_io_case.lpc"],
-            1, "full-output",
-        )
-
-    def test_owner_audit_missing_input(self) -> None:
-        self.run_lpcc(
-            ["--owner-audit", "--format=json", "etc/config.test", "cli_io_missing.lpc"], 1
-        )
-
-    def test_owner_audit_read_failure(self) -> None:
-        self.run_lpcc(["--owner-audit", "--format=json", "etc/config.test", "."], 1)
-
     def test_batch_success(self) -> None:
         output = self.run_lpcc(["--batch", "etc/config.test", "/cli_io_case.lpc"], 0)
         self.assertIn("PASS /cli_io_case.lpc", output)

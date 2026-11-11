@@ -758,11 +758,6 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ(1, boundary_contract["modern_lpc_pragma_ready"]);
   ASSERT_EQ(1, boundary_contract["strict_owner_pragma_ready"]);
   ASSERT_EQ("strict_owner_owner_safe_payloads_v1", boundary_contract["strict_owner_policy"]);
-  ASSERT_EQ(1, boundary_contract["lpcc_owner_audit_ready"]);
-  ASSERT_EQ("lpcc_owner_audit_v1", boundary_contract["lpcc_owner_audit_schema"]);
-  ASSERT_EQ(1, boundary_contract["lpcc_owner_audit_cli_ready"]);
-  ASSERT_EQ("lpcc --owner-audit --format=json", boundary_contract["lpcc_owner_audit_cli"]);
-  ASSERT_EQ(1, boundary_contract["lpcc_owner_audit_static_scanner_ready"]);
   ASSERT_EQ(1, boundary_contract["lpc_source_encoding_ready"]);
   ASSERT_EQ("lpc_source_encoding_v1", boundary_contract["lpc_source_encoding_schema"]);
   ASSERT_EQ("utf-8", boundary_contract["vm_internal_string_encoding"]);
@@ -1084,11 +1079,6 @@ void assert_owner_executor_contract(mapping status) {
   ASSERT_EQ(1, status["modern_lpc_pragma_ready"]);
   ASSERT_EQ(1, status["strict_owner_pragma_ready"]);
   ASSERT_EQ("strict_owner_owner_safe_payloads_v1", status["strict_owner_policy"]);
-  ASSERT_EQ(1, status["lpcc_owner_audit_ready"]);
-  ASSERT_EQ("lpcc_owner_audit_v1", status["lpcc_owner_audit_schema"]);
-  ASSERT_EQ(1, status["lpcc_owner_audit_cli_ready"]);
-  ASSERT_EQ("lpcc --owner-audit --format=json", status["lpcc_owner_audit_cli"]);
-  ASSERT_EQ(1, status["lpcc_owner_audit_static_scanner_ready"]);
   ASSERT_EQ(1, status["lpc_source_encoding_ready"]);
   ASSERT_EQ("lpc_source_encoding_v1", status["lpc_source_encoding_schema"]);
   ASSERT_EQ("utf-8", status["vm_internal_string_encoding"]);

@@ -14,7 +14,7 @@
 
 #include "mainlib.h"
 
-#include "compiler/internal/lpc_modern_profile.h"
+#include "compiler/internal/lpc_source_encoding.h"
 #include "thirdparty/scope_guard/scope_guard.hpp"
 #include "compiler/internal/disassembler.h"
 #include "base/internal/rc.h"
@@ -25,67 +25,13 @@
 namespace {
 void print_usage() {
   std::cerr << "Usage: lpcc config_file lpc_file\n"
-            << "       lpcc --owner-audit --format=json config_file lpc_file\n";
-}
-
-int run_owner_audit_json(const char* config_file, const char* lpc_file) {
-  std::ifstream input(lpc_file, std::ios::binary);
-  if (!input) {
-    std::cerr << "Fail to read LPC file " << lpc_file << ".\n";
-    return 1;
-  }
-  std::string source((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-  auto report = lpc_owner_audit_source(source);
-
-  nlohmann::json output;
-  output["schema"] = kLpcOwnerAuditSchemaV1;
-  output["success"] = true;
-  output["config_file"] = config_file;
-  output["file"] = lpc_file;
-  output["modern_lpc"] = report.modern_lpc;
-  output["strict_owner"] = report.strict_owner;
-  output["source_encoding_schema"] = kLpcSourceEncodingSchemaV1;
-  output["source_encoding"] = report.source_encoding;
-  output["vm_internal_string_encoding"] = kLpcInternalStringEncoding;
-  output["transcoded"] = report.transcoded;
-  output["invalid_sequence_count"] = report.invalid_sequence_count;
-  output["finding_count"] = report.findings.size();
-  output["rules"] = nlohmann::json::array();
-  for (const auto& rule : lpc_owner_audit_rules()) {
-    output["rules"].push_back({
-        {"code", rule.code},
-        {"category", rule.category},
-        {"severity", rule.severity},
-        {"message", rule.message},
-        {"suggestion", rule.suggestion},
-    });
-  }
-  output["findings"] = nlohmann::json::array();
-  for (const auto& finding : report.findings) {
-    output["findings"].push_back({
-        {"code", finding.code},
-        {"category", finding.category},
-        {"severity", finding.severity},
-        {"message", finding.message},
-        {"suggestion", finding.suggestion},
-        {"line", finding.line},
-        {"column", finding.column},
-        {"excerpt", finding.excerpt},
-    });
-  }
-
-  std::cout << output.dump(2) << std::endl;
-  return 0;
+            << "       lpcc --batch config_file lpc_file...\n";
 }
 }  // namespace
 
 static int lpcc_main(int argc, char** argv) {
   bool flag_batch = false;
   std::vector<const char*> batch_files;
-  if (argc == 5 && std::string(argv[1]) == "--owner-audit" &&
-      std::string(argv[2]) == "--format=json") {
-    return run_owner_audit_json(argv[3], argv[4]);
-  }
   if (argc >= 3 && std::string(argv[1]) == "--batch") {
     flag_batch = true;
     // argv[2] is the config file (consumed by get_argument below); the rest

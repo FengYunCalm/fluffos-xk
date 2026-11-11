@@ -2537,9 +2537,9 @@ TEST_F(DriverTest, TestLpccCliArgumentMatrix) {
       {"", 1, true},
       {cfg, 1, true},
       {"--owner-audit --format=json " + cfg, 1, true},
-      // The owner-audit scanner reads the LPC file from the host filesystem
-      // (relative to the child's CWD), not through the mudlib path rules.
-      {"--owner-audit --format=json " + cfg + " single/tests/efuns/has_cycle.c", 0, false},
+      // The removed owner-audit mode must not come back as a hidden success:
+      // any owner-audit invocation is now a plain usage error.
+      {"--owner-audit --format=json " + cfg + " single/tests/efuns/has_cycle.c", 1, true},
       {cfg + " " + good + " extra", 1, true},
       // argc 3: compile one file (0) or fail to load it (1).
       {cfg + " " + good, 0, false},

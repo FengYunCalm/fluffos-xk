@@ -530,7 +530,6 @@ set(SRC
   "compiler/internal/generate.cc"
   "compiler/internal/icode.cc"
   "compiler/internal/lex.cc"
-  "compiler/internal/lpc_modern_profile.cc"
   "compiler/internal/lpc_source_encoding.cc"
   "compiler/internal/scratchpad.cc"
   "compiler/internal/compile_arena.cc"

@@ -574,58 +574,24 @@ TEST_F(DriverTest, TestArraySetOperationsDistinguishExtremeIntegers) {
   free_array(array_union);
 }
 
-TEST_F(DriverTest, TestLpcModernProfilePragmasAndAuditRules) {
-  int flag = 0;
-  ASSERT_TRUE(lpc_modern_pragma_name("modern_lpc", &flag));
-  ASSERT_EQ(flag, LPC_MODERN_PRAGMA_MODERN_LPC);
-  ASSERT_STREQ(lpc_modern_pragma_name_for_flag(flag), "modern_lpc");
-
-  ASSERT_TRUE(lpc_modern_pragma_name("strict_owner", &flag));
-  ASSERT_EQ(flag, LPC_MODERN_PRAGMA_STRICT_OWNER);
-  ASSERT_STREQ(lpc_modern_pragma_name_for_flag(flag), "strict_owner");
-
-  ASSERT_FALSE(lpc_modern_pragma_name("strict_types", &flag));
-  ASSERT_STREQ(kLpcModernProfileSchemaV1, "lpc_modern_profile_v1");
-  ASSERT_STREQ(kLpcOwnerAuditSchemaV1, "lpcc_owner_audit_v1");
-
-  const auto& rules = lpc_owner_audit_rules();
-  ASSERT_EQ(rules.size(), 4);
-  ASSERT_STREQ(rules[0].code, "cross_owner_mutable_write");
-  ASSERT_STREQ(rules[1].code, "bare_object_payload");
-  ASSERT_STREQ(rules[2].code, "unfrozen_callback_payload");
-  ASSERT_STREQ(rules[3].code, "direct_save_object_hot_path");
-
-  auto report = lpc_owner_audit_source(
-      "#pragma modern_lpc\n"
-      "#pragma strict_owner\n"
-      "void f(object ob) {\n"
-      "  call_other(ob, \"mutate\");\n"
-      "  owner_async(\"owner/x\", ([ \"object\": this_object() ]));\n"
-      "  call_out(\"tick\", 1, this_object());\n"
-      "  save_object(\"/tmp/x\");\n"
-      "}\n");
-  ASSERT_TRUE(report.modern_lpc);
-  ASSERT_TRUE(report.strict_owner);
-  ASSERT_STREQ(report.source_encoding.c_str(), "utf-8");
-  ASSERT_FALSE(report.transcoded);
-  ASSERT_EQ(report.invalid_sequence_count, 0);
-  ASSERT_EQ(report.findings.size(), 4);
-  ASSERT_EQ(report.findings[0].code, "cross_owner_mutable_write");
-  ASSERT_FALSE(report.findings[0].suggestion.empty());
-  ASSERT_EQ(report.findings[1].code, "bare_object_payload");
-  ASSERT_EQ(report.findings[2].code, "unfrozen_callback_payload");
-  ASSERT_EQ(report.findings[3].code, "direct_save_object_hot_path");
-}
-
-TEST_F(DriverTest, TestLpcModernProfileDetectsSourceEncodingPragma) {
-  auto report = lpc_owner_audit_source(
+TEST_F(DriverTest, TestSourceEncodingPragmaDetectionAndTranscoding) {
+  // The pragma is read by the live compile path (lpc_source_encoding.cc), so this
+  // covers the parser and the ICU conversion, not a scanner copy.
+  const std::string source =
       "#pragma source_encoding(\"GBK\")\n"
-      "#pragma modern_lpc\n"
-      "void f() {}\n");
-  ASSERT_TRUE(report.modern_lpc);
-  ASSERT_STREQ(report.source_encoding.c_str(), "GBK");
-  ASSERT_TRUE(report.transcoded);
-  ASSERT_EQ(report.invalid_sequence_count, 0);
+      "void f() {}\n";
+  EXPECT_EQ(lpc_source_encoding_from_source(source), "GBK");
+
+  auto decoded = lpc_source_decode_to_utf8(source);
+  EXPECT_EQ(decoded.encoding, "GBK");
+  EXPECT_TRUE(decoded.transcoded);
+  EXPECT_EQ(decoded.invalid_sequence_count, 0);
+  EXPECT_NE(decoded.data.find("#pragma source_encoding"), std::string::npos);
+
+  // No pragma: the canonical VM encoding is assumed and nothing is transcoded.
+  auto plain = lpc_source_decode_to_utf8("void f() {}\n");
+  EXPECT_EQ(plain.encoding, "utf-8");
+  EXPECT_FALSE(plain.transcoded);
 }
 
 TEST_F(DriverTest, TestCompileFileAcceptsGbkSourceEncodingPragma) {
@@ -4746,7 +4712,6 @@ TEST_F(DriverTest, TestVmWorkerMappingCountersUseLpcIntegerWidth) {
                                 "mapping_t *worker_actor_bench_response(mapping_t *options)");
   assert_mapping_uses_lpc_width("mapping_t *worker_status_response()",
                                 "mapping_t *worker_submit_response(");
-  assert_mapping_uses_lpc_width("void f_vm_worker_bench()", "#ifdef F_VM_WORKER_TASK");
 }
 
 TEST_F(DriverTest, TestGatewaySessionCountMappingsUseLpcIntegerWidth) {
@@ -11290,12 +11255,6 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(status, "strict_owner_pragma_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "strict_owner_policy"),
                  "strict_owner_owner_safe_payloads_v1");
-    ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "lpcc_owner_audit_schema"), "lpcc_owner_audit_v1");
-    ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_cli_ready"), 1);
-    ASSERT_STREQ(mapping_string(status, "lpcc_owner_audit_cli"),
-                 "lpcc --owner-audit --format=json");
-    ASSERT_EQ(mapping_number(status, "lpcc_owner_audit_static_scanner_ready"), 1);
     ASSERT_EQ(mapping_number(status, "lpc_source_encoding_ready"), 1);
     ASSERT_STREQ(mapping_string(status, "lpc_source_encoding_schema"), "lpc_source_encoding_v1");
     ASSERT_STREQ(mapping_string(status, "vm_internal_string_encoding"), "utf-8");
@@ -11801,13 +11760,6 @@ TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
     ASSERT_EQ(mapping_number(boundary_contract, "strict_owner_pragma_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "strict_owner_policy"),
                  "strict_owner_owner_safe_payloads_v1");
-    ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_schema"),
-                 "lpcc_owner_audit_v1");
-    ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_cli_ready"), 1);
-    ASSERT_STREQ(mapping_string(boundary_contract, "lpcc_owner_audit_cli"),
-                 "lpcc --owner-audit --format=json");
-    ASSERT_EQ(mapping_number(boundary_contract, "lpcc_owner_audit_static_scanner_ready"), 1);
     ASSERT_EQ(mapping_number(boundary_contract, "lpc_source_encoding_ready"), 1);
     ASSERT_STREQ(mapping_string(boundary_contract, "lpc_source_encoding_schema"),
                  "lpc_source_encoding_v1");
