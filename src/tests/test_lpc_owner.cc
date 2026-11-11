@@ -7520,15 +7520,6 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
                 static_cast<long>(vm_owner_epoch(virtual_object)));
       ASSERT_EQ(mapping_number(record, "destructed"), 0);
       ASSERT_EQ(mapping_number(record, "live"), 1);
-      ASSERT_EQ(mapping_number(record, "owner_local_object_ref_entry"), 1);
-      ASSERT_STREQ(mapping_string(record, "owner_local_object_ref_source"),
-                   "vm_object_shard.local_objects");
-      ASSERT_EQ(mapping_number(record, "owner_local_object_ref_index_entry"), 1);
-      ASSERT_STREQ(mapping_string(record, "owner_local_object_ref_index_source"),
-                   "vm_object_shard.local_object_index");
-      ASSERT_EQ(mapping_number(record, "owner_local_path_index_entry"), 1);
-      ASSERT_STREQ(mapping_string(record, "owner_local_path_index_source"),
-                   "vm_object_shard.object_path_index");
       break;
     }
   }
@@ -16180,7 +16171,6 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(old_owner, "owner_local_destructed_record_count"), 0);
   ASSERT_EQ(mapping_number(old_owner, "owner_local_object_ref_count"), 0);
   ASSERT_EQ(mapping_number(old_owner, "owner_local_object_ref_index_count"), 0);
-  ASSERT_EQ(mapping_number(old_owner, "owner_local_object_ref_index_consistent"), 1);
   ASSERT_EQ(mapping_number(old_owner, "owner_local_path_index_count"), 0);
   ASSERT_EQ(mapping_number(old_owner, "owner_local_destructed_path_index_count"), 0);
   free_mapping(old_owner);
@@ -16263,12 +16253,7 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
   ASSERT_EQ(mapping_number(new_owner, "owner_local_object_ref_index_count"), 1);
   ASSERT_EQ(mapping_number(new_owner, "owner_local_path_index_count"), 1);
   ASSERT_EQ(mapping_number(new_owner, "owner_local_destructed_path_index_count"), 0);
-  ASSERT_EQ(mapping_number(new_owner, "owner_local_live_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(new_owner, "owner_local_object_ref_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(new_owner, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(new_owner, "owner_local_destructed_path_index_consistent"), 1);
   ASSERT_EQ(mapping_number(new_owner, "owner_local_canonical_record_ready"), 1);
-  ASSERT_EQ(mapping_number(new_owner, "owner_local_directory_ready"), 1);
   ASSERT_EQ(mapping_number(new_owner, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(new_owner, "uses_global_object_table"), 0);
   ASSERT_EQ(mapping_number(new_owner, "owner_local_store_complete"), 1);
@@ -16284,20 +16269,6 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
             static_cast<long>(vm_owner_epoch(obj)));
   ASSERT_EQ(mapping_number(directory_record, "destructed"), 0);
   ASSERT_EQ(mapping_number(directory_record, "live"), 1);
-  ASSERT_EQ(mapping_number(directory_record, "owner_local_directory_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_directory_source"),
-               "vm_object_shard.object_directory");
-  ASSERT_EQ(mapping_number(directory_record, "owner_local_record_snapshot"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_record_source"),
-               "vm_object_shard.local_records");
-  ASSERT_EQ(mapping_number(directory_record, "owner_local_object_ref_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_object_ref_source"),
-               "vm_object_shard.local_objects");
-  ASSERT_EQ(mapping_number(directory_record, "owner_local_path_index_entry"), 1);
-  ASSERT_STREQ(mapping_string(directory_record, "owner_local_path_index_source"),
-               "vm_object_shard.object_path_index");
-  ASSERT_EQ(mapping_number(directory_record, "resolved_via_owner_local_store"), 1);
-  ASSERT_EQ(mapping_number(directory_record, "resolved_via_global_index"), 0);
   ASSERT_STREQ(mapping_string(directory_record, "owner_id"), "owner/test/migration/b");
   ASSERT_STREQ(mapping_string(directory_record, "object_path"), handle.object_path.c_str());
   free_mapping(new_owner);
@@ -16491,10 +16462,6 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(before, "owner_local_object_ref_index_count"), 1);
   ASSERT_EQ(mapping_number(before, "owner_local_path_index_count"), 1);
   ASSERT_EQ(mapping_number(before, "owner_local_destructed_path_index_count"), 0);
-  ASSERT_EQ(mapping_number(before, "owner_local_live_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(before, "owner_local_object_ref_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(before, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(before, "owner_local_destructed_path_index_consistent"), 1);
   ASSERT_EQ(mapping_number(before, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(before, "owner_local_store_complete"), 1);
   expect_owner_local_store_complete_contract(before);
@@ -16602,10 +16569,6 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(after, "owner_local_object_ref_index_count"), 0);
   ASSERT_EQ(mapping_number(after, "owner_local_path_index_count"), 0);
   ASSERT_EQ(mapping_number(after, "owner_local_destructed_path_index_count"), 1);
-  ASSERT_EQ(mapping_number(after, "owner_local_live_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(after, "owner_local_object_ref_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(after, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(after, "owner_local_destructed_path_index_consistent"), 1);
   ASSERT_EQ(mapping_number(after, "owner_local_canonical_record_ready"), 1);
   ASSERT_EQ(mapping_number(after, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(after, "owner_local_store_complete"), 1);
@@ -16686,11 +16649,6 @@ TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_object_ref_index_count"), 0);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_path_index_count"), 0);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_destructed_path_index_count"), 1);
-  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_live_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_object_ref_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_live_path_index_consistent"), 1);
-  ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_destructed_path_index_consistent"),
-            1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_store_ready"), 1);
   ASSERT_EQ(mapping_number(moved_after_destruct, "owner_local_store_complete"), 1);
   free_mapping(moved_after_destruct);

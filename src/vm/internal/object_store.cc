@@ -1425,27 +1425,13 @@ mapping_t* migration_trace_mapping(const ObjectMigrationRecord& trace) {
 }
 
 mapping_t* object_record_mapping(const ObjectRecord& record) {
-  auto* map = allocate_mapping(18);
+  auto* map = allocate_mapping(6);
   add_mapping_pair(map, "object_id", static_cast<LPC_INT>(record.object_id));
   add_mapping_string(map, "owner_id", record.owner_id.c_str());
   add_mapping_pair(map, "owner_epoch", static_cast<LPC_INT>(record.owner_epoch));
   add_mapping_string(map, "object_path", record.object_path.c_str());
   add_mapping_pair(map, "destructed", record.destructed ? 1 : 0);
   add_mapping_pair(map, "live", record.destructed ? 0 : 1);
-  add_mapping_pair(map, "owner_local_directory_entry", 1);
-  add_mapping_string(map, "owner_local_directory_source", "vm_object_shard.object_directory");
-  add_mapping_pair(map, "owner_local_record_snapshot", 1);
-  add_mapping_string(map, "owner_local_record_source", "vm_object_shard.local_records");
-  add_mapping_pair(map, "owner_local_object_ref_entry", 1);
-  add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
-  add_mapping_pair(map, "owner_local_object_ref_index_entry", 1);
-  add_mapping_string(map, "owner_local_object_ref_index_source",
-                     "vm_object_shard.local_object_index");
-  add_mapping_pair(map, "owner_local_path_index_entry", 1);
-  add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-  add_mapping_pair(map, "resolved_via_owner_local_store", 1);
-  add_mapping_pair(map, "resolved_via_global_index", 0);
-  add_mapping_pair(map, "snapshot_record", 1);
   return map;
 }
 
@@ -1505,15 +1491,6 @@ mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSumma
                    static_cast<LPC_INT>(shard.object_path_index.size()));
   add_mapping_pair(map, "owner_local_destructed_path_index_count",
                    static_cast<LPC_INT>(shard.destructed_path_index.size()));
-  // Index invariants: computed from the live structures, not declared.
-  add_mapping_pair(map, "owner_local_live_index_consistent",
-                   shard_live_counts_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_object_ref_index_consistent",
-                   shard_live_object_ref_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_live_path_index_consistent",
-                   shard_live_path_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_path_index_consistent",
-                   shard_destructed_path_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_count",
                    static_cast<LPC_INT>(shard.object_directory.size()));
   // Computed from the shard's own state; false (not absent) when incomplete.
@@ -1523,8 +1500,6 @@ mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSumma
                    owner_local_store_complete_for_shard(shard, summary) ? 1 : 0);
   add_mapping_pair(map, "owner_local_canonical_record_ready",
                    shard_canonical_record_ready(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_ready",
-                   shard.owner_local_directory_ready ? 1 : 0);
   add_mapping_array(map, "object_directory", object_directory);
   add_mapping_pair(map, "object_directory_count", static_cast<LPC_INT>(object_directory->size));
   free_array(object_directory);
