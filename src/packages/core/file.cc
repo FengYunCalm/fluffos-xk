@@ -440,11 +440,11 @@ int write_file(const char* file, const char* str, int flags) {
 /* Reads file, starting from line of "start", with maximum lines of "lines".
  * Returns a malloced_string.
  */
-char* read_file(const char* file, int start, int lines) {
+char* read_file(const char* file, LPC_INT start, LPC_INT lines) {
   const auto read_file_max_size = CONFIG_INT(__MAX_READ_FILE_SIZE__);
 
   if (lines < 0) {
-    debug(file, "read_file: trying to read negative lines: %d", lines);
+    debug(file, "read_file: trying to read negative lines: %" LPC_INT_FMTSTR_P, lines);
     return nullptr;
   }
 

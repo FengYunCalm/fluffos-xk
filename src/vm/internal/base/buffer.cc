@@ -43,45 +43,33 @@ buffer_t* allocate_buffer(LPC_INT size) {
   return buf;
 }
 
-int write_buffer(buffer_t* buf, int start, const char* str, int theLength) {
-  // #1247 BUFFER-1: unsigned size so a huge start can't overflow signed int
-  // past the check and drive an out-of-bounds memcpy.
-  unsigned int size = buf->size;
+int write_buffer(buffer_t* buf, LPC_INT start, const char* str, LPC_INT theLength) {
+  const auto size = static_cast<LPC_INT>(buf->size);
 
   if (start < 0) {
-    start = (int)size + start;
+    start += size;
     if (start < 0) {
       return 0;
     }
   }
-  // #1247 BUFFER-1: negative length would convert to a huge size_t in memcpy.
-  if (theLength < 0) {
-    return 0;
-  }
-  /*
-   * can't write past the end of the buffer since we can't reallocate the
-   * buffer here (no easy way to propagate back the changes to the caller).
-   * Compute the bound in unsigned arithmetic so a huge start can't overflow
-   * signed int past the check and drive an out-of-bounds memcpy.
-   */
-  if ((unsigned int)start > size || (unsigned int)theLength > size - (unsigned int)start) {
+  // Negative or over-long lengths would otherwise convert to a huge size_t in
+  // memcpy. Every comparison stays in LPC_INT, so a start or length past 32
+  // bits is rejected instead of wrapping back into range (#1247 BUFFER-1).
+  if (theLength < 0 || start > size || theLength > size - start) {
     return 0;
   }
   memcpy(buf->item + start, str, theLength);
   return 1;
 } /* write_buffer() */
 
-char* read_buffer(buffer_t* b, int start, int len, int* rlen) {
-  char* str;
-  unsigned int size;
+char* read_buffer(buffer_t* b, LPC_INT start, LPC_INT len, int* rlen) {
+  const auto size = static_cast<LPC_INT>(b->size);
 
   if (len < 0) {
     return nullptr;
   }
-
-  size = b->size;
   if (start < 0) {
-    start = size + start;
+    start += size;
     if (start < 0) {
       return nullptr;
     }
@@ -92,16 +80,18 @@ char* read_buffer(buffer_t* b, int start, int len, int* rlen) {
   if (start >= size) {
     return nullptr;
   }
-  if ((start + len) > size) {
-    len = (size - start);
+  if (len > size - start) {
+    len = size - start;
   }
-  for (str = reinterpret_cast<char*>(b->item) + start, size = 0; *str && size < len;
-       str++, size++) {
+
+  LPC_INT n = 0;
+  for (const char* src = reinterpret_cast<const char*>(b->item) + start; *src && n < len;
+       src++, n++) {
     ;
   }
-  str = new_string(size, "read_buffer: str");
-  memcpy(str, b->item + start, size);
-  str[*rlen = size] = '\0';
+  char* str = new_string(n, "read_buffer: str");
+  memcpy(str, b->item + start, n);
+  str[*rlen = static_cast<int>(n)] = '\0';
 
   return str;
 } /* read_buffer() */

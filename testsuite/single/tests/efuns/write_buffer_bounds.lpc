@@ -1,6 +1,7 @@
 // write_buffer() computed (start + theLength) in signed int; a huge start
 // overflowed past the bounds check and drove an out-of-bounds memcpy. It must
-// reject out-of-range positions and only write in-bounds.
+// reject out-of-range positions and only write in-bounds. The start/length are
+// LPC ints (64-bit), so positions past 32 bits must be rejected too.
 
 void do_tests() {
   buffer b = allocate_buffer(4);
@@ -19,4 +20,15 @@ void do_tests() {
 
   // Buffer contents unchanged by the rejected writes.
   ASSERT_EQ("abcd", read_buffer(b, 0, 4));
+
+  // Positions past 32 bits are rejected on both sides, not wrapped back in.
+  ASSERT_EQ(0, write_buffer(b, 1 << 32, "xy"));
+  ASSERT_EQ(0, write_buffer(b, (1 << 32) + 1, "x"));
+  ASSERT_EQ(0, write_buffer(b, -(1 << 32), "z"));
+  ASSERT_EQ("abcd", read_buffer(b, 0, 4));
+
+  // read_buffer() must not read a wrapped position either.
+  ASSERT_EQ(0, read_buffer(b, 1 << 32, 4));
+  ASSERT_EQ(0, read_buffer(b, (1 << 32) + 1, 4));
+  ASSERT_EQ("abc", read_buffer(b, 0, 3));
 }

@@ -9,7 +9,7 @@
 const char* check_valid_path(const char*, object_t*, const char* const, int);
 void dump_file_descriptors(outbuffer_t*);
 
-char* read_file(const char*, int, int);
+char* read_file(const char*, LPC_INT, LPC_INT);
 struct svalue_t read_json(const char*);
 char* read_bytes(const char*, LPC_INT, LPC_INT, int*);
 int write_file(const char*, const char*, int);

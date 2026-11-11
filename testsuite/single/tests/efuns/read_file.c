@@ -29,4 +29,9 @@ void do_tests() {
   ASSERT(read_file("/crlf_test_file.lf") == read_file("/crlf_test_file.crlf"));
   ASSERT_EQ(read_file("/crlf_test_file.lf", -2, 1), read_file("/crlf_test_file.crlf", -2, 1));
   ASSERT_EQ(read_file("/crlf_test_file.lf", -1000), read_file("/crlf_test_file.crlf", -1000));
+
+  // Start line and line count are LPC ints (64-bit). Narrowing them first made
+  // a past-32-bit count wrap into "1 line" and a past-32-bit start read line 1.
+  ASSERT(all == read_file("/testfile", 10, (1 << 32) + 1));
+  ASSERT(!read_file("/testfile", (1 << 32) + 1));
 }

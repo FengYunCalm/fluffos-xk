@@ -1871,7 +1871,9 @@ void f_read_buffer() {
 #ifdef F_READ_FILE
 void f_read_file() {
   char* str;
-  int start = 0, len = 0;
+  // 64-bit so a start/line count past 32 bits reaches read_file() intact
+  // instead of wrapping back into range.
+  LPC_INT start = 0, len = 0;
 
   switch (st_num_arg) {
     case 3:
