@@ -555,6 +555,11 @@ TEST_F(DriverTest, TestArraySetOperationsDistinguishExtremeIntegers) {
   ASSERT_EQ(difference->item[0].u.number, std::numeric_limits<LPC_INT>::min());
   free_array(difference);
 
+  // The set operators consume both operands. Assert the array pool returns to
+  // its baseline, otherwise a consumed operand whose refcount hit zero is
+  // leaked silently (ASan flags the same thing as a 92-byte leak).
+  const auto arrays_before = num_arrays;
+
   auto* intersection = intersect_array(make_number_array({0}),
                                        make_number_array({std::numeric_limits<LPC_INT>::min()}));
   ASSERT_EQ(intersection, &the_null_array);
@@ -572,6 +577,7 @@ TEST_F(DriverTest, TestArraySetOperationsDistinguishExtremeIntegers) {
   ASSERT_TRUE(found_zero);
   ASSERT_TRUE(found_min);
   free_array(array_union);
+  ASSERT_EQ(num_arrays, arrays_before);
 }
 
 TEST_F(DriverTest, TestSourceEncodingPragmaDetectionAndTranscoding) {

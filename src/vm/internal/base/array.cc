@@ -1682,12 +1682,12 @@ settle_business:
 
   free_empty_array(a1);
 
-  if (sv_tab != a2->item) {
-    a2->ref--;
-    FREE((char*)sv_tab);
-  } else {
-    dealloc_empty_array(a2);
-  }
+  // alist_sort() always returns a heap table, and it consumed a2 the same way it
+  // consumed a1: with ref == 1 the items moved into the table, with ref > 1 the
+  // table holds counted copies. free_empty_array() therefore releases a2 in both
+  // cases; the previous `a2->ref--` left a ref-1 array allocated but unreachable.
+  FREE((char*)sv_tab);
+  free_empty_array(a2);
 
   return fix_array(a3, l);
 }
@@ -1779,12 +1779,10 @@ array_t* union_array(array_t* a1, array_t* a2) {
 
   free_empty_array(a1);
 
-  if (sv_tab != a2->item) {
-    a2->ref--;
-    FREE((char*)sv_tab);
-  } else {
-    dealloc_empty_array(a2);
-  }
+  // See intersect_array(): a2 is released the same way a1 is.
+  FREE((char*)sv_tab);
+  free_empty_array(a2);
+
   a3 = resize_array(a3, l);
   a3->ref = 1;
 
