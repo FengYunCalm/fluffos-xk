@@ -9,6 +9,7 @@ if(${GTEST_FOUND})
     test_lpc.cc
     test_lpc_compiler.cc
     test_lpc_gateway.cc
+    test_lpc_gateway_wire.cc
     test_lpc_owner.cc
     test_owner_cross.cc
     test_owner_executor.cc

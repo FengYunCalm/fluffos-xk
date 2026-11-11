@@ -6,7 +6,8 @@ src/packages/pcre/pcre.cc 6
 src/tests/lpc_vm_bench.cc 40
 src/tests/object_store_bench.cc 39
 src/tests/owner_runtime_bench.cc 40
-src/tests/test_lpc_gateway.cc 34
+src/tests/test_lpc_gateway.cc 5
+src/tests/test_lpc_gateway_wire.cc 29
 src/tests/test_owner_cross.cc 56
 src/tests/test_owner_gateway.cc 22
 src/vm/internal/base/interpret.cc 34
