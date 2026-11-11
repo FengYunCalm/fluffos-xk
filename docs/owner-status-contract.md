@@ -111,12 +111,34 @@
 
 ## 4 2026-11 已移除
 
-U5b 删除的键在本节逐条登记（供下游排查）。删除范围：迁移脚手架
-（`*_bridge*`、`*_retirement*`、`*_consistent`、`diagnosed_via_*`、`*_scan_bridge_*`、
-`*_fallback_skipped`、`*_source`/`*_route`/`*_reason`/`*_model`/`*_policy` 常量键）
-以及值恒为常量 1 的 `*_ready` 自证标志。
+### 4.1 对象存储面（已完成）
 
-（本节在 U5b 完成后补齐。）
+`vm_object_store_status()` / `vm_object_store_owner_status()` 不再输出下列类别的键：
+
+- **shard 合同表**（原嵌套 `vm_object_shard`，35 键）：`shard_kind`、`status_model`、
+  `execution_model`、`directory_model`、`storage_model`、`*_source`、`*_ready`、
+  `*_complete`、`*_blocker`、`*_consistent`、`contract_version`。
+- **owner-local 生命周期合同**（11 键）：`owner_local_lifecycle_contract_version`、
+  `owner_local_{lookup_resolve,create_canonical,move_canonical,destruct_canonical,
+  deferred_destruct}_ready`、`owner_local_lifecycle_{ready,blocker}`、
+  `global_index_physical_retirement_{ready,blocker}`。
+- **迁移桥接状态**：`uses_global_object_table`、`global_index_bridge`、
+  `global_{live_object,record}_bridge_{ready,source,consistent,retirement_ready}`、
+  `owner_local_{to_global,global}_bridge_*`、`*_mismatch_record_total`、
+  `owner_local_record_index_ready`、`owner_local_canonical_record_ready`。
+- **嵌套重复副本**：`status_record` 与 `execution_shard` 两个子 mapping（其数字已在
+  shard 映射上平铺）。
+
+保留：记录/引用/路径索引计数、对象目录及其条目、四个索引一致性标志（由结构实算）、
+`owner_local_store_{ready,complete}`（由 shard 状态实算）、迁移记录与 `migration_count`。
+
+### 4.2 其他文件
+
+`src/packages/core/vm_owner.cc` 不在本契约范围内：它的 mapping 是公开 LPC efun 的
+返回形状（`owner_safe` payload、失败 schema），不是状态观测面。
+
+`src/vm/internal/owner.cc` 与 gateway 状态面尚未收口，见
+[roadmap](roadmap.md)。
 
 ## 5 已知盲点
 

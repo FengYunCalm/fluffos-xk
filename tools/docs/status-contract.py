@@ -31,8 +31,10 @@ CONTRACT_PATH = os.path.join("docs", "owner-status-contract.md")
 SCOPED_FILES = (
     "src/vm/internal/owner.cc",
     "src/vm/internal/object_store.cc",
-    "src/packages/core/vm_owner.cc",
 )
+# src/packages/core/vm_owner.cc is deliberately out of scope: its mappings are the
+# return shapes of public LPC efuns (owner_safe payloads, failure schemas), not the
+# observability status surface.
 
 # `add_mapping_pair(map, "key", ...)` and its siblings. `\s*` spans newlines so
 # multi-line calls are recognized; comments are stripped first so a commented-out
