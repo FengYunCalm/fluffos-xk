@@ -2265,31 +2265,10 @@ int64_t gateway_main_queue_pending_count() {
   return std::max<int64_t>(0, vm_owner_main_queue_total_depth());
 }
 
-mapping_t* gateway_status_internal() {
-  mapping_t* map;
-  int uptime;
+// Backend event-loop slicing and continuation counters. Kept beside the other
+// status builders so the assembly in gateway_status_internal() stays readable.
+static void add_gateway_status_backend(mapping_t* map) {
   const auto backend_status = backend_runtime_status();
-
-  uptime = g_gateway_started_at ? static_cast<int>(get_current_time() - g_gateway_started_at) : 0;
-  map = allocate_mapping(214);
-  add_mapping_pair(map, "listening", g_gateway_listener ? 1 : 0);
-  add_mapping_pair(map, "gateway_external_bind_allowed", kGatewayExternalBindAllowed ? 1 : 0);
-  add_mapping_pair(map, "gateway_external_bind_rejected",
-                   static_cast<LPC_INT>(g_gateway_runtime_counters.external_bind_rejected.load(
-                       std::memory_order_relaxed)));
-  add_mapping_pair(map, "gateway_event_priority_levels", kBackendEventPriorityLevels);
-  add_mapping_pair(map, "gateway_normal_event_priority",
-                   static_cast<int>(BackendEventPriority::kNormal));
-  add_mapping_pair(map, "gateway_io_event_priority",
-                   static_cast<int>(BackendEventPriority::kGateway));
-  add_mapping_pair(map, "gateway_background_dispatch_max_interval_us",
-                   static_cast<LPC_INT>(std::chrono::duration_cast<std::chrono::microseconds>(
-                                            kBackendBackgroundDispatchMaxInterval)
-                                            .count()));
-  add_mapping_pair(map, "gateway_background_dispatch_max_callbacks",
-                   kBackendBackgroundDispatchMaxCallbacks);
-  add_mapping_pair(map, "gateway_background_dispatch_min_priority",
-                   static_cast<int>(kBackendBackgroundDispatchMinPriority));
   add_mapping_pair(map, "gateway_backend_tick_slice_budget",
                    static_cast<LPC_INT>(kBackendTickEventCallbackBudget));
   add_mapping_pair(map, "gateway_backend_tick_slice_wall_budget_us",
@@ -2342,6 +2321,33 @@ mapping_t* gateway_status_internal() {
                    static_cast<LPC_INT>(backend_status.owner_main_continuations_executed));
   add_mapping_pair(map, "gateway_backend_owner_main_continuation_pending",
                    backend_status.owner_main_continuation_pending ? 1 : 0);
+}
+
+mapping_t* gateway_status_internal() {
+  mapping_t* map;
+  int uptime;
+
+  uptime = g_gateway_started_at ? static_cast<int>(get_current_time() - g_gateway_started_at) : 0;
+  map = allocate_mapping(214);
+  add_mapping_pair(map, "listening", g_gateway_listener ? 1 : 0);
+  add_mapping_pair(map, "gateway_external_bind_allowed", kGatewayExternalBindAllowed ? 1 : 0);
+  add_mapping_pair(map, "gateway_external_bind_rejected",
+                   static_cast<LPC_INT>(g_gateway_runtime_counters.external_bind_rejected.load(
+                       std::memory_order_relaxed)));
+  add_mapping_pair(map, "gateway_event_priority_levels", kBackendEventPriorityLevels);
+  add_mapping_pair(map, "gateway_normal_event_priority",
+                   static_cast<int>(BackendEventPriority::kNormal));
+  add_mapping_pair(map, "gateway_io_event_priority",
+                   static_cast<int>(BackendEventPriority::kGateway));
+  add_mapping_pair(map, "gateway_background_dispatch_max_interval_us",
+                   static_cast<LPC_INT>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                            kBackendBackgroundDispatchMaxInterval)
+                                            .count()));
+  add_mapping_pair(map, "gateway_background_dispatch_max_callbacks",
+                   kBackendBackgroundDispatchMaxCallbacks);
+  add_mapping_pair(map, "gateway_background_dispatch_min_priority",
+                   static_cast<int>(kBackendBackgroundDispatchMinPriority));
+  add_gateway_status_backend(map);
   add_mapping_pair(map, "port", g_gateway_listen_port);
   add_mapping_pair(map, "masters", static_cast<int>(g_gateway_masters.size()));
   add_mapping_pair(map, "sessions", gateway_get_session_count());
