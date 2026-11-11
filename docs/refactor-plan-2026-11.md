@@ -1,8 +1,9 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
-> 状态：**执行中**（2026-11）。已完成 U0–U7、U9a/U9b/U9e；未完成：U8（测试拆分，
-> 前置重复回收未做）、U9c（clang-tidy，本机无固定版本工具链）、U9d（测试文件体量上限，
-> 依赖 U8）、U5d（下游验收，需起下游测试实例）。
+> 状态：**执行中**（2026-11）。已完成 U0–U7、U9a/U9b/U9e、U8 的 owner 部分（`0bd78a12`）；
+> 未完成：U8 的 gateway 部分（两个 namespace 区域内夹具/助手/测试混在一起，需先提取）、
+> U9c（clang-tidy，本机无固定版本工具链）、U9d（体量上限，依赖 gateway 拆分）、
+> U5d（下游验收，需起下游测试实例）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
 > 上下文的执行者按序完成。
@@ -657,29 +658,24 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 
 ## U8 测试结构
 
-> 状态（2026-11）：**前置件已完成，拆分未落地**。
+> 状态（2026-11）：**owner 文件已拆完（`0bd78a12`），gateway 文件未拆**。
 >
 > 已完成：
 > - `62cf1da9`：`mapping_number`/`mapping_string` 两个局部 lambda 在三个测试文件里
->   逐字重复 **192 次**（owner 161 / gateway 30 / compiler 1，共 1,152 行），
->   已收进 `test_lpc_support.h` 两个 inline helper，调用名不变。
-> - `95ec9da3`：owner 文件里的 `verify_async_callback_drain()`（40 行）与一个冗余的
->   `read_source_file_for_test()` 前向声明已提入 `test_lpc_support.h`（前者在
->   `PACKAGE_ASYNC` 内）。全量 564 项通过。
+>   逐字重复 **192 次**（共 1,152 行），已收进 `test_lpc_support.h`。
+> - `95ec9da3`：`verify_async_callback_drain()` 与冗余的 `read_source_file_for_test()`
+>   前向声明已提入 `test_lpc_support.h`。
+> - `0bd78a12`：`test_lpc_owner.cc` 16.5k 行 → 5 个 3.2–3.4k 行文件
+>   （`test_lpc_owner` / `test_owner_gateway` / `test_owner_cross` /
+>   `test_owner_executor` / `test_owner_worker`），按预处理区域整体搬运，
+>   gtest 用例名集合拆分前后逐字相同（565 项），套件全绿。
 >
-> 拆分还没做的原因（已实测，不是估计）：
-> 1. **预处理器区域跨测试**：`#ifdef PACKAGE_ASYNC` / `PACKAGE_SOCKETS` / `_WIN32` /
->    `__linux__` 包住“若干测试”，且**区域最后一个测试的尾部已经含有 closer**。
->    按 TEST_F 切段后两种写法都不配平：补 `#endif` 多一层，不补则未闭合。
->    正确做法是以“整个预处理器区域”为单位搬运，而不是以单个测试为单位。
-> 2. **文件内助手仍在**：`test_lpc_gateway.cc` 还有 `gateway_test_seed_owner_room_event`
->    等 9 个文件内助手（行 1366-1430），未提走前无法切该文件。
-> 3. 实测发现，逐行重建大文件时，工具输出会在中途插入非文件内容（系统提示），
->    按行号校验会失败；因此必须按“内容锚点 + 编译/测试名集合相等”验收，不能只比行数。
->
-> 已测得的自然分组与体量（可作后续拆分的边界）：
-> owner 文件 16,523 行 = 访问模式 675 / gateway 4,280 / future+handle 2,138 /
-> canary+LPC task 1,289 / executor 4,155 / 其余 3,930，另有 PACKAGE_ASYNC 区域 126 行。
+> gateway 文件（7,030 行）为什么没拆：它的两个 `namespace { … }` 区域
+> （行 7-1434、6883-6937）里 **助手、夹具和测试混在一起**
+> （`AsciiInputFixture`、`check_ascii_chunks`、`gateway_test_*` 与 `TEST_F` 同域）。
+> 整体搬进头文件会让测试在多个 TU 各注一份（实测用例数 565 → 598），
+> 拆切则助手与夹具会跟使用者分家。正确顺序：先把非测试声明（类型、夹具、助手）
+> 从这两个区域提出头文件，再把剩余测试按体量切分；不可直接搬区域。
 
 | 序 | 动作 | 判据 |
 | --- | --- | --- |
