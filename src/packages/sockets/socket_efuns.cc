@@ -109,18 +109,29 @@ void on_lpc_sock_write(evutil_socket_t fd, short what, void* arg) {
   socket_write_select_handler(data->idx);
 }
 
-void handle_tls_handshake(int fd) {
-  auto ret = SSL_connect(lpc_socks[fd].ssl);
+// Client and server handshakes run the same state machine: on success move to
+// DATA_XFER, mark the socket blocked, arm the write event and drive it once to
+// clear the flag; WANT_READ/WANT_WRITE re-arm; anything else closes the socket.
+// Only the SSL entry point and the log text differ, so keep one implementation
+// and pass the role -- a divergence here would strand one side of the handshake.
+enum class TlsHandshakeRole { kClient, kServer };
+
+static void handle_tls_handshake_role(int fd, TlsHandshakeRole role) {
+  const bool server = role == TlsHandshakeRole::kServer;
+  auto* ssl = lpc_socks[fd].ssl;
+  auto ret = server ? SSL_accept(ssl) : SSL_connect(ssl);
   if (ret == 1) {
     lpc_socks[fd].state = STATE_DATA_XFER;
     lpc_socks[fd].flags |= S_BLOCKED;
-    debug(sockets, ("handle_tls_handshake: TLS: handshake successful\n"));
+    debug(sockets,
+          (server ? "handle_tls_server_handshake: TLS: handshake successful\n"
+                  : "handle_tls_handshake: TLS: handshake successful\n"));
     event_add(lpc_socks[fd].ev_write, nullptr);
     // Drive the write handler once to clear S_BLOCKED and fire the write callback.
     socket_write_select_handler(fd);
     return;
   }
-  auto err = SSL_get_error(lpc_socks[fd].ssl, ret);
+  auto err = SSL_get_error(ssl, ret);
   switch (err) {
     case SSL_ERROR_WANT_READ:
       // read event is persistent
@@ -129,38 +140,21 @@ void handle_tls_handshake(int fd) {
       event_add(lpc_socks[fd].ev_write, nullptr);
       return;
     default:
-      debug(sockets, "STATE_HANDSHAKE: SSL_connect error: %s.\n", ERR_error_string(err, nullptr));
+      // The operation name is data, not a format string.
+      debug(sockets, "STATE_HANDSHAKE: %s error: %s.\n", server ? "SSL_accept" : "SSL_connect",
+            ERR_error_string(err, nullptr));
       lpc_socks[fd].flags &= ~S_BLOCKED;
       socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
       return;
   }
 }
 
+void handle_tls_handshake(int fd) {
+  handle_tls_handshake_role(fd, TlsHandshakeRole::kClient);
+}
+
 void handle_tls_server_handshake(int fd) {
-  auto ret = SSL_accept(lpc_socks[fd].ssl);
-  if (ret == 1) {
-    lpc_socks[fd].state = STATE_DATA_XFER;
-    lpc_socks[fd].flags |= S_BLOCKED;
-    debug(sockets, ("handle_tls_server_handshake: TLS: handshake successful\n"));
-    event_add(lpc_socks[fd].ev_write, nullptr);
-    // Drive the write handler once to clear S_BLOCKED and fire the write callback.
-    socket_write_select_handler(fd);
-    return;
-  }
-  auto err = SSL_get_error(lpc_socks[fd].ssl, ret);
-  switch (err) {
-    case SSL_ERROR_WANT_READ:
-      // read event is persistent
-      return;
-    case SSL_ERROR_WANT_WRITE:
-      event_add(lpc_socks[fd].ev_write, nullptr);
-      return;
-    default:
-      debug(sockets, "STATE_HANDSHAKE: SSL_accept error: %s.\n", ERR_error_string(err, nullptr));
-      lpc_socks[fd].flags &= ~S_BLOCKED;
-      socket_close(fd, SC_FORCE | SC_FINAL_CLOSE);
-      return;
-  }
+  handle_tls_handshake_role(fd, TlsHandshakeRole::kServer);
 }
 
 }  // namespace
