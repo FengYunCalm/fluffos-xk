@@ -7,4 +7,9 @@ void do_tests() {
   store_class_member(p, 1, "bye");
   ASSERT_EQ("bye", p->s);
   ASSERT(catch(store_class_member(p, 9, 1)));
+  // A member index past 32 bits must be out of bounds, not wrap back to 0/1.
+  ASSERT(catch(store_class_member(p, (1 << 32) + 1, 1)));
+  ASSERT(catch(store_class_member(p, 1 << 32, 1)));
+  ASSERT_EQ(8, p->x);
+  ASSERT_EQ("bye", p->s);
 }

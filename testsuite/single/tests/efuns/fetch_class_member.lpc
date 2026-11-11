@@ -5,4 +5,7 @@ void do_tests() {
   ASSERT_EQ(5, fetch_class_member(p, 0));
   ASSERT_EQ("hi", fetch_class_member(p, 1));
   ASSERT(catch(fetch_class_member(p, 9)));
+  // A member index past 32 bits must be out of bounds, not wrap back to 0/1.
+  ASSERT(catch(fetch_class_member(p, (1 << 32) + 1)));
+  ASSERT(catch(fetch_class_member(p, 1 << 32)));
 }

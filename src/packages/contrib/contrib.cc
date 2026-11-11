@@ -2571,7 +2571,9 @@ void f_disassemble_class() {
 #ifdef F_FETCH_CLASS_MEMBER
 
 void f_fetch_class_member() {
-  int pos = sp->u.number;
+  // A class member index is an LPC int; narrowing it first made a past-32-bit
+  // index wrap back into a valid member.
+  LPC_INT pos = sp->u.number;
   array_t* arr;
 
   pos = sp->u.number;
@@ -2595,7 +2597,7 @@ void f_fetch_class_member() {
 #ifdef F_STORE_CLASS_MEMBER
 
 void f_store_class_member() {
-  int const pos = (sp - 1)->u.number;
+  LPC_INT const pos = (sp - 1)->u.number;
   array_t* arr;
 
   if ((sp - 2)->type != T_CLASS) {
