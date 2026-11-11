@@ -174,7 +174,7 @@ LPC 编译链：`compile_file()` → `LexStream`/`lex.cc` → `grammar.y`（Biso
 
 | 重复块 | 位置 | 判定 |
 | --- | --- | --- |
-| 565 | `compiler/internal/grammar.autogen.cc` ↔ `tools/make_func.autogen.cc` | **非缺陷**：两份都是同一 Bison 语法的生成产物，属于构建设计 |
+| 565 | `compiler/internal/grammar.autogen.cc` ↔ `src/tools/make_func.autogen.cc` | **非缺陷**：两份都是同一 Bison 语法的生成产物，属于构建设计 |
 | 90 / 88 / 77 | `tests/lpc_vm_bench.cc` ↔ `object_store_bench.cc` ↔ `owner_runtime_bench.cc` | **缺陷**：三个 benchmark 各自复制同一套环境装配、计时、报告逻辑 |
 | 12 | `tests/test_lpc_gateway.cc` ↔ `test_lpc_owner.cc` | 缺陷：同一 LPC fixture/mapping 取值 helper 写了两遍 |
 | 10 | `net/ws_ascii.cc` ↔ `net/ws_telnet.cc` | 缺陷：`ws_ascii_callback`（`:31`）与 `ws_telnet_callback`（`:37`）的 `SESSION_CREATED`/`ESTABLISHED`/`RECEIVE`/`CLOSED`/`FREE` 分支与 `per_vhost_data` 定义各自一份（会话建立/关闭已抽到 `WebSocketSession`，但回调骨架没吸干净） |
@@ -401,7 +401,7 @@ source/skipped/reason` …）。信息密度低、无法检索、随代码漂移
   macOS ×2、Windows ×2），另有 workflow lint、style/LPC corpus、docs、evidence gate、fuzz。
 - `tools/style/check-format.py --all-native` 已作为只读门禁接入，clang-format 版本固定
   18.1.8 并校验版本。
-- LPC 格式检查走 `testsuite/format.sh --check`，有明确排除表。
+- LPC 格式检查走 `testsuite/format.sh`（`--check` 模式），有明确排除表。
 - evidence gate 校验报告 schema + `EXPECTED_TESTED_SHA`，不接受空报告。
 
 ### 7.2 缺口

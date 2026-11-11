@@ -26,3 +26,19 @@ testsuite/.run-isolated-*/
 testsuite/.run-isolated.lockdir/
 # Pi tool state -- not tracked, not pushed
 /.pi/
+
+# Local evidence directories. These used to live in .git/info/exclude, which
+# only hid them on one machine; every other checkout saw them as untracked.
+/audit-evidence/
+/evidence/
+/testsuite/log/
+/testsuite/*.sqlite
+/testsuite/**/*.o
+/testsuite/.targeted-*
+
+# Local agent workflow artifacts
+/.codex/
+/.codex-worktrees/
+/.claude/
+.gitnexus/
+/tools/loadtest/__pycache__/

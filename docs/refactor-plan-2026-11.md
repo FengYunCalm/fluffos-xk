@@ -480,7 +480,7 @@ wc -l audit-evidence/refactor-2026-11/status-keys.txt
 
 - `src/packages/core/vm_worker.cc`（≈108 键）。它不是迁移脚手架，而是 Worker 总线
   的功能合同，下游 `worker_bus_d.c` / `async_compute_d.c` 在读。删它需单独课题。
-- `src/vm/internal/base/trace.cc`（27 处）与 `promise.cc`（17 处）：属于真实的运行时
+- `src/vm/internal/trace.cc`（27 处）与 `promise.cc`（17 处）：属于真实的运行时
   观测（下游读 `events` 结构），不属迁移脚手架。
 
 **不删**：51 个冻结键、`vm_object_handle` efun（`rewrite` 在用）、

@@ -29,7 +29,7 @@ KNOWN_PREFIXES = (
     "cmake/", "compat/", "CMakeLists.txt", "Dockerfile", "SECURITY.md",
     "README", "CHANGELOG.md", "Testing", "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md", "NOTICE", "LICENSE", "Credits", "Copyright",
-    "ChangeLog", "qodana.yaml", "fix_permission.sh", "CMakePresets.json",
+    "ChangeLog", "CMakePresets.json",
 )
 SHA_RE = re.compile(r"\b[0-9a-f]{40}\b")
 IGNORED_DIRS = (
@@ -101,6 +101,34 @@ KNOWN_STALE = {
     # Evidence from a removed local build directory is retained for history.
     "docs/evidence/e3-v2-phase1-simul-efun-reload.md": {
         "testsuite/../build-sync/bin/driver etc/config.recompile -ftest",
+    },
+    # Artifacts named by the 2026-11 refactor plan. Each entry must be removed
+    # from this set as the corresponding unit lands; the plan is the only
+    # document allowed to reference not-yet-existing paths.
+    "docs/refactor-findings-2026-11.md": {
+        # Removed by U1a; the findings keep them as the deletion record.
+        "src/outdated_define.txt",
+        "testsuite/test.o",
+        "testsuite/data/gateway_net_dead_destruct_user.o",
+    },
+    "docs/refactor-plan-2026-11.md": {
+        "docs/owner-status-contract.md",
+        "docs/roadmap.md",
+        "docs/architecture.md",
+        "docs/archive/plans/",
+        "docs/archive/plans/README.md",
+        "docs/archive/evidence/",
+        "tools/docs/status-contract.py",
+        "tools/style/check-duplication.py",
+        "tools/style/duplication-baseline.txt",
+        "src/packages/gateway/gateway_status.cc",
+        # Removed by U1a; the plan keeps them as the deletion record.
+        "docs/add_missing_efuns.py",
+        "docs/fix_md_header.py",
+        "docs/fix_seealso.py",
+        "src/outdated_define.txt",
+        "testsuite/test.o",
+        "testsuite/data/gateway_net_dead_destruct_user.o",
     },
 }
 IGNORED_FILES = set()
