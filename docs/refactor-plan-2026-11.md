@@ -824,7 +824,7 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--dump` 1,058 键；`--check` 预期为红直到 U5b | |
 | U3 | `524f0027` | 删假审计（含编码层归还）+ 2 个零消费者 bench efun | ctest 597/597；-ftest 433 文件退出码 0 | 两个子单元合并为一次提交（同一测试文件） |
 | U4 | `3e01bff9` | 64 位索引/区间截断、TTYPE、输入移除守卫 | ctest 597/597；-ftest 435 文件退出码 0 | 12 项中已吸收 4、已存在 3、部分 2、需设计/拆分 3 |
-| U5b | — | 删 1,372 个迁移脚手架键 | — | **未开始** |
+| U5b | — | 删 1,372 个迁移脚手架键 | — | **未开始**；已测波及面：5 个文件共 2,487 处 `add_mapping_*`，`test_lpc_owner.cc` 550 行 + `owner_executor_contract.c` 239 行断言需同步清理；object_store 面（383 处 / 78 个脚手架键）无下游消费者，建议从这里开始 |
 | U5c | — | 网关状态装配移出主逻辑文件 | — | 未开始 |
 | U5d | — | 下游 ownercheck 前后对比 | — | 未开始 |
 | U6 | — | 7 个状态机显式化 | — | 未开始 |
