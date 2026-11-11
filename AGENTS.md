@@ -148,6 +148,7 @@ Sanitizer 使用对应预设；ASan 编译固定 `--parallel 2`。已存在的 `
 - 不使用 `-j$(nproc)` 或其他无限制并行构建；普通构建固定 `-j4`（内存充足且确认安全时才提高到 `-j8`），ASan 固定 `-j2`。
 - 同一时刻只运行一个构建目录；构建期间不要并行运行 driver、全量 `-ftest` 或 benchmark。
 - 可用内存低于 2 GiB 时，先停止无关进程并清理确认可重建的旧构建输出，再开始构建。
+- 构建目录 `build-*` 与证据目录 `*evidence*` 各保留最近 3 个；新建前或收尾前运行 `tools/prune-artifacts.sh`（`KEEP` 可覆盖上限），受版本管理的 `evidence/` 不受影响。
 - `ENABLE_LTO` 在非 Debug 构建默认可能开启；开发和 sanitizer 构建保持 LTO 关闭，优化构建是否开启以预设为准。
 - 构建失败或无输出时，先检查 `free -h` 和 `dmesg | grep -i oom`，排除 OOM 后再分析编译错误。
 
