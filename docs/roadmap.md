@@ -47,7 +47,7 @@
 | R-08 | WebSocket TLS 热重载 | 当前明确拒绝，属安全敏感变更 | 设计文档 + 真机握手验证 |
 | R-09 | PCRE2 新 API（`pcre_config`/`pcre_info`/`pcre_convert` 等） | 本地 `.spec` 未公开这些 efun，不能把不存在接口伪装成覆盖 | API 决策 + 回归 |
 | R-10 | 编译器前端把折叠后的 64 位常量写进 int32 操作数 | 复现：`int big = 1 << 32;`（正确）vs `a[0 .. 1 << 32]`（边界被截断成 1）。VM 侧已修，前端常量发射路径未查 | 复现用例 + 常量发射路径定位（`icode`/`generate`）；上游 #1441 也未覆盖此路径 |
-| R-11 | 上游 #1441 的 efun 参数批次（`allocate`/`test_bit`/`member_array`/`replace_string`/`read_file`/`write_buffer` 等）与 `terminal_colour()` 崩溃修复 | **已完成核心批次**（`b3ab58ae`）：allocate/allocate_buffer/test_bit/next_bit/member_array(字符串)/replace_string 已改；剩余 `read_file`/`read_bytes`/`read_buffer`/`write_buffer` 的偏移量 | 按同一模式逐个改：收 LPC_INT → 既有范围检查看到真值 → 补回归 |
+| R-11 | 上游 #1441 的 efun 参数批次与 `terminal_colour()` 崩溃修复 | **已完成**：allocate/allocate_buffer/test_bit/next_bit/member_array/replace_string/read_file/read_buffer/write_buffer/strsrch/fetch_class_member/store_class_member 均已改（`b3ab58ae` `4ee32b1d` `4cf22dc6` `e202a3d5`）；`terminal_colour` 崩溃本身未复现，未改 | 继续扫同类：任何 `int x = ...u.number` 都是可疑点 |
 | R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
 | R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器 | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件） |
 | R-14 | gateway 状态面收口（`gateway_status_internal()` 单函数 303 键、跨 987 行） | 这个函数约千行，几乎全是计数器与延迟采样，删除面小；真正的问题是它把网关所有子系统的状态装配塞在一个函数里 | 按子系统拆成 `gateway_status_io/queue/future/room_projection` 等，主函数只做组装（U5c） |
