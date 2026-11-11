@@ -300,6 +300,37 @@ def check_root_plan_status(docs_dir: str, repo: str) -> list[str]:
 _MAX_TEST_LINES = 3500
 
 
+_MAX_TEST_LINES = 3500
+# Mudlib test files above the 1000-line goal, frozen at their current size. Splitting
+# them needs the same helper extraction the C++ tests needed; until then the gate
+# keeps them from growing. Lower each entry as its file gets split.
+_LPC_TEST_SIZE_BASELINE = {
+    "single/tests/efuns/owner_executor_contract.c": 1666,
+    "single/tests/compiler/utf8.c": 1595,
+}
+_LPC_TEST_LINES = 1000
+
+
+def check_lpc_test_size(repo: str) -> list[str]:
+    """Mudlib test files may not grow past their frozen size; small ones stay under 1000."""
+    errors: list[str] = []
+    tests_dir = os.path.join(repo, "testsuite")
+    if not os.path.isdir(tests_dir):
+        return errors
+    for root, _dirs, names in os.walk(tests_dir):
+        for name in sorted(names):
+            if not name.endswith((".c", ".lpc")):
+                continue
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, tests_dir).replace(os.sep, "/")
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                count = sum(1 for _ in handle)
+            allowed = _LPC_TEST_SIZE_BASELINE.get(rel, _LPC_TEST_LINES)
+            if count > allowed:
+                errors.append(f"testsuite/{rel}: {count} lines exceeds {allowed}")
+    return errors
+
+
 def check_test_file_size(repo: str) -> list[str]:
     """A test file that grows past the cap is a file nobody can read in one go."""
     errors: list[str] = []
@@ -363,6 +394,7 @@ def main() -> int:
         return 1
     root_errors = check_root_plan_status(docs_dir, args.repo)
     root_errors += check_test_file_size(args.repo)
+    root_errors += check_lpc_test_size(args.repo)
     for e in root_errors:
         print(f"FAIL: {e}")
     if root_errors:

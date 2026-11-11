@@ -1,8 +1,8 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
-> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9d（C++ 部分）/U9e；
-> 未完成：U9c（clang-tidy，本机无固定版本工具链）、U9d 的 LPC 部分（需先拆 LPC 测试文件）、
-> U5d（下游验收，需起下游测试实例）。
+> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9e、U9d（C++ 硬上限 + LPC 冻结基线）、
+> U9c 的本地门禁；未完成：U9c 的 CI 接入（需改构建作业并装固定工具链，本机无法验证）、
+> U9d 的 LPC ≤1000 目标（需先拆 LPC 测试文件）、U5d（下游验收，需起下游测试实例）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
 > 上下文的执行者按序完成。
@@ -728,16 +728,25 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 ### U9c clang-tidy 门禁
 
-在 CI 增加 diff-scoped 检查：
+**本地门禁已落地**（`tools/style/check-tidy.py`，待接入 CI）：
 
-1. 只对 PR 改动的 `.cc/.h` 运行固定版本 clang-tidy（18.1.8，与 clang-format 同版本
-   策略），使用配置生成的 `compile_commands.json`。
-2. 首轮只启用已校准的检查集：`readability-identifier-naming`、
+1. 只看一次改动碰到的行：`git diff <range> -- '*.cc' '*.h'` 交给 `clang-tidy-diff.py`，
+   因此存量告警不会阻塞无关改动。
+2. 检查集与 `src/.clang-tidy` 一致：`readability-identifier-naming`、
    `readability-braces-around-statements`、`modernize-use-nullptr`、
-   `bugprone-macro-parentheses`、`bugprone-sizeof-expression`、
-   `performance-for-range-copy`（与 `src/.clang-tidy` 注释一致）。
-3. 报告模式先跑一次，把命中数写入基线；随后改为"不得新增"。
-4. 接入后删除 U1b 中"当前无门禁"的注释。
+   `modernize-use-override`、`bugprone-macro-parentheses`、`bugprone-sizeof-expression`、
+   `performance-for-range-copy`。
+3. 需要带 `compile_commands.json` 的构建目录；工具链固定为 PyPI 轮子
+   `clang-tidy==23.1.4`（自带 `clang-tidy` 与 `clang-tidy-diff.py`）。
+4. `--advisory` 只报告不失败，供存量未清阶段使用。
+
+实测（本机，clang-tidy 23.1.4）：`--range 28d6c66a~1..28d6c66a`（对象存储去重）
+→ 0 命中、退出 0；`--range c7e47e05~1..c7e47e05`（测试文件拆分）→ 88 命中、退出 1；
+同一条加 `--advisory` → 仍然退出 0。拆分类提交会把移动的旧代码当作新行，
+这是它暂不进 CI 阻塞列表的原因。
+
+**CI 接入未做**：需要给构建作业加 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 并安装
+固定版本工具链；两者都会改动现有 CI 矩阵，本机无法验证，不能未验先上。
 
 ### U9d 测试文件体量上限
 

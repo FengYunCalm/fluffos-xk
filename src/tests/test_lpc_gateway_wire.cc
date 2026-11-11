@@ -2793,7 +2793,6 @@ TEST_F(DriverTest, TestGatewayCommandExecutesThroughOwnerMainQueue) {
   runtime_guard.ob = ob;
   runtime_guard.session_id = "gw-test-command-executor";
   vm_owner_set_id(ob, "owner/test/gateway-command-main-queue");
-  const std::string owner_id = vm_owner_id(ob);
   auto owner_epoch = vm_owner_epoch(ob);
 
   auto call_number = [](const char* method, object_t* target) -> long {
