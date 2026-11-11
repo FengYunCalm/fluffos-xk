@@ -821,18 +821,6 @@ TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
       read_source_file_for_test("../src/packages/gateway/gateway.cc");
   ASSERT_NE(gateway_status_source.find("GATEWAY_TOTAL_US(map, receive_enqueue_to_dispatch)"),
             std::string::npos);
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    svalue_t* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, &const0u) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    svalue_t* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
-    return (value && value->type == T_STRING) ? value->u.string : "";
-  };
 
   mapping_t* status = gateway_status_internal();
   ASSERT_NE(status, nullptr);
@@ -7170,12 +7158,6 @@ TEST_F(DriverTest, TestRemoveDestructedObjectsBoundedDrainsIncrementally) {
   ASSERT_GE(vm_destructed_object_cleanup_batches(), 2u);
   ASSERT_EQ(vm_destructed_object_cleanup_last_removed(), 1u);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    svalue_t* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   auto* runtime = vm_owner_runtime_status();
   ASSERT_EQ(mapping_number(runtime, "destructed_object_backlog"), 0);
   ASSERT_GE(mapping_number(runtime, "destructed_object_cleanup_total"), 3);
@@ -7228,18 +7210,6 @@ TEST_F(DriverTest, TestVmOwnerQueryObjectSnapshotOnlyForCrossOwnerTargets) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   current_object = source;
   vm_owner_set_id(source, "owner/test/snapshot/source");
@@ -7427,18 +7397,6 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
     destruct_object_for_test(source);
   }
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ScopedCurrentObjectAsMaster master_scope;
   auto* player = clone_object_for_test("single/owner_singleton");
@@ -7679,18 +7637,6 @@ TEST_F(DriverTest, TestVmOwnerMailboxDrainsOwnerFifo) {
   auto second_id = vm_owner_enqueue_task(owner_id, "command", "second");
   ASSERT_LT(first_id, second_id);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* status = vm_owner_mailbox_status(owner_id);
   ASSERT_EQ(mapping_number(status, "owner_queue_depth"), 2);
@@ -7736,12 +7682,6 @@ TEST_F(DriverTest, TestVmOwnerEpochRejectsStaleTask) {
   auto epoch_b = vm_owner_epoch(obj);
   ASSERT_GT(epoch_b, epoch_a);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   auto* scheduled = vm_owner_schedule(1);
   auto* tasks = find_string_in_mapping(scheduled, "tasks");
   ASSERT_NE(tasks, nullptr);
@@ -7775,18 +7715,6 @@ TEST_F(DriverTest, TestVmOwnerPurgeRemovesOwnerQueueBeforeSchedule) {
   vm_owner_enqueue_task(owner, "command", "second");
   auto other_task = vm_owner_enqueue_task(other, "command", "other");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* purged = vm_owner_purge_mailbox(owner);
   ASSERT_EQ(mapping_number(purged, "purged"), 2);
@@ -7817,18 +7745,6 @@ TEST_F(DriverTest, TestVmOwnerTaskTraceRecordsObservedAndDispatchedEvents) {
   auto* scheduled = vm_owner_schedule(1);
   free_mapping(scheduled);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* trace = vm_owner_task_trace(8);
   ASSERT_STREQ(mapping_string(trace, "trace_kind"), "owner_task_trace");
@@ -7867,12 +7783,6 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDispatchesWithOwnerScope) {
   ASSERT_NE(obj, nullptr);
   vm_owner_set_id(obj, "owner/test/main-queue");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   bool ran = false;
   std::string seen_owner;
   long active_owners_during_callback = 0;
@@ -7913,12 +7823,6 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDispatchesWithOwnerScope) {
   ASSERT_EQ(mapping_number(after_runtime, "main_fallback_policy_ready"), 1);
   free_mapping(after_runtime);
 
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto* trace = vm_owner_task_trace(2);
   auto* events = find_string_in_mapping(trace, "events");
   ASSERT_NE(events, nullptr);
@@ -7944,12 +7848,6 @@ TEST_F(DriverTest, TestVmOwnerMainDrainRecoversAfterCallbackException) {
   vm_owner_set_id(first, "owner/test/main-exception/first");
   vm_owner_set_id(second, "owner/test/main-exception/second");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   const auto first_ref_before = first->ref;
   bool second_ran = false;
   ASSERT_GT(vm_owner_enqueue_main_task(first, "unit_main", "throws",
@@ -8055,12 +7953,6 @@ TEST_F(DriverTest, TestVmOwnerMainQueueDropsStaleOwnerEpoch) {
   ASSERT_EQ(vm_owner_drain_main_tasks(8), 1);
   ASSERT_FALSE(ran);
 
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto* trace = vm_owner_task_trace(2);
   auto* events = find_string_in_mapping(trace, "events");
   ASSERT_NE(events, nullptr);
@@ -8107,18 +7999,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatTraceRecordsScheduledEvent) {
 
   ASSERT_EQ(set_heart_beat(obj, 1), 1);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto* trace = vm_owner_task_trace(1);
   auto* events = find_string_in_mapping(trace, "events");
   ASSERT_NE(events, nullptr);
@@ -8142,12 +8022,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatTraceRecordsScheduledEvent) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreTracksPendingCallouts) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   object_t* obj = find_object("single/master.c");
   ASSERT_NE(obj, nullptr);
@@ -8168,12 +8042,6 @@ TEST_F(DriverTest, TestVmObjectStoreTracksPendingCallouts) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreTracksPendingOwnerMessages) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto assert_pending_messages = [&](const char* owner_id, long expected) {
     auto* owner_status = vm_object_store_owner_status(owner_id);
@@ -8223,12 +8091,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatStaleOwnerSkipsExecution) {
     EXPECT_NE(ret, nullptr);
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
   };
 
   ASSERT_EQ(call_number("get_heartbeat_called", obj), 0);
@@ -8291,18 +8153,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatDispatchesThroughOwnerExecutor) {
     EXPECT_NE(ret, nullptr);
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
-  };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
   };
   auto trace_has_state = [&](const char* state) {
     auto* trace = vm_owner_task_trace(64);
@@ -8395,12 +8245,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatExecutorDropsStaleOwnerEpoch) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_heartbeat_stale = [&] {
     auto* trace = vm_owner_task_trace(96);
     auto* events = find_string_in_mapping(trace, "events");
@@ -8470,18 +8314,6 @@ TEST_F(DriverTest, TestVmOwnerCalloutDispatchesThroughOwnerExecutor) {
     EXPECT_NE(ret, nullptr);
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
-  };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
   };
   auto trace_has_callout_state = [&](const char* state) {
     auto* trace = vm_owner_task_trace(96);
@@ -8584,12 +8416,6 @@ TEST_F(DriverTest, TestVmOwnerCalloutExecutorDropsStaleOwnerEpoch) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_callout_stale = [&] {
     auto* trace = vm_owner_task_trace(128);
     auto* events = find_string_in_mapping(trace, "events");
@@ -8668,18 +8494,6 @@ TEST_F(DriverTest, TestVmOwnerAsyncDnsCallbacksDispatchThroughOwnerExecutor) {
     }
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_STRING);
     return ret && ret->type == T_STRING ? ret->u.string : "";
-  };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
   };
   auto trace_has_state = [&](const char* task_type, const char* state) {
     auto* trace = vm_owner_task_trace(160);
@@ -8806,12 +8620,6 @@ TEST_F(DriverTest, TestVmOwnerAsyncCallbackExecutorDropsStaleOwnerEpoch) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_async_stale = [&] {
     auto* trace = vm_owner_task_trace(128);
     auto* events = find_string_in_mapping(trace, "events");
@@ -8880,18 +8688,6 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbacksDispatchThroughOwnerExecutor) {
     EXPECT_NE(ret, nullptr);
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
-  };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
   };
   auto trace_has_state = [&](const char* state) {
     auto* trace = vm_owner_task_trace(160);
@@ -9010,18 +8806,6 @@ TEST_F(DriverTest, TestVmOwnerSocketCallbackExecutorDropsStaleOwnerEpoch) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   auto trace_has_socket_stale = [&] {
     auto* trace = vm_owner_task_trace(160);
     auto* events = find_string_in_mapping(trace, "events");
@@ -9085,18 +8869,6 @@ TEST_F(DriverTest, TestVmOwnerAccessTraceRecordsCrossOwnerAccess) {
   auto access_id = vm_owner_record_access(source, target, "unit-test");
   ASSERT_GT(access_id, 0u);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto* trace = vm_owner_access_trace(1);
   ASSERT_STREQ(mapping_string(trace, "trace_kind"), "owner_access_trace");
   ASSERT_STREQ(mapping_string(trace, "trace_model"), "cross_owner_access_policy_trace");
@@ -9125,18 +8897,6 @@ TEST_F(DriverTest, TestVmOwnerCrossOwnerAccessTraceSkipsSameOwner) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9178,18 +8938,6 @@ TEST_F(DriverTest, TestVmOwnerCrossOwnerAccessTraceClassifiesPolicyModes) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   vm_owner_set_id(source, "owner/test/access-policy/source");
   vm_owner_set_id(target, "owner/test/access-policy/target");
@@ -9279,12 +9027,6 @@ TEST_F(DriverTest, TestVmOwnerAccessFastBypassOnlySkipsDefaultModeDiagnostics) {
   vm_owner_set_id(source, "owner/test/fast-bypass/source");
   vm_owner_set_id(target, "owner/test/fast-bypass/target");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto saved_mode = CONFIG_INT(__RC_MULTICORE_MODE__);
   auto* before = vm_owner_access_trace(0);
@@ -9337,18 +9079,6 @@ TEST_F(DriverTest, TestCurrentOwnerScopeControlsCrossOwnerBlocking) {
   vm_owner_set_id(source, "owner/test/scope/source-object");
   vm_owner_set_id(target, "owner/test/scope/target");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_TRUE(vm_owner_cross_owner_access_blocked(source, target, "call_other"));
   {
@@ -9424,18 +9154,6 @@ TEST_F(DriverTest, TestAllInventoryRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9476,18 +9194,6 @@ TEST_F(DriverTest, TestPresentRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9597,18 +9303,6 @@ TEST_F(DriverTest, TestMoveObjectRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(item, nullptr);
   ASSERT_NE(dest, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9649,12 +9343,6 @@ TEST_F(DriverTest, TestMoveObjectEnforcedModeBlocksCrossOwnerMove) {
   ASSERT_NE(item, nullptr);
   ASSERT_NE(dest, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   vm_owner_set_id(item, "owner/test/move/enforced/source");
   vm_owner_set_id(dest, "owner/test/move/enforced/dest");
@@ -9693,18 +9381,6 @@ TEST_F(DriverTest, TestDestructRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9744,12 +9420,6 @@ TEST_F(DriverTest, TestDestructEnforcedModeBlocksCrossOwnerDestruct) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   current_object = source;
   vm_owner_set_id(source, "owner/test/destruct/enforced/source");
@@ -9790,18 +9460,6 @@ TEST_F(DriverTest, TestCallOtherRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(caller, nullptr);
   ASSERT_NE(target, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -9848,18 +9506,6 @@ TEST_F(DriverTest, TestCallOtherEnforcedModeBlocksCrossOwnerCall) {
   vm_owner_set_id(caller, "owner/test/call/enforced/source");
   vm_owner_set_id(target, "owner/test/call/enforced/target");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto saved_mode = CONFIG_INT(__RC_MULTICORE_MODE__);
   CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_ENFORCED;
@@ -9995,18 +9641,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsNonFrozenResult) {
   vm_owner_set_id(target, target_owner);
   auto handle = vm_object_handle(target);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* submitted = vm_owner_submit_object_message(
       source_owner, handle, "owner_async_non_frozen_result", "cross-owner/non-frozen/v1");
@@ -10097,18 +9731,6 @@ TEST_F(DriverTest, TestVmOwnerScheduleRoundsOwnersAndKeepsOwnerFifo) {
   auto a_second = vm_owner_enqueue_task(owner_a, "command", "a-second");
   auto b_first = vm_owner_enqueue_task(owner_b, "executor_probe", "b-first");
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* result = vm_owner_schedule(3);
   ASSERT_EQ(mapping_number(result, "dispatched"), 3);
@@ -10131,18 +9753,6 @@ TEST_F(DriverTest, TestVmOwnerThreadExperimentIsOptInAndDispatchesMailboxTasks) 
 
   vm_owner_thread_stop();
   auto* initial = vm_owner_thread_status();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   ASSERT_EQ(mapping_number(initial, "enabled"), 0);
   ASSERT_EQ(mapping_number(initial, "thread_count"), 0);
   free_mapping(initial);
@@ -10202,18 +9812,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandConsumeEntryDispatchesWithoutLpc) {
   const char* owner = "owner/test/executor/command-consume";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_thread_status();
   auto before_consume = mapping_number(before, "executor_command_consume_entry_executed");
@@ -10269,18 +9867,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandFrameRestoreDispatchesWithoutLpc) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -10429,18 +10015,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   runtime_guard.probe = probe;
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_FALSE(vm_owner_executor_available());
   ASSERT_EQ(vm_owner_enqueue_executor_task(probe, "ordinary_lpc", "rejected", [] {}), 0u);
@@ -10560,18 +10134,6 @@ TEST_F(DriverTest, TestVmOwnerThreadDrainsPendingOwnerMessages) {
   const char* owner = "owner/test/thread/pending-message";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* submitted =
       vm_owner_submit_message("owner/test/thread/source", owner, "message", "payload/thread");
@@ -10620,18 +10182,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageUsesOwnerExecutorRoute) {
   obj->flags |= O_RESET_STATE;
   const auto flags_before = obj->flags;
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto* before = vm_owner_thread_status();
   auto before_probe = mapping_number(before, "executor_probe_executed");
   auto before_safe = mapping_number(before, "executor_safe_task_dispatched");
@@ -10720,18 +10270,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorDrainsTargetMessagesWithoutMainFallback) {
   const char* owner = "owner/test/executor/target-message-no-main-fallback";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -10849,18 +10387,6 @@ TEST_F(DriverTest, TestOwnerSchedulerBackpressureRejectsOverLimit) {
   const char* owner = "owner/test/scheduler/backpressure";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_runtime_status();
   auto max_depth = mapping_number(before, "owner_scheduler_max_owner_queue_depth");
@@ -10945,18 +10471,6 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
     }
   } runtime_guard{owner, &release_blocker, &runtime_cleanup_needed};
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> LPC_INT {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, &const0u) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   vm_owner_thread_start(1);
   ASSERT_GT(vm_owner_enqueue_executor_task(
@@ -11045,18 +10559,6 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
 }
 
 TEST_F(DriverTest, TestVmOwnerRuntimeReportsExecutorTaskContract) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = map ? find_string_in_mapping(map, key) : nullptr;
     EXPECT_NE(value, nullptr);
@@ -12634,18 +12136,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorBudgetYieldsAndRequeuesSameOwnerBacklog) {
       test_unset_env("FLUFFOS_OWNER_EXECUTOR_PROBE_DELAY_MS");
     }
   } probe_delay_guard;
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto mapping_array = [](mapping_t* map, const char* key) -> array_t* {
     auto* value = find_string_in_mapping(map, key);
@@ -12793,18 +12283,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorDoesNotYieldWhenExactBudgetDrainsBacklog) 
   const char* owner = "owner/test/executor/exact-budget";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_array = [](mapping_t* map, const char* key) -> array_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -12902,18 +12380,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorExceptionTerminalizesPendingFuture) {
     }
   } probe_guard{probe};
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, &const0u) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_thread_status();
   auto before_std = mapping_number(before, "executor_task_exceptions");
@@ -12985,12 +12451,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorRunsDifferentOwnersInParallel) {
   const char* owner_b = "owner/test/executor/parallel-b";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto* before = vm_owner_thread_status();
   auto before_probe = mapping_number(before, "executor_probe_executed");
@@ -13041,12 +12501,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorRunsDifferentOwnersInParallel) {
 TEST_F(DriverTest, TestVmOwnerStartCannotCrossAnInProgressStop) {
   constexpr const char* kOwner = "owner/test/executor/stop-start-guard";
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto* before = vm_owner_thread_status();
   const auto before_starts = mapping_number(before, "thread_starts");
@@ -13166,18 +12620,6 @@ TEST_F(DriverTest, TestVmOwnerRuntimePerformanceProbesRecordDiagnostics) {
   } guard;
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto wait_for_owner_probe = [&](const char* owner, long expected_probe_count) {
     for (int i = 0; i < 200; i++) {
       auto* mailbox = vm_owner_mailbox_status(owner);
@@ -13416,18 +12858,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsLpcAndKeepsMessageSpecs) {
   const char* owner = "owner/test/thread/safe-experiment";
 
   vm_owner_thread_stop();
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before = vm_owner_thread_status();
   auto before_runnable = mapping_number(before, "executor_runnable_task_dispatched");
@@ -13527,18 +12957,6 @@ TEST_F(DriverTest, TestVmOwnerThreadGuardsControlledLpcProbeOffMain) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* submitted = vm_owner_lpc_probe(probe, owner, "owner_lpc_probe");
   auto task_id = mapping_number(submitted, "task_id");
@@ -13599,18 +13017,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   const auto time_of_ref_before = current_gametick() + 100000;
   probe->time_of_ref = time_of_ref_before;
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -13727,18 +13133,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredReadonlyLpcTaskWithMultipleWor
   vm_owner_set_id(probe, owner);
   auto owner_epoch = vm_owner_epoch(probe);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -13946,18 +13340,6 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskRejectsTargetOwnerMismatchAtSubmit) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before_runtime = vm_owner_runtime_status();
   auto before_pending_futures = mapping_number(before_runtime, "pending_futures");
@@ -14011,18 +13393,6 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, &const0u) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   // Fill the future store to the terminal cap with payload-bearing records
   // (payload-bearing terminal records are never auto-reaped).
@@ -14123,18 +13493,6 @@ TEST_F(DriverTest, TestVmOwnerOrdinaryLpcRequiresExplicitOpen) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -14199,18 +13557,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsExplicitOpenOrdinaryLpcTask) {
   vm_owner_set_id(probe, owner);
   auto owner_epoch = vm_owner_epoch(probe);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -14332,18 +13678,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnregisteredLpcTask) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -14436,18 +13770,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRegisteredDomainLpcTasks) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_entry = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = find_string_in_mapping(map, key);
     EXPECT_NE(value, nullptr);
@@ -14558,18 +13880,6 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskMainDrainAndScheduleFailPendingFuture) {
   vm_owner_set_id(drain_probe, drain_owner);
   vm_owner_set_id(schedule_probe, schedule_owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before_runtime = vm_owner_runtime_status();
   auto before_pending_futures = mapping_number(before_runtime, "pending_futures");
@@ -14670,12 +13980,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnsafeLpcCanaryRequestsDeltas) {
   vm_owner_set_id(probe, owner);
   auto stale_epoch = vm_owner_epoch(probe);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto* before = vm_owner_thread_status();
   auto before_succeeded = mapping_number(before, "thread_lpc_canary_succeeded");
@@ -14724,18 +14028,6 @@ TEST_F(DriverTest, TestVmOwnerMessageAndCommitTracesAreSpecOnly) {
   const char* source_owner = "owner/test/message/source";
   const char* target_owner = "owner/test/message/target";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted = vm_owner_submit_message(source_owner, target_owner, "room_snapshot", "room/v1");
@@ -14855,18 +14147,6 @@ TEST_F(DriverTest, TestVmOwnerFuturePollTracksMessageCompletion) {
   const char* source_owner = "owner/test/future/source";
   const char* target_owner = "owner/test/future/target";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -14902,18 +14182,6 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesOnlyCompletedFuture) {
   const char* source_owner = "owner/test/future/take-source";
   const char* target_owner = "owner/test/future/take-target";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -14950,18 +14218,6 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesFailedFutureOnce) {
   const char* source_owner = "owner/test/future/take-failed-source";
   const char* target_owner = "owner/test/future/take-failed-target";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -14989,18 +14245,6 @@ TEST_F(DriverTest, TestVmOwnerPurgeFailsPendingFuture) {
   const char* source_owner = "owner/test/future/purge-source";
   const char* target_owner = "owner/test/future/purge-target";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -15044,18 +14288,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageFailsStaleTargetHandle) {
   const char* old_owner = "owner/test/future/object-old";
   const char* new_owner = "owner/test/future/object-new";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
@@ -15142,18 +14374,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsStaleTargetHandleAtSubmit) {
   const char* old_owner = "owner/test/future/object-stale-submit-old";
   const char* new_owner = "owner/test/future/object-stale-submit-new";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
@@ -15226,18 +14446,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsStaleTargetHandleAtSubmit) {
 TEST_F(DriverTest, TestVmOwnerObjectMessageReportsDestructedTargetHandle) {
   const char* owner = "owner/test/future/object-destructed";
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   object_t* obj = load_object_for_test("single/on_destruct_good");
   ASSERT_NE(obj, nullptr);
@@ -15317,18 +14525,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageReportsDestructedTargetHandle) {
 }
 
 TEST_F(DriverTest, TestVmOwnerFuturePollReportsUnknownFuture) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* result = vm_owner_future_poll(999999999u);
   ASSERT_EQ(mapping_number(result, "success"), 0);
@@ -15363,18 +14559,6 @@ TEST_F(DriverTest, TestVmObjectHandleRejectsStaleOwnerEpoch) {
 }
 
 TEST_F(DriverTest, TestVmObjectHandleReportsCapabilityMetadata) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
@@ -15430,12 +14614,6 @@ TEST_F(DriverTest, TestVmOwnerWorkerNeverMutatesObjectRefcounts) {
   vm_owner_set_id(probe, owner);
   auto handle = vm_object_handle(probe);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, &const0u) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   vm_owner_thread_start(1);
   // Drive handle + message workloads on the worker: submit messages with a
@@ -15526,18 +14704,6 @@ TEST_F(DriverTest, TestTlsClientIdentityAndMinimumProtocol) {
 // SSL_CTX.
 TEST_F(DriverTest, TestSysReloadTlsPermissionAndThreadMatrix) {
   ASSERT_TRUE(vm_context_is_main_thread());
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   object_t* probe = load_object_for_test("single/void");
   ASSERT_NE(probe, nullptr);
   ASSERT_NE(master_ob, nullptr);
@@ -15669,18 +14835,6 @@ TEST_F(DriverTest, TestVmOwnerWorkerNestedObjectTargetSubmissionRejected) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = map ? find_string_in_mapping(map, key) : nullptr;
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_mapping = [](mapping_t* map, const char* key) -> mapping_t* {
     auto* value = map ? find_string_in_mapping(map, key) : nullptr;
     EXPECT_NE(value, nullptr) << key;
@@ -15829,18 +14983,6 @@ TEST_F(DriverTest, TestVmObjectHandleReportsBasicResolveFailures) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeRetired) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
@@ -15984,18 +15126,6 @@ TEST_F(DriverTest, TestVmNameLookupPrefersOwnerLocalPathIndex) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto expect_no_lookup_global_live_object = [&](mapping_t* map) {
     ASSERT_EQ(mapping_number(map, "owner_local_global_live_object_found"), 0);
     ASSERT_STREQ(mapping_string(map, "owner_local_global_live_object_source"), "");
@@ -16410,18 +15540,6 @@ TEST_F(DriverTest, TestVmObjectStoreRecordsOwnerMigrationTrace) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreShardRemovesDestructedObject) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto expect_owner_local_store_complete_contract = [&](mapping_t* /*map*/) {
     // The "store complete" contract block and its readiness keys were deleted
     // with the migration scaffolding; counts on the shard mapping carry the
@@ -16972,18 +16090,6 @@ TEST_F(DriverTest, TestVmWorkerAsyncCombatDamagePollsResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughQueue) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   VMWorkerActorScoreInput input;
   input.hp = 100;
@@ -17054,18 +16160,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughQueue) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughOwnerExecutor) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   const char* owner = "actor/owner-future-thread";
   vm_owner_thread_stop();
@@ -17190,18 +16284,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughOwnerExec
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultRejectsCompletedWithoutFrozenFields) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   const char* owner = "actor/owner-future-empty-result";
   const uint64_t worker_task_id = 987654321u;
@@ -17278,18 +16360,6 @@ TEST_F(DriverTest, TestVmWorkerV2EnvelopeKeepsResultUntilTtl) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesBenchmarkResult) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_drain_mailbox("global", 0));
   auto task_id = vm_worker_submit_benchmark_v2(2, 10, 1000, 5000);
@@ -17347,18 +16417,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesBenchmarkResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerV2TimeoutFailsPendingTask) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   free_mapping(vm_owner_drain_mailbox("global", 0));
   auto task_id = vm_worker_submit_benchmark_v2(64, 80, 1, 5000);
@@ -17404,18 +16462,6 @@ TEST_F(DriverTest, TestVmWorkerV2TimeoutFailsPendingTask) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesSnapshotDigestResult) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   const char* owner = "actor/future-snapshot";
   free_mapping(vm_owner_drain_mailbox(owner, 0));
@@ -17451,18 +16497,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesSnapshotDigestResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesCombatDamageResult) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   const char* owner = "combat/future-damage";
   free_mapping(vm_owner_drain_mailbox(owner, 0));

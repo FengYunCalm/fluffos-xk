@@ -4562,18 +4562,6 @@ TEST_F(DriverTest, TestGatewayDaemonUsesDefaultOwnerForSystemMessages) {
   auto* info = call_lpc_method(daemon, "query_last_system_message");
   ASSERT_NE(info, nullptr);
   ASSERT_EQ(info->type, T_MAPPING);
-  auto mapping_number = [](mapping_t* map, const char* key) -> LPC_INT {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   ASSERT_STREQ(mapping_string(info->u.map, "owner_id"), vm_owner_default_id());
   ASSERT_EQ(mapping_number(info->u.map, "owner_epoch"), static_cast<long>(daemon_epoch));
   ASSERT_NE(std::string(mapping_string(info->u.map, "this_player")).find("adm/daemons/gateway_d"),
@@ -5108,12 +5096,6 @@ TEST_F(DriverTest, TestGatewayReliableIngressExecutesContinuousSequenceExactlyOn
 
   auto* status = gateway_status_internal();
   ASSERT_NE(status, nullptr);
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_last_accepted"), 2);
   ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_duplicates"), 1);
   ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_gaps"), 1);
@@ -5156,12 +5138,6 @@ TEST_F(DriverTest, TestGatewayReliableIngressRecoversSequenceAfterProcessRestart
 
   auto* status = gateway_status_internal();
   ASSERT_NE(status, nullptr);
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_last_accepted"), 42);
   ASSERT_EQ(mapping_number(status, "gateway_ingress_sequence_gaps"), 0);
   free_mapping(status);
@@ -5261,12 +5237,6 @@ TEST_F(DriverTest, TestGatewayReliableIngressActiveOwnerRejectsCompetingStream) 
 
   auto* status = gateway_status_internal();
   ASSERT_NE(status, nullptr);
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   EXPECT_EQ(mapping_number(status, "gateway_ingress_sequence_last_accepted"), 2);
   EXPECT_EQ(mapping_number(status, "gateway_ingress_sequence_stream_resets"), 1);
   EXPECT_EQ(mapping_number(status, "gateway_ingress_sequence_owner_fd"), owner_fd);
@@ -5509,18 +5479,6 @@ TEST_F(DriverTest, TestGatewayReceiveRunsThroughOwnerMainQueue) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_TRUE(gateway_dispatch_message_for_test(
       -1, R"({"type":"data","cid":"gw-test-receive","data":{"cmd":"look","seq":7}})"));
@@ -5585,18 +5543,6 @@ TEST_F(DriverTest, TestGatewayReceiveDefersMainDrainWhenEventBaseIsAvailable) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   auto* before_status = gateway_status_internal();
   ASSERT_NE(before_status, nullptr);
@@ -5732,12 +5678,6 @@ TEST_F(DriverTest, TestGatewayReadBatchDrainServicesAdmittedReceiveTask) {
   ASSERT_NE(ob, nullptr);
   ASSERT_NE(ob->interactive, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
 
   auto* before = gateway_status_internal();
   ASSERT_NE(before, nullptr);
@@ -5790,18 +5730,6 @@ TEST_F(DriverTest, TestGatewayCommandTaskCarriesOwnerHandlePayload) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_has_string_key = [](mapping_t* map, const char* key) -> bool {
     auto* keys = mapping_indices(map);
     bool found = false;
@@ -6073,18 +6001,6 @@ TEST_F(DriverTest, TestGatewayCommandMxpTagFilterFrame) {
   auto owner_epoch = vm_owner_epoch(ob);
   ob->interactive->iflags |= USING_MXP;
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_EQ(gateway_inject_input_internal(ob, " [xz"), 1);
   ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
@@ -6152,18 +6068,6 @@ TEST_F(DriverTest, TestGatewayCommandEdCommandFrame) {
   ASSERT_EQ(enabled->u.number, 1);
   ASSERT_NE(ob->interactive->ed_buffer, nullptr);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_EQ(gateway_inject_input_internal(ob, "Q"), 1);
   ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
@@ -6227,18 +6131,6 @@ TEST_F(DriverTest, TestGatewayCommandPayloadSnapshotsActiveInputToState) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_has_string_key = [](mapping_t* map, const char* key) -> bool {
     auto* keys = mapping_indices(map);
     bool found = false;
@@ -6395,18 +6287,6 @@ TEST_F(DriverTest, TestGatewayCommandPayloadSnapshotsActiveGetCharState) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto mapping_has_string_key = [](mapping_t* map, const char* key) -> bool {
     auto* keys = mapping_indices(map);
     bool found = false;
@@ -6612,18 +6492,6 @@ TEST_F(DriverTest, TestGatewayCommandExecutesThroughOwnerMainQueue) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_STRING);
     return ret && ret->type == T_STRING ? ret->u.string : "";
   };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_state = [&](const char* state, uint64_t task_id = 0) {
     auto* trace = vm_owner_task_trace(256);
     auto* events = find_string_in_mapping(trace, "events");
@@ -6727,18 +6595,6 @@ TEST_F(DriverTest, TestGatewayCommandMainQueueDropsStaleOwnerEpoch) {
     EXPECT_EQ(ret ? ret->type : T_INVALID, T_NUMBER);
     return ret && ret->type == T_NUMBER ? ret->u.number : -1;
   };
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_gateway_stale = [&]() {
     auto* trace = vm_owner_task_trace(256);
     auto* events = find_string_in_mapping(trace, "events");
@@ -6809,18 +6665,6 @@ TEST_F(DriverTest, TestGatewayCommandMainQueueDropsDisconnectedSession) {
   add_ref(ob, "TestGatewayCommandMainQueueDropsDisconnectedSession");
   vm_owner_set_id(ob, owner);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   auto trace_has_disconnected_stale = [&]() {
     auto* trace = vm_owner_task_trace(256);
     auto* events = find_string_in_mapping(trace, "events");
@@ -6933,18 +6777,6 @@ TEST_F(DriverTest, TestGatewayCommandMainQueueStaleTraceIncludesFrameMetadata) {
   const std::string owner_id = vm_owner_id(ob);
   auto stale_epoch = vm_owner_epoch(ob);
 
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
 
   ASSERT_EQ(gateway_inject_input_internal(ob, "look"), 1);
   auto task_id = gateway_enqueue_pending_command_internal(ob);
@@ -7035,18 +6867,6 @@ TEST_F(DriverTest, TestGatewaySessionExecLogonKeepsSessionLookupWorking) {
   auto* info = call_lpc_method(ob, "query_gateway_session_snapshot");
   ASSERT_NE(info, nullptr);
   ASSERT_EQ(info->type, T_MAPPING);
-  auto mapping_number = [](mapping_t* map, const char* key) -> long {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER);
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
-  auto mapping_string = [](mapping_t* map, const char* key) -> const char* {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr);
-    EXPECT_EQ(value ? value->type : T_INVALID, T_STRING);
-    return value && value->type == T_STRING ? value->u.string : "";
-  };
   ASSERT_STREQ(mapping_string(info->u.map, "owner_id"), "owner/test/gateway/exec-user");
   ASSERT_EQ(mapping_number(info->u.map, "owner_epoch"), static_cast<long>(owner_epoch));
   ASSERT_STREQ(mapping_string(info->u.map, "object_name"), ob->obname);

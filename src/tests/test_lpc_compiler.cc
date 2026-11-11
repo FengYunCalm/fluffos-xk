@@ -147,12 +147,6 @@ TEST_F(DriverTest, TestInMemoryCompileFile) {
 }
 
 TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
-  auto mapping_number = [](mapping_t* map, const char* key) -> LPC_INT {
-    auto* value = find_string_in_mapping(map, key);
-    EXPECT_NE(value, nullptr) << key;
-    EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
-    return value && value->type == T_NUMBER ? value->u.number : 0;
-  };
   object_t* probe = clone_object_for_test("single/void");
   ASSERT_NE(probe, nullptr);
 

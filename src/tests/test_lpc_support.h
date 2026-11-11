@@ -246,6 +246,25 @@ class ScopedLpcMapping {
 };
 }  // namespace
 
+namespace {
+// Status and contract assertions read one number or one string out of a
+// mapping. These live here so a test file does not carry its own copy; the
+// tests call them by name, exactly as they called their local lambdas.
+inline long mapping_number(mapping_t* map, const char* key) {
+  auto* value = find_string_in_mapping(map, key);
+  EXPECT_NE(value, nullptr) << key;
+  EXPECT_EQ(value ? value->type : T_INVALID, T_NUMBER) << key;
+  return value && value->type == T_NUMBER ? value->u.number : 0;
+}
+
+inline const char* mapping_string(mapping_t* map, const char* key) {
+  auto* value = find_string_in_mapping(map, key);
+  EXPECT_NE(value, nullptr) << key;
+  EXPECT_EQ(value ? value->type : T_INVALID, T_STRING) << key;
+  return value && value->type == T_STRING ? value->u.string : "";
+}
+}  // namespace
+
 class DriverTest : public ::testing::Test {
  public:
 #ifdef PACKAGE_ASYNC
