@@ -29,5 +29,4 @@ void f_switch(void);
 void f_xor(void);
 void f_xor_eq(void);
 void f_function_constructor(void);
-void f_evaluate(void);
 void f_sscanf(void);

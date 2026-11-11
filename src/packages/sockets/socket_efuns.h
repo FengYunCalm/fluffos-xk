@@ -95,7 +95,6 @@ enum socket_flags {
 };
 
 array_t* socket_status(int);
-array_t* socket_status_by_fd(int);
 int check_valid_socket(const char* const, int, object_t*, const char* const, int);
 void socket_read_select_handler(int);
 void socket_write_select_handler(int);

@@ -107,29 +107,6 @@ static void stat_decay(int* value, int numerator, int denominator) {
   }
 }
 
-#ifdef DEBUGMALLOC_EXTENSIONS
-/* debugging */
-int check_valid_stat_entry(mudlib_stats_t* se) {
-  mudlib_stats_t* tmp;
-
-  tmp = domains;
-  while (tmp) {
-    if (tmp == se) {
-      return 1;
-    }
-    tmp = tmp->next;
-  }
-  tmp = authors;
-  while (tmp) {
-    if (tmp == se) {
-      return 1;
-    }
-    tmp = tmp->next;
-  }
-  return 0;
-}
-#endif
-
 /**************************
  * stat list manipulation
  **************************/

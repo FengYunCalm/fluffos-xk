@@ -72,7 +72,6 @@ void shout_string(const char*);
 
 void startshutdownMudOS(int);
 void shutdownMudOS(int);
-void slow_shut_down(int);
 
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_free_sentences(void);

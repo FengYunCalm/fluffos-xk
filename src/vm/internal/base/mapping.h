@@ -80,7 +80,6 @@ typedef struct minfo_s {
 extern FLUFFOS_VM_THREAD_LOCAL mapping_node_t* locked_map_nodes;
 
 int msameval(const svalue_t*, const svalue_t*);
-int mapping_save_size(mapping_t*);
 mapping_t* mapTraverse(mapping_t*, int (*)(mapping_t*, mapping_node_t*, void*), void*);
 mapping_t* load_mapping_from_aggregate(svalue_t*, int);
 mapping_t* allocate_mapping(int);
@@ -103,8 +102,6 @@ void filter_mapping(svalue_t*, int);
 mapping_t* compose_mapping(mapping_t*, mapping_t*, unsigned short);
 array_t* mapping_indices(mapping_t*);
 array_t* mapping_values(mapping_t*);
-array_t* mapping_each(mapping_t*);
-char* save_mapping(mapping_t*);
 void dealloc_mapping(mapping_t*);
 void mark_mapping_node_blocks(void);
 mapping_t* mkmapping(array_t*, array_t*);

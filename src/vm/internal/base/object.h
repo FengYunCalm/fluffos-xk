@@ -196,7 +196,6 @@ extern FLUFFOS_VM_THREAD_LOCAL object_t** cgsp;
 extern int num_hidden;
 #endif
 
-void bufcat(char**, char*);
 int svalue_save_size(svalue_t*);
 void save_svalue(svalue_t*, char**);
 int restore_svalue(char*, svalue_t*);

@@ -5626,15 +5626,6 @@ void remove_object_from_stack(object_t* ob) {
   }
 }
 
-int strpref(const char* p, const char* s) {
-  while (*p) {
-    if (*p++ != *s++) {
-      return 0;
-    }
-  }
-  return 1;
-}
-
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_stack() {
   svalue_t* sv;

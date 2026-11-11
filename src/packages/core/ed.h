@@ -151,8 +151,6 @@ char* object_ed_start(struct object_t*, const char*, int, int);
 int object_ed_mode(struct object_t*);
 void object_save_ed_buffer(struct object_t*);
 ed_buffer_t* find_ed_buffer(struct object_t*);
-void object_ed_output(char*);
-void object_ed_outputv(char*, ...);
 
 extern outbuffer_t current_ed_results;
 #endif

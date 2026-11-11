@@ -49,7 +49,6 @@ void restore_stat_files(void);
 void set_author(const char*);
 mudlib_stats_t* set_master_author(const char*);
 mudlib_stats_t* set_backbone_domain(const char*);
-int check_valid_stat_entry(mudlib_stats_t*);
 #ifdef DEBUGMALLOC_EXTENSIONS
 void mark_mudlib_stats(void);
 #endif
