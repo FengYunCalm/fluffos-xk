@@ -1,8 +1,8 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
-> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9e、U9d（C++ 硬上限 + LPC 冻结基线）、
-> U9c 的本地门禁；未完成：U9c 的 CI 接入（需改构建作业并装固定工具链，本机无法验证）、
-> U9d 的 LPC ≤1000 目标（需先拆 LPC 测试文件）、U5d（下游验收，需起下游测试实例）。
+> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9c（advisory 接入）/U9e、
+> U9d（C++ 硬上限 + LPC 冻结基线）；未完成：U9d 的 LPC ≤1000 目标（需重构一个 790 行的
+> 断言函数）、U5d（下游验收，需起下游测试实例）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
 > 上下文的执行者按序完成。
@@ -745,8 +745,17 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 同一条加 `--advisory` → 仍然退出 0。拆分类提交会把移动的旧代码当作新行，
 这是它暂不进 CI 阻塞列表的原因。
 
-**CI 接入未做**：需要给构建作业加 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` 并安装
-固定版本工具链；两者都会改动现有 CI 矩阵，本机无法验证，不能未验先上。
+**CI 接入已写**（advisory）：`build-and-test` 的 Ubuntu 非 sanitizer 作业在构建后安装
+`clang-tidy==23.1.4`（pip 轮子）并跑 `tools/style/check-tidy.py --advisory`；
+配置新增 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`。浅克隆拿不到 base 时脚本打印
+`cannot diff …, skipping` 并退出 0，不会把 CI 弄成假红。
+
+**未改为阻塞**的原因：搬移类提交会把移动的旧代码当新行，实测同一拆分提交会报 88 条
+既有风格问题。要阻塞就得先把这些消完，或改成只看“新增行而非移动行”的更复杂匹配；
+两者都会反过来阻碍重构，所以保持 advisory。
+
+**本地实测**（clang-tidy 23.1.4）：对象存储去重提交 → 0 命中、退出 0；
+测试拆分提交 → 88 命中、退出 1；加 `--advisory` → 退出 0；不存在的 range → 跳过、退出 0。
 
 ### U9d 测试文件体量上限
 
@@ -754,10 +763,13 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 U8 拆分后当前最大 3,447（`test_owner_worker.cc`），全部达标。
 验证：阀值临时改为 3,000 → 报三条超限并退出 1；改回 3,500 → 通过。
 
-**LPC 部分未落地**：`testsuite/**/*.c|lpc` 当前最大 1,666 行
-（`single/tests/efuns/owner_executor_contract.c`）、次大 1,595（`compiler/utf8.c`），
-都超 1,000。LPC 测试按目录发现（`command/tests.c` 用 `get_dir(dir + "*.c")`），
-拆文件本身安全，但需要先把文件内助手提走（与 C++ 同样的工作）；未拆前上 1,000 会直接卡死门禁。
+**LPC 部分：冻结基线已上，≤1000 目标暂缓**。`testsuite/**/*.c|lpc` 超过 1,000 行的
+两个文件（1,666 / 1,595）写入 `_LPC_TEST_SIZE_BASELINE`，超过自己的基线就失败。
+没直接改到 1,000 的原因：`owner_executor_contract.c` 里单个
+`assert_owner_executor_contract()` 就占 790 行，它和几个 setUp 助手（vm context、
+frozen payload、dispatch 表）绑死；拆到 1,000 以下必须拆这个断言函数本身，
+属于测试重构而不是机械搬运，需单独开单元。
+实测：把基线临时降到 1,600 → 报超限并退出 1；恢复 → 通过。
 
 ### U9e 文档结构检查
 

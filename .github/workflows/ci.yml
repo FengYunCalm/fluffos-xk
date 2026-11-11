@@ -348,6 +348,7 @@ jobs:
             cmake -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
               ${{ matrix.cmake_flags }} \
               -DPACKAGE_DB_SQLITE=2 \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
               ..
           fi
         env:
@@ -361,6 +362,20 @@ jobs:
         env:
           OPENSSL_ROOT_DIR: ${{ matrix.openssl_root }}
           ICU_ROOT: ${{ matrix.icu_root }}
+
+      # Advisory until the moved-code findings are cleared: a move commit
+      # re-reports existing style in the lines it moves, and those commits
+      # must not be blocked on cleaning code they only relocate.
+      - name: Report clang-tidy findings on changed lines
+        if: matrix.platform == 'Ubuntu' && !matrix.sanitizer
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet --break-system-packages --target "$RUNNER_TEMP/tidy" clang-tidy==23.1.4
+          export PYTHONPATH="$RUNNER_TEMP/tidy"
+          export PATH="$RUNNER_TEMP/tidy/bin:$PATH"
+          python3 tools/style/check-tidy.py --build-dir build \
+            --range "${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}...HEAD" \
+            --advisory
 
       - name: Run Unit Tests (non-sanitizer)
         # Plain matrix jobs run the full CTest suite once. Sanitizer jobs
