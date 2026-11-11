@@ -819,7 +819,7 @@ TEST_F(DriverTest, TestOwnerFutureStoreResolvesTargetsAfterTerminalLockScope) {
 TEST_F(DriverTest, TestGatewayStatusReportsSessionFifoContract) {
   const auto gateway_status_source =
       read_source_file_for_test("../src/packages/gateway/gateway.cc");
-  ASSERT_NE(gateway_status_source.find("gateway_receive_enqueue_to_dispatch_total_us"),
+  ASSERT_NE(gateway_status_source.find("GATEWAY_TOTAL_US(map, receive_enqueue_to_dispatch)"),
             std::string::npos);
   auto mapping_number = [](mapping_t* map, const char* key) -> long {
     svalue_t* value = find_string_in_mapping(map, key);
@@ -5638,11 +5638,14 @@ TEST_F(DriverTest, TestGatewayFutureCompletionExposesMainThreadCpuCounter) {
   ASSERT_NE(gateway_source.find("get_current_thread_cpu_time_ns()"), std::string::npos);
   ASSERT_NE(gateway_header.find("future_watch_main_completion_thread_cpu_ns_total"),
             std::string::npos);
+  ASSERT_NE(gateway_header.find("future_watch_main_completion_thread_cpu_samples"),
+            std::string::npos);
   ASSERT_NE(gateway_header.find("future_watch_main_completion_thread_cpu_unavailable"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_future_watch_main_completion_thread_cpu_total_us"),
+  ASSERT_NE(gateway_status.find("GATEWAY_TOTAL_US(map, future_watch_main_completion_thread_cpu)"),
             std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_future_watch_main_completion_thread_cpu_unavailable"),
+  ASSERT_NE(gateway_status.find(
+                "GATEWAY_COUNTER(map, future_watch_main_completion_thread_cpu_unavailable)"),
             std::string::npos);
 }
 

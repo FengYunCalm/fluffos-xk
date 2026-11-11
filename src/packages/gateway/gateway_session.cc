@@ -219,14 +219,12 @@ void gateway_session_record_thread_cpu(std::atomic<uint64_t>& total, std::atomic
 }
 
 void gateway_record_future_completion_thread_cpu(int64_t started_ns) {
-  auto finished_ns = get_current_thread_cpu_time_ns();
-  if (started_ns < 0 || finished_ns <= started_ns) {
-    g_gateway_runtime_counters.future_watch_main_completion_thread_cpu_unavailable.fetch_add(
-        1, std::memory_order_relaxed);
-    return;
-  }
-  g_gateway_runtime_counters.future_watch_main_completion_thread_cpu_ns_total.fetch_add(
-      static_cast<uint64_t>(finished_ns - started_ns), std::memory_order_relaxed);
+  auto& counters = g_gateway_runtime_counters;
+  gateway_session_record_thread_cpu(counters.future_watch_main_completion_thread_cpu_ns_total,
+                                    counters.future_watch_main_completion_thread_cpu_ns_max,
+                                    counters.future_watch_main_completion_thread_cpu_samples,
+                                    counters.future_watch_main_completion_thread_cpu_unavailable,
+                                    started_ns);
 }
 
 class GatewayControlledLpcScope {
