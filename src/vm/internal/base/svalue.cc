@@ -67,16 +67,6 @@ void assign_svalue(svalue_t* dest, svalue_t* v) {
   assign_svalue_no_free(dest, v);
 }
 
-/*
- * Copies an array of svalues to another location, which should be
- * free space.
- */
-void copy_some_svalues(svalue_t* dest, svalue_t* v, int num) {
-  while (num--) {
-    assign_svalue_no_free(dest + num, v + num);
-  }
-}
-
 namespace {
 struct PendingCompoundFree {
   void* ptr;

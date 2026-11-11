@@ -4174,24 +4174,6 @@ void vm_owner_set_id(object_t* object, const char* owner_id) {
   vm_object_store_update_owner(object);
 }
 
-void vm_owner_assign_default(object_t* object, object_t* context_object,
-                             const char* fallback_owner_id) {
-  if (!object || valid_owner_id(object->vm_owner_id)) {
-    return;
-  }
-  const char* owner_id = nullptr;
-  if (valid_owner_id(fallback_owner_id)) {
-    owner_id = fallback_owner_id;
-  } else if (context_object && valid_owner_id(context_object->vm_owner_id)) {
-    owner_id = vm_owner_id(context_object);
-  } else if (!vm_context().owner.current_owner_id.empty()) {
-    owner_id = vm_context().owner.current_owner_id.c_str();
-  } else {
-    owner_id = kDefaultOwnerId;
-  }
-  vm_owner_set_id(object, owner_id);
-}
-
 void vm_owner_clear_id(object_t* object) {
   if (object && object->vm_owner_id) {
     vm_recompile_reject_lifecycle(object, "owner transfer");

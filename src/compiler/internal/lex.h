@@ -122,9 +122,7 @@ extern int arrow_efun, evaluate_efun, this_efun, to_float_efun, to_int_efun, new
 void push_function_context(void);
 void pop_function_context(void);
 int yylex();
-void init_num_args(void);
 const char* query_instr_name(int);
-char* get_f_name(int);
 void init_include_path(void);
 void deinit_include_path(void);
 void set_inc_list(char*);
@@ -134,7 +132,6 @@ int lookup_predef(const char*);
 std::string quote_predefine_value(const char*);
 void add_predefines(void);
 const char* main_file_name(void);
-char* get_defined_name(defined_name_t*);
 ident_hash_elem_t* find_or_add_ident(const char*, int);
 ident_hash_elem_t* find_or_add_perm_ident(const char*);
 ident_hash_elem_t* lookup_ident(const char*);

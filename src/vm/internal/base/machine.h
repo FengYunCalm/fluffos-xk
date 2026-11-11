@@ -71,7 +71,6 @@ void push_buffer(buffer_t*);
 void push_refed_buffer(buffer_t*);
 void push_mapping(mapping_t*);
 void push_refed_mapping(mapping_t*);
-void push_class(array_t*);
 void push_refed_class(array_t*);
 void push_malloced_string(const char*);
 void push_shared_string(const char*);

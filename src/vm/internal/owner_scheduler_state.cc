@@ -411,11 +411,6 @@ std::vector<OwnerMailboxTask> OwnerSchedulerState::remove_owner_mailbox(
   return tasks;
 }
 
-void OwnerSchedulerState::erase_owner_mailbox(const std::string& owner_id) {
-  owner_mailboxes_.erase(owner_id);
-  schedulable_owner_set_.erase(owner_id);
-}
-
 #ifdef DEBUGMALLOC_EXTENSIONS
 void OwnerSchedulerState::mark_debug_refs(std::unordered_set<const VMFrozenValue*>& seen) const {
   for (const auto& entry : owner_mailboxes_) {

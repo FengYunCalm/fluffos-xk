@@ -191,8 +191,7 @@ static FLUFFOS_VM_THREAD_LOCAL control_stack_t _control_stack[5 + CFG_MAX_CALL_D
 
 control_stack_t* control_stack_base() {
   return &_control_stack[0];
-}
-FLUFFOS_VM_THREAD_LOCAL control_stack_t* control_stack = nullptr;
+}FLUFFOS_VM_THREAD_LOCAL control_stack_t* control_stack = nullptr;
 FLUFFOS_VM_THREAD_LOCAL control_stack_t* csp; /* Points to last element pushed */
 
 FLUFFOS_VM_THREAD_LOCAL int too_deep_error = 0, max_eval_error = 0;
@@ -1630,16 +1629,6 @@ void push_refed_mapping(mapping_t* m) {
   STACK_INC;
   sp->type = T_MAPPING;
   sp->u.map = m;
-}
-
-/*
- * Push a class on the stack.  See push_array(), above.
- */
-void push_class(array_t* v) {
-  STACK_INC;
-  v->ref++;
-  sp->type = T_CLASS;
-  sp->u.arr = v;
 }
 
 void push_refed_class(array_t* v) {
@@ -5489,7 +5478,7 @@ static inline void ensure_thread_stack_bounds() {
     end_of_stack = start_of_stack + CFG_EVALUATOR_STACK_SIZE;
   }
   if (control_stack == nullptr) {
-    control_stack = &_control_stack[5];
+    control_stack = control_stack_base() + 5;
   }
 }
 
@@ -5558,7 +5547,7 @@ long vm_control_stack_capacity() {
 
 bool vm_control_stack_thread_local_storage_ready() {
   ensure_thread_stack_bounds();
-  return FLUFFOS_OWNER_THREAD_VM != 0 && control_stack == &_control_stack[5];
+  return FLUFFOS_OWNER_THREAD_VM != 0 && control_stack == control_stack_base() + 5;
 }
 
 static const char* get_arg(int a, int b) {

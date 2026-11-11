@@ -47,10 +47,6 @@ bool read_source_line(const char* file, int line, char* buf, size_t buflen);
 // what it can when the snippet is unavailable.
 std::string render_diagnostic(const Diagnostic& diagnostic, RenderStyle style);
 
-// Renders the snippet lines only (source line + caret), as used by both styles;
-// empty when the line is unavailable.
-std::string render_snippet(const Diagnostic& diagnostic);
-
 }  // namespace compiler_diag
 
 #endif /* FLUFFOS_SRC_COMPILER_INTERNAL_DIAGNOSTIC_RENDER_H_ */

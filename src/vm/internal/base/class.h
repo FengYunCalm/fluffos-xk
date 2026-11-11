@@ -19,6 +19,5 @@ void dealloc_class(struct array_t*);
 void free_class(struct array_t*);
 struct array_t* allocate_class(class_def_t*, int);
 struct array_t* allocate_class_by_size(int);
-struct array_t* allocate_empty_class_by_size(int);
 
 #endif

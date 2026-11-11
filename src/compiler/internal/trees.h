@@ -178,12 +178,9 @@ typedef struct parse_node_block_s {
 /* tree functions */
 void free_tree(void);
 void release_tree(void);
-void lock_expressions(void);
-void unlock_expressions(void);
 /* node functions */
 parse_node_t* new_node(void);
 parse_node_t* new_node_no_line(void);
-parse_node_t* make_branched_node(short, char, parse_node_t*, parse_node_t*);
 /* parser grammar functions */
 parse_node_t* binary_int_op(parse_node_t*, parse_node_t*, char, const char*);
 parse_node_t* make_range_node(int, parse_node_t*, parse_node_t*, parse_node_t*);

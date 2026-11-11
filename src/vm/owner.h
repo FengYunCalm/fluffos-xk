@@ -135,8 +135,6 @@ const char* vm_owner_id(object_t* object);
 bool vm_owner_has_explicit_id(object_t* object);
 uint64_t vm_owner_epoch(object_t* object);
 void vm_owner_set_id(object_t* object, const char* owner_id);
-void vm_owner_assign_default(object_t* object, object_t* context_object,
-                             const char* fallback_owner_id);
 void vm_owner_clear_id(object_t* object);
 bool vm_owner_matches(object_t* object, const char* expected_owner_id);
 bool vm_owner_epoch_matches(object_t* object, const char* expected_owner_id,

@@ -1512,22 +1512,6 @@ parse_node_t* check_refs(int num, parse_node_t* elist, parse_node_t* pn) {
 }
 
 /* we know here that x has two modifiers, and hidden isn't one of them */
-int decl_fix(int x) {
-  int rest = x & ~DECL_ACCESS;
-
-#ifndef SENSIBLE_MODIFIERS
-  if (x & DECL_VISIBLE) {
-    return rest | DECL_VISIBLE;
-  }
-#endif
-  if (x & DECL_PRIVATE) {
-    return rest | DECL_PRIVATE;
-  }
-
-  /* only possibility left is 'public protected' */
-  return rest | DECL_PROTECTED;
-}
-
 const char* compiler_type_names[] = {"unknown", "mixed",   "void",     "void",  "int",   "string",
                                      "object",  "mapping", "function", "float", "buffer"};
 
@@ -2316,11 +2300,6 @@ program_t* compile_file(std::unique_ptr<LexStream> stream, const char* name) {
 
   guard = 0;
   return prog;
-}
-
-int get_id_number() {
-  static int current_id_number = 1;
-  return current_id_number++;
 }
 
 static void copy_in(int which, char** start) {
@@ -3189,10 +3168,6 @@ bool g_compile_text_log_suppressed = false;
 
 void compiler_set_text_log_suppressed(bool suppressed) {
   g_compile_text_log_suppressed = suppressed;
-}
-
-bool compiler_text_log_suppressed() {
-  return g_compile_text_log_suppressed;
 }
 
 void smart_log(const char* error_file, int line, const char* what, int flag) {

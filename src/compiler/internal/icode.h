@@ -21,12 +21,10 @@
 
 void i_generate___INIT(void);
 void i_generate_node(struct parse_node_t*);
-void i_generate_continue(void);
 void i_generate_forward_jump(void);
 void i_update_forward_jump(void);
 void i_update_continues(void);
 void i_branch_backwards(char, int);
-void i_update_breaks(void);
 void i_save_loop_info(struct parse_node_t*);
 void i_restore_loop_info(void);
 void i_generate_forward_branch(char);

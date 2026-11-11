@@ -157,18 +157,6 @@ parse_node_t* new_node_no_line() {
   return next_node++;
 }
 
-/* quick routine to make a generic branched node */
-parse_node_t* make_branched_node(short kind, char type, parse_node_t* l, parse_node_t* r) {
-  parse_node_t* ret;
-
-  ret = new_node();
-  ret->kind = kind;
-  ret->type = type;
-  ret->l.expr = l;
-  ret->r.expr = r;
-  return ret;
-}
-
 /* create an optimized typical binary integer operator */
 parse_node_t* binary_int_op(parse_node_t* l, parse_node_t* r, char op, const char* name) {
   parse_node_t* ret;

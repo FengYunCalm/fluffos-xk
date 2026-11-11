@@ -76,17 +76,3 @@ array_t* allocate_class_by_size(int size) {
 
   return p;
 }
-
-array_t* allocate_empty_class_by_size(int size) {
-  array_t* p;
-
-  num_classes++;
-  total_class_size += sizeof(array_t) + sizeof(svalue_t) * (size - 1);
-
-  p = reinterpret_cast<array_t*>(
-      DMALLOC(sizeof(array_t) + sizeof(svalue_t) * (size - 1), TAG_CLASS, "allocate_class"));
-  p->ref = 1;
-  p->size = size;
-
-  return p;
-}

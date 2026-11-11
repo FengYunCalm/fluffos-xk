@@ -131,12 +131,6 @@ bool read_source_line(const char* file, int line, char* buf, size_t buflen) {
   return collected != 0;
 }
 
-std::string render_snippet(const Diagnostic& diagnostic) {
-  std::string out;
-  append_snippet(out, diagnostic, false);
-  return out;
-}
-
 std::string render_diagnostic(const Diagnostic& diagnostic, RenderStyle style) {
   const char* file = diagnostic.snippet.position.file ? diagnostic.snippet.position.file : "?";
   const char* message = diagnostic.message ? diagnostic.message : "";
