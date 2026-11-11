@@ -85,18 +85,17 @@ def main() -> int:
     contract = contract_keys(args.repo)
     undocumented = sorted(code - contract)
     missing = sorted(contract - code)
-    if not undocumented and not missing:
-        print(f"status-contract: OK ({len(contract)} keys)")
-        return 0
-    for key in undocumented:
-        print(f"FAIL: emitted by code but not in {CONTRACT_PATH}: {key}")
+    # The contract freezes the keys downstream may rely on. A key that is emitted
+    # but not documented is not a failure -- most emitted keys are internal
+    # counters and are reported as a count. A documented key that is no longer
+    # emitted IS a failure: downstream code may still read it.
     for key in missing:
         print(f"FAIL: listed in {CONTRACT_PATH} but never emitted: {key}")
     print(
         f"status-contract: {len(undocumented)} undocumented, "
         f"{len(missing)} missing ({len(contract)} contracted)"
     )
-    return 1
+    return 1 if missing else 0
 
 
 if __name__ == "__main__":

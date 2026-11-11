@@ -116,6 +116,9 @@ jobs:
       - name: Check doc links and commit SHAs
         run: python3 tools/docs/check-docs.py
 
+      - name: Check the frozen owner/gateway status key contract
+        run: python3 tools/docs/status-contract.py --check
+
       - name: Check workflow action pins vs manifest
         run: python3 tools/docs/check-actions-pins.py --self-test
 

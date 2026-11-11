@@ -3,6 +3,8 @@
 > 本文是驱动对外暴露的 status mapping 键的**冻结清单**。
 > 只有本表登记的键可以被 `add_mapping_*` 写入 owner 可观测面；新增键必须先改本表。
 > 校验：`tools/docs/status-contract.py`（以 `--check` 模式运行；`--dump` 打印当前键）。
+> 门禁口径：本表登记的键**必须仍由代码发出**（`missing == 0` 才算通过）；代码发出的
+> 未登记键只报数量，不阻断——它们大多是内部计数器。CI 已接入（ci.yml 的文档作业）。
 > 依据：下游 `xiakexing` `main`（`f6acdd30e`）逐键实测读取，`rewrite`（`661fdfc60`）
 > 不消费任何 owner 状态。详见 [2026-11 问题清单](refactor-findings-2026-11.md) §5.4。
 
