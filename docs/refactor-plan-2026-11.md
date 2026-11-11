@@ -854,6 +854,8 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | U7-b | `288bd809` | deep_inventory 与 deep_inventory_array 共尾 | ctest 596/596；-ftest 433 | 净减 43 行 |
 | U7-c | `a90b1fb4` `aee32345` | 区间赋值两份实现合并 + 所有权契约测试 | ctest 596/596；-ftest 434 文件退出码 0 | 净减 108 行；新增 18 断言 |
 | U9-a | `4b274d1a` | 状态键契约接入 CI（只在 documented 键消失时报错） | `status-contract --check` 退出码 0 | 之前两边都报错，等于门禁不可用 |
+| R-11 | `b3ab58ae` `4ee32b1d` `4cf22dc6` `e202a3d5` | efun 参数 64 位截断收口 | ctest 596/596；-ftest 435 | 12 个 efun + 4 个测试文件 |
+| U5c-a | `6f3232bb` `7a1e8d2f` | 网关状态函数：后端块拆出 + 151 个计数器统一 | ctest 596/596；-ftest 435 | 987 → 551 行；gateway.cc −375 行 |
 | U5c | — | 网关状态装配移出主逻辑文件 | — | 见 roadmap R-14 |
 | U6 | — | 7 个状态机显式化 | — | 未开始 |
 | U7-b | — | 剩余重复项（`deep_inventory` 尾巴、interpret.cc 区间赋值等） | — | 见 roadmap R-15 |
