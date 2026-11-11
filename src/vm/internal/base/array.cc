@@ -446,58 +446,63 @@ void implode_array(funptr_t* fptr, array_t* arr, svalue_t* dest, int first_on_st
  * Slice of an array.
  * It now frees the passed array
  */
-array_t* slice_array(array_t* p, int from, int to) {
+array_t* slice_array(array_t* p, LPC_INT from, LPC_INT to) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
-  int cnt;
+  LPC_INT cnt;
   svalue_t *sv1, *sv2;
 
+  // Bounds stay 64-bit past the clamp: an index beyond 32 bits must select the
+  // clamped range, not wrap back into a real element.
+  const LPC_INT size = static_cast<LPC_INT>(p->size);
   if (from < 0) {
     from = 0;
   }
-  if (to >= p->size) {
-    to = p->size - 1;
+  if (to >= size) {
+    to = size - 1;
   }
   if (from > to) {
     free_array(p);
     return &the_null_array;
   }
+  const int start = static_cast<int>(from);
+  const int last = static_cast<int>(to);
 
   if (!(--p->ref)) {
-    if (from) {
-      sv1 = p->item + from;
-      cnt = from;
+    if (start) {
+      sv1 = p->item + start;
+      cnt = start;
       while (cnt--) {
         free_svalue(--sv1, "slice_array:2");
       }
-      cnt = to - from + 1;
+      cnt = last - start + 1;
       sv1 = p->item;
-      sv2 = p->item + from;
+      sv2 = p->item + start;
       while (cnt--) {
         *sv1++ = *sv2++;
       }
     } else {
-      sv2 = p->item + to + 1;
+      sv2 = p->item + last + 1;
     }
-    cnt = (p->size - 1) - to;
+    cnt = (static_cast<LPC_INT>(p->size) - 1) - last;
     while (cnt--) {
       free_svalue(sv2++, "slice_array:3");
     }
-    if (to - from + 1 > max_array_size) {
+    if (last - start + 1 > max_array_size) {
       error("array slice too big");  // can't happen in theory
     }
-    p = resize_array(p, to - from + 1);
+    p = resize_array(p, last - start + 1);
     p->ref = 1;
     return p;
   } else {
     array_t* d;
-    if (to - from + 1 > max_array_size) {
+    if (last - start + 1 > max_array_size) {
       error("array slice too big");  // can't happen in theory
     }
-    d = int_allocate_empty_array(to - from + 1);
-    sv1 = d->item - from;
+    d = int_allocate_empty_array(last - start + 1);
+    sv1 = d->item - start;
     sv2 = p->item;
-    for (cnt = from; cnt <= to; cnt++) {
+    for (cnt = start; cnt <= last; cnt++) {
       assign_svalue_no_free(sv1 + cnt, sv2 + cnt);
     }
     return d;

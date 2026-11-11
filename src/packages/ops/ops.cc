@@ -696,7 +696,9 @@ void f_range(int code) {
 
   switch (sp->type) {
     case T_STRING: {
-      int32_t from, to;
+      // Bounds are 64-bit until the iterator clamps them: narrowing first made
+      // "abc"[1<<32] read "abc"[1] instead of the empty range.
+      LPC_INT from, to;
       int32_t const len = SVALUE_STRLEN(sp);
 
       EGCSmartIterator iter(sp->u.string, len);
@@ -770,17 +772,15 @@ void f_range(int code) {
       memcpy(tmp, iter.data() + from, to - from);
       tmp[to - from] = '\0';
       MSTR_TAG_SUBSTRING(tmp, iter.is_ascii());
-
       pop_3_elems();
       push_malloced_string(tmp);
       break;
     }
     case T_BUFFER: {
-      int from, to, len;
+      LPC_INT from, to;
+      LPC_INT const len = static_cast<LPC_INT>(sp->u.buf->size);
 
       buffer_t* rbuf = sp->u.buf;
-
-      len = rbuf->size;
       to = (--sp)->u.number;
       if (code & 0x01) {
         to = len - to;
@@ -823,16 +823,16 @@ void f_range(int code) {
     }
 
     case T_ARRAY: {
-      int from, to;
+      LPC_INT from, to;
 
       array_t* v = sp->u.arr;
       to = (--sp)->u.number;
       if (code & 0x01) {
-        to = v->size - to;
+        to = static_cast<LPC_INT>(v->size) - to;
       }
       from = (--sp)->u.number;
       if (code & 0x10) {
-        from = v->size - from;
+        from = static_cast<LPC_INT>(v->size) - from;
       }
       put_array(slice_array(v, from, to));
       break;
@@ -850,7 +850,9 @@ void f_extract_range(int code) {
 
   switch (sp->type) {
     case T_STRING: {
-      int32_t from;
+      // 64-bit until the iterator clamps it: narrowing first made
+      // "abc"[1<<32 ..] return "abc"[1..] instead of the empty string.
+      LPC_INT from;
 
       EGCSmartIterator iter(sp->u.string, SVALUE_STRLEN(sp));
       if (!iter.ok()) {
@@ -864,14 +866,14 @@ void f_extract_range(int code) {
         }
       }
 
-      int offset;
+      LPC_INT offset;
       if (code) {
         offset = from <= 0 ? -1 : iter.index_to_offset(-1 * from);
       } else {
         offset = from < 0 ? 0 : iter.index_to_offset(from);
       }
       if (code && from > 0 && offset < 0) {
-        if (from > (int32_t)iter.count()) {
+        if (from > static_cast<LPC_INT>(iter.count())) {
           offset = 0;
         }
       }
@@ -888,13 +890,13 @@ void f_extract_range(int code) {
       break;
     }
     case T_BUFFER: {
-      int32_t from;
-      size_t len;
+      LPC_INT from;
+      LPC_INT len;
 
       buffer_t* rbuf = sp->u.buf;
       buffer_t* nbuf;
 
-      len = rbuf->size;
+      len = static_cast<LPC_INT>(rbuf->size);
       from = (--sp)->u.number;
       if (code) {
         from = len - from;
@@ -921,14 +923,14 @@ void f_extract_range(int code) {
     }
 
     case T_ARRAY: {
-      size_t from;
+      LPC_INT from;
 
       array_t* v = sp->u.arr;
       from = (--sp)->u.number;
       if (code) {
-        from = v->size - from;
+        from = static_cast<LPC_INT>(v->size) - from;
       }
-      put_array(slice_array(v, from, v->size - 1));
+      put_array(slice_array(v, from, static_cast<LPC_INT>(v->size) - 1));
       break;
     }
 

@@ -175,7 +175,7 @@ int32_t u8_egc_find_as_offset(EGCIterator& iter, const char* needle, size_t need
 // Return the egc at given index of src, if it is an single code point.
 // Return -2 if requested index is out of bounds
 // Return -1 if requested EGC is multi codepoint
-UChar32 u8_egc_index_as_single_codepoint(const char* src, int32_t src_len, int32_t index) {
+UChar32 u8_egc_index_as_single_codepoint(const char* src, int32_t src_len, int64_t index) {
   UChar32 c = U_SENTINEL;
 
   if (src == nullptr || src_len <= 0)

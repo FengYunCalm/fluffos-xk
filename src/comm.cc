@@ -2034,6 +2034,14 @@ static int process_user_command_text(interactive_t* ip, char* user_command) {
   if (!handle_user_mxp_tag_filter_in_owner_frame(ip, user_command)) {
     goto exit;
   }
+  /* The mxp_tag apply is LPC and may have removed the user. `ip->ob` is cleared
+   * by remove_interactive() even when the struct itself is parked for deferred
+   * cleanup, so this is the cheap "session is gone" test. It deliberately does
+   * not require IP_VALID: a gateway command frame drives this path without the
+   * object's ->interactive pointing back at `ip`. */
+  if (ip->ob == nullptr || (ip->ob->flags & O_DESTRUCTED)) {
+    goto exit;
+  }
 
   if (escape_command(ip, user_command)) {
     if (ip->iflags & SINGLE_CHAR) {
@@ -2575,6 +2583,10 @@ static void print_prompt(interactive_t* ip) {
   }
 #endif
   else if (!apply_user_write_prompt_in_owner_frame(ip)) {
+    /* write_prompt() is LPC and may have removed the user. */
+    if (ip->ob == nullptr || (ip->ob->flags & O_DESTRUCTED)) {
+      return;
+    }
     ip->iflags &= ~HAS_WRITE_PROMPT;
     tell_object(ip->ob, ip->prompt, strlen(ip->prompt));
   }

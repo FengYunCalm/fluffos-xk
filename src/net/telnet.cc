@@ -760,7 +760,10 @@ void telnet_start_request_ttype(struct telnet_t* telnet) {
   telnet_negotiate(telnet, TELNET_DO, TELNET_TELOPT_TTYPE);
 }
 void telnet_request_ttype(struct telnet_t* telnet) {
-  telnet_begin_sb(telnet, TELNET_TTYPE_SEND);
+  // Send the complete RFC 1091 subnegotiation (IAC SB TTYPE SEND IAC SE).
+  // telnet_begin_sb() only writes the 3-byte header and takes its argument as
+  // the option, so it emitted an unterminated subnegotiation on option ECHO.
+  telnet_ttype_send(telnet);
 }
 
 void telnet_send_nop(struct telnet_t* telnet) {

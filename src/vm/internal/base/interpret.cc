@@ -98,9 +98,10 @@ static inline void assign_value_to_lvalue(svalue_t* lval, svalue_t* value, const
       if (value->type != T_NUMBER) {
         error("Illegal rhs to char lvalue\n");
       }
-      UChar32 newc = value->u.number;
-      assign_lvalue_codepoint(lval, [=](UChar32 /*unused*/) {
-        return newc;
+      const LPC_INT rhs = value->u.number;
+      assign_lvalue_codepoint(lval, [=](LPC_INT /*unused*/) -> LPC_INT {
+        // Range-checked by assign_lvalue_codepoint before it narrows.
+        return rhs;
       });
       break;
     }
@@ -729,7 +730,7 @@ FLUFFOS_VM_THREAD_LOCAL refed_t* lv_owner;
 FLUFFOS_VM_THREAD_LOCAL const char* lv_owner_str;
 
 struct codepoint_lvalue_t {
-  int32_t index;
+  LPC_INT index;
   svalue_t* owner;
   std::unique_ptr<EGCSmartIterator> iter;
 };
@@ -765,7 +766,7 @@ class popped_lvalue_t {
   svalue_t slot_;
 };
 
-static void arm_codepoint_lvalue(svalue_t* slot, svalue_t* owner, int32_t ind) {
+static void arm_codepoint_lvalue(svalue_t* slot, svalue_t* owner, LPC_INT ind) {
   UChar32 c = u8_egc_index_as_single_codepoint(owner->u.string, SVALUE_STRLEN(owner), ind);
   if (c == -2 || c == 0) {
     error("Index out of bounds in string index lvalue.\n");
@@ -871,7 +872,7 @@ static void materialize_lvalue(svalue_t* dest, svalue_t* slot) {
  * Compute the address of an array element.
  */
 void push_indexed_lvalue(int reverse) {
-  int ind;
+  LPC_INT ind;
   svalue_t* lv;
 
   if (sp->type == T_LVALUE) {
@@ -924,9 +925,9 @@ void push_indexed_lvalue(int reverse) {
 
       case T_BUFFER: {
         if (reverse) {
-          ind = lv->u.buf->size - ind;
+          ind = static_cast<LPC_INT>(lv->u.buf->size) - ind;
         }
-        if (ind >= lv->u.buf->size || ind < 0) {
+        if (ind >= static_cast<LPC_INT>(lv->u.buf->size) || ind < 0) {
           error("Buffer index out of bounds.\n");
         }
         arm_byte_lvalue(sp, &lv->u.buf->item[ind]);
@@ -939,9 +940,9 @@ void push_indexed_lvalue(int reverse) {
 
       case T_ARRAY: {
         if (reverse) {
-          ind = lv->u.arr->size - ind;
+          ind = static_cast<LPC_INT>(lv->u.arr->size) - ind;
         }
-        if (ind >= lv->u.arr->size || ind < 0) {
+        if (ind >= static_cast<LPC_INT>(lv->u.arr->size) || ind < 0) {
           error("Array index out of bounds\n");
         }
         sp->type = T_LVALUE;
@@ -993,9 +994,9 @@ void push_indexed_lvalue(int reverse) {
 
       case T_BUFFER: {
         if (reverse) {
-          ind = sp->u.buf->size - ind;
+          ind = static_cast<LPC_INT>(sp->u.buf->size) - ind;
         }
-        if (ind >= sp->u.buf->size || ind < 0) {
+        if (ind >= static_cast<LPC_INT>(sp->u.buf->size) || ind < 0) {
           error("Buffer index out of bounds.\n");
         }
         sp->u.buf->ref--;
@@ -1010,9 +1011,9 @@ void push_indexed_lvalue(int reverse) {
 
       case T_ARRAY: {
         if (reverse) {
-          ind = sp->u.arr->size - ind;
+          ind = static_cast<LPC_INT>(sp->u.arr->size) - ind;
         }
-        if (ind >= sp->u.arr->size || ind < 0) {
+        if (ind >= static_cast<LPC_INT>(sp->u.arr->size) || ind < 0) {
           error("Array index out of bounds.\n");
         }
         sp->u.arr->ref--;
@@ -1035,7 +1036,7 @@ void push_indexed_lvalue(int reverse) {
 }
 
 static void push_lvalue_range(int code) {
-  int32_t ind1, ind2;
+  LPC_INT ind1, ind2;
   size_t size = 0;
   svalue_t* lv;
   std::unique_ptr<EGCSmartIterator> iter = nullptr;
@@ -1077,9 +1078,9 @@ static void push_lvalue_range(int code) {
       error("push_lvalue_range: invalid ind2");
     }
   } else {
-    ind2 = (code & 0x01) ? (size - sp->u.number) : sp->u.number;
+    ind2 = (code & 0x01) ? (static_cast<LPC_INT>(size) - sp->u.number) : sp->u.number;
     ind2 = ind2 + 1;
-    if (ind2 <= 0 || (ind2 > size)) {
+    if (ind2 <= 0 || (ind2 > static_cast<LPC_INT>(size))) {
       error(
           "The 2nd index to range lvalue must be >= -1 and < sizeof(indexed "
           "value)\n");
@@ -1100,8 +1101,8 @@ static void push_lvalue_range(int code) {
       error("push_lvalue_range: invalid ind1");
     }
   } else {
-    ind1 = (code & 0x10) ? (size - sp->u.number) : sp->u.number;
-    if (ind1 < 0 || ind1 > size) {
+    ind1 = (code & 0x10) ? (static_cast<LPC_INT>(size) - sp->u.number) : sp->u.number;
+    if (ind1 < 0 || ind1 > static_cast<LPC_INT>(size)) {
       error(
           "The 1st index to range lvalue must be >= 0 and <= sizeof(indexed "
           "value)\n");
@@ -1316,6 +1317,9 @@ void assign_lvalue_codepoint(svalue_t* lval, F&& func) {
   if (newc == 0) {
     error("Strings cannot contain 0 byte.\n");
   }
+  if (newc < 0 || newc > 0x10FFFF) {
+    error("Codepoint value out of range.\n");
+  }
   auto new_len = U8_LENGTH(newc);
   if (!new_len) {
     error("Strings cannot contain invalid utf8 codepoint.\n");
@@ -1331,7 +1335,7 @@ void assign_lvalue_codepoint(svalue_t* lval, F&& func) {
 
 LPC_INT codepoint_lvalue_add(svalue_t* lval, LPC_INT delta) {
   LPC_INT out = 0;
-  assign_lvalue_codepoint(lval, [&out, delta](UChar32 c) {
+  assign_lvalue_codepoint(lval, [&out, delta](LPC_INT c) -> LPC_INT {
     return out = c + delta;
   });
   return out;

@@ -118,18 +118,24 @@ class EGCSmartIterator : public EGCIterator {
     }
     return count_;
   }
-  int32_t index_to_offset(int32_t index) {
+  int32_t index_to_offset(int64_t index) {
+    // The caller holds a 64-bit LPC int. Anything outside +-(len + 1) is DONE:
+    // that is exactly what the walk below returns for an index past the end,
+    // so clamping there keeps the later narrowing exact.
+    if (index > static_cast<int64_t>(len()) + 1 || index < -(static_cast<int64_t>(len()) + 1))
+      return icu::BreakIterator::DONE;
     // ASCII: EGC index == byte offset. Boundaries are 0..len, a negative index
     // counts back from the end, and anything outside that range is DONE --
     // matching what the ICU walk below returns for the same input.
     if (is_ascii()) {
-      int32_t off = index >= 0 ? index : len() + index;
+      int64_t off = index >= 0 ? index : static_cast<int64_t>(len()) + index;
       if (off < 0 || off > len())
         return icu::BreakIterator::DONE;
-      ascii_pos_ = off;
-      current_idx_ = index;
-      return off;
+      ascii_pos_ = static_cast<int32_t>(off);
+      current_idx_ = static_cast<int32_t>(index);
+      return ascii_pos_;
     }
+    index = static_cast<int32_t>(index);
     if (index == 0) {
       current_idx_ = 0;
       return brk_->first();
@@ -160,7 +166,7 @@ class EGCSmartIterator : public EGCIterator {
     }
     return pos;
   }
-  int32_t post_index_to_offset(int32_t index) {
+  int32_t post_index_to_offset(int64_t index) {
     auto pos = index_to_offset(index);
     if (pos < 0)
       return pos;
@@ -221,7 +227,7 @@ class EGCSmartIterator : public EGCIterator {
 bool u8_validate(char**);
 bool u8_validate(const char*);
 bool u8_validate(const uint8_t*, size_t);
-UChar32 u8_egc_index_as_single_codepoint(const char*, int32_t, int32_t);
+UChar32 u8_egc_index_as_single_codepoint(const char*, int32_t, int64_t);
 void u8_copy_and_replace_codepoint_at(EGCSmartIterator& iter, char* dst, int32_t index, UChar32 c);
 int32_t u8_offset_to_egc_index(EGCIterator& iter, int32_t offset);
 int32_t u8_strncpy(uint8_t*, const uint8_t*, const int32_t);
