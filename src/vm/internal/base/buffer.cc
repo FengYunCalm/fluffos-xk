@@ -24,7 +24,7 @@ void free_buffer(buffer_t* b) {
   FREE((char*)b);
 } /* free_buffer() */
 
-buffer_t* allocate_buffer(int size) {
+buffer_t* allocate_buffer(LPC_INT size) {
   auto max_buffer_size = CONFIG_INT(__MAX_BUFFER_SIZE__);
 
   buffer_t* buf;

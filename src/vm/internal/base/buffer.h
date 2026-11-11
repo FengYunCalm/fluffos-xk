@@ -23,7 +23,7 @@ extern buffer_t null_buf;
 
 buffer_t* null_buffer(void);
 void free_buffer(buffer_t*);
-buffer_t* allocate_buffer(int);
+buffer_t* allocate_buffer(LPC_INT);
 int write_buffer(buffer_t*, int, const char*, int);
 char* read_buffer(buffer_t*, int, int, int*);
 

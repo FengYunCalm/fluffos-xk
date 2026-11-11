@@ -91,7 +91,7 @@ static array_t* int_allocate_empty_array(unsigned int n) {
   return p;
 }
 
-array_t* allocate_empty_array(int n) {
+array_t* allocate_empty_array(LPC_INT n) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
   if (n < 0 || n > max_array_size) {
@@ -114,7 +114,7 @@ static array_t* int_allocate_array(unsigned int n) {
   return p;
 }
 
-array_t* allocate_array(int n) {
+array_t* allocate_array(LPC_INT n) {
   array_t* p = allocate_empty_array(n);
 
   while (n--) {
@@ -124,7 +124,7 @@ array_t* allocate_array(int n) {
   return p;
 }
 
-array_t* allocate_array2(int n, svalue_t* svp) {
+array_t* allocate_array2(LPC_INT n, svalue_t* svp) {
   int i;
   array_t* ret;
 

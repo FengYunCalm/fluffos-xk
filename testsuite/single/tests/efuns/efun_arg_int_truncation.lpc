@@ -1,0 +1,44 @@
+// Sizes, bit indexes, search values and occurrence bounds are LPC ints (64-bit).
+// Copying them into an int before validating truncated anything past 32 bits,
+// so a value out of range wrapped back in and the call silently did something
+// else: allocate(1<<32 | 1) returned a 1-element array, test_bit("!", 1<<32)
+// tested bit 0, member_array(0x161, "abc") matched 'a', and a replace_string()
+// occurrence bound of 0x100000001 replaced one occurrence.
+//
+// In-range behaviour is unchanged.
+
+#define WIDE (1 << 32)
+
+void do_tests() {
+  // allocate(): an out-of-range size must be rejected, not truncated. A huge
+  // value would also exceed MAX_ARRAY_SIZE, so the error path is the same one
+  // an over-limit literal takes.
+  ASSERT(catch(allocate(WIDE)));
+  ASSERT(catch(allocate_buffer(WIDE)));
+  ASSERT_EQ(5, sizeof(allocate(5)));
+  ASSERT_EQ(5, sizeof(allocate_buffer(5)));
+
+  // Bit efuns: a past-32-bit index either errors or reports "no such bit"; it
+  // must never address bit 0.
+  ASSERT_EQ(0, test_bit("!", WIDE));
+  ASSERT_EQ(-1, next_bit("!!", WIDE));
+  ASSERT(catch(clear_bit("!", WIDE)));
+  ASSERT(catch(set_bit("!", WIDE)));
+  ASSERT_EQ(1, test_bit("!", 0));
+  ASSERT(next_bit("! ", 0) >= 0);
+
+  // member_array() on a string: the searched value is a byte, so anything
+  // outside 0..255 cannot match. It used to truncate into 'a'.
+  ASSERT_EQ(-1, member_array(0x161, "abc"));
+  ASSERT_EQ(-1, member_array(0x100, "abc"));
+  ASSERT_EQ(0, member_array('a', "abc"));
+
+  // replace_string() occurrence bounds: a huge bound replaces every match, it
+  // must not truncate into "replace only one".
+  ASSERT_EQ("xbxbxb", replace_string("xaxbxb", "a", "b", 0));
+  ASSERT_EQ("xaxbxb", replace_string("xaxbxb", "a", "b", WIDE | 1, WIDE | 2));
+
+  // In-range behaviour is untouched.
+  ASSERT_EQ("bbbb", replace_string("abab", "a", "b"));
+  ASSERT_EQ("axxxx", replace_string("axaxa", "a", "x", 2, 3));
+}

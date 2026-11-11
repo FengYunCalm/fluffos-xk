@@ -1120,7 +1120,13 @@ void f_member_array() {
     if (start > SVALUE_STRLEN(sp)) {
       error("Index to start search from in member_array() is > string length.\n");
     }
-    if ((res = strchr(sp->u.string + start, (sp - 1)->u.number))) {
+    // searched value is a single byte: anything outside 0..255 cannot match a
+    // character. Narrowing it first made member_array(0x161, "abc") find 'a'
+    // and member_array(0x100, "abc") match the terminator.
+    const auto searched = (sp - 1)->u.number;
+    if (searched < 0 || searched > 0xFF) {
+      i = -1;
+    } else if ((res = strchr(sp->u.string + start, static_cast<int>(searched)))) {
       i = res - sp->u.string;
     } else {
       i = -1;
@@ -2085,7 +2091,10 @@ void f_rename() {
 void f_replace_string() {
   auto max_string_length = CONFIG_INT(__MAX_STRING_LENGTH__);
 
-  int plen, rlen, dlen, slen, first, last, cur, j;
+  int plen, rlen, dlen, slen, cur, j;
+  // Occurrence bounds are 64-bit: narrowing them first made a count past 32
+  // bits wrap back into "replace this many", e.g. 0x100000001 replaced one.
+  LPC_INT first, last;
 
   const char* pattern;
   const char* replace;
@@ -2987,15 +2996,19 @@ void f_tell_room() {
 
 #ifdef F_TEST_BIT
 void f_test_bit() {
-  int const ind = (sp--)->u.number;
+  // The index is an LPC int (64-bit). Narrowing it to `int` before the bounds
+  // check made test_bit("!", 1 << 32) test bit 0. Check the sign first as well:
+  // a large-magnitude negative truncated to a positive index would otherwise
+  // slip past the string-length guard.
+  LPC_INT const ind = (sp--)->u.number;
 
-  if (ind / 6 >= SVALUE_STRLEN(sp)) {
+  if (ind < 0) {
+    error("Bad argument 2 (negative) to test_bit().\n");
+  }
+  if (ind / 6 >= static_cast<LPC_INT>(SVALUE_STRLEN(sp))) {
     free_string_svalue(sp);
     *sp = const0;
     return;
-  }
-  if (ind < 0) {
-    error("Bad argument 2 (negative) to test_bit().\n");
   }
   if ((sp->u.string[ind / 6] - ' ') & (1 << (ind % 6))) {
     free_string_svalue(sp);
@@ -3009,8 +3022,10 @@ void f_test_bit() {
 
 #ifdef F_NEXT_BIT
 void f_next_bit() {
-  int const start = (sp--)->u.number;
-  int const len = SVALUE_STRLEN(sp);
+  // 64-bit start index: narrowing first made next_bit("!!", 1 << 32) return 0
+  // instead of reporting no further set bit.
+  LPC_INT const start = (sp--)->u.number;
+  LPC_INT const len = SVALUE_STRLEN(sp);
   int which, bit = 0, value;
 
   if (!len || start / 6 >= len) {
