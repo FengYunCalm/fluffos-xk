@@ -2398,29 +2398,8 @@ static void add_gateway_status_room_projection(mapping_t* map) {
   GATEWAY_COUNTER(map, room_output_projection_retry_wall_budget_hits);
 }
 
-mapping_t* gateway_status_internal() {
-  mapping_t* map;
-  int uptime;
-
-  uptime = g_gateway_started_at ? static_cast<int>(get_current_time() - g_gateway_started_at) : 0;
-  map = allocate_mapping(214);
-  add_mapping_pair(map, "listening", g_gateway_listener ? 1 : 0);
-  add_mapping_pair(map, "gateway_external_bind_allowed", kGatewayExternalBindAllowed ? 1 : 0);
-  GATEWAY_COUNTER(map, external_bind_rejected);
-  add_mapping_pair(map, "gateway_event_priority_levels", kBackendEventPriorityLevels);
-  add_mapping_pair(map, "gateway_normal_event_priority",
-                   static_cast<int>(BackendEventPriority::kNormal));
-  add_mapping_pair(map, "gateway_io_event_priority",
-                   static_cast<int>(BackendEventPriority::kGateway));
-  add_mapping_pair(map, "gateway_background_dispatch_max_interval_us",
-                   static_cast<LPC_INT>(std::chrono::duration_cast<std::chrono::microseconds>(
-                                            kBackendBackgroundDispatchMaxInterval)
-                                            .count()));
-  add_mapping_pair(map, "gateway_background_dispatch_max_callbacks",
-                   kBackendBackgroundDispatchMaxCallbacks);
-  add_mapping_pair(map, "gateway_background_dispatch_min_priority",
-                   static_cast<int>(kBackendBackgroundDispatchMinPriority));
-  add_gateway_status_backend(map);
+// Session, ingress, reconnect and command counters.
+static void add_gateway_status_sessions(mapping_t* map) {
   add_mapping_pair(map, "port", g_gateway_listen_port);
   add_mapping_pair(map, "masters", static_cast<int>(g_gateway_masters.size()));
   add_mapping_pair(map, "sessions", gateway_get_session_count());
@@ -2487,6 +2466,10 @@ mapping_t* gateway_status_internal() {
   GATEWAY_COUNTER(map, command_tasks_finished);
   GATEWAY_COUNTER(map, command_tasks_stale);
   GATEWAY_COUNTER(map, command_tasks_cleared);
+}
+
+// Queue admission, output FIFO and future watches.
+static void add_gateway_status_queues(mapping_t* map) {
   add_mapping_pair(map, "gateway_command_input_pending_sessions",
                    gateway_session_command_input_pending_count());
   add_mapping_pair(map, "gateway_command_task_pending_sessions",
@@ -2582,6 +2565,10 @@ mapping_t* gateway_status_internal() {
   GATEWAY_AVG_US(map, future_watch_main_completion_thread_cpu);
   GATEWAY_MAX_US(map, future_watch_main_completion_thread_cpu);
   GATEWAY_COUNTER(map, future_watch_main_completion_thread_cpu_unavailable);
+}
+
+// Main-thread drains, read batching and master output bookkeeping.
+static void add_gateway_status_drains(mapping_t* map) {
   add_mapping_pair(map, "gateway_raw_writes_sent",
                    static_cast<LPC_INT>(
                        g_gateway_runtime_counters.raw_writes_sent.load(std::memory_order_relaxed)));
@@ -2677,6 +2664,10 @@ mapping_t* gateway_status_internal() {
       static_cast<LPC_INT>(
           g_gateway_runtime_counters.read_batch_drain_main_tasks_exceeding_wall_budget.load(
               std::memory_order_relaxed)));
+}
+
+// Read dispatch budgets and the per-stage latency sets.
+static void add_gateway_status_latency(mapping_t* map) {
   add_mapping_pair(map, "gateway_read_dispatch_budget", kGatewayReadFrameBudget);
   GATEWAY_COUNTER(map, read_dispatch_runs);
   GATEWAY_COUNTER(map, read_dispatch_frames_total);
@@ -2767,6 +2758,10 @@ mapping_t* gateway_status_internal() {
   GATEWAY_COUNTER(map, message_event_template_cache_evictions);
   GATEWAY_COUNTER(map, message_event_template_cache_bypasses);
   add_gateway_status_room_projection(map);
+}
+
+// Static configuration and uptime.
+static void add_gateway_status_config(mapping_t* map, int uptime) {
   add_mapping_string(map, "gateway_io_boundary", "main_thread_io_adapter");
   add_mapping_pair(map, "debug", g_gateway_debug);
   add_mapping_pair(map, "max_packet_size", static_cast<LPC_INT>(g_gateway_max_packet_size));
@@ -2777,6 +2772,34 @@ mapping_t* gateway_status_internal() {
   add_mapping_pair(map, "reconnect_grace", g_gateway_reconnect_grace);
   add_mapping_string(map, "heartbeat_timer", g_gateway_heartbeat_timer ? "active" : "inactive");
   add_mapping_pair(map, "uptime", uptime);
+}
+
+mapping_t* gateway_status_internal() {
+  const int uptime =
+      g_gateway_started_at ? static_cast<int>(get_current_time() - g_gateway_started_at) : 0;
+  auto* map = allocate_mapping(214);
+  add_mapping_pair(map, "listening", g_gateway_listener ? 1 : 0);
+  add_mapping_pair(map, "gateway_external_bind_allowed", kGatewayExternalBindAllowed ? 1 : 0);
+  GATEWAY_COUNTER(map, external_bind_rejected);
+  add_mapping_pair(map, "gateway_event_priority_levels", kBackendEventPriorityLevels);
+  add_mapping_pair(map, "gateway_normal_event_priority",
+                   static_cast<int>(BackendEventPriority::kNormal));
+  add_mapping_pair(map, "gateway_io_event_priority",
+                   static_cast<int>(BackendEventPriority::kGateway));
+  add_mapping_pair(map, "gateway_background_dispatch_max_interval_us",
+                   static_cast<LPC_INT>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                            kBackendBackgroundDispatchMaxInterval)
+                                            .count()));
+  add_mapping_pair(map, "gateway_background_dispatch_max_callbacks",
+                   kBackendBackgroundDispatchMaxCallbacks);
+  add_mapping_pair(map, "gateway_background_dispatch_min_priority",
+                   static_cast<int>(kBackendBackgroundDispatchMinPriority));
+  add_gateway_status_backend(map);
+  add_gateway_status_sessions(map);
+  add_gateway_status_queues(map);
+  add_gateway_status_drains(map);
+  add_gateway_status_latency(map);
+  add_gateway_status_config(map, uptime);
   return map;
 }
 
