@@ -10,6 +10,10 @@ if(${GTEST_FOUND})
     test_lpc_compiler.cc
     test_lpc_gateway.cc
     test_lpc_owner.cc
+    test_owner_cross.cc
+    test_owner_executor.cc
+    test_owner_gateway.cc
+    test_owner_worker.cc
     test_egc.cc
     test_socket_text.cc)
   target_link_libraries(lpc_tests PRIVATE ${FLUFFOS_LINK} GTest::GTest  GTest::Main)
