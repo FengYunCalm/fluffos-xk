@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vm/frozen_value.h"
+#include "vm/internal/owner_admission_state.h"
 #include "vm/object_handle.h"
 
 #include <atomic>
@@ -32,7 +33,7 @@ struct OwnerTaskTrace {
   std::string cleanup_policy;
   std::string reply_future_policy;
   std::string admission_policy;
-  std::string admission_state;
+  OwnerAdmissionState admission_state{OwnerAdmissionState::kUnset};
   std::string trace_schema;
   std::string tick_group;
   std::string backpressure_policy;

@@ -1123,7 +1123,8 @@ void apply_owner_task_manifest_v2(OwnerMailboxTask& task) {
       owner_manifest_cleanup_policy(descriptor.dispatch_kind, task.has_target_handle);
   task.reply_future_policy = owner_manifest_reply_future_policy(descriptor.dispatch_kind);
   task.admission_policy = kOwnerTaskAdmissionPolicyV2;
-  task.admission_state = descriptor.rejected ? "accepted_dispatch_rejected" : "accepted";
+  task.admission_state = descriptor.rejected ? OwnerAdmissionState::kAcceptedDispatchRejected
+                                             : OwnerAdmissionState::kAccepted;
   task.trace_schema = kOwnerExecutorTraceSchemaV2;
   const auto& tick_group = owner_tick_group_for_executor_task(task.task_type.c_str());
   task.tick_group = tick_group.name;
@@ -1333,15 +1334,23 @@ constexpr OwnerTaskFailureRule kOwnerTaskDropped{
     "task_dropped", "owner executor dropped the task before callback dispatch"};
 
 const OwnerTaskFailureRule* owner_task_failure_rule(const std::string& state,
-                                                   const std::string& admission_state) {
-  if (admission_state == "rejected_backpressure" || state == "backpressure_rejected") {
+                                                   OwnerAdmissionState admission_state) {
+  switch (admission_state) {
+    case OwnerAdmissionState::kRejectedBackpressure:
+      return &kOwnerTaskBackpressure;
+    case OwnerAdmissionState::kRejectedCallbackNotAllowlisted:
+      return &kOwnerTaskCallbackNotAllowlisted;
+    case OwnerAdmissionState::kDroppedCallbackInvalidTarget:
+      return &kOwnerTaskCallbackInvalidTarget;
+    case OwnerAdmissionState::kUnset:
+    case OwnerAdmissionState::kAccepted:
+    case OwnerAdmissionState::kAcceptedDispatchRejected:
+      break;
+  }
+  // The trace label is caller-supplied text, so the remaining reason keywords are
+  // matched in precedence order instead of by an exhaustive table.
+  if (state == "backpressure_rejected") {
     return &kOwnerTaskBackpressure;
-  }
-  if (admission_state == "rejected_callback_not_allowlisted") {
-    return &kOwnerTaskCallbackNotAllowlisted;
-  }
-  if (admission_state == "dropped_callback_invalid_target") {
-    return &kOwnerTaskCallbackInvalidTarget;
   }
   if (state.find("epoch_mismatch") != std::string::npos) {
     return &kOwnerTaskEpochMismatch;
@@ -1352,29 +1361,27 @@ const OwnerTaskFailureRule* owner_task_failure_rule(const std::string& state,
   if (state.find("stale") != std::string::npos) {
     return &kOwnerTaskTargetStale;
   }
-  if (state.find("rejected") != std::string::npos ||
-      admission_state.find("rejected") != std::string::npos) {
+  if (state.find("rejected") != std::string::npos) {
     return &kOwnerTaskAdmissionRejected;
   }
-  if (state.find("dropped") != std::string::npos ||
-      admission_state.find("dropped") != std::string::npos) {
+  if (state.find("dropped") != std::string::npos) {
     return &kOwnerTaskDropped;
   }
   return nullptr;
 }
 
-const char* owner_task_failure_code(const std::string& state, const std::string& admission_state) {
+const char* owner_task_failure_code(const std::string& state, OwnerAdmissionState admission_state) {
   const auto* rule = owner_task_failure_rule(state, admission_state);
   return rule ? rule->code : "";
 }
 
 const char* owner_task_failure_reason(const std::string& state,
-                                      const std::string& admission_state) {
+                                      OwnerAdmissionState admission_state) {
   const auto* rule = owner_task_failure_rule(state, admission_state);
   return rule ? rule->reason : "";
 }
 
-const char* owner_task_drop_reason(const std::string& state, const std::string& admission_state) {
+const char* owner_task_drop_reason(const std::string& state, OwnerAdmissionState admission_state) {
   const auto* rule = owner_task_failure_rule(state, admission_state);
   return rule ? rule->code : "none";
 }
@@ -2230,7 +2237,7 @@ mapping_t* owner_mailbox_task_mapping(const OwnerMailboxTask& task) {
   add_mapping_string(map, "cleanup_policy", task.cleanup_policy.c_str());
   add_mapping_string(map, "reply_future_policy", task.reply_future_policy.c_str());
   add_mapping_string(map, "admission_policy", task.admission_policy.c_str());
-  add_mapping_string(map, "admission_state", task.admission_state.c_str());
+  add_mapping_string(map, "admission_state", owner_admission_state_name(task.admission_state));
   add_mapping_string(map, "trace_schema", task.trace_schema.c_str());
   add_mapping_string(map, "tick_group", task.tick_group.c_str());
   add_mapping_pair(map, "scheduler_priority", task.scheduler_priority);
@@ -2287,7 +2294,8 @@ mapping_t* owner_task_trace_mapping(const OwnerTaskTrace& trace) {
   add_mapping_string(map, "cleanup_policy", trace.cleanup_policy.c_str());
   add_mapping_string(map, "reply_future_policy", trace.reply_future_policy.c_str());
   add_mapping_string(map, "admission_policy", trace.admission_policy.c_str());
-  add_mapping_string(map, "admission_state", trace.admission_state.c_str());
+  add_mapping_string(map, "admission_state",
+                     owner_admission_state_name(trace.admission_state));
   add_mapping_string(map, "trace_schema", trace.trace_schema.c_str());
   add_mapping_string(map, "tick_group", trace.tick_group.c_str());
   add_mapping_pair(map, "scheduler_priority", trace.scheduler_priority);
@@ -2450,8 +2458,8 @@ struct OwnerTaskAdmissionResult {
 };
 
 OwnerTaskAdmissionResult reject_owner_executor_callback_admission_locked(
-    OwnerMailboxTask& task, const char* state, const char* admission_state, bool dropped) {
-  task.admission_state = normalize_task_text(admission_state, "rejected");
+    OwnerMailboxTask& task, const char* state, OwnerAdmissionState admission_state, bool dropped) {
+  task.admission_state = admission_state;
   append_owner_task_trace(task, state);
   if (dropped) {
     owner_executor_admission_dropped.fetch_add(1, std::memory_order_relaxed);
@@ -2475,16 +2483,18 @@ OwnerTaskAdmissionResult admit_owner_executor_callback_task_locked(OwnerMailboxT
        (descriptor->main_required != 0 && descriptor->requires_owner_main_queue != 0));
   if (!callback_route_allowed) {
     return reject_owner_executor_callback_admission_locked(
-        task, "executor_callback_admission_rejected", "rejected_callback_not_allowlisted", false);
+        task, "executor_callback_admission_rejected",
+        OwnerAdmissionState::kRejectedCallbackNotAllowlisted, false);
   }
 
   if (!task.callback || !task.has_target_handle || !task.target || !task.target_handle.valid ||
       task.owner_id.empty()) {
     return reject_owner_executor_callback_admission_locked(
-        task, "executor_callback_admission_dropped", "dropped_callback_invalid_target", true);
+        task, "executor_callback_admission_dropped",
+        OwnerAdmissionState::kDroppedCallbackInvalidTarget, true);
   }
 
-  task.admission_state = "accepted";
+  task.admission_state = OwnerAdmissionState::kAccepted;
   owner_executor_admission_accepted.fetch_add(1, std::memory_order_relaxed);
   append_owner_task_trace(task, "executor_callback_admission_accepted");
   return OwnerTaskAdmissionResult{true};
@@ -2853,7 +2863,8 @@ uint64_t append_owner_task_trace(const OwnerMainTask& task, const char* state) {
         owner_manifest_cleanup_policy(descriptor.dispatch_kind, task.has_target_handle);
     trace.reply_future_policy = owner_manifest_reply_future_policy(descriptor.dispatch_kind);
     trace.admission_policy = kOwnerTaskAdmissionPolicyV2;
-    trace.admission_state = descriptor.rejected ? "accepted_dispatch_rejected" : "accepted";
+    trace.admission_state = descriptor.rejected ? OwnerAdmissionState::kAcceptedDispatchRejected
+                                               : OwnerAdmissionState::kAccepted;
     trace.trace_schema = kOwnerExecutorTraceSchemaV2;
     const auto& tick_group = owner_tick_group_for_executor_task(task.task_type.c_str());
     trace.tick_group = tick_group.name;
@@ -3324,7 +3335,7 @@ bool enqueue_owner_task_locked(OwnerMailboxTask& task, const std::string& owner_
     apply_owner_task_manifest_v2(task);
   }
   if (owner_scheduler_state.mailbox_depth(owner_id) >= kOwnerSchedulerMaxOwnerQueueDepth) {
-    task.admission_state = "rejected_backpressure";
+    task.admission_state = OwnerAdmissionState::kRejectedBackpressure;
     append_owner_task_trace(task, "backpressure_rejected");
     owner_executor_backpressure_rejected.fetch_add(1, std::memory_order_relaxed);
     if (task.drop_callback) {
