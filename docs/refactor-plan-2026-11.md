@@ -611,6 +611,30 @@ evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
 
 **判据**：两次输出除时间/计数外无差异；新增失败即为回归，必须停并回滚。
 
+#### 2026-11 实测记录
+
+**已做（可重跑）**：
+
+1. **启动验证**：把下游 `server/` 复制到私有目录（排除 log/backup/runtime），
+   只改端口（`3939` → `33939`），用本仓库 `build-dev-debug/bin/driver` 启动：
+   `master`/`simul_efun` 加载成功、preload 通过、监听正常，无与本次改动相关的
+   LPC 报错。（报错只有两条 `unable to open stat file`，因为副本里没建统计目录。）
+2. **下游消费者核对**（真正的删键风险）：取 `228eaa51~1` 与 `HEAD` 两次代码字面键，
+   并把 `GATEWAY_TOTAL/AVG/MAX_US(map, name)` 宏展开成它实际发出的
+   `gateway_<name>_total_us` 等键（否则会误判为“被删”），得到**真实被删 12 个键**
+   （`owner_local_object_ref_entry`、`owner_local_path_index_source`、
+   `owner_local_*_consistent`、`snapshot_record` 等）。对下游 `main`（`f6acdd30e`）
+   与 `rewrite` 两个分支全部 `.c/.h/.lpc` 做带引号的引用检索：
+   **两个分支对 12 个键的引用数均为 0**。
+
+**没做（能力边界，不是遗漏）**：完整 `ownercheck full` 未跑。原因：该命令要求一个
+已鉴权的 admin 操作者，而登录链路由独立的 gateway-go 服务先做认证再把 session 绑进
+驱动（`login.c` 的 `bind_gateway_driver_session`）；在私有副本里绕过认证去调命令，
+验的就不再是“真实路径”。当前证据强度：启动通过 + 零下游消费者 + 本仓全部套件通过。
+
+**方法坑**：只扫 `add_mapping_*(map, "literal")` 会把宏拼出的键当成“已删”，
+必须先把 `GATEWAY_*_US` 展开；否则会得出“下游在读取已删键”的假阳性。
+
 ## U6 状态机显式化
 
 每个状态机一个提交。统一目标形态：
