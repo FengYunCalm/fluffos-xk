@@ -529,6 +529,11 @@ python3 tools/docs/check-status-contract.py --check   # U9a 完成后才有
 
 ### U5c 把网关状态装配移出主逻辑文件
 
+> 实施记录（2026-11，`243cb784`）：按“可读性”而非“文件位置”落地。装配体直接引用 8 个文件内
+> 全局量、私有类型 `GatewayIngressSequenceState` 和 `kGatewayDeferred*` 常量，搬进新文件就得
+> 为缩减文件长度而公开这些内部量；实际做法是在 `gateway.cc` 内拆成 6 个命名 builder，
+> 主入口回到 14 行。输出键与宏使用次数逐项比对不变。
+
 **不拆 `GatewayRuntimeCounters` 结构体**（200 个字段的引用遍布 gateway.cc；改布局是纯机械大 diff，
 不提高可读性）。改做两件事：
 
@@ -642,6 +647,13 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 ```
 
 ## U8 测试结构
+
+> 状态（2026-11）：**未开始**。已完成前置测量：`test_lpc_owner.cc` 里 8 行的
+> `mapping_number`/`mapping_string` 局部 lambda 对逐字重复 77 次（≈616 行），
+> 这是拆分前应先回收的重复，也是拆分时每个新文件都要带的样板。
+> 阻塞点：77 份文本完全相同，逐条 `edit` 无法定位唯一匹配；这一步应落成一个
+> 可审阅的批量替换 diff（同一对 helper 提到 `test_lpc_support.h`，再删局部定义），
+> 而不是手工改 77 处。
 
 | 序 | 动作 | 判据 |
 | --- | --- | --- |
