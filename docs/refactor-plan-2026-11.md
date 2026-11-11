@@ -566,6 +566,12 @@ python3 tools/docs/status-contract.py --check
 判据：输出键集合与拆分前一致，容量报告能完整产出
 （证明保留的计数器仍被真实消费者读取）。
 
+**实测（2026-11）**：`BUILD_DIR=build-dev-debug tools/owner-scheduler-capacity.sh`
+退出 0，三份报告（owner runtime / lpc vm / object store）均生成并通过
+evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
+`BUILD_DIR`，`--build-dir` 参数不会生效（传了会去找不存在的 `build/` 并报
+`could not load cache`）。
+
 ### U5d 下游验收（实施后必做）
 
 用新构建的 driver 在下游 `xiakexing` 的测试实例上跑一次全量 owner 检查：
