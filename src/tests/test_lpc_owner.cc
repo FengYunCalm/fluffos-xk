@@ -5679,7 +5679,6 @@ TEST_F(DriverTest, TestGatewayRoomProjectionExposesDedicatedThreadCpuCounters) {
 TEST_F(DriverTest, TestGatewayReceiveApplyExposesMainThreadCpuCounter) {
   const auto gateway_header = read_source_file_for_test("../src/packages/gateway/gateway.h");
   const auto gateway_source = read_source_file_for_test("../src/packages/gateway/gateway.cc");
-  const auto gateway_status = read_source_file_for_test("../src/packages/gateway/gateway.cc");
 
   ASSERT_NE(gateway_header.find("receive_apply_thread_cpu_ns_total"), std::string::npos);
   ASSERT_NE(gateway_header.find("receive_apply_thread_cpu_ns_max"), std::string::npos);
@@ -5688,9 +5687,17 @@ TEST_F(DriverTest, TestGatewayReceiveApplyExposesMainThreadCpuCounter) {
   ASSERT_NE(gateway_source.find("auto apply_cpu_started_at = get_current_thread_cpu_time_ns()"),
             std::string::npos);
   ASSERT_NE(gateway_source.find("gateway_record_thread_cpu("), std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_receive_apply_total_us"), std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_receive_apply_thread_cpu_total_us"), std::string::npos);
-  ASSERT_NE(gateway_status.find("gateway_receive_apply_thread_cpu_unavailable"), std::string::npos);
+
+  // Assert the emitted keys, not how the source spells them: the counters are
+  // written through add_gateway_counter() with the prefix and name as separate
+  // arguments, so a source grep would pin formatting instead of the contract.
+  auto* status = gateway_status_internal();
+  for (const char* key : {"gateway_receive_apply_total_us",
+                          "gateway_receive_apply_thread_cpu_total_us",
+                          "gateway_receive_apply_thread_cpu_unavailable"}) {
+    ASSERT_NE(find_string_in_mapping(status, key), nullptr) << key;
+  }
+  free_mapping(status);
 }
 
 TEST_F(DriverTest, TestGatewayReceiveApplyUsesPerformanceWallClock) {
