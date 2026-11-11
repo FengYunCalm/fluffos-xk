@@ -1119,7 +1119,11 @@ static void push_lvalue_range(int code) {
   sp->u.range_lv = box;
 }
 
-void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
+// Range lvalue store. The two public entry points differ only in the ownership
+// contract of the right-hand side: copy_lvalue_range() takes it over (and may
+// transfer its array payload when that holds the only reference), while
+// assign_lvalue_range() leaves it owned by the caller.
+static void store_range_lvalue(svalue_t* lval, svalue_t* from, bool consume_rhs) {
   int ind1, ind2, size, fsize;
   svalue_t* owner;
   range_lvalue_t* box = lval->u.range_lv;
@@ -1139,12 +1143,14 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
 
       fv = from->u.arr;
       fptr = fv->item;
+      // Only a consuming store may move fv's items out of fv; a borrowing store
+      // must leave the referenced array intact.
+      const bool transfer = consume_rhs && fv->ref == 1;
 
       if ((fsize = fv->size) == ind2 - ind1) {
         dptr = (owner->u.arr)->item + ind1;
 
-        if (fv->ref == 1) {
-          /* Transfer the svalues */
+        if (transfer) {
           while (fsize--) {
             free_svalue(dptr, "copy_lvalue_range : 1");
             *dptr++ = *fptr++;
@@ -1154,7 +1160,9 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
           while (fsize--) {
             assign_svalue(dptr++, fptr++);
           }
-          fv->ref--;
+          if (consume_rhs) {
+            fv->ref--;
+          }
         }
       } else {
         array_t* old_dv = owner->u.arr;
@@ -1169,7 +1177,7 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
           assign_svalue_no_free(dptr++, old_dptr++);
         }
 
-        if (fv->ref == 1) {
+        if (transfer) {
           while (fsize--) {
             *dptr++ = *fptr++;
           }
@@ -1178,7 +1186,9 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
           while (fsize--) {
             assign_svalue_no_free(dptr++, fptr++);
           }
-          fv->ref--;
+          if (consume_rhs) {
+            fv->ref--;
+          }
         }
 
         /* ind2 can range from 0 to sizeof(old_dv) */
@@ -1233,7 +1243,9 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
         }
         FREE_MSTR(dstr);
       }
-      free_string_svalue(from);
+      if (consume_rhs) {
+        free_string_svalue(from);
+      }
       break;
     }
 
@@ -1266,10 +1278,16 @@ void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
         free_buffer(owner->u.buf);
         owner->u.buf = b;
       }
-      free_buffer(from->u.buf);
+      if (consume_rhs) {
+        free_buffer(from->u.buf);
+      }
       break;
     }
   }
+}
+
+void copy_lvalue_range(svalue_t* lval, svalue_t* from) {
+  store_range_lvalue(lval, from, true);
 }
 
 template <typename F>
@@ -1342,133 +1360,7 @@ LPC_INT codepoint_lvalue_add(svalue_t* lval, LPC_INT delta) {
 }
 
 void assign_lvalue_range(svalue_t* lval, svalue_t* from) {
-  int ind1, ind2, size, fsize;
-  svalue_t* owner;
-  range_lvalue_t* box = lval->u.range_lv;
-
-  ind1 = static_cast<int>(box->ind1);
-  ind2 = static_cast<int>(box->ind2);
-  size = static_cast<int>(box->size);
-  owner = box->owner;
-
-  switch (owner->type) {
-    case T_ARRAY: {
-      array_t *fv, *dv;
-      svalue_t *fptr, *dptr;
-      if (from->type != T_ARRAY) {
-        error("Illegal rhs to array range lvalue\n");
-      }
-
-      fv = from->u.arr;
-      fptr = fv->item;
-
-      if ((fsize = fv->size) == ind2 - ind1) {
-        dptr = (owner->u.arr)->item + ind1;
-        while (fsize--) {
-          assign_svalue(dptr++, fptr++);
-        }
-      } else {
-        array_t* old_dv = owner->u.arr;
-        svalue_t* old_dptr = old_dv->item;
-
-        /* Need to reallocate the array */
-        dv = allocate_empty_array(size - ind2 + ind1 + fsize);
-        dptr = dv->item;
-
-        /* ind1 can range from 0 to sizeof(old_dv) */
-        while (ind1--) {
-          assign_svalue_no_free(dptr++, old_dptr++);
-        }
-
-        while (fsize--) {
-          assign_svalue_no_free(dptr++, fptr++);
-        }
-
-        /* ind2 can range from 0 to sizeof(old_dv) */
-        old_dptr = old_dv->item + ind2;
-        size -= ind2;
-
-        while (size--) {
-          assign_svalue_no_free(dptr++, old_dptr++);
-        }
-        free_array(old_dv);
-
-        owner->u.arr = dv;
-      }
-      break;
-    }
-
-    case T_STRING: {
-      if (from->type != T_STRING) {
-        error("Illegal rhs to string range lvalue.\n");
-      }
-
-      if ((fsize = SVALUE_STRLEN(from)) == ind2 - ind1) {
-        /* since fsize >= 0, ind2 - ind1 <= strlen(orig string) */
-        /* because both of them can only range from 0 to len */
-
-        strncpy((const_cast<char*>(owner->u.string)) + ind1, from->u.string, fsize);
-        // See the matching comment in copy_lvalue_range(): this is an
-        // in-place mutation of owner's bytes (always STRING_MALLOC here),
-        // and unlike extend_string()/new_string() nothing else resets the
-        // cached ASCII tag for it, so a stale YES would survive a
-        // same-byte-length splice of non-ASCII content into a previously
-        // all-ASCII string. (Upstream #1344.)
-        MSTR_ASCII(owner->u.string) = MSTR_ASCII_UNKNOWN;
-      } else {
-        char* tmp;
-        const char* dstr = const_cast<char*>(owner->u.string);
-
-        owner->u.string = tmp = new_string(size - ind2 + ind1 + fsize, "assign_lvalue_range");
-        if (ind1 >= 1) {
-          strncpy(tmp, dstr, ind1);
-          tmp += ind1;
-        }
-        strcpy(tmp, from->u.string);
-        tmp += fsize;
-
-        size -= ind2;
-        if (size >= 1) {
-          strncpy(tmp, dstr + ind2, size);
-          *(tmp + size) = 0;
-        }
-        FREE_MSTR(dstr);
-      }
-      break;
-    }
-
-    case T_BUFFER: {
-      if (from->type != T_BUFFER) {
-        error("Illegal rhs to buffer range lvalue.\n");
-      }
-
-      if ((fsize = from->u.buf->size) == ind2 - ind1) {
-        memcpy((owner->u.buf)->item + ind1, from->u.buf->item, fsize);
-      } else {
-        buffer_t* b;
-        unsigned char* old_item = (owner->u.buf)->item;
-        unsigned char* new_item;
-
-        b = allocate_buffer(size - ind2 + ind1 + fsize);
-        new_item = b->item;
-        if (ind1 >= 1) {
-          memcpy(b->item, old_item, ind1);
-          new_item += ind1;
-        }
-        // #1247 INTERP-1: copy the buffer payload, not the buffer_t header
-        // (from->u.buf is a pointer to the struct; the payload starts at ->item).
-        memcpy(new_item, from->u.buf->item, fsize);
-        new_item += fsize;
-
-        if ((size -= ind2) >= 1) {
-          memcpy(new_item, old_item + ind2, size);
-        }
-        free_buffer(owner->u.buf);
-        owner->u.buf = b;
-      }
-      break;
-    }
-  }
+  store_range_lvalue(lval, from, false);
 }
 
 /*
