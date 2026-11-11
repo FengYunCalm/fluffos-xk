@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 INLINE_PATH_RE = re.compile(r"`([^`]+)`")
@@ -271,6 +272,50 @@ def check_file(path: str, repo: str, skip_git: bool) -> list[str]:
     return errors
 
 
+_DATED_PLAN_RE = re.compile(r"(?:plan|findings|design|audit|report)", re.IGNORECASE)
+_DATED_YEAR_RE = re.compile(r"-20\d{2}-")
+_STATUS_RE = re.compile(r"^>\s*状态")
+_DRAFT_AGE_DAYS = 90
+
+
+def check_root_plan_status(docs_dir: str, repo: str) -> list[str]:
+    """Plan-like documents at the docs root must say what state they are in."""
+    errors: list[str] = []
+    for name in sorted(os.listdir(docs_dir)):
+        path = os.path.join(docs_dir, name)
+        if not name.endswith(".md") or not os.path.isfile(path):
+            continue
+        if not (_DATED_PLAN_RE.search(name) or _DATED_YEAR_RE.search(name)):
+            continue
+        try:
+            head = "".join(open(path, encoding="utf-8", errors="replace").readlines()[:10])
+        except OSError as e:
+            errors.append(f"docs/{name}: unreadable: {e}")
+            continue
+        if not any(_STATUS_RE.match(line) for line in head.splitlines()):
+            errors.append(f"docs/{name}: plan-like document needs a '> 状态：' header")
+    return errors
+
+
+def report_draft_age(docs_dir: str, repo: str) -> None:
+    """Report DRAFT documents untouched for a long time; never fails the check."""
+    cutoff = time.time() - _DRAFT_AGE_DAYS * 86400
+    for root, _dirs, files in os.walk(docs_dir):
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(root, name)
+            head_lines = open(path, encoding="utf-8", errors="replace").readlines()[:10]
+            if not any("DRAFT" in line and _STATUS_RE.match(line) for line in head_lines):
+                continue
+            rel = os.path.relpath(path, repo)
+            out = subprocess.run(["git", "-C", repo, "log", "-1", "--format=%ct", "--", rel],
+                                 capture_output=True, text=True, check=False)
+            stamp = out.stdout.strip()
+            if stamp.isdigit() and int(stamp) < cutoff:
+                print(f"note: {rel}: DRAFT untouched for {_DRAFT_AGE_DAYS}+ days")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=".", help="repo root")
@@ -296,6 +341,14 @@ def main() -> int:
             print(f"FAIL: {e}")
         print(f"check-docs: {len(all_errors)} issue(s) across {checked} markdown files")
         return 1
+    root_errors = check_root_plan_status(docs_dir, args.repo)
+    for e in root_errors:
+        print(f"FAIL: {e}")
+    if root_errors:
+        print(f"check-docs: {len(root_errors)} root-document issue(s)")
+        return 1
+    if not args.skip_git:
+        report_draft_age(docs_dir, args.repo)
     print(f"check-docs: OK ({checked} markdown files)")
     return 0
 

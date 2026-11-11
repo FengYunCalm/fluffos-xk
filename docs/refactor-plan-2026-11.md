@@ -743,13 +743,16 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 ### U9e 文档结构检查
 
-扩展 `tools/docs/check-docs.py`：
+**已落地**（`tools/docs/check-docs.py`）：
 
-1. `docs/` 根目录只允许白名单文件（`index.md`、`architecture.md`、`roadmap.md`、
-   `coding-standard.md`、`project-scope.md`、`build.md`、合同类文档）；
-   新增计划类文档必须落在 `docs/archive/plans/` 或具备 `> 状态：` 头。
-2. 计划/证据类文档若 90 天未被修改且状态为 `DRAFT`，列入待归档清单（只报告，
-   不自动移动）。
+1. `docs/` 根目录下“计划类”文档（文件名命中 `plan`/`findings`/`design`/`audit`/`report`，
+   或带 `-20xx-` 日期）前 10 行必须有 `> 状态：` 头，否则失败。不是白名单：
+   新增合同、设计、报告类文档不必改脚本，但必须自报状态。
+2. `DRAFT` 且 90 天未修改的文档只打印 `note:`（只报告，不自动移动、不失败）。
+
+验证：临时目录放一份无状态头的 `refactor-plan-2026-12.md` → 报
+`plan-like document needs a '> 状态：' header`、退出 1；加一行 `> 状态：` → 通过。
+当前仓库：`check-docs: OK (1149 markdown files)`。
 
 ## U10 本轮不做（需单独方案）
 
