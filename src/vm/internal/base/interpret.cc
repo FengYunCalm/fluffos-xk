@@ -1845,12 +1845,20 @@ int fill_default_args(program_t* progp, function_t* funcp, int funflags, int num
   return funcp->num_arg;
 }
 
-function_t* setup_new_frame(int findex) {
+// Resolve a possibly aliased/inherited function index to its defining program and
+// prepare the call frame. `entry == kNew` is the program entry point, which also
+// resets the accumulated inherit offsets before walking up the tree and updates the
+// per-function profiling counters; kInherited continues from the current offsets.
+enum class FrameEntry { kNew, kInherited };
+
+static function_t* setup_function_frame(int findex, FrameEntry entry) {
   function_t* func_entry;
   int low, high, mid;
   int flags;
 
-  vm_set_inherit_offsets_fast(0, 0);
+  if (entry == FrameEntry::kNew) {
+    vm_set_inherit_offsets_fast(0, 0);
+  }
 
   /* Walk up the inheritance tree to the real definition */
   if (current_prog->function_flags[findex] & FUNC_ALIAS) {
@@ -1883,8 +1891,10 @@ function_t* setup_new_frame(int findex) {
   func_entry = current_prog->function_table + findex;
   csp->fr.table_index = findex;
 #ifdef PROFILE_FUNCTIONS
-  get_cpu_times(&(csp->entry_secs), &(csp->entry_usecs));
-  current_prog->function_table[findex].calls++;
+  if (entry == FrameEntry::kNew) {
+    get_cpu_times(&(csp->entry_secs), &(csp->entry_usecs));
+    current_prog->function_table[findex].calls++;
+  }
 #endif
 
   /* Remove excessive arguments */
@@ -1896,47 +1906,12 @@ function_t* setup_new_frame(int findex) {
   return &current_prog->function_table[findex];
 }
 
+function_t* setup_new_frame(int findex) {
+  return setup_function_frame(findex, FrameEntry::kNew);
+}
+
 function_t* setup_inherited_frame(int findex) {
-  function_t* func_entry;
-  int low, high, mid;
-  int flags;
-
-  /* Walk up the inheritance tree to the real definition */
-  if (current_prog->function_flags[findex] & FUNC_ALIAS) {
-    findex = current_prog->function_flags[findex] & ~FUNC_ALIAS;
-  }
-
-  while (current_prog->function_flags[findex] & FUNC_INHERITED) {
-    low = 0;
-    high = current_prog->num_inherited - 1;
-
-    while (high > low) {
-      mid = (low + high + 1) >> 1;
-      if (current_prog->inherit[mid].function_index_offset > findex) {
-        high = mid - 1;
-      } else {
-        low = mid;
-      }
-    }
-    findex -= current_prog->inherit[low].function_index_offset;
-    vm_set_inherit_offsets_fast(
-        function_index_offset + current_prog->inherit[low].function_index_offset,
-        variable_index_offset + current_prog->inherit[low].variable_index_offset);
-    vm_set_current_program_fast(current_prog->inherit[low].prog);
-  }
-
-  flags = current_prog->function_flags[findex];
-  findex -= current_prog->last_inherited;
-
-  func_entry = current_prog->function_table + findex;
-  csp->fr.table_index = findex;
-  /* Remove excessive arguments */
-  if (flags & FUNC_TRUE_VARARGS) {
-    setup_varargs_variables(csp->num_local_variables, func_entry->num_local, func_entry->num_arg);
-  } else {
-    setup_variables(csp->num_local_variables, func_entry->num_local, func_entry->num_arg);
-  }
-  return &current_prog->function_table[findex];
+  return setup_function_frame(findex, FrameEntry::kInherited);
 }
 
 #ifdef DEBUG
