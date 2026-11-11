@@ -58,9 +58,9 @@
 | R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | 30+ 调用点，且 `owner_task_failure_code()` 靠 `find("rejected")` 做分类；转枚举需要先把分类规则改成显式表 | 先列全部取值与分类映射，再换类型；不要用字符串前缀判断冒充分类 |
 | R-20 | 已完成的两组重复合并 | `socket_efuns.cc` TLS 握手（`7398e170`）、`compress.cc` 两个 efun（`96ad487c`） | — |
 | R-21 | 剩余重复 | `interpret.cc` 帧解码：**已完成**（`9f88ce89`）；三个 benchmark 的环境装配：**已完成**（`82f89903`，含三份已漂移的写报告逻辑） | — |
-| R-25 | 重构后的 sanitizer 复核 | **未执行**：本系列改过引用计数与生命周期密集代码（区间赋值、deep_inventory 共尾、`&`/`|` 临时表、帧解析），但它们只用 Debug 构建 + testsuite 验证过 | 下次在内存充足时跑 `cmake --preset asan` + 定向测试；本次可用内存仅 2 GiB，按项目规则未启动 ASan 构建 |
+| R-25 | 重构后的 sanitizer 复核 | **已完成**（`72605bde` 起）：ASan C++ 全量 565 项无泄漏无报错；ASan `-ftest` 连跑 3 次无泄漏；同机 `be7cb6ad` 基线 ASan `-ftest` 对照无泄漏，确认本系列引入的唯一泄漏已在 R-22 修掉 | 证据见本地 `evidence/`（`head-asan-*`、`baseline-asan-*`）；PCRE2 开发包缺失，ASan/Debug 构建统一用 `-DCMAKE_PREFIX_PATH=~/projects/deps/pcre/root/usr` |
 | R-26 | 被丢弃任务的 `failure_code` 为空 | **核销：不是缺陷** | `owner_mailbox_task_mapping()` 只在两个 drain 路径输出（`owner.cc:5422`、`:5547`），而 `drop_owner_executor_callback()` 会把任务从 mailbox 移除并交给 main 清理，被丢弃的任务从此不再经过该映射。丢弃原因只出现在 trace 事件里，那里的 `failure_code` 已经正确（测试 `test_lpc_owner.cc:10545` 断言 `target_stale`）。下游 main/rewrite 均不读这两个键 |
-| R-22 | `array.cc` 三份排序临时表 | **已完成**（`7e4add49`）：`&`/`|` 改调 `alist_sort()`，两份内联循环删除 | — |
+| R-22 | `array.cc` 三份排序临时表 | **已完成**（`7e4add49`，泄漏修补 `72605bde`）：`&`/`|` 改调 `alist_sort()`，两份内联循环删除；`alist_sort()` 取走第二操作数后，合并代码只减 `ref` 不释放结构，ref==1 时整块 array 泄漏（ASan `-ftest` 报 12×112 字节）。现改为与第一操作数相同的 `free_empty_array()` | `TestArraySetOperationsDistinguishExtremeIntegers` 增加 `num_arrays` 基线断言，退回旧写法即失败 |
 | R-23 | `intersect_array`/`union_array` 零 LPC 覆盖 | **已补**（同一提交）：27 断言，含多重集语义与 ref>1 不被原改 | `&` 取较小重数、`|` 取较大重数且保留左操作数顺序——旧代码如此，现在有测试锁住 |
 
 ### 2.3 上游待吸收
