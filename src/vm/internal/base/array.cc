@@ -1326,12 +1326,47 @@ static void deep_inventory_collect(object_t* ob, array_t* inv, int* i, int max, 
   }
 }
 
+// Add one object -- and, when the filter callback allows, its whole inventory --
+// at depth-first position *i of dinv. `o` is the array's allocated capacity.
+// Returns false when the callback left current_object destructed; the caller
+// then discards dinv.
+static bool deep_inventory_take(object_t* ob, array_t* dinv, int* i, int o, funptr_t* fp,
+                                int take_top) {
+  if (!take_top) {
+    deep_inventory_collect(ob, dinv, i, o, fp);
+    return true;
+  }
+  svalue_t* fp_result = nullptr;
+  if (fp) {
+    push_object(ob);
+    fp_result = call_function_pointer(fp, 1);
+    if (!fp_result || (current_object->flags & O_DESTRUCTED)) {
+      return false;
+    }
+  }
+  if (fp && (fp_result->type != T_NUMBER || fp_result->u.number <= 0)) {
+    return true;
+  }
+  if (ob->flags & O_DESTRUCTED) {
+    return true;
+  }
+  if (!fp || fp_result->u.number != 3) {
+    dinv->item[*i].type = T_OBJECT;
+    dinv->item[*i].u.ob = ob;
+    add_ref(ob, "deep_inventory");
+    (*i)++;
+  }
+  if (!fp || fp_result->u.number == 1 || fp_result->u.number == 3) {
+    deep_inventory_collect(ob, dinv, i, o, fp);
+  }
+  return true;
+}
+
 array_t* deep_inventory(object_t* ob, int take_top, funptr_t* fp) {
   auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
 
   array_t* dinv;
   int i, o;
-  svalue_t* fp_result;
 
   valid_hide_flag = 0;
 
@@ -1360,31 +1395,10 @@ array_t* deep_inventory(object_t* ob, int take_top, funptr_t* fp) {
   /*
    * collect visible inventory objects recursively
    */
-  if (take_top) {
-    if (fp) {
-      push_object(ob);
-      fp_result = call_function_pointer(fp, 1);
-      if (!fp_result || (current_object->flags & O_DESTRUCTED)) {
-        pop_stack();  // dinv
-        return &the_null_array;
-      }
-    }
-    if (!fp || (fp && fp_result->type == T_NUMBER && fp_result->u.number > 0 &&
-                !(ob->flags & O_DESTRUCTED))) {
-      if (!fp || (fp && fp_result->type == T_NUMBER && fp_result->u.number != 3)) {
-        dinv->item[0].type = T_OBJECT;
-        dinv->item[0].u.ob = ob;
-        add_ref(ob, "deep_inventory");
-        i = 1;
-      }
-      if (!fp || (fp && fp_result->type == T_NUMBER &&
-                  (fp_result->u.number == 1 || fp_result->u.number == 3))) {
-        deep_inventory_collect(ob, dinv, &i, o, fp);
-      }
-    }
-  } else {
-    i = 0;
-    deep_inventory_collect(ob, dinv, &i, o, fp);
+  i = 0;
+  if (!deep_inventory_take(ob, dinv, &i, o, fp, take_top)) {
+    pop_stack();  // dinv
+    return &the_null_array;
   }
 
   // resize the array if we have filtered out values
@@ -1400,7 +1414,6 @@ array_t* deep_inventory_array(array_t* arr, int take_top, funptr_t* fp) {
 
   array_t* dinv;
   int i, o, c;
-  svalue_t* fp_result;
 
   valid_hide_flag = 0;
 
@@ -1436,32 +1449,10 @@ array_t* deep_inventory_array(array_t* arr, int take_top, funptr_t* fp) {
    */
   i = 0;
   for (c = 0; i < o && c < arr->size; c++) {
-    if (arr->item[c].type == T_OBJECT) {
-      if (take_top) {
-        if (fp) {
-          push_object(arr->item[c].u.ob);
-          fp_result = call_function_pointer(fp, 1);
-          if (!fp_result || (current_object->flags & O_DESTRUCTED)) {
-            pop_stack();  // free dinv
-            return &the_null_array;
-          }
-        }
-        if (!fp || (fp && fp_result->type == T_NUMBER && fp_result->u.number > 0 &&
-                    !(arr->item[c].u.ob->flags & O_DESTRUCTED))) {
-          if (!fp || (fp && fp_result->type == T_NUMBER && fp_result->u.number != 3)) {
-            dinv->item[i].type = T_OBJECT;
-            dinv->item[i].u.ob = arr->item[c].u.ob;
-            add_ref(arr->item[c].u.ob, "deep_inventory");
-            i++;
-          }
-          if (!fp || (fp && fp_result->type == T_NUMBER &&
-                      (fp_result->u.number == 1 || fp_result->u.number == 3))) {
-            deep_inventory_collect(arr->item[c].u.ob, dinv, &i, o, fp);
-          }
-        }
-      } else {
-        deep_inventory_collect(arr->item[c].u.ob, dinv, &i, o, fp);
-      }
+    if (arr->item[c].type == T_OBJECT &&
+        !deep_inventory_take(arr->item[c].u.ob, dinv, &i, o, fp, take_top)) {
+      pop_stack();  // free dinv
+      return &the_null_array;
     }
   }
 

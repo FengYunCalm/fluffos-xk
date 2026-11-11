@@ -132,13 +132,27 @@
 保留：记录/引用/路径索引计数、对象目录及其条目、四个索引一致性标志（由结构实算）、
 `owner_local_store_{ready,complete}`（由 shard 状态实算）、迁移记录与 `migration_count`。
 
-### 4.2 其他文件
+### 4.2 owner 状态面（部分完成）
+
+`vm_owner_runtime_status()` 及其合同 mapping 不再输出：
+
+- **生产门禁清单**（32 键）：`production_gate_*`。它是验收清单，属于
+  `docs/multicore-production-gate.md`，不是运行时状态。
+- **mudlib 审计证据字符串**（5 键）：`mudlib_*`。把某次历史审计的结论写成常量塞进状态。
+- **代码自述**（12 键）：各类 `*_file`、`owner_cc_runtime_role`。文件名会改，状态键不会跟着改。
+- **重构计划声明**：`implementation_state`、`next_refactor_target`、`executor_migration_state`、
+  9 个 `*_dependency`。
+
+保留：计数、容量、队列深度、延迟采样、owner/epoch、状态枚举、任务与未来记录、
+readiness gate 表（它们描述的是真实准入条件，且有执行路径对照）。
+
+### 4.3 其他文件
 
 `src/packages/core/vm_owner.cc` 不在本契约范围内：它的 mapping 是公开 LPC efun 的
 返回形状（`owner_safe` payload、失败 schema），不是状态观测面。
 
-`src/vm/internal/owner.cc` 与 gateway 状态面尚未收口，见
-[roadmap](roadmap.md)。
+gateway 状态面（`gateway_status_internal()`，单函数 303 键）尚未收口：那里几乎全是
+真实计数器与延迟采样，需要逐组判定，见 [roadmap](roadmap.md) R-14。
 
 ## 5 已知盲点
 

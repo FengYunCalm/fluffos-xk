@@ -848,10 +848,11 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--dump` 1,058 键；`--check` 预期为红直到 U5b | |
 | U3 | `524f0027` | 删假审计（含编码层归还）+ 2 个零消费者 bench efun | ctest 597/597；-ftest 433 文件退出码 0 | 两个子单元合并为一次提交（同一测试文件） |
 | U4 | `3e01bff9` | 64 位索引/区间截断、TTYPE、输入移除守卫 | ctest 597/597；-ftest 435 文件退出码 0 | 12 项中已吸收 4、已存在 3、部分 2、需设计/拆分 3 |
-| U5b | — | 删 1,372 个迁移脚手架键 | 生产侧已验证可行；阻塞点为测试重复助手 | **已尝试一次并回退**；见本节开头的阻塞分析与下一步顺序 |
-| U5c | — | 网关状态装配移出主逻辑文件 | — | 未开始 |
-| U5d | — | 下游 ownercheck 前后对比 | — | 未开始 |
+| U5b-a | `deb7e6bd` | 删除 object-store 迁移脚手架（1058→1008 键） | ctest 597/597；-ftest 434 文件退出码 0 | object_store.cc -258 行；嵌套三份重复副本合为一份 |
+| U5b-b | `f7fc15f8` | 删除生产门禁清单与代码自述键（1008→926） | ctest 596/596；-ftest 433 文件退出码 0 | 删 50 键 + `audit_owner_evidence.lpc` 及其 scope 行 |
+| U7-a | `5372a0dd` | mapping.cc 两份合并循环、object.cc 两份括号匹配 | ctest 596/596；-ftest 433 文件退出码 0 | 顺带修复覆盖版本漏恢复 `unfilled` |
+| U5c | — | 网关状态装配移出主逻辑文件 | — | 见 roadmap R-14 |
 | U6 | — | 7 个状态机显式化 | — | 未开始 |
-| U7 | — | 9 项重复合并 | — | 未开始 |
+| U7-b | — | 剩余重复项（`deep_inventory` 尾巴、interpret.cc 区间赋值等） | — | 见 roadmap R-15 |
 | U8 | — | 测试结构拆分 | — | 未开始 |
 | U9 | — | 长期门禁（契约/重复/体量） | — | U9a 脚本已就位，未接 CI |
