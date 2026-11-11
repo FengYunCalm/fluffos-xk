@@ -1362,106 +1362,63 @@ static bool deep_inventory_take(object_t* ob, array_t* dinv, int* i, int o, funp
   return true;
 }
 
-array_t* deep_inventory(object_t* ob, int take_top, funptr_t* fp) {
-  auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
-
-  array_t* dinv;
-  int i, o;
-
-  valid_hide_flag = 0;
-
-  /*
-   * count visible objects in an object's inventory, and in their
-   * inventory, etc
-   */
-  i = deep_inventory_count(ob);
-  if (take_top) {
-    i++;
-  }
-
-  if (i == 0) {
+// Count → clamp → allocate → collect → shrink, shared by deep_inventory() and
+// deep_inventory_array(). `roots` is a list of candidate svalues (an array's
+// items, or a single object) and `root_count` bounds it.
+static array_t* deep_inventory_build(int count, int take_top, funptr_t* fp, const svalue_t* roots,
+                                     int root_count) {
+  if (count == 0) {
     return &the_null_array;
   }
 
-  if (i > max_array_size) {
-    i = max_array_size;
+  const auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
+  if (count > max_array_size) {
+    count = max_array_size;
   }
 
-  /*
-   * allocate an array
-   */
-  dinv = int_allocate_array(o = i);
+  array_t* dinv = int_allocate_array(count);
   push_refed_array(dinv);
-  /*
-   * collect visible inventory objects recursively
-   */
-  i = 0;
-  if (!deep_inventory_take(ob, dinv, &i, o, fp, take_top)) {
-    pop_stack();  // dinv
-    return &the_null_array;
-  }
 
-  // resize the array if we have filtered out values
-  if (fp && i < o) {
-    dinv = resize_array(dinv, i);
-  }
-  sp--;  // get dinv off the stack, but don't free it;
-  return dinv;
-}
-
-array_t* deep_inventory_array(array_t* arr, int take_top, funptr_t* fp) {
-  auto max_array_size = CONFIG_INT(__MAX_ARRAY_SIZE__);
-
-  array_t* dinv;
-  int i, o, c;
-
-  valid_hide_flag = 0;
-
-  /*
-   * count visible objects in an object's inventory, and in their
-   * inventory, etc
-   */
-  i = 0;
-  for (c = 0; c < arr->size; c++) {
-    if (arr->item[c].type == T_OBJECT) {
-      i += deep_inventory_count(arr->item[c].u.ob);
-      if (take_top) {
-        i++;
-      }
-    }
-  }
-
-  if (i == 0) {
-    return &the_null_array;
-  }
-
-  if (i > max_array_size) {
-    i = max_array_size;
-  }
-
-  /*
-   * allocate an array
-   */
-  dinv = int_allocate_array(o = i);
-  push_refed_array(dinv);
-  /*
-   * collect visible inventory objects recursively
-   */
-  i = 0;
-  for (c = 0; i < o && c < arr->size; c++) {
-    if (arr->item[c].type == T_OBJECT &&
-        !deep_inventory_take(arr->item[c].u.ob, dinv, &i, o, fp, take_top)) {
+  int i = 0;
+  for (int c = 0; i < count && c < root_count; c++) {
+    if (roots[c].type == T_OBJECT &&
+        !deep_inventory_take(roots[c].u.ob, dinv, &i, count, fp, take_top)) {
       pop_stack();  // free dinv
       return &the_null_array;
     }
   }
 
   // resize the array if we have filtered out values
-  if (fp && i < o) {
+  if (fp && i < count) {
     dinv = resize_array(dinv, i);
   }
-  sp--;  // get dinv of the stack but don't free it
+  sp--;  // get dinv off the stack, but don't free it
   return dinv;
+}
+
+array_t* deep_inventory(object_t* ob, int take_top, funptr_t* fp) {
+  valid_hide_flag = 0;
+
+  svalue_t root;
+  root.type = T_OBJECT;
+  root.subtype = 0;
+  root.u.ob = ob;
+  return deep_inventory_build(deep_inventory_count(ob) + (take_top ? 1 : 0), take_top, fp, &root, 1);
+}
+
+array_t* deep_inventory_array(array_t* arr, int take_top, funptr_t* fp) {
+  valid_hide_flag = 0;
+
+  int count = 0;
+  for (int c = 0; c < arr->size; c++) {
+    if (arr->item[c].type == T_OBJECT) {
+      count += deep_inventory_count(arr->item[c].u.ob);
+      if (take_top) {
+        count++;
+      }
+    }
+  }
+  return deep_inventory_build(count, take_top, fp, arr->item, arr->size);
 }
 #endif
 
