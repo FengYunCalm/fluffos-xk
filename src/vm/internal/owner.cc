@@ -1303,72 +1303,80 @@ long owner_executor_callback_allowlist_count() {
   return callback_count;
 }
 
-const char* owner_task_failure_code(const std::string& state, const std::string& admission_state) {
+// One row per failure kind: the code and the human reason live together, so a
+// new kind cannot be added with one of the two. Classification reads the trace
+// event label and the admission state; the first matching rule wins.
+struct OwnerTaskFailureRule {
+  const char* code;
+  const char* reason;
+};
+
+constexpr OwnerTaskFailureRule kOwnerTaskBackpressure{
+    "owner_scheduler_backpressure",
+    "owner queue depth reached the scheduler backpressure limit"};
+constexpr OwnerTaskFailureRule kOwnerTaskCallbackNotAllowlisted{
+    "callback_not_allowlisted",
+    "callback task kind is not registered in the owner executor allowlist"};
+constexpr OwnerTaskFailureRule kOwnerTaskCallbackInvalidTarget{
+    "callback_invalid_target",
+    "callback target handle could not be resolved before executor admission"};
+constexpr OwnerTaskFailureRule kOwnerTaskEpochMismatch{
+    "owner_epoch_mismatch",
+    "target owner epoch no longer matches the captured callback handle"};
+constexpr OwnerTaskFailureRule kOwnerTaskTargetDestructed{
+    "target_destructed", "target object was destructed before callback dispatch"};
+constexpr OwnerTaskFailureRule kOwnerTaskTargetStale{
+    "target_stale", "target handle became stale before callback dispatch"};
+constexpr OwnerTaskFailureRule kOwnerTaskAdmissionRejected{
+    "admission_rejected", "owner executor admission rejected the task"};
+constexpr OwnerTaskFailureRule kOwnerTaskDropped{
+    "task_dropped", "owner executor dropped the task before callback dispatch"};
+
+const OwnerTaskFailureRule* owner_task_failure_rule(const std::string& state,
+                                                   const std::string& admission_state) {
   if (admission_state == "rejected_backpressure" || state == "backpressure_rejected") {
-    return "owner_scheduler_backpressure";
+    return &kOwnerTaskBackpressure;
   }
   if (admission_state == "rejected_callback_not_allowlisted") {
-    return "callback_not_allowlisted";
+    return &kOwnerTaskCallbackNotAllowlisted;
   }
   if (admission_state == "dropped_callback_invalid_target") {
-    return "callback_invalid_target";
+    return &kOwnerTaskCallbackInvalidTarget;
   }
   if (state.find("epoch_mismatch") != std::string::npos) {
-    return "owner_epoch_mismatch";
+    return &kOwnerTaskEpochMismatch;
   }
   if (state.find("destructed") != std::string::npos) {
-    return "target_destructed";
+    return &kOwnerTaskTargetDestructed;
   }
   if (state.find("stale") != std::string::npos) {
-    return "target_stale";
+    return &kOwnerTaskTargetStale;
   }
   if (state.find("rejected") != std::string::npos ||
       admission_state.find("rejected") != std::string::npos) {
-    return "admission_rejected";
+    return &kOwnerTaskAdmissionRejected;
   }
   if (state.find("dropped") != std::string::npos ||
       admission_state.find("dropped") != std::string::npos) {
-    return "task_dropped";
+    return &kOwnerTaskDropped;
   }
-  return "";
+  return nullptr;
+}
+
+const char* owner_task_failure_code(const std::string& state, const std::string& admission_state) {
+  const auto* rule = owner_task_failure_rule(state, admission_state);
+  return rule ? rule->code : "";
 }
 
 const char* owner_task_failure_reason(const std::string& state,
                                       const std::string& admission_state) {
-  const auto* code = owner_task_failure_code(state, admission_state);
-  if (code[0] == '\0') {
-    return "";
-  }
-  if (std::string(code) == "owner_scheduler_backpressure") {
-    return "owner queue depth reached the scheduler backpressure limit";
-  }
-  if (std::string(code) == "callback_not_allowlisted") {
-    return "callback task kind is not registered in the owner executor allowlist";
-  }
-  if (std::string(code) == "callback_invalid_target") {
-    return "callback target handle could not be resolved before executor admission";
-  }
-  if (std::string(code) == "owner_epoch_mismatch") {
-    return "target owner epoch no longer matches the captured callback handle";
-  }
-  if (std::string(code) == "target_destructed") {
-    return "target object was destructed before callback dispatch";
-  }
-  if (std::string(code) == "target_stale") {
-    return "target handle became stale before callback dispatch";
-  }
-  if (std::string(code) == "admission_rejected") {
-    return "owner executor admission rejected the task";
-  }
-  if (std::string(code) == "task_dropped") {
-    return "owner executor dropped the task before callback dispatch";
-  }
-  return "owner executor callback failed";
+  const auto* rule = owner_task_failure_rule(state, admission_state);
+  return rule ? rule->reason : "";
 }
 
 const char* owner_task_drop_reason(const std::string& state, const std::string& admission_state) {
-  auto* failure_code = owner_task_failure_code(state, admission_state);
-  return failure_code[0] == '\0' ? "none" : failure_code;
+  const auto* rule = owner_task_failure_rule(state, admission_state);
+  return rule ? rule->code : "none";
 }
 
 void add_mapping_owned_mapping(mapping_t* map, const char* key, mapping_t* value) {
