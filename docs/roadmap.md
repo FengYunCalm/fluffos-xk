@@ -46,6 +46,9 @@
 | R-07 | 上游 fused store（复合赋值/`++`/索引目标的融合写） | 与本地 managed lvalue/async 实现冲突 | 等价性分析 + 性能对照 |
 | R-08 | WebSocket TLS 热重载 | 当前明确拒绝，属安全敏感变更 | 设计文档 + 真机握手验证 |
 | R-09 | PCRE2 新 API（`pcre_config`/`pcre_info`/`pcre_convert` 等） | 本地 `.spec` 未公开这些 efun，不能把不存在接口伪装成覆盖 | API 决策 + 回归 |
+| R-10 | 编译器前端把折叠后的 64 位常量写进 int32 操作数 | 复现：`int big = 1 << 32;`（正确）vs `a[0 .. 1 << 32]`（边界被截断成 1）。VM 侧已修，前端常量发射路径未查 | 复现用例 + 常量发射路径定位（`icode`/`generate`）；上游 #1441 也未覆盖此路径 |
+| R-11 | 上游 #1441 的 efun 参数批次（`allocate`/`test_bit`/`member_array`/`replace_string`/`read_file`/`write_buffer` 等）与 `terminal_colour()` 崩溃修复 | VM 核心已修（见 U4 提交）；efun 批次未做，因为每个都需单独确认 in-range 行为不变 | 逐个 efun 的 before/after 用例 |
+| R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
 
 ### 2.3 上游待吸收
 

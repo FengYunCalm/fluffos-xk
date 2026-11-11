@@ -308,8 +308,8 @@ python3 tools/docs/check-docs.py
 
 ## U3 伪能力删除（`lpcc --owner-audit`）
 
-**删除目标**（findings §5.3）：整个 `src/compiler/internal/lpc_modern_profile.{h,cc}`
-被删除，内容按归属重新分配，不保留重复实现。
+**删除目标**（findings §5.3）：`lpc_modern_profile.h` / `lpc_modern_profile.cc` 整体删除，
+内容按归属重新分配，不保留重复实现。
 
 | 原内容 | 处置 | 新归属 |
 | --- | --- | --- |
@@ -818,13 +818,16 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 | 单元 | 提交 | 内容 | 验证结果 | 备注 |
 | --- | --- | --- | --- | --- |
-| U0 | — | 基线记录 | — | 待执行 |
-| U1 | — | — | — | 待执行 |
-| U2 | — | — | — | 待执行 |
-| U3 | — | — | — | 待执行 |
-| U4 | — | — | — | 待执行 |
-| U5 | — | — | — | 待执行 |
-| U6 | — | — | — | 待执行 |
-| U7 | — | — | — | 待执行 |
-| U8 | — | — | — | 待执行 |
-| U9 | — | — | — | 待执行 |
+| U0 | — | 基线冻结（598/598 CTest，433 文件 -ftest） | 通过 | 证据 `audit-evidence/refactor-2026-11/` |
+| U1 | `103dbf62` `852ea7f6` | 仓库卫生 + 凭据 + clang-tidy 状态说明 | check-docs OK | |
+| U2 | `8a5437d8` | 20 份历史计划归档；新增 roadmap/architecture；冻结历史检查策略 | check-docs OK (1149) | |
+| U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--dump` 1,058 键；`--check` 预期为红直到 U5b | |
+| U3 | `524f0027` | 删假审计（含编码层归还）+ 2 个零消费者 bench efun | ctest 597/597；-ftest 433 文件退出码 0 | 两个子单元合并为一次提交（同一测试文件） |
+| U4 | `3e01bff9` | 64 位索引/区间截断、TTYPE、输入移除守卫 | ctest 597/597；-ftest 435 文件退出码 0 | 12 项中已吸收 4、已存在 3、部分 2、需设计/拆分 3 |
+| U5b | — | 删 1,372 个迁移脚手架键 | — | **未开始** |
+| U5c | — | 网关状态装配移出主逻辑文件 | — | 未开始 |
+| U5d | — | 下游 ownercheck 前后对比 | — | 未开始 |
+| U6 | — | 7 个状态机显式化 | — | 未开始 |
+| U7 | — | 9 项重复合并 | — | 未开始 |
+| U8 | — | 测试结构拆分 | — | 未开始 |
+| U9 | — | 长期门禁（契约/重复/体量） | — | U9a 脚本已就位，未接 CI |

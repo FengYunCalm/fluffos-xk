@@ -435,18 +435,18 @@ source/skipped/reason` …）。信息密度低、无法检索、随代码漂移
 - **需设计**：与本地架构并行（typed efun / hooks / fused store），要单独方案。
 - **不适用**：文档、依赖升级、被本地架构取代。
 
-| 提交 | 内容 | 判定 | 依据 / 备注 |
+| 提交 | 内容 | 判定 | 实际处置（2026-11） |
 | --- | --- | --- | --- |
 | `38a718f4` | 修 typed-efun 扫描的 Coverity 缺陷 | 需设计 | 依赖 #1454 引入的 `EfunArgs`，本地无该层 |
 | `1db93cd0` `773c91c9` `3da29757` `0f103316` `59d8d2a8` `01026e1f` | docs 依赖升级（npm/yarn 组） | 不适用 | 本地 docs 用 VitePress，依赖树不同 |
-| `553232a2` | `request_term_type()` 发送完整 TTYPE SEND | **可直接吸收** | 本地 `net/telnet.cc:763` 只有 `telnet_begin_sb(TELNET_TTYPE_SEND)`，缺少上游对齐的完整子协商 |
+| `553232a2` | `request_term_type()` 发送完整 TTYPE SEND | **已吸收** | `net/telnet.cc` 改用 `telnet_ttype_send()`，不再发未终结的 3 字节子协商 |
 | `2c93fd86` | 修 `-DPACKAGE_SOCKETS=OFF` 与无 global include 文件的构建 | **可直接吸收** | 本地 CI 矩阵未验证关闭 sockets 的构建；属构建健壮性 |
 | `0b09e62f` | 由 spec 生成 typed efun 绑定（`EfunArgs`/`Value`/`CallResult`，隐藏 `st_num_arg`/`sp`） | 需设计 | 本地 `efuns_main.cc` 仍有 60+ 处直接读 `st_num_arg`；属于架构迁移，不是补丁 |
-| `923cdbc0` | `compress_file`/`uncompress_file` 短文件名越界读 | **可直接吸收** | 本地 `packages/compress/compress.cc` 保留原实现，需逐 hunk 核对 |
-| `7a66f8bf` | Coverity CID 1688265-1688271 + LPC 删除用户时的 UAF | **优先吸收** | 本地 `comm.cc:2005-2091` 的 `process_user_command_text` 依赖 `IP_VALID` 守卫，未做等价证明 |
+| `923cdbc0` | `compress_file`/`uncompress_file` 短文件名越界读 | **已吸收** | 本地 `compress.cc` 已用 `input_path.size() >= kGzExtensionLength` 先判长度（`f_compress_file` 与 `f_uncompress_file` 两处都有）；本轮核对确认，未改动 |
+| `7a66f8bf` | Coverity CID 1688265-1688271 + LPC 删除用户时的 UAF | **已部分吸收** | 延迟释放机制本地已有（`cleanup_pending` + `telnet_receive_depth` + `output_send_depth`，等价上游 InteractiveScope）；本轮补上缺失的两处“会话已丢就不再派发”检查（`process_user_command_text` 的 mxp 后、`print_prompt` 的 write_prompt 后），并为它们加了注释。hooks 相关项不适用（本地无 hooks） |
 | `3b4bc500` | hooks：function/efun/net/around 连接点 | 需设计 | 全新扩展面；与 owner admission 的交互必须先设计 |
 | `a26a1e06` | 复合赋值/`++`/索引/成员目标的 fused store | 需设计 | 本地 `icode.h` 无 fused 概念；会与本地 managed lvalue/async 实现冲突 |
-| `ddabcc89` | 不再在校验前把 64 位 LPC int 收窄；修 `terminal_colour()` 崩溃 | **可直接吸收** | 本地 `contrib.cc` 的 `f_terminal_colour` 已用 `%td`，但收窄点需逐处核对 |
+| `ddabcc89` | 不再在校验前把 64 位 LPC int 收窄；修 `terminal_colour()` 崩溃 | **已部分吸收** | VM 核心部分（索引/lvalue/区间/slice_array/字符串迭代器）已改完并附回归测试；efun 参数批次（allocate/test_bit/member_array/replace_string/read_file 等）与 `terminal_colour` 未做，见 roadmap R-11 |
 | `cadb2e8c` `2ed199b1` | Windows 测试用 `_mkdir`、检查 mkdir/unlink/rmdir 返回值 | **可直接吸收** | 测试健壮性，风险为零 |
 | `970d9f09` | `__FILE__`/`__DIR__` 在 `#include` 内指回编译对象 | 待判定 | 本地 `lex.cc:3431` `add_define("__FILE__", -1, dir)` 语义需与上游对比 |
 | `2a7e23e3` | `async_db_exec` 从析构里释放 callback 引用 | 待判定 | 本地 `async.cc` 的 promise 形态已改写，需按语义核对是否仍存在同一引用泄漏 |
@@ -455,9 +455,9 @@ source/skipped/reason` …）。信息密度低、无法检索、随代码漂移
 | `774d1783` | 配置整行读取；超长设置报错而不是丢弃剩余 | **已吸收** | `base/internal/rc.cc:221` 起的新解析器已按整行读并 `over-long` 报错 |
 | `df21db8e` `9d24db92` | 文档修正（diagnostics 链接、`telnet_suboption` 载荷语义） | 可直接吸收 | 纯文档 |
 | `79548f86` | master `author_file()` 用 master 对象名探测 | 待判定 | 本地 `master.cc:123,157` 用 `add_slash(CONFIG_STR(__MASTER_FILE__))` |
-| `328aaf10` | `mudlib_stats`：统计文件尚不存在时不报警 | **可直接吸收** | 小改动，本地 `packages/mudlib_stats` 保留原行为 |
+| `328aaf10` | `mudlib_stats`：统计文件尚不存在时不报警 | **已吸收** | 本地 `mudlib_stats.cc` 已有 `errno != ENOENT` 判断 |
 | `5e138c3c` `91de2eaf` | Coverity CID 修（tracing、多文件） | **可直接吸收** | 需按 CID 逐条核对本地是否同构 |
-| `56964d9d` | 静态 float 值被截断进 int 时告警 | **可直接吸收** | 本地无此诊断 |
+| `56964d9d` | 静态 float 值被截断进 int 时告警 | **需设计** | 这是新增的用户可见诊断（会改变 mudlib 编译输出），不属 bug 修复；本地无此诊断，需单独批准后做（roadmap R-12） |
 | `4dd319f0` | `debug_message()` 保持主线程；删除 rc/tracing 单测 | 待判定 | 本地已有独立 trace dump worker 设计（`base/internal/tracing.cc`），语义不同，不能直搬 |
 | `1b921bb3` | WebSocket 拒绝 `X-Real-IP` 解析失败的连接 | **已吸收** | 本地 `net/websocket.cc:160` 已有 trusted-proxy 校验与拒绝 |
 | `b2ba3f8f` | 四个 PR 合并（错误传播、matrix/websocket 去重、安全审计、单测覆盖） | 需拆分 | 主计划 §5.2 已要求拆子项，不能整包吸收 |
