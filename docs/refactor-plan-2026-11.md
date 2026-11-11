@@ -1,8 +1,7 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
-> 状态：**执行中**（2026-11）。已完成 U0–U7、U9a/U9b/U9e、U8 的 owner 部分（`0bd78a12`）；
-> 未完成：U8 的 gateway 部分（两个 namespace 区域内夹具/助手/测试混在一起，需先提取）、
-> U9c（clang-tidy，本机无固定版本工具链）、U9d（体量上限，依赖 gateway 拆分）、
+> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9d（C++ 部分）/U9e；
+> 未完成：U9c（clang-tidy，本机无固定版本工具链）、U9d 的 LPC 部分（需先拆 LPC 测试文件）、
 > U5d（下游验收，需起下游测试实例）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
@@ -658,24 +657,19 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 
 ## U8 测试结构
 
-> 状态（2026-11）：**owner 文件已拆完（`0bd78a12`），gateway 文件未拆**。
+> 状态（2026-11）：**已完成**（两次提交）。
 >
-> 已完成：
-> - `62cf1da9`：`mapping_number`/`mapping_string` 两个局部 lambda 在三个测试文件里
->   逐字重复 **192 次**（共 1,152 行），已收进 `test_lpc_support.h`。
-> - `95ec9da3`：`verify_async_callback_drain()` 与冗余的 `read_source_file_for_test()`
->   前向声明已提入 `test_lpc_support.h`。
-> - `0bd78a12`：`test_lpc_owner.cc` 16.5k 行 → 5 个 3.2–3.4k 行文件
->   （`test_lpc_owner` / `test_owner_gateway` / `test_owner_cross` /
->   `test_owner_executor` / `test_owner_worker`），按预处理区域整体搬运，
->   gtest 用例名集合拆分前后逐字相同（565 项），套件全绿。
+> - `62cf1da9`：`mapping_number`/`mapping_string` 逐字重复 192 次（1,152 行）收进
+>   `test_lpc_support.h`；`95ec9da3`：异步校验助手与冗余前向声明同号回收。
+> - `0bd78a12`：`test_lpc_owner.cc` 16.5k 行 → 5 个 3.2–3.4k 行文件。
+> - `c7e47e05`：`test_lpc_gateway.cc` 7.0k 行 → 两个 3.3k 文件，夹具/助手提入
+>   `test_gateway_support.h`（带 `#ifndef _WIN32`）。
 >
-> gateway 文件（7,030 行）为什么没拆：它的两个 `namespace { … }` 区域
-> （行 7-1434、6883-6937）里 **助手、夹具和测试混在一起**
-> （`AsciiInputFixture`、`check_ascii_chunks`、`gateway_test_*` 与 `TEST_F` 同域）。
-> 整体搬进头文件会让测试在多个 TU 各注一份（实测用例数 565 → 598），
-> 拆切则助手与夹具会跟使用者分家。正确顺序：先把非测试声明（类型、夹具、助手）
-> 从这两个区域提出头文件，再把剩余测试按体量切分；不可直接搬区域。
+> 验收方式：拆分前后 `--gtest_list_tests` 集合逐字相同（565 项，无重复无缺失），
+> 套件、ASan、`-ftest` 均全绿。最大测试文件从 16,523 行降到 3,447 行。
+>
+> 实测边界：`namespace { … }` 区域里夹具/助手/测试混在一起时，整块搬进头文件会让
+> 测试在多个 TU 各注一份（实测 565 → 598）；必须先拆出非测试声明，再切测试。
 
 | 序 | 动作 | 判据 |
 | --- | --- | --- |
@@ -747,12 +741,14 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 ### U9d 测试文件体量上限
 
-不用新脚本：直接在 `tools/docs/check-docs.py` 加一条 15 行的循环断言：
+**已落地（C++ 部分）**：`tools/docs/check-docs.py` 检查 `src/tests/*.cc` 单文件 ≤ **3,500** 行。
+U8 拆分后当前最大 3,447（`test_owner_worker.cc`），全部达标。
+验证：阀值临时改为 3,000 → 报三条超限并退出 1；改回 3,500 → 通过。
 
-- `src/tests/*.cc` 单文件 ≤ **3,500** 行（U8 拆成约 6 个文件后最大应在 3,000 左右）；
-- `testsuite/**/*.lpc` 单文件 ≤ **1,000** 行。
-
-阈值取整到有真实余量的值；如果 U8 拆分后某个文件超限，先调整拆分边界而不是抬高阈值。
+**LPC 部分未落地**：`testsuite/**/*.c|lpc` 当前最大 1,666 行
+（`single/tests/efuns/owner_executor_contract.c`）、次大 1,595（`compiler/utf8.c`），
+都超 1,000。LPC 测试按目录发现（`command/tests.c` 用 `get_dir(dir + "*.c")`），
+拆文件本身安全，但需要先把文件内助手提走（与 C++ 同样的工作）；未拆前上 1,000 会直接卡死门禁。
 
 ### U9e 文档结构检查
 

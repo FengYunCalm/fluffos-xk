@@ -297,7 +297,27 @@ def check_root_plan_status(docs_dir: str, repo: str) -> list[str]:
     return errors
 
 
-def report_draft_age(docs_dir: str, repo: str) -> None:
+_MAX_TEST_LINES = 3500
+
+
+def check_test_file_size(repo: str) -> list[str]:
+    """A test file that grows past the cap is a file nobody can read in one go."""
+    errors: list[str] = []
+    tests_dir = os.path.join(repo, "src", "tests")
+    if not os.path.isdir(tests_dir):
+        return errors
+    for name in sorted(os.listdir(tests_dir)):
+        if not name.endswith(".cc"):
+            continue
+        path = os.path.join(tests_dir, name)
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            count = sum(1 for _ in handle)
+        if count > _MAX_TEST_LINES:
+            errors.append(f"src/tests/{name}: {count} lines exceeds {_MAX_TEST_LINES}")
+    return errors
+
+
+def _draft_age_report(docs_dir: str, repo: str) -> None:
     """Report DRAFT documents untouched for a long time; never fails the check."""
     cutoff = time.time() - _DRAFT_AGE_DAYS * 86400
     for root, _dirs, files in os.walk(docs_dir):
@@ -342,13 +362,14 @@ def main() -> int:
         print(f"check-docs: {len(all_errors)} issue(s) across {checked} markdown files")
         return 1
     root_errors = check_root_plan_status(docs_dir, args.repo)
+    root_errors += check_test_file_size(args.repo)
     for e in root_errors:
         print(f"FAIL: {e}")
     if root_errors:
         print(f"check-docs: {len(root_errors)} root-document issue(s)")
         return 1
     if not args.skip_git:
-        report_draft_age(docs_dir, args.repo)
+        _draft_age_report(docs_dir, args.repo)
     print(f"check-docs: OK ({checked} markdown files)")
     return 0
 
