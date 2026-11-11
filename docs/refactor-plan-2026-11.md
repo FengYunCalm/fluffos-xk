@@ -1,8 +1,9 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
 > 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9c（advisory 接入）/U9e、
-> U9d（C++ 硬上限 + LPC 冻结基线）；未完成：U9d 的 LPC ≤1000 目标（需重构一个 790 行的
-> 断言函数）、U5d（下游验收，需起下游测试实例）。
+> U9d（C++ 硬上限 + LPC 冻结基线）、U5d 的启动验证与下游消费者核对；
+> 未完成：U5d 的 `ownercheck full` 前后对比（已实测为“跟数据状态走”，不能当门禁）、
+> U9d 的 LPC ≤1000 目标（需重构一个 790 行的断言函数）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
 > 上下文的执行者按序完成。
@@ -631,6 +632,35 @@ evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
 已鉴权的 admin 操作者，而登录链路由独立的 gateway-go 服务先做认证再把 session 绑进
 驱动（`login.c` 的 `bind_gateway_driver_session`）；在私有副本里绕过认证去调命令，
 验的就不再是“真实路径”。当前证据强度：启动通过 + 零下游消费者 + 本仓全部套件通过。
+
+#### 授权后的完整尝试（真实网关链路，未得出结论）
+
+批准后把整条链搭起来了，并确实跑到了 `ownercheck full`：
+
+1. 起驱动（副本，端口 33939）+ 起 `gateway-go`（副本配置，listen 38080），
+   用下游自己的 `tools/loadtest/xkx_websocket_loadtest.py` 作客户端（它封装了真实
+   XK 协议登录与建角流程）。
+2. 副本内做三处**仅限副本**的改动：临时账号、`admins.cfg` 加名、
+   跳过 `identity_migration_not_ready` 闸门（并在启动时跑一次 migration）。
+3. 成功：角色创建成功、进入游戏；用 `testcharacter create/run` 建隔离夹具后执行
+   `ownercheck full`，得到 mudlib 自己的结论行。
+
+**结果不一致，因此不能用它做前后对比**（同一份代码、同一副本配置）：
+
+| 副本 | 驱动 | `ownercheck_full` / `reason` |
+| --- | --- | --- |
+| A（保留仓库原始 data） | 当前 HEAD | **1 / 0（PASS）**，连跑两次一致 |
+| A | 改动前 `228eaa51~1` | 0 / contract（FAIL） |
+| B（清空 account/user/log 后重新建角） | 当前 HEAD | 0 / contract（FAIL） |
+| B | 改动前 `228eaa51~1` | 0 / contract（FAIL） |
+
+同一个二进制在不同数据状态下一个通过一个失败，说明这个判定跟**数据状态**走，
+而不是跟驱动走；所以“改前失败 / 改后通过”的差异不能归因于本次改动，此处**不作任何
+回归修复声明**。这与早先记录的“room/contract 失败是下游数据与 handler 缺口”一致。
+
+要把它当成可靠门禁，需要的是一个“已长期运行、有历史快照与 journal 的测试实例”，
+而不是临时副本；那属于下游运维环境，超出本仓可验证范围。证据日志已存
+`evidence/u5d_*.log`（未入版本库）。
 
 **方法坑**：只扫 `add_mapping_*(map, "literal")` 会把宏拼出的键当成“已删”，
 必须先把 `GATEWAY_*_US` 展开；否则会得出“下游在读取已删键”的假阳性。
