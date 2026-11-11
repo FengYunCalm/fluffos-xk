@@ -657,12 +657,29 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 
 ## U8 测试结构
 
-> 状态（2026-11）：**未开始**。已完成前置测量：`test_lpc_owner.cc` 里 8 行的
-> `mapping_number`/`mapping_string` 局部 lambda 对逐字重复 77 次（≈616 行），
-> 这是拆分前应先回收的重复，也是拆分时每个新文件都要带的样板。
-> 阻塞点：77 份文本完全相同，逐条 `edit` 无法定位唯一匹配；这一步应落成一个
-> 可审阅的批量替换 diff（同一对 helper 提到 `test_lpc_support.h`，再删局部定义），
-> 而不是手工改 77 处。
+> 状态（2026-11）：**前置件已完成，拆分未落地**。
+>
+> 已完成：
+> - `62cf1da9`：`mapping_number`/`mapping_string` 两个局部 lambda 在三个测试文件里
+>   逐字重复 **192 次**（owner 161 / gateway 30 / compiler 1，共 1,152 行），
+>   已收进 `test_lpc_support.h` 两个 inline helper，调用名不变。
+> - `95ec9da3`：owner 文件里的 `verify_async_callback_drain()`（40 行）与一个冗余的
+>   `read_source_file_for_test()` 前向声明已提入 `test_lpc_support.h`（前者在
+>   `PACKAGE_ASYNC` 内）。全量 564 项通过。
+>
+> 拆分还没做的原因（已实测，不是估计）：
+> 1. **预处理器区域跨测试**：`#ifdef PACKAGE_ASYNC` / `PACKAGE_SOCKETS` / `_WIN32` /
+>    `__linux__` 包住“若干测试”，且**区域最后一个测试的尾部已经含有 closer**。
+>    按 TEST_F 切段后两种写法都不配平：补 `#endif` 多一层，不补则未闭合。
+>    正确做法是以“整个预处理器区域”为单位搬运，而不是以单个测试为单位。
+> 2. **文件内助手仍在**：`test_lpc_gateway.cc` 还有 `gateway_test_seed_owner_room_event`
+>    等 9 个文件内助手（行 1366-1430），未提走前无法切该文件。
+> 3. 实测发现，逐行重建大文件时，工具输出会在中途插入非文件内容（系统提示），
+>    按行号校验会失败；因此必须按“内容锚点 + 编译/测试名集合相等”验收，不能只比行数。
+>
+> 已测得的自然分组与体量（可作后续拆分的边界）：
+> owner 文件 16,523 行 = 访问模式 675 / gateway 4,280 / future+handle 2,138 /
+> canary+LPC task 1,289 / executor 4,155 / 其余 3,930，另有 PACKAGE_ASYNC 区域 126 行。
 
 | 序 | 动作 | 判据 |
 | --- | --- | --- |
