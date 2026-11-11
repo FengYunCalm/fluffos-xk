@@ -1,0 +1,80 @@
+// `a & b` and `a | b` on arrays go through intersect_array()/union_array(),
+// which sort a private copy of an argument when it is shared (ref > 1) and sort
+// the argument in place when it is not. Both paths normalise destructed objects
+// and non-shared strings first, so the shared path must not mutate the caller's
+// array while the in-place path must not leak or double-free replaced values.
+//
+// These paths had no LPC coverage before; this pins both.
+
+void do_tests() {
+  // Plain values.
+  ASSERT_EQ(({ 2, 3 }), ({ 1, 2, 3 }) & ({ 2, 3, 4 }));
+  ASSERT_EQ(({ 1, 2, 3, 4 }), ({ 1, 2, 3 }) | ({ 2, 3, 4 }));
+  ASSERT_EQ(({}), ({ 1, 2 }) & ({ 3, 4 }));
+
+  // These are multiset merges, not set operations: a value repeated on both
+  // sides keeps the smaller count for `&` and the larger count for `|`.
+  ASSERT_EQ(({ 2, 2 }), ({ 1, 2, 2 }) & ({ 2, 2, 3 }));
+  ASSERT_EQ(({ 1, 1, 2, 3, 3 }), ({ 1, 1, 2 }) | ({ 2, 3, 3 }));
+  ASSERT_EQ(({ 2 }), ({ 1, 2 }) & ({ 2, 2 }));
+  ASSERT_EQ(({ 2, 2 }), ({ 2, 2 }) | ({ 2 }));
+
+  // Strings, including values that are not stored as shared strings yet.
+  ASSERT_EQ(({ "b" }), ({ "a", "b" }) & ({ "b", "c" }));
+  ASSERT_EQ(({ "a", "b", "c" }), ({ "a", "b" }) | ({ "b", "c" }));
+
+  // Empty arguments.
+  ASSERT_EQ(({}), ({}) & ({ 1 }));
+  ASSERT_EQ(({ 1 }), ({}) | ({ 1 }));
+
+  // Shared arguments (ref > 1): the caller's arrays must survive untouched and
+  // keep their length and contents.
+  {
+    mixed *left = ({ 3, 1, 2 });
+    mixed *right = ({ 2, 4, 3 });
+    mixed *left_alias = left;
+    mixed *right_alias = right;
+
+    ASSERT_EQ(({ 2, 3 }), left & right);
+    ASSERT_EQ(({ 3, 1, 2 }), left_alias);
+    ASSERT_EQ(({ 2, 4, 3 }), right_alias);
+    ASSERT_EQ(3, sizeof(left));
+    ASSERT_EQ(3, sizeof(right));
+
+    // `|` keeps the left operand's order and appends values only present on the
+    // right; `&` returns values in ascending order.
+    ASSERT_EQ(({ 3, 1, 2, 4 }), left | right);
+    ASSERT_EQ(({ 3, 1, 2 }), left);
+    ASSERT_EQ(({ 2, 4, 3 }), right);
+    ASSERT_EQ(left, left_alias);
+    ASSERT_EQ(right, right_alias);
+  }
+
+  // Compound forms keep both the variable and the expression valid.
+  {
+    mixed *left = ({ 1, 2, 3 });
+    mixed *alias = left;
+    left &= ({ 2, 3, 4 });
+    ASSERT_EQ(({ 2, 3 }), left);
+    ASSERT_EQ(({ 1, 2, 3 }), alias);
+
+    left = ({ 1, 2, 3 });
+    alias = left;
+    left |= ({ 3, 4 });
+    ASSERT_EQ(({ 1, 2, 3, 4 }), left);
+    ASSERT_EQ(({ 1, 2, 3 }), alias);
+  }
+
+  // Destructed objects in the input are treated as 0 and must not crash either
+  // path.
+  {
+    object dead = clone_object("/single/void");
+    object live = clone_object("/single/void");
+    mixed *with_dead = ({ dead, live });
+    mixed *shared = with_dead;
+    destruct(dead);
+    ASSERT_EQ(2, sizeof(shared));
+    ASSERT_EQ(2, sizeof(with_dead | ({ live })));
+    destruct(live);
+  }
+}

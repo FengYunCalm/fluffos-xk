@@ -1610,8 +1610,8 @@ array_t* intersect_array(array_t* a1, array_t* a2) {
   array_t* a3;
   const int a1s = checked_array_size(a1, "intersect_array");
   const int a2s = checked_array_size(a2, "intersect_array");
-  long d, l, j, i, flag;
-  svalue_t *svt_1, *ntab, *sv_tab, *sv_ptr, val, *tmp;
+  long d, l, j, i;
+  svalue_t *svt_1, *ntab, *sv_tab, val;
   long curix, parix, child1, child2;
 
   if (!a1s || !a2s) {
@@ -1621,62 +1621,9 @@ array_t* intersect_array(array_t* a1, array_t* a2) {
   }
 
   svt_1 = alist_sort(a1);
-  if ((flag = (a2->ref > 1))) {
-    sv_tab = reinterpret_cast<svalue_t*>(DCALLOC(static_cast<size_t>(a2s), sizeof(svalue_t),
-                                                 TAG_TEMPORARY, "intersect_array: sv2_tab"));
-    sv_ptr = a2->item;
-    for (j = 0; j < a2s; j++) {
-      if (((tmp = (sv_ptr + j))->type == T_OBJECT) && (tmp->u.ob->flags & O_DESTRUCTED)) {
-        free_object(&tmp->u.ob, "intersect_array");
-        sv_tab[j] = *tmp = const0u;
-      } else if ((tmp->type == T_STRING) && !(tmp->subtype == STRING_SHARED)) {
-        sv_tab[j].u.string = make_shared_string(tmp->u.string);
-        (tmp = sv_tab + j)->subtype = STRING_SHARED;
-        tmp->type = T_STRING;
-      } else {
-        assign_svalue_no_free(sv_tab + j, tmp);
-      }
-
-      if ((curix = j)) {
-        val = *tmp;
-
-        do {
-          parix = (curix - 1) >> 1;
-          if (alist_cmp(sv_tab + parix, sv_tab + curix) > 0) {
-            sv_tab[curix] = sv_tab[parix];
-            sv_tab[parix] = val;
-          }
-        } while ((curix = parix));
-      }
-    }
-  } else {
-    const char* str;
-
-    sv_tab = a2->item;
-    for (j = 0; j < a2s; j++) {
-      if (((tmp = (sv_tab + j))->type == T_OBJECT) && (tmp->u.ob->flags & O_DESTRUCTED)) {
-        free_object(&tmp->u.ob, "alist_sort");
-        *tmp = const0u;
-      } else if ((tmp->type == T_STRING) && !(tmp->subtype == STRING_SHARED)) {
-        str = make_shared_string(tmp->u.string);
-        free_string_svalue(tmp);
-        tmp->u.string = str;
-        tmp->subtype = STRING_SHARED;
-      }
-
-      if ((curix = j)) {
-        val = *tmp;
-
-        do {
-          parix = (curix - 1) >> 1;
-          if (alist_cmp(sv_tab + parix, sv_tab + curix) > 0) {
-            sv_tab[curix] = sv_tab[parix];
-            sv_tab[parix] = val;
-          }
-        } while ((curix = parix));
-      }
-    }
-  }
+  // Same normalise+heap-sort step as a1, so reuse it instead of keeping a second
+  // copy of the loop here (a new value type must only be taught to one of them).
+  sv_tab = alist_sort(a2);
 
   a3 = ALLOC_ARRAY(a2s);
   ntab = a3->item;
@@ -1735,7 +1682,7 @@ settle_business:
 
   free_empty_array(a1);
 
-  if (flag) {
+  if (sv_tab != a2->item) {
     a2->ref--;
     FREE((char*)sv_tab);
   } else {
@@ -1750,9 +1697,9 @@ array_t* union_array(array_t* a1, array_t* a2) {
 
   const int a1s = checked_array_size(a1, "union_array");
   const int a2s = checked_array_size(a2, "union_array");
-  long d, l, j, i, cnt, flag;
+  long d, l, j, i, cnt;
   array_t* a3; /* destination */
-  svalue_t *svt_1, *ntab, *sv_tab, *tmp, *sv_ptr, val;
+  svalue_t *svt_1, *ntab, *sv_tab, *tmp, val;
   long curix, parix, child1, child2;
 
   if (a1s == 0) {
@@ -1779,62 +1726,8 @@ array_t* union_array(array_t* a1, array_t* a2) {
   }
 
   svt_1 = alist_sort(a1);
-  if ((flag = (a2->ref > 1))) {
-    sv_tab = reinterpret_cast<svalue_t*>(
-        DCALLOC(static_cast<size_t>(a2s), sizeof(svalue_t), TAG_TEMPORARY, "union_array: sv2_tab"));
-    sv_ptr = a2->item;
-    for (j = 0; j < a2s; j++) {
-      if (((tmp = (sv_ptr + j))->type == T_OBJECT) && (tmp->u.ob->flags & O_DESTRUCTED)) {
-        free_object(&tmp->u.ob, "union_array");
-        sv_tab[j] = *tmp = const0u;
-      } else if ((tmp->type == T_STRING) && !(tmp->subtype == STRING_SHARED)) {
-        sv_tab[j].u.string = make_shared_string(tmp->u.string);
-        (tmp = sv_tab + j)->subtype = STRING_SHARED;
-        tmp->type = T_STRING;
-      } else {
-        assign_svalue_no_free(sv_tab + j, tmp);
-      }
-
-      if ((curix = j)) {
-        val = *tmp;
-
-        do {
-          parix = (curix - 1) >> 1;
-          if (alist_cmp(sv_tab + parix, sv_tab + curix) > 0) {
-            sv_tab[curix] = sv_tab[parix];
-            sv_tab[parix] = val;
-          }
-        } while ((curix = parix));
-      }
-    }
-  } else {
-    const char* str;
-
-    sv_tab = a2->item;
-    for (j = 0; j < a2s; j++) {
-      if (((tmp = (sv_tab + j))->type == T_OBJECT) && (tmp->u.ob->flags & O_DESTRUCTED)) {
-        free_object(&tmp->u.ob, "union_array");
-        *tmp = const0u;
-      } else if ((tmp->type == T_STRING) && !(tmp->subtype == STRING_SHARED)) {
-        str = make_shared_string(tmp->u.string);
-        free_string_svalue(tmp);
-        tmp->u.string = str;
-        tmp->subtype = STRING_SHARED;
-      }
-
-      if ((curix = j)) {
-        val = *tmp;
-
-        do {
-          parix = (curix - 1) >> 1;
-          if (alist_cmp(sv_tab + parix, sv_tab + curix) > 0) {
-            sv_tab[curix] = sv_tab[parix];
-            sv_tab[parix] = val;
-          }
-        } while ((curix = parix));
-      }
-    }
-  }
+  // Same normalise+heap-sort step as a1; reuse it rather than keeping a second copy.
+  sv_tab = alist_sort(a2);
 
   i = 0;
 
@@ -1886,7 +1779,7 @@ array_t* union_array(array_t* a1, array_t* a2) {
 
   free_empty_array(a1);
 
-  if (flag) {
+  if (sv_tab != a2->item) {
     a2->ref--;
     FREE((char*)sv_tab);
   } else {
