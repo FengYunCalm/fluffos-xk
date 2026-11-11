@@ -1,0 +1,73 @@
+// Range stores have two entry points with different ownership contracts:
+// `x[a..b] = y` keeps borrowing the right-hand side, while the compiler's
+// copy form takes it over and may move an array's elements out of it when the
+// array holds the only reference.
+//
+// Both share one implementation, so this pins the distinction that makes them
+// differ: a borrowing store must leave the right-hand side untouched, no matter
+// how many references it has.
+
+void do_tests() {
+  mixed *dst;
+  mixed *rhs;
+
+  // One reference on the right-hand side: the store still must not empty it.
+  rhs = ({ 7, 8 });
+  dst = ({ 1, 2, 3, 4 });
+  dst[1 .. 2] = rhs;
+  ASSERT_EQ(({ 1, 7, 8, 4 }), dst);
+  ASSERT_EQ(({ 7, 8 }), rhs);
+  ASSERT_EQ(2, sizeof(rhs));
+
+  // Two references: the same must hold, and the shared array stays valid.
+  rhs = ({ 5, 6 });
+  dst = ({ 1, 2, 3, 4 });
+  {
+    mixed *alias = rhs;
+    dst[0 .. 1] = rhs;
+    ASSERT_EQ(({ 5, 6, 3, 4 }), dst);
+    ASSERT_EQ(({ 5, 6 }), alias);
+  }
+  ASSERT_EQ(({ 5, 6 }), rhs);
+
+  // Same-length splice takes the fast path; a different length reallocates.
+  dst = ({ 1, 2, 3 });
+  dst[0 .. 1] = ({ 9, 9 });
+  ASSERT_EQ(({ 9, 9, 3 }), dst);
+  dst[0 .. 1] = ({ 4, 4, 4 });
+  ASSERT_EQ(({ 4, 4, 4, 3 }), dst);
+
+  // Strings: in-place splice when lengths match, reallocation otherwise, and
+  // the cached ASCII tag must not survive a non-ASCII splice.
+  {
+    string s = "abcd";
+    string r = "xy";
+    s[1 .. 2] = r;
+    ASSERT_EQ("axyd", s);
+    ASSERT_EQ("xy", r);
+
+    s = "abcd";
+    s[1 .. 2] = "XYZ";
+    ASSERT_EQ("aXYZd", s);
+
+    s = "abcd";
+    s[0 .. 1] = "\u00e9\u00e9";  // non-ASCII, same character count
+    ASSERT_EQ(4, sizeof(s));
+    ASSERT_EQ("\u00e9", s[0 .. 0]);
+    ASSERT_EQ("cd", s[2 .. 3]);
+  }
+
+  // Buffers take the same two paths.
+  {
+    buffer b = allocate_buffer(4);
+    buffer r = allocate_buffer(2);
+    b[1] = 65;
+    r[0] = 1;
+    r[1] = 2;
+    b[1 .. 2] = r;
+    ASSERT_EQ(4, sizeof(b));
+    ASSERT_EQ(1, b[1]);
+    ASSERT_EQ(2, b[2]);
+    ASSERT_EQ(1, r[0]);
+  }
+}
