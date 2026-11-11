@@ -50,7 +50,7 @@
 | R-11 | 上游 #1441 的 efun 参数批次与 `terminal_colour()` 崩溃修复 | **已完成**：allocate/allocate_buffer/test_bit/next_bit/member_array/replace_string/read_file/read_buffer/write_buffer/strsrch/fetch_class_member/store_class_member 均已改（`b3ab58ae` `4ee32b1d` `4cf22dc6` `e202a3d5`）；`terminal_colour` 崩溃本身未复现，未改 | 继续扫同类：任何 `int x = ...u.number` 都是可疑点 |
 | R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
 | R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器 | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件） |
-| R-14 | gateway 状态面收口（`gateway_status_internal()`） | **进行中**：987 → 485 行。已拆出后端切片块（`6f3232bb`）、151 个计数器改 `GATEWAY_COUNTER()`（`a4bcf55c`）、房间输出投影块（`5adba526`） | 剩余按连续段拆（read/command/reply/output 的延迟采样段）；不按子系统拆，因为键在这些段里交错，按子系统拆会改键顺序 |
+| R-14 | gateway 状态面收口（`gateway_status_internal()`） | **进行中**：987 → 421 行。已拆出后端切片块（`6f3232bb`）、151 个计数器与 36 处延迟采样改单令牌宏（`a4bcf55c` `e6ac5c7f`）、房间输出投影块（`5adba526`） | 剩余 421 行里主要是按子系统交错的真实计数与阈值；继续拆需先重新勘测连续段 |
 | R-15 | `deep_inventory` 与 `deep_inventory_array` 共享 55 行计数→分配→收集→收缩尾巴，只差计数循环 | **已完成**（`288bd809`）：抽出 `deep_inventory_build()`，两个入口只剩各自的计数循环 | — |
 | R-16 | `copy_lvalue_range` / `assign_lvalue_range` 两份区间赋值（152 + 129 行） | **已完成**（`a90b1fb4` 合并 + `aee32345` 补所有权契约测试） | — |
 | R-17 | 剩余重复项 | U7 已完成的 4 项之外，需重新做结构扫描才知道还有什么；8 行以上的重复块在 `array.cc` 仍有 ~112 处命中（含有意保留的对称分支） | 按块分组后逐项判定，不批量删除 |
@@ -58,7 +58,7 @@
 | R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | 30+ 调用点，且 `owner_task_failure_code()` 靠 `find("rejected")` 做分类；转枚举需要先把分类规则改成显式表 | 先列全部取值与分类映射，再换类型；不要用字符串前缀判断冒充分类 |
 | R-20 | 已完成的两组重复合并 | `socket_efuns.cc` TLS 握手（`7398e170`）、`compress.cc` 两个 efun（`96ad487c`） | — |
 | R-21 | 剩余重复 | `interpret.cc` 帧解码：**已完成**（`9f88ce89`）；三个 benchmark 的环境装配：**已完成**（`82f89903`，含三份已漂移的写报告逻辑） | — |
-| R-24 | findings §4.2 提到的两个 fuzz 入口重复 | **已失效**：`main_fuzz_compile.cc` / `main_fuzz_restore.cc` 在本仓库已不存在（仅存于 `audit-evidence/` 的沙箱副本） | 下次审计重跑结构扫描时删掉这条 |
+| R-25 | 重构后的 sanitizer 复核 | **未执行**：本系列改过引用计数与生命周期密集代码（区间赋值、deep_inventory 共尾、`&`/`|` 临时表、帧解析），但它们只用 Debug 构建 + testsuite 验证过 | 下次在内存充足时跑 `cmake --preset asan` + 定向测试；本次可用内存仅 2 GiB，按项目规则未启动 ASan 构建 |
 | R-22 | `array.cc` 三份排序临时表 | **已完成**（`7e4add49`）：`&`/`|` 改调 `alist_sort()`，两份内联循环删除 | — |
 | R-23 | `intersect_array`/`union_array` 零 LPC 覆盖 | **已补**（同一提交）：27 断言，含多重集语义与 ref>1 不被原改 | `&` 取较小重数、`|` 取较大重数且保留左操作数顺序——旧代码如此，现在有测试锁住 |
 
