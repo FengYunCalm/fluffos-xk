@@ -359,14 +359,6 @@ char* int_new_string(unsigned int size)
 {
   malloc_block_t* mbt;
 
-#if 0
-  if (!size) {
-    the_null_string_blocks[0].ref++;
-    ADD_NEW_STRING(0, sizeof(malloc_block_t));
-    return the_null_string;
-  }
-#endif
-
   mbt = reinterpret_cast<malloc_block_t*>(
       DMALLOC(size + sizeof(malloc_block_t) + 1, TAG_MALLOC_STRING, tag));
   if (size < UINT_MAX) {

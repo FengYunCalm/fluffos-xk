@@ -350,17 +350,6 @@ static void build_lookat_matrix(Vector ep, Vector lp, Vector u, Matrix M) {
   M[9] = v.z;
   M[10] = n.z;
   M[11] = 0.;
-#if 0
-  M[12] = ep.x;
-  M[13] = ep.y;
-  M[14] = ep.z;
-  M[15] = 1.;
-#endif
-#if 0
-  M[12] = -U.x * ep.x - U.y * ep.y - U.z * ep.z;
-  M[13] = -V.x * ep.x - V.y * ep.y - V.z * ep.z;
-  M[14] = -N.x * ep.x - N.y * ep.y - N.z * ep.z;
-#endif
   M[12] = ((u.x * ep.x) + (u.y * ep.y) + (u.z * ep.z));
   M[13] = ((v.x * ep.x) + (v.y * ep.y) + (v.z * ep.z));
   M[14] = ((n.x * ep.x) + (n.y * ep.y) + (n.z * ep.z));
