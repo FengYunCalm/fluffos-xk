@@ -854,7 +854,11 @@ svalue_t* find_string_in_mapping(const mapping_t* m, const char* p) {
     add_to_mapping: adds mapping m2 to m1
 */
 
-static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
+// Which value survives when both mappings already have the key.
+enum class MergeExistingValue { kOverwrite, kKeep };
+
+static void merge_mapping_into(mapping_t* m1, mapping_t* m2, int free_flag,
+                               MergeExistingValue existing) {
   int mask = m1->table_size, j = m2->table_size;
   int count = MAP_COUNT(m1);
   int i, oi;
@@ -869,7 +873,9 @@ static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
       if ((n = elt1 = a1[i])) {
         do {
           if (msameval(sv, elt1->values)) {
-            assign_svalue(elt1->values + 1, sv + 1);
+            if (existing == MergeExistingValue::kOverwrite) {
+              assign_svalue(elt1->values + 1, sv + 1);
+            }
             break;
           }
         } while ((elt1 = elt1->next));
@@ -885,6 +891,7 @@ static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
           mask <<= 1;
           mask--;
         } else {
+          ++m1->unfilled;
           count -= MAP_COUNT(m1);
 #ifdef PACKAGE_MUDLIB_STATS
           add_array_size(&m1->stats, count << 1);
@@ -898,8 +905,8 @@ static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
           error("Out of memory\n");
         }
       }
-      count++;
-      if (count > MAX_MAPPING_SIZE) {
+
+      if (++count > MAX_MAPPING_SIZE) {
         if (count -= MAP_COUNT(m1) + 1) {
 #ifdef PACKAGE_MUDLIB_STATS
           add_array_size(&m1->stats, count << 1);
@@ -934,81 +941,14 @@ static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
                             if they have common keys
 */
 
-static void unique_add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
-  int mask = m1->table_size, j = m2->table_size;
-  int count = MAP_COUNT(m1);
-  int i, oi;
-  mapping_node_t *elt1, *elt2, *newnode, *n;
-  mapping_node_t **a1 = m1->table, **a2 = m2->table;
-  svalue_t* sv;
-
-  do {
-    for (elt2 = a2[j]; elt2; elt2 = elt2->next) {
-      i = (oi = node_hash(elt2)) & mask;
-      sv = elt2->values;
-      if ((n = elt1 = a1[i])) {
-        do {
-          if (msameval(sv, elt1->values)) {
-            break;
-          }
-        } while ((elt1 = elt1->next));
-        if (elt1) {
-          continue;
-        }
-      } else if (!(--m1->unfilled)) {
-        if (growMap(m1)) {
-          a1 = m1->table;
-          if (oi & ++mask) {
-            n = a1[i |= mask];
-          }
-          mask <<= 1;
-          mask--;
-        } else {
-          ++m1->unfilled;
-          count -= MAP_COUNT(m1);
-#ifdef PACKAGE_MUDLIB_STATS
-          add_array_size(&m1->stats, count << 1);
-#endif
-          total_mapping_size += count * sizeof(mapping_node_t);
-          total_mapping_nodes += count;
-          m1->count += count;
-          if (free_flag) {
-            free_mapping(m1);
-          }
-
-          error("Out of memory\n");
-        }
-      }
-
-      if (++count > MAX_MAPPING_SIZE) {
-        if (count -= MAP_COUNT(m1) + 1) {
-#ifdef PACKAGE_MUDLIB_STATS
-          add_array_size(&m1->stats, count << 1);
-#endif
-          total_mapping_size += count * sizeof(mapping_node_t);
-          total_mapping_nodes += count;
-        }
-        m1->count += count;
-        mapping_too_large();
-      }
-
-      newnode = new_map_node();
-      assign_svalue_no_free(newnode->values, elt2->values);
-      assign_svalue_no_free(newnode->values + 1, elt2->values + 1);
-      (a1[i] = newnode)->next = n;
-    }
-  } while (j--);
-
-  if (count -= MAP_COUNT(m1)) {
-#ifdef PACKAGE_MUDLIB_STATS
-    add_array_size(&m1->stats, count << 1);
-#endif
-    total_mapping_size += count * sizeof(mapping_node_t);
-    total_mapping_nodes += count;
-  }
-
-  m1->count += count;
+static void add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
+  merge_mapping_into(m1, m2, free_flag, MergeExistingValue::kOverwrite);
 }
+
+static void unique_add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
+  merge_mapping_into(m1, m2, free_flag, MergeExistingValue::kKeep);
+}
+
 
 void absorb_mapping(mapping_t* m1, mapping_t* m2) {
   if (MAP_COUNT(m2)) {

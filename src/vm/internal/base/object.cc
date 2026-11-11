@@ -340,32 +340,14 @@ static int restore_internal_size(const char** str, int is_mapping, int depth, in
         break;
       }
 
-      case ']': {
-        if (*cp++ == ')' && is_mapping) {
-          *str = cp;
-          if (!sizes) {
-            max_depth = 128;
-            while (max_depth <= depth) {
-              max_depth <<= 1;
-            }
-            sizes = reinterpret_cast<int*>(
-                DCALLOC(max_depth, sizeof(int), TAG_TEMPORARY, "restore_internal_size"));
-          } else if (depth >= max_depth) {
-            while ((max_depth <<= 1) <= depth) {
-              ;
-            }
-            sizes = RESIZE(sizes, max_depth, int, TAG_TEMPORARY, "restore_internal_size");
-          }
-          sizes[depth] = size;
-          return 1;
-        } else {
-          return 0;
-        }
-      }
-
+      // A mapping opens with '([' / closes with '])'; everything else uses
+      // '(' / ')'. Both spellings of the closing bracket share this arm: they
+      // differ only in which of the two the caller expects.
+      case ']':
       case '/':
       case '}': {
-        if (*cp++ == ')' && !is_mapping) {
+        const bool opens_mapping = c == ']';
+        if (*cp++ == ')' && opens_mapping == is_mapping) {
           *str = cp;
           if (!sizes) {
             max_depth = 128;
