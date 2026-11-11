@@ -14,6 +14,13 @@ void do_tests() {
   ASSERT_EQ(-1, strsrch(txt, 'z'));
   ASSERT_EQ(-1, strsrch(txt, "我"[0]));
 
+  // A codepoint wider than 21 bits cannot be a character: it used to truncate
+  // into a different one (0x1000000E9 searched U+00E9) instead of erroring.
+  ASSERT(catch(strsrch(txt, 0x1000000E9)));
+  ASSERT(catch(strsrch("caf\u00e9", 0x1000000E9)));
+  ASSERT(catch(strsrch(txt, -1)));
+  ASSERT_EQ(3, strsrch("caf\u00e9", 0xE9));
+
   // short ascii string
   ASSERT_EQ(43, strsrch(txt, "luck"));
   ASSERT_EQ(113, strsrch(txt, "come"));

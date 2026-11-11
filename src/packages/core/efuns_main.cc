@@ -2876,6 +2876,11 @@ void f_strsrch() {
   size_t find_len = 0;
 
   if (arg2->type == T_NUMBER) {
+    // A codepoint is 21 bits; passing an LPC int straight to U8_APPEND truncated
+    // anything wider into a different character (0x1000000E9 searched U+00E9).
+    if (arg2->u.number < 0 || arg2->u.number > 0x10FFFF) {
+      error("Invalid codepoint to search.");
+    }
     UBool is_error = false;
     int offset = 0;
     U8_APPEND(buf, offset, sizeof(buf), arg2->u.number, is_error);
