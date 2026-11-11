@@ -351,6 +351,26 @@ void gateway_add_latency_fields(mapping_t* map, const char* prefix,
                    static_cast<LPC_INT>(g_gateway_runtime_counters.name.load(                \
                        std::memory_order_relaxed)))
 
+// Emit the <samples, total_us, max_us> triple of one latency counter set. The
+// counter family name appears once: the hand-written form repeated it four times
+// per key, and copying the wrong family's member compiles fine but reports
+// another subsystem's latency.
+#define GATEWAY_LATENCY_US(map, name)                                                       \
+  gateway_add_latency_fields((map), "gateway_" #name,                                        \
+                             g_gateway_runtime_counters.name##_ns_total,                      \
+                             g_gateway_runtime_counters.name##_ns_max,                        \
+                             g_gateway_runtime_counters.name##_samples)
+
+// Standalone <name>_avg_us / <name>_max_us for counter sets emitted individually.
+#define GATEWAY_AVG_US(map, name)                                                           \
+  add_mapping_pair((map), "gateway_" #name "_avg_us",                                        \
+                   gateway_avg_us(g_gateway_runtime_counters.name##_ns_total,                 \
+                                  g_gateway_runtime_counters.name##_samples))
+
+#define GATEWAY_MAX_US(map, name)                                                           \
+  add_mapping_pair((map), "gateway_" #name "_max_us",                                        \
+                   gateway_max_us(g_gateway_runtime_counters.name##_ns_max))
+
 void gateway_record_main_drain(const VMOwnerMainDrainResult& result, int budget) {
   g_gateway_runtime_counters.main_drain_runs.fetch_add(1, std::memory_order_relaxed);
   g_gateway_runtime_counters.main_drain_tasks_total.fetch_add(
@@ -2335,43 +2355,22 @@ static void add_gateway_status_backend(mapping_t* map) {
 // Room output projection: worker/inline thread CPU, publish/retry latency and the
 // projection queue counters, kept out of gateway_status_internal().
 static void add_gateway_status_room_projection(mapping_t* map) {
-  gateway_add_latency_fields(map, "gateway_room_output_projection_snapshot",
-                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_snapshot_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_snapshot_samples);
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_submit_watch",
-      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_total,
-      g_gateway_runtime_counters.room_output_projection_submit_watch_ns_max,
-      g_gateway_runtime_counters.room_output_projection_submit_watch_samples);
-  gateway_add_latency_fields(map, "gateway_room_output_projection_worker",
-                             g_gateway_runtime_counters.room_output_projection_worker_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_worker_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_worker_samples);
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_worker_thread_cpu",
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_max,
-      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples);
+  GATEWAY_LATENCY_US(map, room_output_projection_snapshot);
+  GATEWAY_LATENCY_US(map, room_output_projection_submit_watch);
+  GATEWAY_LATENCY_US(map, room_output_projection_worker);
+  GATEWAY_LATENCY_US(map, room_output_projection_worker_thread_cpu);
   add_mapping_pair(
       map, "gateway_room_output_projection_worker_thread_cpu_avg_us",
       gateway_avg_us(g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_ns_total,
                      g_gateway_runtime_counters.room_output_projection_worker_thread_cpu_samples));
   GATEWAY_COUNTER(map, room_output_projection_worker_thread_cpu_unavailable);
-  gateway_add_latency_fields(
-      map, "gateway_room_output_projection_inline_thread_cpu",
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_max,
-      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples);
+  GATEWAY_LATENCY_US(map, room_output_projection_inline_thread_cpu);
   add_mapping_pair(
       map, "gateway_room_output_projection_inline_thread_cpu_avg_us",
       gateway_avg_us(g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_ns_total,
                      g_gateway_runtime_counters.room_output_projection_inline_thread_cpu_samples));
   GATEWAY_COUNTER(map, room_output_projection_inline_thread_cpu_unavailable);
-  gateway_add_latency_fields(map, "gateway_room_output_projection_publish",
-                             g_gateway_runtime_counters.room_output_projection_publish_ns_total,
-                             g_gateway_runtime_counters.room_output_projection_publish_ns_max,
-                             g_gateway_runtime_counters.room_output_projection_publish_samples);
+  GATEWAY_LATENCY_US(map, room_output_projection_publish);
   GATEWAY_COUNTER(map, room_output_projection_submitted);
   GATEWAY_COUNTER(map, room_output_projection_completed);
   GATEWAY_COUNTER(map, room_output_projection_released);
@@ -2566,30 +2565,12 @@ mapping_t* gateway_status_internal() {
   GATEWAY_COUNTER(map, future_watch_completion_notifications);
   GATEWAY_COUNTER(map, future_watch_completion_wakeups);
   GATEWAY_COUNTER(map, future_watch_timer_wakeups);
-  gateway_add_latency_fields(map, "gateway_output_reserve",
-                             g_gateway_runtime_counters.output_reserve_ns_total,
-                             g_gateway_runtime_counters.output_reserve_ns_max,
-                             g_gateway_runtime_counters.output_reserve_samples);
-  gateway_add_latency_fields(map, "gateway_future_watch_register",
-                             g_gateway_runtime_counters.future_watch_register_ns_total,
-                             g_gateway_runtime_counters.future_watch_register_ns_max,
-                             g_gateway_runtime_counters.future_watch_register_samples);
-  gateway_add_latency_fields(map, "gateway_future_watch_terminal_lag",
-                             g_gateway_runtime_counters.future_watch_terminal_lag_ns_total,
-                             g_gateway_runtime_counters.future_watch_terminal_lag_ns_max,
-                             g_gateway_runtime_counters.future_watch_terminal_lag_samples);
-  gateway_add_latency_fields(map, "gateway_future_watch_take",
-                             g_gateway_runtime_counters.future_watch_take_ns_total,
-                             g_gateway_runtime_counters.future_watch_take_ns_max,
-                             g_gateway_runtime_counters.future_watch_take_samples);
-  gateway_add_latency_fields(map, "gateway_future_watch_callback",
-                             g_gateway_runtime_counters.future_watch_callback_ns_total,
-                             g_gateway_runtime_counters.future_watch_callback_ns_max,
-                             g_gateway_runtime_counters.future_watch_callback_samples);
-  gateway_add_latency_fields(map, "gateway_future_watch_end_to_end",
-                             g_gateway_runtime_counters.future_watch_end_to_end_ns_total,
-                             g_gateway_runtime_counters.future_watch_end_to_end_ns_max,
-                             g_gateway_runtime_counters.future_watch_end_to_end_samples);
+  GATEWAY_LATENCY_US(map, output_reserve);
+  GATEWAY_LATENCY_US(map, future_watch_register);
+  GATEWAY_LATENCY_US(map, future_watch_terminal_lag);
+  GATEWAY_LATENCY_US(map, future_watch_take);
+  GATEWAY_LATENCY_US(map, future_watch_callback);
+  GATEWAY_LATENCY_US(map, future_watch_end_to_end);
   add_mapping_pair(
       map, "gateway_future_watch_main_completion_thread_cpu_total_us",
       static_cast<LPC_INT>(
@@ -2638,11 +2619,8 @@ mapping_t* gateway_status_internal() {
       static_cast<LPC_INT>(g_gateway_runtime_counters.main_drain_deferred_wall_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_main_drain_deferred_wall_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.main_drain_deferred_wall_ns_total,
-                                  g_gateway_runtime_counters.main_drain_deferred_wall_samples));
-  add_mapping_pair(map, "gateway_main_drain_deferred_wall_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.main_drain_deferred_wall_ns_max));
+  GATEWAY_AVG_US(map, main_drain_deferred_wall);
+  GATEWAY_MAX_US(map, main_drain_deferred_wall);
   GATEWAY_COUNTER(map, main_drain_deferred_wall_budget_yields);
   GATEWAY_COUNTER(map, main_drain_deferred_task_budget_yields);
   GATEWAY_COUNTER(map, master_output_scan_runs_total);
@@ -2668,9 +2646,7 @@ mapping_t* gateway_status_internal() {
       gateway_avg_value(g_gateway_runtime_counters.main_drain_deferred_remaining_total,
                         g_gateway_runtime_counters.main_drain_deferred_remaining_samples));
   GATEWAY_COUNTER(map, main_drain_deferred_remaining_max);
-  add_mapping_pair(
-      map, "gateway_main_drain_deferred_main_task_wall_max_us",
-      gateway_max_us(g_gateway_runtime_counters.main_drain_deferred_main_task_wall_ns_max));
+  GATEWAY_MAX_US(map, main_drain_deferred_main_task_wall);
   add_mapping_pair(
       map, "gateway_main_drain_deferred_main_tasks_exceeding_wall_budget",
       static_cast<LPC_INT>(
@@ -2692,11 +2668,8 @@ mapping_t* gateway_status_internal() {
       static_cast<LPC_INT>(g_gateway_runtime_counters.read_batch_drain_wall_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_read_batch_drain_wall_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.read_batch_drain_wall_ns_total,
-                                  g_gateway_runtime_counters.read_batch_drain_wall_samples));
-  add_mapping_pair(map, "gateway_read_batch_drain_wall_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.read_batch_drain_wall_ns_max));
+  GATEWAY_AVG_US(map, read_batch_drain_wall);
+  GATEWAY_MAX_US(map, read_batch_drain_wall);
   GATEWAY_COUNTER(map, read_batch_drain_wall_budget_yields);
   GATEWAY_COUNTER(map, read_batch_drain_task_budget_yields);
   GATEWAY_COUNTER(map, read_batch_drain_remaining_samples);
@@ -2706,9 +2679,7 @@ mapping_t* gateway_status_internal() {
       gateway_avg_value(g_gateway_runtime_counters.read_batch_drain_remaining_total,
                         g_gateway_runtime_counters.read_batch_drain_remaining_samples));
   GATEWAY_COUNTER(map, read_batch_drain_remaining_max);
-  add_mapping_pair(
-      map, "gateway_read_batch_drain_main_task_wall_max_us",
-      gateway_max_us(g_gateway_runtime_counters.read_batch_drain_main_task_wall_ns_max));
+  GATEWAY_MAX_US(map, read_batch_drain_main_task_wall);
   add_mapping_pair(
       map, "gateway_read_batch_drain_main_tasks_exceeding_wall_budget",
       static_cast<LPC_INT>(
@@ -2752,115 +2723,79 @@ mapping_t* gateway_status_internal() {
       static_cast<LPC_INT>(g_gateway_runtime_counters.main_drain_deferred_wait_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_main_drain_deferred_wait_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.main_drain_deferred_wait_ns_total,
-                                  g_gateway_runtime_counters.main_drain_deferred_wait_samples));
-  add_mapping_pair(map, "gateway_main_drain_deferred_wait_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.main_drain_deferred_wait_ns_max));
+  GATEWAY_AVG_US(map, main_drain_deferred_wait);
+  GATEWAY_MAX_US(map, main_drain_deferred_wait);
   add_mapping_pair(map, "gateway_main_drain_deferred_wait_timer_queue_only",
                    kGatewayDeferredMainDrainWaitTimerQueueOnly);
   GATEWAY_COUNTER(map, receive_decode_samples);
-  add_mapping_pair(map, "gateway_receive_decode_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.receive_decode_ns_total,
-                                  g_gateway_runtime_counters.receive_decode_samples));
-  add_mapping_pair(map, "gateway_receive_decode_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.receive_decode_ns_max));
+  GATEWAY_AVG_US(map, receive_decode);
+  GATEWAY_MAX_US(map, receive_decode);
   add_mapping_pair(
       map, "gateway_receive_payload_copy_samples",
       static_cast<LPC_INT>(
           g_gateway_runtime_counters.receive_payload_copy_samples.load(std::memory_order_relaxed)));
-  add_mapping_pair(map, "gateway_receive_payload_copy_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.receive_payload_copy_ns_total,
-                                  g_gateway_runtime_counters.receive_payload_copy_samples));
-  add_mapping_pair(map, "gateway_receive_payload_copy_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.receive_payload_copy_ns_max));
+  GATEWAY_AVG_US(map, receive_payload_copy);
+  GATEWAY_MAX_US(map, receive_payload_copy);
   GATEWAY_COUNTER(map, receive_enqueue_to_dispatch_samples);
   add_mapping_pair(
       map, "gateway_receive_enqueue_to_dispatch_total_us",
       static_cast<LPC_INT>(g_gateway_runtime_counters.receive_enqueue_to_dispatch_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_receive_enqueue_to_dispatch_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.receive_enqueue_to_dispatch_ns_total,
-                                  g_gateway_runtime_counters.receive_enqueue_to_dispatch_samples));
-  add_mapping_pair(map, "gateway_receive_enqueue_to_dispatch_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.receive_enqueue_to_dispatch_ns_max));
+  GATEWAY_AVG_US(map, receive_enqueue_to_dispatch);
+  GATEWAY_MAX_US(map, receive_enqueue_to_dispatch);
   GATEWAY_COUNTER(map, receive_apply_samples);
   add_mapping_pair(map, "gateway_receive_apply_total_us",
                    static_cast<LPC_INT>(g_gateway_runtime_counters.receive_apply_ns_total.load(
                                             std::memory_order_relaxed) /
                                         1000));
-  add_mapping_pair(map, "gateway_receive_apply_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.receive_apply_ns_total,
-                                  g_gateway_runtime_counters.receive_apply_samples));
-  add_mapping_pair(map, "gateway_receive_apply_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.receive_apply_ns_max));
+  GATEWAY_AVG_US(map, receive_apply);
+  GATEWAY_MAX_US(map, receive_apply);
   GATEWAY_COUNTER(map, receive_apply_thread_cpu_samples);
   add_mapping_pair(
       map, "gateway_receive_apply_thread_cpu_total_us",
       static_cast<LPC_INT>(g_gateway_runtime_counters.receive_apply_thread_cpu_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_receive_apply_thread_cpu_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.receive_apply_thread_cpu_ns_total,
-                                  g_gateway_runtime_counters.receive_apply_thread_cpu_samples));
-  add_mapping_pair(map, "gateway_receive_apply_thread_cpu_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.receive_apply_thread_cpu_ns_max));
+  GATEWAY_AVG_US(map, receive_apply_thread_cpu);
+  GATEWAY_MAX_US(map, receive_apply_thread_cpu);
   GATEWAY_COUNTER(map, receive_apply_thread_cpu_unavailable);
   GATEWAY_COUNTER(map, command_enqueue_to_dispatch_samples);
-  add_mapping_pair(map, "gateway_command_enqueue_to_dispatch_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.command_enqueue_to_dispatch_ns_total,
-                                  g_gateway_runtime_counters.command_enqueue_to_dispatch_samples));
-  add_mapping_pair(map, "gateway_command_enqueue_to_dispatch_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.command_enqueue_to_dispatch_ns_max));
+  GATEWAY_AVG_US(map, command_enqueue_to_dispatch);
+  GATEWAY_MAX_US(map, command_enqueue_to_dispatch);
   GATEWAY_COUNTER(map, command_execute_samples);
-  add_mapping_pair(map, "gateway_command_execute_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.command_execute_ns_total,
-                                  g_gateway_runtime_counters.command_execute_samples));
-  add_mapping_pair(map, "gateway_command_execute_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.command_execute_ns_max));
+  GATEWAY_AVG_US(map, command_execute);
+  GATEWAY_MAX_US(map, command_execute);
   GATEWAY_COUNTER(map, reply_enqueue_to_dispatch_samples);
-  add_mapping_pair(map, "gateway_reply_enqueue_to_dispatch_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.reply_enqueue_to_dispatch_ns_total,
-                                  g_gateway_runtime_counters.reply_enqueue_to_dispatch_samples));
+  GATEWAY_AVG_US(map, reply_enqueue_to_dispatch);
   add_mapping_pair(
       map, "gateway_reply_enqueue_to_dispatch_total_us",
       static_cast<LPC_INT>(g_gateway_runtime_counters.reply_enqueue_to_dispatch_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_reply_enqueue_to_dispatch_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.reply_enqueue_to_dispatch_ns_max));
+  GATEWAY_MAX_US(map, reply_enqueue_to_dispatch);
   GATEWAY_COUNTER(map, reply_execute_samples);
-  add_mapping_pair(map, "gateway_reply_execute_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.reply_execute_ns_total,
-                                  g_gateway_runtime_counters.reply_execute_samples));
+  GATEWAY_AVG_US(map, reply_execute);
   add_mapping_pair(map, "gateway_reply_execute_total_us",
                    static_cast<LPC_INT>(g_gateway_runtime_counters.reply_execute_ns_total.load(
                                             std::memory_order_relaxed) /
                                         1000));
-  add_mapping_pair(map, "gateway_reply_execute_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.reply_execute_ns_max));
+  GATEWAY_MAX_US(map, reply_execute);
   GATEWAY_COUNTER(map, output_enqueue_to_dispatch_samples);
-  add_mapping_pair(map, "gateway_output_enqueue_to_dispatch_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_total,
-                                  g_gateway_runtime_counters.output_enqueue_to_dispatch_samples));
+  GATEWAY_AVG_US(map, output_enqueue_to_dispatch);
   add_mapping_pair(
       map, "gateway_output_enqueue_to_dispatch_total_us",
       static_cast<LPC_INT>(g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_total.load(
                                std::memory_order_relaxed) /
                            1000));
-  add_mapping_pair(map, "gateway_output_enqueue_to_dispatch_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.output_enqueue_to_dispatch_ns_max));
+  GATEWAY_MAX_US(map, output_enqueue_to_dispatch);
   GATEWAY_COUNTER(map, output_execute_samples);
-  add_mapping_pair(map, "gateway_output_execute_avg_us",
-                   gateway_avg_us(g_gateway_runtime_counters.output_execute_ns_total,
-                                  g_gateway_runtime_counters.output_execute_samples));
+  GATEWAY_AVG_US(map, output_execute);
   add_mapping_pair(map, "gateway_output_execute_total_us",
                    static_cast<LPC_INT>(g_gateway_runtime_counters.output_execute_ns_total.load(
                                             std::memory_order_relaxed) /
                                         1000));
-  add_mapping_pair(map, "gateway_output_execute_max_us",
-                   gateway_max_us(g_gateway_runtime_counters.output_execute_ns_max));
+  GATEWAY_MAX_US(map, output_execute);
   GATEWAY_COUNTER(map, message_event_template_cache_hits);
   GATEWAY_COUNTER(map, message_event_template_cache_misses);
   GATEWAY_COUNTER(map, message_event_template_cache_evictions);
