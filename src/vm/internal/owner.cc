@@ -2412,25 +2412,10 @@ void release_deferred_owner_targets_on_main() {
   }
 }
 
-void enqueue_owner_executor_callback_cleanup_locked(OwnerMailboxTask& task) {
-  if (!task.drop_callback) {
-    return;
-  }
-
-  OwnerExecutorCallbackCleanup cleanup;
-  cleanup.task_id = task.task_id;
-  cleanup.sequence = task.sequence;
-  cleanup.owner_epoch = task.owner_epoch;
-  cleanup.owner_id = task.owner_id;
-  cleanup.task_type = task.task_type;
-  cleanup.task_key = task.task_key;
-  cleanup.callback = std::move(task.drop_callback);
-  append_owner_task_trace(task, "executor_callback_main_cleanup_queued");
-  owner_executor_callback_main_cleanups.push_back(std::move(cleanup));
-  owner_executor_callback_main_cleanup_queued.fetch_add(1, std::memory_order_relaxed);
-}
-
-void enqueue_owner_executor_callback_cleanup_locked(OwnerMainTask& task) {
+// Both mailbox tasks and main-queue tasks carry the same cleanup payload, so one
+// template serves both instead of two copies that must stay in step.
+template <typename Task>
+void enqueue_owner_executor_callback_cleanup_locked(Task& task) {
   if (!task.drop_callback) {
     return;
   }
