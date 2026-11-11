@@ -118,9 +118,6 @@ KNOWN_STALE = {
         "testsuite/data/gateway_net_dead_destruct_user.o",
     },
     "docs/refactor-plan-2026-11.md": {
-        "src/packages/gateway/gateway_status.cc",
-        "tools/style/check-duplication.py",
-        "tools/style/duplication-baseline.txt",
         # Removed by U1a; the plan keeps them as the deletion record.
         "src/outdated_define.txt",
         "testsuite/test.o",

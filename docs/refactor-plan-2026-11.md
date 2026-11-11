@@ -534,27 +534,36 @@ python3 tools/docs/check-status-contract.py --check   # U9a 完成后才有
 > 为缩减文件长度而公开这些内部量；实际做法是在 `gateway.cc` 内拆成 6 个命名 builder，
 > 主入口回到 14 行。输出键与宏使用次数逐项比对不变。
 
-**不拆 `GatewayRuntimeCounters` 结构体**（200 个字段的引用遍布 gateway.cc；改布局是纯机械大 diff，
-不提高可读性）。改做两件事：
+**不到新文件，改成同文件内的命名 builder**（实施结论，`243cb784`）。原计划是搬到
+`gateway_status.cc`；复核后发观这段装配直接引用 8 个文件内全局量（`g_gateway_listener`、
+`g_gateway_listen_port`、`g_gateway_masters`、`g_gateway_ingress_sequence`、
+`g_gateway_heartbeat_timer`、`g_gateway_started_at` 等）、私有类型
+`GatewayIngressSequenceState` 和 `kGatewayDeferred*` 常量。搬出去就得为缩短文件而
+公开这些内部量，属于用接口换行数。实际做法：在 `gateway.cc` 内拆成 6 个 builder
+（sessions / queues / drains / latency / config + 已有 backend、room projection），
+主入口回到 14 行调度。判据：拆分前后 `"gateway_*` 字面键集合（98）、
+`GATEWAY_COUNTER`/`LATENCY_US`/`AVG_US`/`MAX_US`/`TOTAL_US` 使用次数逐项一致，
+测试全绿。
 
-1. 把 `gateway.cc` 的 306 行 mapping 装配与 `gateway_session.cc` 的 202 行一起移到新文件
-   `src/packages/gateway/gateway_status.cc`（声明放 `gateway.h`），让主逻辑文件回归
-   “接收/调度/转发”本身。纯代码移动，字段名与输出不变。
-2. 删除只被 `*_for_test()` 读取、且没有任何门禁或 benchmark 使用的计数器。
-   判定方法：对每个计数器 grep 非测试消费者；无消费者且不在 `tools/*.sh`、
-   `tools/perf/` 中出现的，删除。保留 `owner-scheduler-capacity.sh` 与
-   `tools/perf/compile_report.py` 读取的那些。
+**不拆 `GatewayRuntimeCounters` 结构体**（200 个字段的引用遍布 gateway.cc；改布局是纯机械大 diff，
+不提高可读性）。
+
+剩下的第二件事仍然有效，未做：
+
+删除只被 `*_for_test()` 读取、且没有任何门禁或 benchmark 使用的计数器。
+判定方法：对每个计数器 grep 非测试消费者；无消费者且不在 `tools/*.sh`、
+`tools/perf/` 中出现的，删除。保留 `owner-scheduler-capacity.sh` 与
+`tools/perf/compile_report.py` 读取的那些。
 
 **验证**：
 
 ```bash
-cmake --build build-refactor-2026-11 --target driver lpc_tests --parallel 4
-ctest --test-dir build-refactor-2026-11 -R 'Gateway' --output-on-failure
-tools/owner-scheduler-capacity.sh --build-dir build-refactor-2026-11 \
-  --report-dir build-refactor-2026-11/reports/capacity
+cmake --build build-dev-debug --target driver lpc_tests --parallel 4
+build-dev-debug/src/tests/lpc_tests
+python3 tools/docs/status-contract.py --check
 ```
 
-判据：`gateway_status.cc` 只含装配代码，不新增业务分支；容量报告仍能完整产出
+判据：输出键集合与拆分前一致，容量报告能完整产出
 （证明保留的计数器仍被真实消费者读取）。
 
 ### U5d 下游验收（实施后必做）
@@ -692,17 +701,23 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 ### U9b 重复实现基线棘轮
 
-新增 `tools/style/check-duplication.py`（**≤60 行**，只读），思路保持最小：
+**已落地**：`tools/style/check-duplication.py`（65 行，含注释与空行）＋基线
+`tools/style/duplication-baseline.txt`（15 个文件），接入 CI `style-and-lpc`。
 
-1. 归一化（去注释/字符串/字面量/空白）后，对每个文件算"重复 20 行窗口数"
-   （窗口哈希出现次数 > 1 的个数）。
-2. 基线文件 `tools/style/duplication-baseline.txt` 每行 `路径 计数`。
-3. **只比单文件计数**，总量不卡（否则一次合理拆分会被判为变差）。
-4. 任一文件计数 > 基线 → 失败并打印新增窗口的首行位置。
+实现口径（与下面原则一致，只比单文件计数）：
 
-排除：`src/thirdparty/`、`*.autogen.*`、`src/tests/fuzz/corpus/`。
-验证：基线=当前值→通过；在任一文件里复制 25 行→失败；拆分文件→需人工更新基线
-（脚本只报告，不自动改基线）。
+1. 归一化：去注释，空白收缩后丢掉空行；**保留字符串字面量**——把字面量一并抹掉会让
+   连续 `add_mapping_*(map, "...", ...)` 列表自己撞自己，计数虚高（实测把 `src/` 全抹掉
+   字面量后计数不变，说明当前重复不来自字面量，保留它更严格）。
+2. 窗口 = 20 行，哈希全局去重；文件计数 = 命中重复的窗口个数；报告首行行号。
+3. 基线人工更新：`--print-baseline` 只打印，不写文件。
+4. 排除 `src/thirdparty/`、`*.autogen.*`。
+
+验证：基线=当前值→打印 `0 over baseline`、退出 0；向 `trace.cc` 插入 25 行副本→
+该文件 8→14、报 `14 duplicate windows, baseline 8`、退出 1；还原后恢复 0。
+
+门禁只比单文件计数、不卡总量（一次合理拆分不会被判为变差）；拆分文件后需人工重跑
+`--print-baseline` 更新基线，脚本只报告，不自动改写。
 
 ### U9c clang-tidy 门禁
 

@@ -97,6 +97,9 @@ jobs:
           node tools/lpc-syntax/test.mjs
           node tools/lpc-syntax/test-format-corpus.mjs
 
+      - name: Check duplicate windows against the baseline
+        run: python3 tools/style/check-duplication.py
+
       # The full allowed corpus is read-only in CI; testsuite/format.sh owns
       # the explicit exclusion list for raw and intentionally invalid fixtures.
       - name: Check LPC formatter corpus
