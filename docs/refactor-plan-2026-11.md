@@ -2,8 +2,7 @@
 
 > 状态：**执行中**（2026-11）。已完成 U0–U7、U9a/U9b/U9e；未完成：U8（测试拆分，
 > 前置重复回收未做）、U9c（clang-tidy，本机无固定版本工具链）、U9d（测试文件体量上限，
-> 依赖 U8）、U5d（下游验收，需起下游测试实例）、U5c 第二件事（只被测试读取的计数器，
-> 宏拼接使静态判定不可靠）。
+> 依赖 U8）、U5d（下游验收，需起下游测试实例）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
 > 上下文的执行者按序完成。
@@ -551,12 +550,10 @@ python3 tools/docs/check-status-contract.py --check   # U9a 完成后才有
 **不拆 `GatewayRuntimeCounters` 结构体**（200 个字段的引用遍布 gateway.cc；改布局是纯机械大 diff，
 不提高可读性）。
 
-剩下的第二件事仍然有效，未做：
-
-删除只被 `*_for_test()` 读取、且没有任何门禁或 benchmark 使用的计数器。
-判定方法：对每个计数器 grep 非测试消费者；无消费者且不在 `tools/*.sh`、
-`tools/perf/` 中出现的，删除。保留 `owner-scheduler-capacity.sh` 与
-`tools/perf/compile_report.py` 读取的那些。
+剩下的第二件事，**测量后无删除对象**：用脚本把 `GatewayRuntimeCounters` 的 242 个字段逐个分类，“只在 `*_for_test` 里被读”的计数器为 **0**。
+原因：计数器大多通过 `GATEWAY_*_US` 宏的 token 拼接（`name##_ns_total`）被状态输出消费，
+静态看字段名只出现写入点和声明处，容易被误判为“无消费者”。按误判删除会直接少发状态键。
+此项凭现有证据不再执行；真要缩减观测面，应先决定砍哪些子系统状态，而不是“找无人读的计数器”。
 
 **验证**：
 
