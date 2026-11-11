@@ -156,6 +156,24 @@ bool owner_future_terminal_state_valid(const char* state) {
   return !state || state[0] == '\0' || std::strcmp(state, "completed") == 0 ||
          std::strcmp(state, "failed") == 0;
 }
+
+// Wire spelling -> stored state. The store keeps the enum only; the API still
+// accepts the string so existing callers and status consumers are unchanged.
+OwnerFutureState owner_future_state_from_name(const char* state, OwnerFutureState fallback) {
+  if (!state || state[0] == '\0') {
+    return fallback;
+  }
+  if (std::strcmp(state, "pending") == 0) {
+    return OwnerFutureState::kPending;
+  }
+  if (std::strcmp(state, "completed") == 0) {
+    return OwnerFutureState::kCompleted;
+  }
+  if (std::strcmp(state, "failed") == 0) {
+    return OwnerFutureState::kFailed;
+  }
+  return fallback;
+}
 }  // namespace
 
 uint64_t OwnerFutureStore::default_clock() {
@@ -173,7 +191,7 @@ void OwnerFutureStore::assert_counts_locked() const {
   size_t terminal = 0;
   int64_t payload_bytes = 0;
   for (const auto& entry : futures_) {
-    if (entry.second.state != "pending") {
+    if (entry.second.state != OwnerFutureState::kPending) {
       terminal++;
       payload_bytes += static_cast<int64_t>(owner_future_payload_bytes(entry.second));
     }
@@ -190,7 +208,7 @@ void OwnerFutureStore::assert_counts_locked() const {
 }
 
 void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord& record) {
-  if (record.state == "pending" || record.terminal_at_ns == 0) {
+  if (record.state == OwnerFutureState::kPending || record.terminal_at_ns == 0) {
     return;
   }
   // All-terminal index: backs oldest_terminal_age_ns() for every terminal
@@ -224,7 +242,7 @@ void OwnerFutureStore::index_terminal_record_locked(const OwnerFutureRecord& rec
 }
 
 void OwnerFutureStore::unindex_terminal_record_locked(const OwnerFutureRecord& record) {
-  if (record.state == "pending") {
+  if (record.state == OwnerFutureState::kPending) {
     return;
   }
   auto it_all = terminal_all_time_index_.find(record.future_id);
@@ -246,11 +264,11 @@ void OwnerFutureStore::unindex_terminal_record_locked(const OwnerFutureRecord& r
 OwnerFutureRecord OwnerFutureStore::reject_pending_by_quota_locked(uint64_t future_id,
                                                                    const char* reason) {
   auto it = futures_.find(future_id);
-  if (it == futures_.end() || it->second.state != "pending") {
+  if (it == futures_.end() || it->second.state != OwnerFutureState::kPending) {
     return OwnerFutureRecord{};
   }
   OwnerFutureRecord& record = it->second;
-  record.state = "failed";
+  record.state = OwnerFutureState::kFailed;
   record.result_key.clear();
   record.error = normalize_text(reason, "future quota exceeded");
   record.terminal_at_ns = now_ns();
@@ -272,13 +290,14 @@ OwnerFutureRecord OwnerFutureStore::reject_pending_by_quota_locked(uint64_t futu
 bool OwnerFutureStore::admit_pending(OwnerFutureRecord record) {
   std::lock_guard<std::mutex> lock(mutex_);
   reap_expired_terminal_locked();
-  if (record.state != "pending") {
+  if (record.state != OwnerFutureState::kPending) {
     return false;
   }
   auto future_id = record.future_id;
   auto existing = futures_.find(future_id);
-  const bool replacing_pending = existing != futures_.end() && existing->second.state == "pending";
-  if (existing != futures_.end() && existing->second.state != "pending") {
+  const bool replacing_pending =
+      existing != futures_.end() && existing->second.state == OwnerFutureState::kPending;
+  if (existing != futures_.end() && existing->second.state != OwnerFutureState::kPending) {
     // A terminal id cannot be re-admitted as pending: the slot is occupied
     // until take/reap. restore_terminal_checked is the only terminal path.
     return false;
@@ -318,13 +337,15 @@ bool OwnerFutureStore::admit_pending(OwnerFutureRecord record) {
 bool OwnerFutureStore::restore_terminal_checked(OwnerFutureRecord record) {
   std::lock_guard<std::mutex> lock(mutex_);
   reap_expired_terminal_locked();
-  if (record.state == "pending" || record.terminal_at_ns == 0) {
+  if (record.state == OwnerFutureState::kPending || record.terminal_at_ns == 0) {
     return false;
   }
   auto future_id = record.future_id;
   auto existing = futures_.find(future_id);
-  const bool replacing_terminal = existing != futures_.end() && existing->second.state != "pending";
-  const bool replacing_pending = existing != futures_.end() && existing->second.state == "pending";
+  const bool replacing_terminal =
+      existing != futures_.end() && existing->second.state != OwnerFutureState::kPending;
+  const bool replacing_pending =
+      existing != futures_.end() && existing->second.state == OwnerFutureState::kPending;
   if (replacing_pending) {
     return false;
   }
@@ -382,13 +403,9 @@ OwnerFutureState OwnerFutureStore::state(uint64_t future_id) {
   if (it == futures_.end()) {
     return OwnerFutureState::kUnknown;
   }
-  if (it->second.state == "pending") {
-    return OwnerFutureState::kPending;
-  }
-  if (it->second.state == "completed") {
-    return OwnerFutureState::kCompleted;
-  }
-  return OwnerFutureState::kFailed;
+  // One representation: the record's state is the enum, so this accessor cannot
+  // disagree with what the status mapping prints.
+  return it->second.state;
 }
 
 OwnerFutureTakeResult OwnerFutureStore::take(uint64_t future_id) {
@@ -401,7 +418,7 @@ OwnerFutureTakeResult OwnerFutureStore::take(uint64_t future_id) {
 
   result.found = true;
   result.record = it->second;
-  if (it->second.state != "pending") {
+  if (it->second.state != OwnerFutureState::kPending) {
     unindex_terminal_record_locked(it->second);
     terminal_records_--;
     terminal_payload_bytes_ -= static_cast<int64_t>(owner_future_payload_bytes(it->second));
@@ -419,7 +436,7 @@ bool OwnerFutureStore::has_pending_for_task(uint64_t target_task_id) const {
   for (auto it = range.first; it != range.second; ++it) {
     const auto future_it = futures_.find(it->second);
     if (future_it != futures_.end() && future_it->second.target_task_id == target_task_id &&
-        future_it->second.state == "pending") {
+        future_it->second.state == OwnerFutureState::kPending) {
       return true;
     }
   }
@@ -434,7 +451,7 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete(
   }
   std::unique_lock<std::mutex> lock(mutex_);
   auto it = futures_.find(future_id);
-  if (it == futures_.end() || it->second.state != "pending") {
+  if (it == futures_.end() || it->second.state != OwnerFutureState::kPending) {
     return std::nullopt;
   }
   auto completion =
@@ -459,7 +476,7 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_for_task(
       future_ids_by_task_.erase(current_index);
       continue;
     }
-    if (future_it->second.state == "pending") {
+    if (future_it->second.state == OwnerFutureState::kPending) {
       auto completion =
           complete_record(future_it->second, state, result_key, error, std::move(result), nullptr);
       lock.unlock();
@@ -482,7 +499,7 @@ std::optional<OwnerFutureCompletion> OwnerFutureStore::complete_string_for_task(
       continue;
     }
     auto& record = future_it->second;
-    if (record.state != "pending") {
+    if (record.state != OwnerFutureState::kPending) {
       continue;
     }
     auto native = std::make_shared<const std::string>(std::move(result));
@@ -506,11 +523,11 @@ OwnerFutureTerminalResult OwnerFutureStore::fail_terminal(uint64_t future_id, co
 
   result.found = true;
   auto& future = it->second;
-  if (future.state == "pending") {
+  if (future.state == OwnerFutureState::kPending) {
     // The lifecycle slot was reserved at admission, so the terminal cap
     // cannot be hit here for an admitted future; the defensive path below
     // still keeps a failed tombstone instead of erasing the record.
-    future.state = "failed";
+    future.state = OwnerFutureState::kFailed;
     future.result_key.clear();
     future.error = normalize_text(reason, cancelled ? "future cancelled" : "future timed out");
     future.cancelled = cancelled;
@@ -610,7 +627,7 @@ void OwnerFutureStore::reap_expired_terminal_locked() {
     auto next = std::next(it);
     terminal_reapable_by_time_.erase(it);
     terminal_reapable_time_index_.erase(future_id);
-    if (future_it == futures_.end() || future_it->second.state == "pending") {
+    if (future_it == futures_.end() || future_it->second.state == OwnerFutureState::kPending) {
       // Stale index entry; counters were already maintained at removal time.
       it = next;
       continue;
@@ -700,15 +717,16 @@ OwnerFutureCompletion OwnerFutureStore::complete_record(
     completion.quota_rejected = true;
     return completion;
   }
-  record.state = normalize_text(state, "completed");
+  record.state = owner_future_state_from_name(state, OwnerFutureState::kCompleted);
   record.result_key = normalize_text(result_key, "");
   record.error = normalize_text(error, "");
   record.terminal_at_ns = now_ns();
-  auto completed_with_frozen_result = record.state == "completed" && result != nullptr;
+  auto completed_with_frozen_result =
+      record.state == OwnerFutureState::kCompleted && result != nullptr;
   record.result = std::move(result);
   record.native_string_result = std::move(native_string);
   pending_.fetch_sub(1, std::memory_order_relaxed);
-  if (record.state == "failed") {
+  if (record.state == OwnerFutureState::kFailed) {
     failed_.fetch_add(1, std::memory_order_relaxed);
   } else {
     completed_.fetch_add(1, std::memory_order_relaxed);

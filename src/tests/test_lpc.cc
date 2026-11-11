@@ -525,7 +525,7 @@ TEST(OwnerFutureStoreTest, TtlReapsPayloadFreeTerminalRecords) {
   const uint64_t aged_at_ns = fake_now_ns;  // terminalized at fake now
   {
     auto aged = owner_future_store_test_record(1, 101);
-    aged.state = "completed";
+    aged.state = OwnerFutureState::kCompleted;
     aged.terminal_at_ns = aged_at_ns;
     store.take(1);  // consume existing terminal record
     ASSERT_TRUE(store.restore_terminal_checked(aged));
@@ -551,7 +551,7 @@ TEST(OwnerFutureStoreTest, TtlReapsPayloadFreeTerminalRecords) {
   const uint64_t record2_terminal_at_ns = fake_now_ns;
   {
     auto aged = owner_future_store_test_record(2, 202);
-    aged.state = "completed";
+    aged.state = OwnerFutureState::kCompleted;
     aged.terminal_at_ns = record2_terminal_at_ns;
     store.take(2);
     ASSERT_TRUE(store.restore_terminal_checked(aged));
@@ -575,7 +575,7 @@ TEST(OwnerFutureStoreTest, TtlKeepsPayloadBearingTerminalRecords) {
   // Give the completed record a payload: TTL must never silently drop it.
   {
     auto payload = owner_future_store_test_record(1, 101);
-    payload.state = "completed";
+    payload.state = OwnerFutureState::kCompleted;
     payload.terminal_at_ns = fake_now_ns;
     payload.result = std::make_shared<VMFrozenValue>();
     store.take(1);
@@ -593,7 +593,7 @@ TEST(OwnerFutureStoreTest, CapacityRejectsNewPendingBeyondTerminalCap) {
   // Fill the store with payload-bearing terminal records (never auto-reaped).
   for (size_t i = 0; i < cap; i++) {
     auto record = owner_future_store_test_record(i + 1, i + 1);
-    record.state = "completed";
+    record.state = OwnerFutureState::kCompleted;
     record.terminal_at_ns = 1;
     record.result = std::make_shared<VMFrozenValue>();
     ASSERT_TRUE(store.restore_terminal_checked(record));
@@ -852,7 +852,7 @@ TEST(OwnerFutureStoreTest, TtlReapCountersSettleAfterMixedOperations) {
   ASSERT_TRUE(store.complete_for_task(112, "completed", "result", "").has_value());
   {
     auto with_payload = owner_future_store_test_record(12, 112);
-    with_payload.state = "completed";
+    with_payload.state = OwnerFutureState::kCompleted;
     with_payload.terminal_at_ns = fake_now_ns;
     with_payload.result = std::make_shared<VMFrozenValue>();
     store.take(12);

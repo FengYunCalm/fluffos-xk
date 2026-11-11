@@ -2887,10 +2887,11 @@ mapping_t* owner_future_mapping(const OwnerFutureRecord& record) {
   add_mapping_string(map, "target_owner_id", record.target_owner_id.c_str());
   add_mapping_string(map, "message_type", record.message_type.c_str());
   add_mapping_string(map, "payload_key", record.payload_key.c_str());
-  add_mapping_string(map, "state", record.state.c_str());
+  add_mapping_string(map, "state", owner_future_state_name(record.state));
   add_mapping_string(map, "result_key", record.result_key.c_str());
   add_mapping_string(map, "error", record.error.c_str());
-  add_mapping_pair(map, "requires_owner_message_completion", record.state == "pending" ? 1 : 0);
+  add_mapping_pair(map, "requires_owner_message_completion",
+                   record.state == OwnerFutureState::kPending ? 1 : 0);
   add_mapping_pair(map, "direct_cross_owner_write", 0);
   add_mapping_pair(map, "payload_frozen", 1);
   add_mapping_pair(map, "frozen_result", record.result || record.native_string_result ? 1 : 0);
@@ -2934,7 +2935,7 @@ void complete_owner_future_locked(uint64_t future_id, const char* state, const c
     return;
   }
   update_owner_message_trace_state_for_task_locked(
-      completion->record.target_task_id, completion->record.state.c_str(),
+      completion->record.target_task_id, owner_future_state_name(completion->record.state),
       completion->record.result_key.c_str(), completion->record.error.c_str(),
       completion->completed_with_frozen_result, completion->target_status);
   notify_owner_future_terminal();
@@ -2956,9 +2957,9 @@ void complete_owner_future_for_task_locked(uint64_t target_task_id, const char* 
     return;
   }
   update_owner_message_trace_state_for_task_locked(
-      target_task_id, completion->record.state.c_str(), completion->record.result_key.c_str(),
-      completion->record.error.c_str(), completion->completed_with_frozen_result,
-      completion->target_status);
+      target_task_id, owner_future_state_name(completion->record.state),
+      completion->record.result_key.c_str(), completion->record.error.c_str(),
+      completion->completed_with_frozen_result, completion->target_status);
   notify_owner_future_terminal();
 }
 
@@ -2977,9 +2978,9 @@ void complete_owner_future_string_for_task_threadsafe(uint64_t target_task_id,
     return;
   }
   update_owner_message_trace_state_for_task_locked(
-      target_task_id, completion->record.state.c_str(), completion->record.result_key.c_str(),
-      completion->record.error.c_str(), completion->completed_with_frozen_result,
-      completion->target_status);
+      target_task_id, owner_future_state_name(completion->record.state),
+      completion->record.result_key.c_str(), completion->record.error.c_str(),
+      completion->completed_with_frozen_result, completion->target_status);
   notify_owner_future_terminal();
 }
 
@@ -3004,7 +3005,8 @@ mapping_t* mark_owner_future_failed_terminal(uint64_t future_id, const char* rea
 
   if (result.changed) {
     update_owner_message_trace_state_for_task_locked(
-        result.record.target_task_id, result.record.state.c_str(), result.record.result_key.c_str(),
+        result.record.target_task_id, owner_future_state_name(result.record.state),
+        result.record.result_key.c_str(),
         result.record.error.c_str(), false, result.target_status);
     if (cancelled) {
       owner_executor_future_cancelled.fetch_add(1, std::memory_order_relaxed);
@@ -4491,7 +4493,7 @@ VMOwnerStringTaskSubmission vm_owner_submit_frozen_string_task(
   future.target_owner_id = task.owner_id;
   future.message_type = normalized_task_type;
   future.payload_key = task.task_key;
-  future.state = "pending";
+  future.state = OwnerFutureState::kPending;
   future.created_at_ms = owner_now_ms();
 
   bool notify_owner_thread = false;
@@ -4754,7 +4756,7 @@ mapping_t* vm_owner_lpc_task(object_t* target, const char* owner_id, const char*
   if (task.has_target_handle) {
     future.target_handle = task.target_handle;
   }
-  future.state = "pending";
+  future.state = OwnerFutureState::kPending;
   future.created_at_ms = owner_now_ms();
 
   bool future_registered = false;
@@ -4910,7 +4912,7 @@ mapping_t* vm_owner_ordinary_lpc_task(object_t* target, const char* owner_id, co
   future.payload_key = method_name;
   future.has_target_handle = true;
   future.target_handle = task.target_handle;
-  future.state = "pending";
+  future.state = OwnerFutureState::kPending;
   future.created_at_ms = owner_now_ms();
 
   bool future_registered = false;
@@ -5783,7 +5785,7 @@ mapping_t* submit_owner_message(const char* source_owner_id, const char* target_
   future.target_owner_id = target_owner;
   future.message_type = normalized_type;
   future.payload_key = normalized_payload;
-  future.state = "pending";
+  future.state = OwnerFutureState::kPending;
   future.created_at_ms = owner_now_ms();
 
   vm_object_store_record_message(target_owner.c_str(), target_task_id);
@@ -5910,7 +5912,7 @@ uint64_t vm_owner_register_compute_future(const char* owner_id, uint64_t worker_
   future.target_owner_id = normalized_owner;
   future.message_type = normalized_type;
   future.payload_key = normalized_payload;
-  future.state = "pending";
+  future.state = OwnerFutureState::kPending;
   future.created_at_ms = owner_now_ms();
 
   if (!owner_future_store.admit_pending(std::move(future))) {
@@ -6078,9 +6080,9 @@ VMOwnerFutureStringTakeResult vm_owner_future_take_string(uint64_t future_id) {
   }
 
   output.terminal_at_ns = result.record.terminal_at_ns;
-  if (result.record.state == "pending") {
+  if (result.record.state == OwnerFutureState::kPending) {
     output.state = VM_OWNER_FUTURE_PENDING;
-  } else if (result.record.state == "completed") {
+  } else if (result.record.state == OwnerFutureState::kCompleted) {
     output.state = VM_OWNER_FUTURE_COMPLETED;
   } else {
     output.state = VM_OWNER_FUTURE_FAILED;

@@ -246,7 +246,7 @@ TEST_F(DriverTest, TestFutureFrozenMappingCountsEveryNodeAgainstSinglePayloadCap
   auto completion = store.complete(1, "completed", "result", "", frozen);
   ASSERT_TRUE(completion.has_value());
   ASSERT_TRUE(completion->quota_rejected);
-  ASSERT_EQ(completion->record.state, "failed");
+  ASSERT_EQ(completion->record.state, OwnerFutureState::kFailed);
   ASSERT_EQ(completion->record.error, "future_payload_single_byte_cap");
   ASSERT_EQ(store.terminal_payload_bytes(), 0);
   ASSERT_TRUE(store.take(1).consumed);
@@ -273,7 +273,7 @@ TEST_F(DriverTest, TestFutureFrozenWideArrayDoesNotConsumeDepthAcrossSiblings) {
   auto completion = store.complete(1, "completed", "result", "", frozen);
   ASSERT_TRUE(completion.has_value());
   ASSERT_TRUE(completion->quota_rejected);
-  ASSERT_EQ(completion->record.state, "failed");
+  ASSERT_EQ(completion->record.state, OwnerFutureState::kFailed);
   ASSERT_EQ(completion->record.error, "future_payload_single_byte_cap");
   ASSERT_EQ(store.terminal_payload_bytes(), 0);
   ASSERT_TRUE(store.take(1).consumed);
@@ -493,7 +493,7 @@ TEST_F(DriverTest, TestFutureFrozenWeightVisitorSaturatesOnDepthAndNodes) {
   auto wide_completion = store.complete(2, "completed", "result", "", frozen_wide);
   ASSERT_TRUE(wide_completion.has_value());
   ASSERT_TRUE(wide_completion->quota_rejected);
-  ASSERT_EQ(wide_completion->record.state, "failed");
+  ASSERT_EQ(wide_completion->record.state, OwnerFutureState::kFailed);
   ASSERT_EQ(wide_completion->record.error, "future_payload_single_byte_cap");
   ASSERT_EQ(store.terminal_payload_bytes(), 0);
   ASSERT_TRUE(store.take(2).consumed);
@@ -14029,7 +14029,7 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
     auto& store = owner_future_store_instance();
     for (size_t i = 0; i < cap; i++) {
       auto record = owner_future_store_test_record(fill_base + i, fill_base + i);
-      record.state = "completed";
+      record.state = OwnerFutureState::kCompleted;
       record.terminal_at_ns = 1;
       record.result = std::make_shared<VMFrozenValue>();
       if (store.restore_terminal_checked(std::move(record))) {

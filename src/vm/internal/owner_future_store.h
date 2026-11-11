@@ -13,6 +13,30 @@
 #include <string>
 #include <unordered_map>
 
+// Lifecycle of one owner future. This is the single stored representation:
+// callers pass the wire spelling ('pending'/'completed'/'failed') at the API
+// boundary and the store converts it once.
+enum class OwnerFutureState {
+  kUnknown,
+  kPending,
+  kCompleted,
+  kFailed,
+};
+
+constexpr const char* owner_future_state_name(OwnerFutureState state) {
+  switch (state) {
+    case OwnerFutureState::kPending:
+      return "pending";
+    case OwnerFutureState::kCompleted:
+      return "completed";
+    case OwnerFutureState::kFailed:
+      return "failed";
+    case OwnerFutureState::kUnknown:
+      break;
+  }
+  return "";
+}
+
 struct OwnerFutureRecord {
   uint64_t future_id{0};
   uint64_t target_task_id{0};
@@ -21,7 +45,7 @@ struct OwnerFutureRecord {
   std::string target_owner_id;
   std::string message_type;
   std::string payload_key;
-  std::string state;
+  OwnerFutureState state{OwnerFutureState::kUnknown};
   std::string result_key;
   std::string error;
   uint64_t created_at_ms{0};
@@ -58,13 +82,6 @@ struct OwnerFutureTakeResult {
   bool found{false};
   bool consumed{false};
   OwnerFutureRecord record;
-};
-
-enum class OwnerFutureState {
-  kUnknown,
-  kPending,
-  kCompleted,
-  kFailed,
 };
 
 class OwnerFutureStore {

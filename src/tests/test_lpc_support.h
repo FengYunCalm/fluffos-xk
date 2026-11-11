@@ -196,7 +196,7 @@ OwnerFutureRecord owner_future_store_test_record(uint64_t future_id, uint64_t ta
   OwnerFutureRecord record;
   record.future_id = future_id;
   record.target_task_id = target_task_id;
-  record.state = "pending";
+  record.state = OwnerFutureState::kPending;
   return record;
 }
 }  // namespace
