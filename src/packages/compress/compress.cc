@@ -177,79 +177,21 @@ bool uncompress_file_contents(const char* input, const char* output) {
 }  // namespace
 
 #ifdef F_COMPRESS_FILE
-void f_compress_file() {
-  int const num_arg = st_num_arg;
-  const char* input_file;
-  const char* real_input_file;
-  const char* real_output_file;
+enum class CompressDirection { kCompress, kUncompress };
 
-  // Not a string?  Error!
+// Both efuns share argument handling and the permission order: the output path is
+// authorised before the input path, so a change here cannot silently alter who may
+// compress what. Only the default file name and the final operation differ.
+static void compress_file_efun(CompressDirection direction) {
+  int const num_arg = st_num_arg;
+
   if ((sp - num_arg + 1)->type != T_STRING) {
     pop_n_elems(num_arg);
     push_number(0);
     return;
   }
 
-  input_file = (sp - num_arg + 1)->u.string;
-  std::string input_path(input_file);
-  std::string output_file;
-  if (num_arg == 2) {
-    if (((sp - num_arg + 2)->type != T_STRING)) {
-      pop_n_elems(num_arg);
-      push_number(0);
-      return;
-    }
-    output_file = (sp - num_arg + 2)->u.string;
-  } else {
-    if (input_path.size() >= kGzExtensionLength &&
-        input_path.compare(input_path.size() - kGzExtensionLength, kGzExtensionLength,
-                           kGzExtension) == 0) {
-      // Already compressed...
-      pop_n_elems(num_arg);
-      push_number(0);
-      return;
-    }
-    output_file = input_path + kGzExtension;
-  }
-
-  real_output_file = check_valid_path(output_file.c_str(), current_object, "compress_file", 1);
-  if (!real_output_file) {
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-  std::string output_path(real_output_file);
-
-  real_input_file = check_valid_path(input_path.c_str(), current_object, "compress_file", 0);
-  if (!real_input_file) {
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  const std::string source_path(real_input_file);
-  const bool succeeded = compress_file_contents(source_path.c_str(), output_path.c_str());
-  pop_n_elems(num_arg);
-  push_number(succeeded);
-}
-#endif
-
-#ifdef F_UNCOMPRESS_FILE
-void f_uncompress_file() {
-  int const num_arg = st_num_arg;
-  const char* input_file;
-  const char* real_input_file;
-  const char* real_output_file;
-
-  // Not a string?  Error!
-  if ((sp - num_arg + 1)->type != T_STRING) {
-    pop_n_elems(num_arg);
-    push_number(0);
-    return;
-  }
-
-  input_file = (sp - num_arg + 1)->u.string;
-  std::string input_path(input_file);
+  std::string input_path((sp - num_arg + 1)->u.string);
   std::string output_file;
   if (num_arg == 2) {
     if (((sp - num_arg + 2)->type != T_STRING)) {
@@ -262,16 +204,27 @@ void f_uncompress_file() {
     const bool has_gz_extension = input_path.size() >= kGzExtensionLength &&
                                   input_path.compare(input_path.size() - kGzExtensionLength,
                                                      kGzExtensionLength, kGzExtension) == 0;
-    if (!has_gz_extension) {
-      // Not compressed...
-      pop_n_elems(num_arg);
-      push_number(0);
-      return;
+    if (direction == CompressDirection::kCompress) {
+      if (has_gz_extension) {
+        // Already compressed...
+        pop_n_elems(num_arg);
+        push_number(0);
+        return;
+      }
+      output_file = input_path + kGzExtension;
+    } else {
+      if (!has_gz_extension) {
+        // Not compressed...
+        pop_n_elems(num_arg);
+        push_number(0);
+        return;
+      }
+      output_file = input_path.substr(0, input_path.size() - kGzExtensionLength);
     }
-    output_file = input_path.substr(0, input_path.size() - kGzExtensionLength);
   }
 
-  real_output_file = check_valid_path(output_file.c_str(), current_object, "compress_file", 1);
+  const char* real_output_file =
+      check_valid_path(output_file.c_str(), current_object, "compress_file", 1);
   if (!real_output_file) {
     pop_n_elems(num_arg);
     push_number(0);
@@ -279,7 +232,8 @@ void f_uncompress_file() {
   }
   std::string output_path(real_output_file);
 
-  real_input_file = check_valid_path(input_path.c_str(), current_object, "compress_file", 0);
+  const char* real_input_file =
+      check_valid_path(input_path.c_str(), current_object, "compress_file", 0);
   if (!real_input_file) {
     pop_n_elems(num_arg);
     push_number(0);
@@ -287,9 +241,22 @@ void f_uncompress_file() {
   }
 
   const std::string source_path(real_input_file);
-  const bool succeeded = uncompress_file_contents(source_path.c_str(), output_path.c_str());
+  const bool succeeded =
+      direction == CompressDirection::kCompress
+          ? compress_file_contents(source_path.c_str(), output_path.c_str())
+          : uncompress_file_contents(source_path.c_str(), output_path.c_str());
   pop_n_elems(num_arg);
   push_number(succeeded);
+}
+
+void f_compress_file() {
+  compress_file_efun(CompressDirection::kCompress);
+}
+#endif
+
+#ifdef F_UNCOMPRESS_FILE
+void f_uncompress_file() {
+  compress_file_efun(CompressDirection::kUncompress);
 }
 #endif
 

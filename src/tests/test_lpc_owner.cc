@@ -6090,25 +6090,25 @@ TEST_F(DriverTest, TestLibeventOnceReleasesBaseLockAfterAddFailure) {
 TEST_F(DriverTest, TestCompressFilePathsUseOwnedDynamicStorage) {
   const auto source = read_source_file_for_test("../src/packages/compress/compress.cc");
 
+  // Paths must be owned std::strings, never fixed buffers or hand-managed copies.
   ASSERT_EQ(source.find("char outname[1024]"), std::string::npos);
   ASSERT_EQ(source.find("strcpy(outname"), std::string::npos);
   ASSERT_EQ(source.find("FREE_MSTR(output_file)"), std::string::npos);
   ASSERT_EQ(source.find("input_file + len - strlen(GZ_EXTENSION)"), std::string::npos);
 
-  const auto first_input_owner = source.find("std::string input_path(input_file)");
-  ASSERT_NE(first_input_owner, std::string::npos);
-  ASSERT_NE(source.find("std::string input_path(input_file)", first_input_owner + 1),
-            std::string::npos);
+  ASSERT_NE(source.find("std::string input_path("), std::string::npos);
+  ASSERT_NE(source.find("std::string output_path(real_output_file)"), std::string::npos);
+  ASSERT_NE(source.find("input_path.size() >= kGzExtensionLength"), std::string::npos);
 
-  const auto first_output_owner = source.find("std::string output_path(real_output_file)");
-  ASSERT_NE(first_output_owner, std::string::npos);
-  ASSERT_NE(source.find("std::string output_path(real_output_file)", first_output_owner + 1),
-            std::string::npos);
-
-  const auto first_suffix_guard = source.find("input_path.size() >= kGzExtensionLength");
-  ASSERT_NE(first_suffix_guard, std::string::npos);
-  ASSERT_NE(source.find("input_path.size() >= kGzExtensionLength", first_suffix_guard + 1),
-            std::string::npos);
+  // compress_file()/uncompress_file() share one implementation: a single
+  // definition and exactly two delegating efuns. Duplicating the body made the
+  // permission order (output before input) drift between the two.
+  const std::string definition = "static void compress_file_efun(CompressDirection direction)";
+  const auto at = source.find(definition);
+  ASSERT_NE(at, std::string::npos);
+  ASSERT_EQ(source.find(definition, at + 1), std::string::npos);
+  ASSERT_NE(source.find("compress_file_efun(CompressDirection::kCompress)"), std::string::npos);
+  ASSERT_NE(source.find("compress_file_efun(CompressDirection::kUncompress)"), std::string::npos);
 }
 
 TEST_F(DriverTest, TestVmContextTracksTopLevelState) {
