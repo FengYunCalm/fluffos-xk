@@ -56,6 +56,8 @@
 | R-17 | 剩余重复项 | U7 已完成的 4 项之外，需重新做结构扫描才知道还有什么；8 行以上的重复块在 `array.cc` 仍有 ~112 处命中（含有意保留的对称分支） | 按块分组后逐项判定，不批量删除 |
 | R-18 | SM-06 owner future 三表示 | **已完成**（`caecf828`）：只存枚举，字符串仅在线输出与 API 边界出现 | — |
 | R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | 30+ 调用点，且 `owner_task_failure_code()` 靠 `find("rejected")` 做分类；转枚举需要先把分类规则改成显式表 | 先列全部取值与分类映射，再换类型；不要用字符串前缀判断冒充分类 |
+| R-20 | 已完成的两组重复合并 | `socket_efuns.cc` TLS 握手（`7398e170`）、`compress.cc` 两个 efun（`96ad487c`） | — |
+| R-21 | 剩余重复（待做） | `array.cc` 三份排序临时表（`alist_sort`/`intersect_array`/`union_array`）、`interpret.cc` 的 `setup_new_frame`/`setup_inherited_frame`、三个 benchmark 的环境装配、两个 fuzz 入口的初始化 | 按风险排序：帧解码与排序是热路径且涉引用计数，需先补针对性回归再合并 |
 
 ### 2.3 上游待吸收
 
