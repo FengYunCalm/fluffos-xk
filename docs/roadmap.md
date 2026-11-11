@@ -49,13 +49,13 @@
 | R-10 | 编译器前端把折叠后的 64 位常量写进 int32 操作数 | 复现：`int big = 1 << 32;`（正确）vs `a[0 .. 1 << 32]`（边界被截断成 1）。VM 侧已修，前端常量发射路径未查 | 复现用例 + 常量发射路径定位（`icode`/`generate`）；上游 #1441 也未覆盖此路径 |
 | R-11 | 上游 #1441 的 efun 参数批次与 `terminal_colour()` 崩溃修复 | **已完成**：allocate/allocate_buffer/test_bit/next_bit/member_array/replace_string/read_file/read_buffer/write_buffer/strsrch/fetch_class_member/store_class_member 均已改（`b3ab58ae` `4ee32b1d` `4cf22dc6` `e202a3d5`）；`terminal_colour` 崩溃本身未复现，未改 | 继续扫同类：任何 `int x = ...u.number` 都是可疑点 |
 | R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
-| R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器 | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件） |
+| R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器。2026-11 又删了对象存储 record/shard 两处脚手架（`228eaa51`，18 键） | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件）。**边界**：`gateway_session.cc` 命令帧负载里的 `*_ready` / `*_executor_ready` 字段是交给下游 owner executor 判断“这部分能不能在 owner 线程跑”的契约数据，不是自述状态；它们没有 C++ 消费者，但下游会读，不能按“零消费者”删除 |
 | R-14 | gateway 状态面收口（`gateway_status_internal()`） | **进行中**：987 → 421 行。已拆出后端切片块（`6f3232bb`）、151 个计数器与 36 处延迟采样改单令牌宏（`a4bcf55c` `e6ac5c7f`）、房间输出投影块（`5adba526`） | 剩余 421 行里主要是按子系统交错的真实计数与阈值；继续拆需先重新勘测连续段 |
 | R-15 | `deep_inventory` 与 `deep_inventory_array` 共享 55 行计数→分配→收集→收缩尾巴，只差计数循环 | **已完成**（`288bd809`）：抽出 `deep_inventory_build()`，两个入口只剩各自的计数循环 | — |
 | R-16 | `copy_lvalue_range` / `assign_lvalue_range` 两份区间赋值（152 + 129 行） | **已完成**（`a90b1fb4` 合并 + `aee32345` 补所有权契约测试） | — |
 | R-17 | 剩余重复项 | U7 已完成的 4 项之外，需重新做结构扫描才知道还有什么；8 行以上的重复块在 `array.cc` 仍有 ~112 处命中（含有意保留的对称分支） | 按块分组后逐项判定，不批量删除 |
 | R-18 | SM-06 owner future 三表示 | **已完成**（`caecf828`）：只存枚举，字符串仅在线输出与 API 边界出现 | — |
-| R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | 30+ 调用点，且 `owner_task_failure_code()` 靠 `find("rejected")` 做分类；转枚举需要先把分类规则改成显式表 | 先列全部取值与分类映射，再换类型；不要用字符串前缀判断冒充分类 |
+| R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | **已完成**（`50fa7e0b`）：准入结果改存 `OwnerAdmissionState` 枚举（`owner_admission_state.h`），任务与 trace 共用；失败规则先按枚举 switch，再回落到调用方传入的 trace 标签文本；字符串只在 LPC 输出边界出现 | trace 标签本身是调用方自由文本，仍按关键词优先级匹配——这是它的语义，不是遗漏 |
 | R-20 | 已完成的两组重复合并 | `socket_efuns.cc` TLS 握手（`7398e170`）、`compress.cc` 两个 efun（`96ad487c`） | — |
 | R-21 | 剩余重复 | `interpret.cc` 帧解码：**已完成**（`9f88ce89`）；三个 benchmark 的环境装配：**已完成**（`82f89903`，含三份已漂移的写报告逻辑） | — |
 | R-25 | 重构后的 sanitizer 复核 | **已完成**（`72605bde` 起）：ASan C++ 全量 565 项无泄漏无报错；ASan `-ftest` 连跑 3 次无泄漏；同机 `be7cb6ad` 基线 ASan `-ftest` 对照无泄漏，确认本系列引入的唯一泄漏已在 R-22 修掉 | 证据见本地 `evidence/`（`head-asan-*`、`baseline-asan-*`）；PCRE2 开发包缺失，ASan/Debug 构建统一用 `-DCMAKE_PREFIX_PATH=~/projects/deps/pcre/root/usr` |
