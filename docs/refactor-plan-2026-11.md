@@ -851,6 +851,9 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | U5b-a | `deb7e6bd` | 删除 object-store 迁移脚手架（1058→1008 键） | ctest 597/597；-ftest 434 文件退出码 0 | object_store.cc -258 行；嵌套三份重复副本合为一份 |
 | U5b-b | `f7fc15f8` | 删除生产门禁清单与代码自述键（1008→926） | ctest 596/596；-ftest 433 文件退出码 0 | 删 50 键 + `audit_owner_evidence.lpc` 及其 scope 行 |
 | U7-a | `5372a0dd` | mapping.cc 两份合并循环、object.cc 两份括号匹配 | ctest 596/596；-ftest 433 文件退出码 0 | 顺带修复覆盖版本漏恢复 `unfilled` |
+| U7-b | `288bd809` | deep_inventory 与 deep_inventory_array 共尾 | ctest 596/596；-ftest 433 | 净减 43 行 |
+| U7-c | `a90b1fb4` `aee32345` | 区间赋值两份实现合并 + 所有权契约测试 | ctest 596/596；-ftest 434 文件退出码 0 | 净减 108 行；新增 18 断言 |
+| U9-a | `4b274d1a` | 状态键契约接入 CI（只在 documented 键消失时报错） | `status-contract --check` 退出码 0 | 之前两边都报错，等于门禁不可用 |
 | U5c | — | 网关状态装配移出主逻辑文件 | — | 见 roadmap R-14 |
 | U6 | — | 7 个状态机显式化 | — | 未开始 |
 | U7-b | — | 剩余重复项（`deep_inventory` 尾巴、interpret.cc 区间赋值等） | — | 见 roadmap R-15 |

@@ -51,7 +51,9 @@
 | R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
 | R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器 | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件） |
 | R-14 | gateway 状态面收口（`gateway_status_internal()` 单函数 303 键、跨 987 行） | 这个函数约千行，几乎全是计数器与延迟采样，删除面小；真正的问题是它把网关所有子系统的状态装配塞在一个函数里 | 按子系统拆成 `gateway_status_io/queue/future/room_projection` 等，主函数只做组装（U5c） |
-| R-15 | `deep_inventory` 与 `deep_inventory_array` 共享 55 行计数→分配→收集→收缩尾巴，只差计数循环 | 两者行为已分别被 `deep_inventory`/`deep_inventory_array` 的 efun 测试覆盖 | 先抽公共尾巴为 helper，再评估能否把前者表达为后者的单元素形式 |
+| R-15 | `deep_inventory` 与 `deep_inventory_array` 共享 55 行计数→分配→收集→收缩尾巴，只差计数循环 | **已完成**（`288bd809`）：抽出 `deep_inventory_build()`，两个入口只剩各自的计数循环 | — |
+| R-16 | `copy_lvalue_range` / `assign_lvalue_range` 两份区间赋值（152 + 129 行） | **已完成**（`a90b1fb4` 合并 + `aee32345` 补所有权契约测试） | — |
+| R-17 | 剩余重复项 | U7 已完成的 4 项之外，需重新做结构扫描才知道还有什么；8 行以上的重复块在 `array.cc` 仍有 ~112 处命中（含有意保留的对称分支） | 按块分组后逐项判定，不批量删除 |
 
 ### 2.3 上游待吸收
 
