@@ -12,6 +12,5 @@ src/tests/test_owner_cross.cc 56
 src/tests/test_owner_gateway.cc 22
 src/vm/internal/base/interpret.cc 34
 src/vm/internal/base/object.cc 104
-src/vm/internal/object_store.cc 204
 src/vm/internal/owner.cc 10
 src/vm/internal/trace.cc 8

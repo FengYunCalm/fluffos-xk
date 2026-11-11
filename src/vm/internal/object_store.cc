@@ -2178,23 +2178,9 @@ object_t* vm_object_store_find_live_by_path(const char* object_path) {
   return shard_resolve_live_object_locked(shard_it->second, record->object_id);
 }
 
-mapping_t* vm_object_store_owner_lookup_status(const char* owner_id, uint64_t object_id) {
-  ObjectStoreReadLock lock(object_store_directory_mutex);
-  auto result = owner_local_lookup_by_object_locked(owner_id, object_id);
-
-  auto* map = allocate_mapping(62);
-  add_mapping_pair(map, "success", 1);
-  add_mapping_string(map, "owner_id", result.owner_id.c_str());
-  add_mapping_pair(map, "object_id", static_cast<LPC_INT>(object_id));
-  add_mapping_pair(map, "record_found", result.record ? 1 : 0);
-  add_mapping_pair(map, "found", result.found ? 1 : 0);
-  add_mapping_string(map, "record_owner_id", result.record ? result.record->owner_id.c_str() : "");
-  add_mapping_pair(map, "owner_epoch",
-                   result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
-  add_mapping_string(map, "object_path", result.record ? result.record->object_path.c_str() : "");
-  add_mapping_pair(map, "destructed", result.record && result.record->destructed ? 1 : 0);
-  add_mapping_pair(map, "owner_mismatch", result.record && !result.same_owner ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_entry", result.found ? 1 : 0);
+// Both lookup status mappings read the same OwnerLocalLookupResult, so the
+// diagnostic tail is emitted once instead of being copied into each.
+static void add_owner_local_lookup_tail(mapping_t* map, const OwnerLocalLookupResult& result) {
   add_mapping_pair(map, "owner_local_record_found",
                    result.local_record || result.destructed_record ? 1 : 0);
   add_mapping_pair(map, "owner_local_destructed_record_found", result.destructed_record ? 1 : 0);
@@ -2311,6 +2297,26 @@ mapping_t* vm_object_store_owner_lookup_status(const char* owner_id, uint64_t ob
                                          !owner_local_store_complete));
   add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
   add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
+}
+
+mapping_t* vm_object_store_owner_lookup_status(const char* owner_id, uint64_t object_id) {
+  ObjectStoreReadLock lock(object_store_directory_mutex);
+  auto result = owner_local_lookup_by_object_locked(owner_id, object_id);
+
+  auto* map = allocate_mapping(62);
+  add_mapping_pair(map, "success", 1);
+  add_mapping_string(map, "owner_id", result.owner_id.c_str());
+  add_mapping_pair(map, "object_id", static_cast<LPC_INT>(object_id));
+  add_mapping_pair(map, "record_found", result.record ? 1 : 0);
+  add_mapping_pair(map, "found", result.found ? 1 : 0);
+  add_mapping_string(map, "record_owner_id", result.record ? result.record->owner_id.c_str() : "");
+  add_mapping_pair(map, "owner_epoch",
+                   result.record ? static_cast<LPC_INT>(result.record->owner_epoch) : 0);
+  add_mapping_string(map, "object_path", result.record ? result.record->object_path.c_str() : "");
+  add_mapping_pair(map, "destructed", result.record && result.record->destructed ? 1 : 0);
+  add_mapping_pair(map, "owner_mismatch", result.record && !result.same_owner ? 1 : 0);
+  add_mapping_pair(map, "owner_local_directory_entry", result.found ? 1 : 0);
+  add_owner_local_lookup_tail(map, result);
   return map;
 }
 
@@ -2331,121 +2337,6 @@ mapping_t* vm_object_store_owner_path_lookup_status(const char* owner_id, const 
   add_mapping_pair(map, "destructed", result.record && result.record->destructed ? 1 : 0);
   add_mapping_pair(map, "owner_mismatch", result.record && !result.same_owner ? 1 : 0);
   add_mapping_pair(map, "owner_local_directory_entry", result.found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_record_found",
-                   result.local_record || result.destructed_record ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_record_found", result.destructed_record ? 1 : 0);
-  add_mapping_string(map, "owner_local_record_source",
-                     result.local_record
-                         ? "vm_object_shard.local_records"
-                         : (result.destructed_record ? "vm_object_shard.destructed_records" : ""));
-  add_mapping_pair(map, "owner_local_record_destructed", result.destructed_record ? 1 : 0);
-  add_mapping_pair(map, "owner_local_cross_shard_record_found", result.cross_owner_record ? 1 : 0);
-  add_mapping_string(map, "owner_local_cross_shard_record_source",
-                     result.cross_owner_record ? result.cross_owner_record_source.c_str() : "");
-  add_mapping_pair(map, "owner_local_global_record_found", result.global_record ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_source",
-                     result.global_record ? result.global_record_source.c_str() : "");
-  add_mapping_pair(map, "owner_local_global_record_id_scan_bridge_used",
-                   result.global_record_id_scan_bridge_used ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_record_id_scan_bridge_found",
-                   result.global_record_id_scan_bridge_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_id_scan_bridge_source",
-                     result.global_record_id_scan_bridge_used
-                         ? result.global_record_id_scan_bridge_source.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_global_record_id_scan_bridge_skipped",
-                   result.global_record_id_scan_bridge_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_id_scan_bridge_skip_reason",
-                     result.global_record_id_scan_bridge_skipped
-                         ? result.global_record_id_scan_bridge_skip_reason.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_global_record_pointer_bridge_used",
-                   result.global_record_pointer_bridge_used ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_record_pointer_bridge_found",
-                   result.global_record_pointer_bridge_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_pointer_bridge_source",
-                     result.global_record_pointer_bridge_used
-                         ? result.global_record_pointer_bridge_source.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_global_record_pointer_bridge_skipped",
-                   result.global_record_pointer_bridge_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_pointer_bridge_skip_reason",
-                     result.global_record_pointer_bridge_skipped
-                         ? result.global_record_pointer_bridge_skip_reason.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_global_record_scan_bridge_used",
-                   result.global_record_scan_bridge_used ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_record_scan_bridge_found",
-                   result.global_record_scan_bridge_found ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_global_record_scan_bridge_source",
-      result.global_record_scan_bridge_used ? result.global_record_scan_bridge_source.c_str() : "");
-  add_mapping_pair(map, "owner_local_global_record_scan_bridge_skipped",
-                   result.global_record_scan_bridge_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_record_scan_bridge_skip_reason",
-                     result.global_record_scan_bridge_skipped
-                         ? result.global_record_scan_bridge_skip_reason.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_global_record_fallback_skipped",
-                   result.global_record_fallback_skipped ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_global_record_fallback_reason",
-      result.global_record_fallback_skipped ? result.global_record_fallback_reason.c_str() : "");
-  add_mapping_pair(map, "global_record_bridge_retirement_ready",
-                   result.global_record_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_live_object_found",
-                   result.global_live_object_found ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_global_live_object_source",
-      result.global_live_object_found ? result.global_live_object_source.c_str() : "");
-  add_mapping_pair(map, "global_live_object_bridge_retirement_ready",
-                   result.global_live_object_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_live_object_fallback_skipped",
-                   result.global_live_object_fallback_skipped ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_live_object_fallback_reason",
-                     result.global_live_object_fallback_skipped
-                         ? result.global_live_object_fallback_reason.c_str()
-                         : "");
-  add_mapping_pair(map, "owner_local_object_ref_found", result.local_object_ref_found ? 1 : 0);
-  add_mapping_string(map, "owner_local_object_ref_source",
-                     result.local_object_ref_found ? "vm_object_shard.local_objects" : "");
-  add_mapping_pair(map, "owner_local_object_ref_index_found",
-                   result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_object_ref_index_source",
-      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
-  add_mapping_pair(map, "owner_local_object_pointer_index_found",
-                   result.local_object_ref_index_found ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_object_pointer_index_source",
-      result.local_object_ref_index_found ? "vm_object_shard.local_object_index" : "");
-  add_mapping_pair(map, "owner_local_resolve_found", result.resolved_object ? 1 : 0);
-  add_mapping_string(map, "owner_local_resolve_source",
-                     result.resolved_object ? "vm_object_shard.local_objects" : "");
-  add_mapping_pair(map, "owner_local_path_index_found", result.live_path_index_found ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_path_index_found",
-                   result.destructed_path_index_found ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_path_index_source",
-      result.live_path_index_found
-          ? "vm_object_shard.object_path_index"
-          : (result.destructed_path_index_found ? "vm_object_shard.destructed_path_index" : ""));
-  add_mapping_pair(map, "owner_local_path_index_ready", 1);
-  add_mapping_pair(map, "owner_local_directory_ready", 1);
-  add_mapping_pair(map, "owner_local_canonical_record_ready",
-                   result.owner_local_canonical_record_ready ? 1 : 0);
-  auto owner_local_store_ready = result.owner_local_canonical_record_ready &&
-                                 result.global_live_object_bridge_retirement_ready;
-  auto owner_local_store_complete = owner_local_store_ready &&
-                                    result.global_record_bridge_retirement_ready &&
-                                    result.global_live_object_bridge_retirement_ready;
-  add_mapping_pair(map, "owner_local_store_ready", owner_local_store_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_complete", owner_local_store_complete ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_store_complete_blocker",
-      owner_local_store_complete_blocker(owner_local_store_complete, !owner_local_store_complete,
-                                         !owner_local_store_complete));
-  add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
+  add_owner_local_lookup_tail(map, result);
   return map;
 }
