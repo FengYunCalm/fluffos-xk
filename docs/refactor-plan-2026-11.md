@@ -460,6 +460,30 @@ wc -l audit-evidence/refactor-2026-11/status-keys.txt
 
 ### U5b 删除除 51 个冻结键之外的全部 owner 观测键
 
+**已尝试一次，停在上测试阶段**（2026-11）。生产侧删除已验证可行：在 `object_store.cc`
+去掉 `vm_object_shard_contract_mapping`（35 键）、`add_owner_local_lifecycle_contract`
+（11 键）、`status_record_mapping`/`execution_shard_mapping` 的嵌套重复、以及 status 里的
+bridge/retirement/readiness 键后，`driver` 与 `lpc_tests` 仍能构建，失败只剩 3 个用例。
+
+**真正的阻塞点是测试侧结构，不是生产代码**：测试里的断言助手（如
+`expect_owner_local_store_complete_contract` 的 19 行断言）在**同一个文件的多个测试里逐字重复**，
+内容完全相同。这带两个后果：
+
+1. 无法定点修改：两个副本字节相同，任何“只改这一处不影响另一处”的编辑都无从下手。
+2. 改一处就漏一处：如果手工只改一个副本，另一个副本继续断言已删除的键。
+
+因此 U5b 的正确顺序是：**先把测试里的重复断言助手抽到 `test_lpc_support.h` 并只保留一份**
+（U7 同类工作），再删生产键，最后删那份唯一助手里已失效的断言。反过来做会被重复副本卡住。
+
+**已加载的失败信息**（供下次直接验证）：去键后失败的是
+`TestVmObjectStoreRecordsOwnerMigrationTrace`、
+`TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeRetired`、
+`TestVmObjectStoreShardRemovesDestructedObject`；`TestVmObjectStoreTracksPendingCallouts` /
+`TracksPendingOwnerMessages` / `VmOwnerHeartbeatTraceRecordsScheduledEvent` 只需把断言
+从嵌套 `status_record`/`execution_shard` 改为平铺计数即可通过（这两个改动已在尝试中验证过）。
+
+以下为原计划内容，顺序保持不变：
+
 1. 先删零下游消费者的整个对象存储观测面：`src/vm/internal/object_store.cc`
    （388 处 key）。保留 `vm_object_store_status()` / `vm_object_store_owner_status()`
    这两个 efun **名称与返回类型**（LPC 契约不变），只保留计数类子集（对象数、
@@ -824,7 +848,7 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--dump` 1,058 键；`--check` 预期为红直到 U5b | |
 | U3 | `524f0027` | 删假审计（含编码层归还）+ 2 个零消费者 bench efun | ctest 597/597；-ftest 433 文件退出码 0 | 两个子单元合并为一次提交（同一测试文件） |
 | U4 | `3e01bff9` | 64 位索引/区间截断、TTYPE、输入移除守卫 | ctest 597/597；-ftest 435 文件退出码 0 | 12 项中已吸收 4、已存在 3、部分 2、需设计/拆分 3 |
-| U5b | — | 删 1,372 个迁移脚手架键 | — | **未开始**；已测波及面：5 个文件共 2,487 处 `add_mapping_*`，`test_lpc_owner.cc` 550 行 + `owner_executor_contract.c` 239 行断言需同步清理；object_store 面（383 处 / 78 个脚手架键）无下游消费者，建议从这里开始 |
+| U5b | — | 删 1,372 个迁移脚手架键 | 生产侧已验证可行；阻塞点为测试重复助手 | **已尝试一次并回退**；见本节开头的阻塞分析与下一步顺序 |
 | U5c | — | 网关状态装配移出主逻辑文件 | — | 未开始 |
 | U5d | — | 下游 ownercheck 前后对比 | — | 未开始 |
 | U6 | — | 7 个状态机显式化 | — | 未开始 |
