@@ -307,30 +307,6 @@ void add_mapping_map(mapping_t* map, const char* key_name, mapping_t* value) {
   value->ref++;
 }
 
-void add_owner_local_lifecycle_contract(mapping_t* map, bool lookup_resolve_ready,
-                                        bool canonical_write_ready) {
-  constexpr bool deferred_destruct_ready = true;
-  constexpr bool global_index_physical_retirement_ready = true;
-  const auto lifecycle_ready = lookup_resolve_ready && canonical_write_ready &&
-                               deferred_destruct_ready && global_index_physical_retirement_ready;
-  add_mapping_pair(map, "owner_local_lifecycle_contract_version", 1);
-  add_mapping_pair(map, "owner_local_lookup_resolve_ready", lookup_resolve_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_create_canonical_ready", canonical_write_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_move_canonical_ready", canonical_write_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destruct_canonical_ready", canonical_write_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_deferred_destruct_ready", deferred_destruct_ready ? 1 : 0);
-  add_mapping_string(map, "owner_local_deferred_destruct_blocker",
-                     deferred_destruct_ready ? "" : kOwnerLocalDeferredDestructBlocker);
-  add_mapping_pair(map, "global_index_physical_retirement_ready",
-                   global_index_physical_retirement_ready ? 1 : 0);
-  add_mapping_string(
-      map, "global_index_physical_retirement_blocker",
-      global_index_physical_retirement_ready ? "" : kGlobalIndexPhysicalRetirementBlocker);
-  add_mapping_pair(map, "owner_local_lifecycle_ready", lifecycle_ready ? 1 : 0);
-  add_mapping_string(map, "owner_local_lifecycle_blocker",
-                     lifecycle_ready ? "" : kOwnerLocalStoreCompleteBlockerNotMarkedComplete);
-}
-
 VMObjectShard& shard_for_owner(const std::string& owner_id) {
   auto& shard = owner_shards[owner_id];
   if (shard.status.owner_id.empty()) {
@@ -1356,70 +1332,6 @@ void shard_mark_destructed_object(VMObjectShard& shard, const ObjectRecord& reco
   }
 }
 
-mapping_t* vm_object_shard_contract_mapping(const VMObjectShard& shard,
-                                            const OwnerLocalBridgeSummary& summary) {
-  auto shard_ready = shard_canonical_record_ready(shard);
-  auto store_ready = owner_local_store_ready_for_shard(shard, summary);
-  auto store_complete = owner_local_store_complete_for_shard(shard, summary);
-  auto* map = allocate_mapping(35);
-  add_mapping_string(map, "owner_id", shard.status.owner_id.c_str());
-  add_mapping_string(map, "shard_kind", "vm_object_shard");
-  add_mapping_string(map, "status_model", "owner_status_record");
-  add_mapping_string(map, "execution_model", "owner_execution_shard");
-  add_mapping_string(map, "directory_model", "owner_local_object_directory");
-  add_mapping_string(map, "storage_model",
-                     store_complete ? "owner_local_store" : "global_index_bridge");
-  add_mapping_pair(map, "object_directory_count",
-                   static_cast<LPC_INT>(shard.object_directory.size()));
-  add_mapping_pair(map, "owner_local_record_count",
-                   static_cast<LPC_INT>(shard.local_records.size()));
-  add_mapping_pair(map, "owner_local_destructed_record_count",
-                   static_cast<LPC_INT>(shard.destructed_records.size()));
-  add_mapping_pair(map, "owner_local_object_ref_count",
-                   static_cast<LPC_INT>(shard.local_objects.size()));
-  add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
-  add_mapping_pair(map, "owner_local_object_ref_index_count",
-                   static_cast<LPC_INT>(shard.local_object_index.size()));
-  add_mapping_string(map, "owner_local_object_ref_index_source",
-                     "vm_object_shard.local_object_index");
-  add_mapping_pair(map, "owner_local_path_index_count",
-                   static_cast<LPC_INT>(shard.object_path_index.size()));
-  add_mapping_pair(map, "owner_local_destructed_path_index_count",
-                   static_cast<LPC_INT>(shard.destructed_path_index.size()));
-  add_mapping_pair(map, "owner_local_path_index_ready", 1);
-  add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-  add_mapping_string(map, "owner_local_destructed_path_index_source",
-                     "vm_object_shard.destructed_path_index");
-  add_mapping_pair(map, "owner_local_live_index_consistent",
-                   shard_live_counts_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_object_ref_index_consistent",
-                   shard_live_object_ref_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_live_path_index_consistent",
-                   shard_live_path_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_destructed_path_index_consistent",
-                   shard_destructed_path_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_canonical_record_ready", shard_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_ready", shard.owner_local_directory_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_from_shard",
-                   shard.owner_local_directory_from_shard ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_ready", store_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_complete", store_complete ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_store_complete_blocker",
-      owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
-  add_mapping_pair(map, "uses_global_object_table", store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_index_bridge", store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_live_object_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_live_object_bridge_source",
-                     store_complete ? "" : kGlobalLiveObjectBridgeSource);
-  add_mapping_pair(map, "global_record_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_record_bridge_source",
-                     store_complete ? "" : kGlobalRecordBridgeSource);
-  add_owner_local_lifecycle_contract(map, store_complete, shard_ready);
-  add_mapping_pair(map, "contract_version", 1);
-  return map;
-}
-
 void append_migration_trace_locked(const ObjectRecord& record, const std::string& from_owner_id,
                                    const std::string& to_owner_id);
 
@@ -1563,43 +1475,10 @@ LPC_INT execution_runnable_tasks(const ObjectExecutionShardRecord& execution) {
                               execution.pending_messages.size());
 }
 
-mapping_t* status_record_mapping(const ObjectShardStatusRecord& status) {
-  auto* map = allocate_mapping(7);
-  add_mapping_string(map, "owner_id", status.owner_id.c_str());
-  add_mapping_pair(map, "objects", static_cast<LPC_INT>(status.objects.size()));
-  add_mapping_pair(map, "registered", static_cast<LPC_INT>(status.registered));
-  add_mapping_pair(map, "destructed", static_cast<LPC_INT>(status.destructed));
-  add_mapping_pair(map, "heartbeats", static_cast<LPC_INT>(status.heartbeats));
-  add_mapping_pair(map, "callouts", static_cast<LPC_INT>(status.callouts));
-  add_mapping_pair(map, "messages", static_cast<LPC_INT>(status.messages));
-  return map;
-}
-
-mapping_t* execution_shard_mapping(const ObjectExecutionShardRecord& execution) {
-  auto runnable_tasks = execution_runnable_tasks(execution);
-  auto* map = allocate_mapping(6);
-  add_mapping_string(map, "owner_id", execution.owner_id.c_str());
-  add_mapping_pair(map, "active_heartbeats",
-                   static_cast<LPC_INT>(execution.active_heartbeats.size()));
-  add_mapping_pair(map, "pending_callouts",
-                   static_cast<LPC_INT>(execution.pending_callouts.size()));
-  add_mapping_pair(map, "pending_messages",
-                   static_cast<LPC_INT>(execution.pending_messages.size()));
-  add_mapping_pair(map, "runnable_tasks", static_cast<LPC_INT>(runnable_tasks));
-  add_mapping_pair(map, "executor_ready", runnable_tasks > 0 ? 1 : 0);
-  return map;
-}
-
 mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSummary& summary) {
   auto runnable_tasks = execution_runnable_tasks(shard.execution);
-  auto shard_ready = shard_canonical_record_ready(shard);
-  auto store_ready = owner_local_store_ready_for_shard(shard, summary);
-  auto store_complete = owner_local_store_complete_for_shard(shard, summary);
-  auto* status_record = status_record_mapping(shard.status);
-  auto* execution_shard = execution_shard_mapping(shard.execution);
   auto* object_directory = object_directory_for_owner_locked(shard);
-  auto* shard_contract = vm_object_shard_contract_mapping(shard, summary);
-  auto* map = allocate_mapping(48);
+  auto* map = allocate_mapping(14);
   add_mapping_string(map, "owner_id", shard.status.owner_id.c_str());
   add_mapping_pair(map, "objects", static_cast<LPC_INT>(shard.status.objects.size()));
   add_mapping_pair(map, "registered", static_cast<LPC_INT>(shard.status.registered));
@@ -1614,36 +1493,19 @@ mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSumma
   add_mapping_pair(map, "pending_messages",
                    static_cast<LPC_INT>(shard.execution.pending_messages.size()));
   add_mapping_pair(map, "runnable_tasks", runnable_tasks);
-  add_mapping_pair(map, "executor_ready", runnable_tasks > 0 ? 1 : 0);
-  add_mapping_map(map, "vm_object_shard", shard_contract);
-  add_mapping_map(map, "status_record", status_record);
-  add_mapping_map(map, "execution_shard", execution_shard);
-  add_mapping_pair(map, "shard_contract_version", 1);
-  add_mapping_pair(map, "status_record_version", 1);
-  add_mapping_pair(map, "execution_shard_ready", runnable_tasks > 0 ? 1 : 0);
-  add_mapping_array(map, "object_directory", object_directory);
-  add_mapping_pair(map, "object_directory_count", static_cast<LPC_INT>(object_directory->size));
-  add_mapping_pair(map, "owner_local_directory_count",
-                   static_cast<LPC_INT>(shard.object_directory.size()));
   add_mapping_pair(map, "owner_local_record_count",
                    static_cast<LPC_INT>(shard.local_records.size()));
   add_mapping_pair(map, "owner_local_destructed_record_count",
                    static_cast<LPC_INT>(shard.destructed_records.size()));
   add_mapping_pair(map, "owner_local_object_ref_count",
                    static_cast<LPC_INT>(shard.local_objects.size()));
-  add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
   add_mapping_pair(map, "owner_local_object_ref_index_count",
                    static_cast<LPC_INT>(shard.local_object_index.size()));
-  add_mapping_string(map, "owner_local_object_ref_index_source",
-                     "vm_object_shard.local_object_index");
   add_mapping_pair(map, "owner_local_path_index_count",
                    static_cast<LPC_INT>(shard.object_path_index.size()));
   add_mapping_pair(map, "owner_local_destructed_path_index_count",
                    static_cast<LPC_INT>(shard.destructed_path_index.size()));
-  add_mapping_pair(map, "owner_local_path_index_ready", 1);
-  add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-  add_mapping_string(map, "owner_local_destructed_path_index_source",
-                     "vm_object_shard.destructed_path_index");
+  // Index invariants: computed from the live structures, not declared.
   add_mapping_pair(map, "owner_local_live_index_consistent",
                    shard_live_counts_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_object_ref_index_consistent",
@@ -1652,28 +1514,19 @@ mapping_t* shard_mapping(const VMObjectShard& shard, const OwnerLocalBridgeSumma
                    shard_live_path_index_consistent(shard) ? 1 : 0);
   add_mapping_pair(map, "owner_local_destructed_path_index_consistent",
                    shard_destructed_path_index_consistent(shard) ? 1 : 0);
-  add_mapping_pair(map, "owner_local_canonical_record_ready", shard_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_ready", shard.owner_local_directory_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_directory_from_shard",
-                   shard.owner_local_directory_from_shard ? 1 : 0);
-  add_mapping_string(map, "owner_local_directory_source", "vm_object_shard.object_directory");
-  add_mapping_pair(map, "owner_local_store_ready", store_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_complete", store_complete ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_store_complete_blocker",
-      owner_local_store_complete_blocker(store_complete, !store_complete, !store_complete));
-  add_mapping_pair(map, "uses_global_object_table", store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_index_bridge", store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_live_object_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_live_object_bridge_source",
-                     store_complete ? "" : kGlobalLiveObjectBridgeSource);
-  add_mapping_pair(map, "global_record_bridge_ready", store_complete ? 0 : 1);
-  add_mapping_string(map, "global_record_bridge_source",
-                     store_complete ? "" : kGlobalRecordBridgeSource);
-  add_owner_local_lifecycle_contract(map, store_complete, shard_ready);
-  free_mapping(shard_contract);
-  free_mapping(status_record);
-  free_mapping(execution_shard);
+  add_mapping_pair(map, "owner_local_directory_count",
+                   static_cast<LPC_INT>(shard.object_directory.size()));
+  // Computed from the shard's own state; false (not absent) when incomplete.
+  add_mapping_pair(map, "owner_local_store_ready",
+                   owner_local_store_ready_for_shard(shard, summary) ? 1 : 0);
+  add_mapping_pair(map, "owner_local_store_complete",
+                   owner_local_store_complete_for_shard(shard, summary) ? 1 : 0);
+  add_mapping_pair(map, "owner_local_canonical_record_ready",
+                   shard_canonical_record_ready(shard) ? 1 : 0);
+  add_mapping_pair(map, "owner_local_directory_ready",
+                   shard.owner_local_directory_ready ? 1 : 0);
+  add_mapping_array(map, "object_directory", object_directory);
+  add_mapping_pair(map, "object_directory_count", static_cast<LPC_INT>(object_directory->size));
   free_array(object_directory);
   return map;
 }
@@ -2268,22 +2121,8 @@ mapping_t* vm_object_store_status() {
     migrations->item[migration_index].u.map = migration_trace_mapping(trace);
     migration_index++;
   }
-  auto* map = allocate_mapping(51);
+  auto* map = allocate_mapping(13);
   add_mapping_pair(map, "success", 1);
-  add_mapping_string(map, "store_kind", "vm_object_store");
-  add_mapping_string(map, "status_model", "object_store_status");
-  add_mapping_string(map, "directory_model", "owner_local_object_directory");
-  add_mapping_string(map, "storage_model",
-                     owner_local_store_complete ? "owner_local_store" : "global_index_bridge");
-  add_mapping_pair(map, "object_store_owner_fast_path_ready", 1);
-  add_mapping_pair(map, "owner_local_fast_path_ready", 1);
-  add_mapping_string(map, "owner_local_fast_path_lock_model", "shared_mutex_read_lock");
-  add_mapping_pair(map, "object_store_global_fallback_on_owner_fast_path", 0);
-  add_mapping_string(map, "object_store_owner_fast_path_scope", "same_owner_handle_resolve");
-  add_mapping_string(map, "owner_local_lifecycle_write_model",
-                     "owner_shard_canonical_with_global_compat_mirror");
-  add_mapping_string(map, "global_record_write_model", "compatibility_mirror");
-  add_mapping_pair(map, "global_record_canonical_write", 0);
   add_mapping_pair(map, "registered_objects", static_cast<LPC_INT>(object_records.size()));
   add_mapping_pair(map, "global_record_total",
                    static_cast<LPC_INT>(owner_local_bridge.global_records));
@@ -2305,49 +2144,7 @@ mapping_t* vm_object_store_status() {
                    static_cast<LPC_INT>(owner_local_bridge.destructed_path_index_entries));
   add_mapping_pair(map, "owner_local_orphan_record_total",
                    static_cast<LPC_INT>(owner_local_bridge.orphan_records));
-  add_mapping_pair(map, "owner_local_to_global_mismatch_record_total",
-                   static_cast<LPC_INT>(owner_local_bridge.owner_local_to_global_mismatch_records));
-  add_mapping_pair(
-      map, "global_to_owner_local_record_mismatch_record_total",
-      static_cast<LPC_INT>(owner_local_bridge.global_to_owner_local_record_mismatch_records));
-  add_mapping_pair(map, "global_to_owner_local_mismatch_record_total",
-                   static_cast<LPC_INT>(owner_local_bridge.global_to_owner_local_mismatch_records));
-  add_mapping_pair(map, "owner_local_record_index_ready",
-                   owner_local_bridge.owner_local_record_index_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_canonical_record_ready",
-                   owner_local_bridge.owner_local_canonical_record_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_ready", owner_local_store_ready ? 1 : 0);
-  add_mapping_pair(map, "owner_local_store_complete", owner_local_store_complete ? 1 : 0);
-  add_mapping_string(
-      map, "owner_local_store_complete_blocker",
-      owner_local_store_complete_blocker(owner_local_store_complete, !owner_local_store_complete,
-                                         !owner_local_store_complete));
-  add_mapping_pair(map, "uses_global_object_table", owner_local_store_complete ? 0 : 1);
-  add_mapping_pair(map, "global_index_bridge", owner_local_store_complete ? 0 : 1);
-  add_mapping_pair(map, "owner_local_to_global_bridge_consistent",
-                   owner_local_bridge.owner_local_to_global_bridge_consistent ? 1 : 0);
-  add_mapping_pair(map, "global_to_owner_local_bridge_consistent",
-                   owner_local_bridge.global_to_owner_local_bridge_consistent ? 1 : 0);
-  add_mapping_pair(map, "global_record_bridge_consistent",
-                   owner_local_bridge.global_record_bridge_consistent ? 1 : 0);
-  add_mapping_pair(map, "owner_local_global_bridge_consistent",
-                   owner_local_bridge.global_bridge_consistent ? 1 : 0);
-  add_mapping_pair(map, "global_record_bridge_retirement_ready",
-                   owner_local_bridge.global_record_bridge_retirement_ready ? 1 : 0);
-  add_mapping_pair(map, "global_live_object_bridge_retirement_ready",
-                   owner_local_bridge.global_live_object_bridge_retirement_ready ? 1 : 0);
-  add_mapping_string(map, "owner_local_global_bridge_check", "bidirectional");
-  add_mapping_string(map, "owner_local_global_bridge_source", "vm_object_shard");
-  add_mapping_pair(map, "global_live_object_bridge_ready", owner_local_store_complete ? 0 : 1);
-  add_mapping_string(map, "global_live_object_bridge_source",
-                     owner_local_store_complete ? "" : kGlobalLiveObjectBridgeSource);
-  add_mapping_pair(map, "global_record_bridge_ready", owner_local_store_complete ? 0 : 1);
-  add_mapping_string(map, "global_record_bridge_source",
-                     owner_local_store_complete ? "" : kGlobalRecordBridgeSource);
-  add_owner_local_lifecycle_contract(map, owner_local_store_complete,
-                                     owner_local_bridge.owner_local_canonical_record_ready);
   add_mapping_pair(map, "owner_shards", static_cast<LPC_INT>(owner_shards.size()));
-  add_mapping_string(map, "default_owner_id", vm_owner_default_id());
   add_mapping_pair(map, "migration_count",
                    static_cast<LPC_INT>(next_migration_id.load(std::memory_order_relaxed) - 1));
   add_mapping_array(map, "migrations", migrations);
@@ -2364,57 +2161,13 @@ mapping_t* vm_object_store_owner_status(const char* owner_id) {
   auto it = owner_shards.find(normalized);
   if (it == owner_shards.end()) {
     auto* object_directory = allocate_array(0);
-    VMObjectShard empty_shard;
-    empty_shard.status.owner_id = normalized;
-    empty_shard.execution.owner_id = normalized;
-    auto empty_store_ready = owner_local_store_ready_for_shard(empty_shard, owner_local_bridge);
-    auto empty_store_complete =
-        owner_local_store_complete_for_shard(empty_shard, owner_local_bridge);
-    auto* shard_contract = vm_object_shard_contract_mapping(empty_shard, owner_local_bridge);
-    auto* map = allocate_mapping(36);
+    auto* map = allocate_mapping(6);
     add_mapping_pair(map, "success", 1);
     add_mapping_string(map, "owner_id", normalized);
     add_mapping_pair(map, "objects", 0);
-    add_mapping_map(map, "vm_object_shard", shard_contract);
-    add_mapping_pair(map, "shard_contract_version", 1);
     add_mapping_array(map, "object_directory", object_directory);
     add_mapping_pair(map, "object_directory_count", 0);
-    add_mapping_pair(map, "owner_local_directory_count", 0);
-    add_mapping_pair(map, "owner_local_record_count", 0);
-    add_mapping_pair(map, "owner_local_destructed_record_count", 0);
-    add_mapping_pair(map, "owner_local_object_ref_count", 0);
-    add_mapping_string(map, "owner_local_object_ref_source", "vm_object_shard.local_objects");
-    add_mapping_pair(map, "owner_local_object_ref_index_count", 0);
-    add_mapping_string(map, "owner_local_object_ref_index_source",
-                       "vm_object_shard.local_object_index");
-    add_mapping_pair(map, "owner_local_path_index_count", 0);
-    add_mapping_pair(map, "owner_local_destructed_path_index_count", 0);
-    add_mapping_pair(map, "owner_local_path_index_ready", 1);
-    add_mapping_string(map, "owner_local_path_index_source", "vm_object_shard.object_path_index");
-    add_mapping_pair(map, "owner_local_live_index_consistent", 1);
-    add_mapping_pair(map, "owner_local_object_ref_index_consistent", 1);
-    add_mapping_pair(map, "owner_local_live_path_index_consistent", 1);
-    add_mapping_pair(map, "owner_local_destructed_path_index_consistent", 1);
-    add_mapping_pair(map, "owner_local_canonical_record_ready", 1);
-    add_mapping_pair(map, "owner_local_directory_ready", 1);
-    add_mapping_pair(map, "owner_local_directory_from_shard", 1);
-    add_mapping_string(map, "owner_local_directory_source", "vm_object_shard.object_directory");
-    add_mapping_pair(map, "owner_local_store_ready", empty_store_ready ? 1 : 0);
-    add_mapping_pair(map, "owner_local_store_complete", empty_store_complete ? 1 : 0);
-    add_mapping_string(map, "owner_local_store_complete_blocker",
-                       owner_local_store_complete_blocker(
-                           empty_store_complete, !empty_store_complete, !empty_store_complete));
-    add_mapping_pair(map, "uses_global_object_table", empty_store_complete ? 0 : 1);
-    add_mapping_pair(map, "global_index_bridge", empty_store_complete ? 0 : 1);
-    add_mapping_pair(map, "global_live_object_bridge_ready", empty_store_complete ? 0 : 1);
-    add_mapping_string(map, "global_live_object_bridge_source",
-                       empty_store_complete ? "" : kGlobalLiveObjectBridgeSource);
-    add_mapping_pair(map, "global_record_bridge_ready", empty_store_complete ? 0 : 1);
-    add_mapping_string(map, "global_record_bridge_source",
-                       empty_store_complete ? "" : kGlobalRecordBridgeSource);
-    add_owner_local_lifecycle_contract(map, empty_store_complete, true);
-    add_mapping_pair(map, "executor_ready", 0);
-    free_mapping(shard_contract);
+    add_mapping_pair(map, "runnable_tasks", 0);
     free_array(object_directory);
     return map;
   }
