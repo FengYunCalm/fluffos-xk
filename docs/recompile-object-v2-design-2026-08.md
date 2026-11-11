@@ -1,8 +1,8 @@
 # `recompile_object()` v2 设计（L8，文档产出）
 
 > 状态：**DRAFT v0.2** —— 设计文档，实施不并入本批（走单项授权）
-> 前置：E3 v1 已落地（`docs/recompile-object-special-design-2026-08.md`）；
-> L1-L7 验证矩阵全绿（见 `docs/recompile-followup-plan-2026-08.md` §5）
+> 前置：E3 v1 已落地（`docs/archive/plans/recompile-object-special-design-2026-08.md`）；
+> L1-L7 验证矩阵全绿（见 `docs/archive/plans/recompile-followup-plan-2026-08.md` §5）
 
 ## 0. 结论与执行决策
 

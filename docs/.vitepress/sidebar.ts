@@ -62,7 +62,7 @@ const SIDEBAR = [
     {
         text: 'Historical',
         items: [
-            {text: 'Build (v2017)', link: '/build_v2017.html'}
+            {text: 'Build (v2017)', link: '/archive/plans/build_v2017.html'}
         ]
     },
 ]

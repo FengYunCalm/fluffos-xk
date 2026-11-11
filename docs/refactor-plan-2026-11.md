@@ -11,7 +11,7 @@
 
 | 维度 | 目标 | 度量 |
 | --- | --- | --- || 源码量 | 净减少 | 手写 C/C++ 从 173,008 行降到 ≤168,000 行（核算见下） |
-| 观测面 | 契约化 | owner status key 从 ≈1,245（1,353 减去 Worker 总线 ≈108）降到 **51**；Worker 总线不动 |
+| 观测面 | 契约化 | owner 可观测面 1,058 键 → **51**；gateway 状态面 365 → 0；合计删 ≈1,372 |
 | 重复实现 | 消除 | 116 块随 U5b 删除而自然归零；其余 36/18/13/9 块降到 ≤2 |
 | 状态机 | 显式 | 7 个隐式状态机改为 enum class + 单一转场函数（SM-01/02/05/06/07/09/11） |
 | 文档 | 单一来源 | docs 根目录 18 份历史计划/报告全部归档（保留 1 份生效中的重编译设计） |
@@ -259,11 +259,11 @@ grep -rn "project-modernization-plan-2026-10\|upstream-absorption-plan\|AUDIT_FI
 逐条改为新路径。已知必须改的：
 
 - `docs/.vitepress/sidebar.ts:65` 的 `Build (v2017)` 条目（归档后删除该行）。
-- `docs/coding-standard.md` 中指向 `project-modernization-plan-2026-10.md#u10-style`
-  的链接（该链接的第 4 行与 §2 有多处），改为指向 `docs/roadmap.md` 或直接删除。
-- `docs/upstream-absorption-plan-2026-10.md` 与 `REMEDIATION_PLAN.md` 内部互相引用
-  在移动后仍然成立（同在 `docs/archive/plans/`），但其指向仓库根的相对路径需改为
-  `../..`。
+- `docs/coding-standard.md` 中指向旧主计划的链接（第 5 行与 §2 多处），改为指向
+  `docs/roadmap.md`。
+- `docs/archive/plans/upstream-absorption-plan-2026-10.md` 与 `REMEDIATION_PLAN-2026-10.md`
+  内部互相引用，需改为同目录目标。
+- `docs/evidence/*.md` 已移入 `docs/archive/evidence/`，原引用需同步。
 - `AGENTS.md`、`README*.md` 若引用上述文档，同一提交内更新。
 
 ### U2b 建立唯一当前状态文档
@@ -498,8 +498,10 @@ python3 tools/docs/check-status-contract.py --check   # U9a 完成后才有
 判据：测试全绿；`docs/owner-status-contract.md` 登记的 51 个键仍能从对应 efun 取出；
 `check-status-contract.py --check` 无输出。
 
-**可删量核算**：1,353 − 51（冻结）− ≈108（Worker 总线）− 44（trace/promise）
-≈ **1,150 个键**。提交信息里写实际删除数。
+**可删量核算**（实测，脚本 `tools/docs/status-contract.py --dump`）：owner 面
+`owner.cc` 846 / `object_store.cc` 192 / `vm_owner.cc` 48，去重 **1,058**，保留 51 →
+**删 1,007**；gateway 面 `gateway.cc` 303 / `gateway_session.cc` 62 → **删 365**。
+合计 **≈1,372**。不动：`vm_worker.cc` 58、`trace.cc` 7、`promise.cc` 14。
 
 ### U5c 把网关状态装配移出主逻辑文件
 
@@ -719,7 +721,7 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 | L1 | `audit-evidence/**` 取消跟踪 | 14 文件 | 无 | 目录已本地排除，索引内外不一致 |
 | L2 | `lpc_owner_audit_*` + `lpcc --owner-audit` + 相关测试 + 10 个 readiness key | ≈250 行 + 用例 | 低 | 伪能力（findings §5.3） |
 | L2 | `vm_worker_bench` / `vm_worker_actor_bench` 两个 LPC efun（保留 C++ 基准 API） | 2 个 efun + 4 行断言 | 无 | 零消费者（findings §5.6） |
-| L3 | 迁移脚手架/自证标志类 status key 及其测试断言（object_store 观测面 + owner/gateway 非冻结键） | ≈1,150 key（findings §5.5 核算） | 低（下游只读 51 个，已实测） | findings §5.4 |
+| L3 | 迁移脚手架/自证标志类 status key 及其测试断言（owner 面 1,007 + gateway 面 365） | ≈1,372 key | 低（下游只读 51 个，已实测） | findings §5.4 |
 | L4 | 重复实现（9 项；原 U7-2 已取消） | ≈3,500 行 | 中（需逐项等价证明） | findings §4 |
 | L5 | 20 份历史文档归档（仓库根 2 + docs 根 18），含 `project-knowledge-map.md` 重写为 architecture | ≈800 KB | 低（只移动，内容不改） | findings §6 |
 | L5 | `docs/evidence/*.txt/.stderr/.stdout` 中可由 harness 重跑的 fuzz 输出 | 约 40 文件 | 低 | 可复现，非唯一证据 |

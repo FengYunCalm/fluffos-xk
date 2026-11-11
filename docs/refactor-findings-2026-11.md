@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 手写 C/C++ 规模 | 173,008 行 / 311 文件（不含 `src/thirdparty` 400,180 行 / 772 文件） | §2.1 |
 | 对上游时间差 | merge-base `277d0b1c`（2026-01-18）；落后 `upstream/master` 390 提交，领先 796 提交 | §9 |
-| 私有 LPC 契约规模 | 单行字面 key 1,198；补多行调用后 ≥1,353；下游实测只读 51 个 | §5 |
+| 私有 LPC 契约规模 | owner 可观测面 3 文件共 **1,058** 个字面键，下游只读 **51** 个；gateway 状态面另 365 个（零消费） | §5 |
 | 观测实现占比 | `owner.cc` 1,552 次 mapping 写入 = 22.8% 文件行；`object_store.cc` 14.2% | §5 |
 | 计数器字段 | ≈390 个 `std::atomic<` 声明（gateway 227、vm 59、base 23、测试 76）；`gateway.h` 单结构体 200 个 | §5 |
 | 实测重复 | 1,832 个重复归一化窗口；`object_store.cc` 文件内重复 ≈2,320 行 | §4 |
@@ -214,19 +214,20 @@ LPC 编译链：`compile_file()` → `LexStream`/`lex.cc` → `grammar.y`（Biso
 
 | 指标 | 值 |
 | --- | --- |
-| 不同 status mapping key（单行字面统计） | 1,198 |
-| 补上多行 `add_mapping_*` 调用后 | **≥ 1,353** |
-| 下游 mudlib（xiakexing main）实际读取 | **51** |
-| 键值被写成硬编码常量 `1` 的写入点（6 个主文件） | 245 |
-| 以 `_ready` 结尾 | 183 |
+| 全仓 `add_mapping_*` 字面键（含 efun 结果 mapping） | 1,504 |
+| owner 可观测面（`owner.cc` 846 / `object_store.cc` 192 / `vm_owner.cc` 48）去重 | **1,058** |
+| gateway 状态面（`gateway.cc` 303 / `gateway_session.cc` 62） | 365 |
+| 下游 mudlib（xiakexing main）实际读取 | **51**（全部包含在 1,058 内，零缺失） |
+| 键值被写成硬编码常量 `1` 的写入点（6 个主文件） | ≈245 |
+| 以 `_ready` 结尾（全仓） | 183 |
 | 以 `_policy` 结尾 | 43 |
 | 以 `_blocker` 结尾 | 18 |
-| 以 `_source`/`_route`/`_reason` 结尾 | 20 / 13 / 11 |
 | `owner.cc` 中 mapping 写入调用 | 1,552（占 6,808 行的 22.8%） |
 | `object_store.cc` | 388（14.2%） |
 | `gateway.cc` / `gateway_session.cc` | 306 / 202 |
 | `std::atomic<` 声明总数 | ≈390（gateway 227 / vm 59 / base 23 / 测试 76） |
 | `gateway.h` 单结构体 `GatewayRuntimeCounters` 字段 | 200 |
+| 本轮待删（1,058 − 51 + 365） | **≈1,372** |
 
 `vm_object_shard` 合同 mapping 一个函数就写 35 个键
 （`object_store.cc` `vm_object_shard_contract_mapping`），其中
@@ -319,8 +320,9 @@ LPC 编译链：`compile_file()` → `LexStream`/`lex.cc` → `grammar.y`（Biso
 与 owner 观测面**不重叠**。
 
 结论：**本轮不碰 `vm_worker.cc`**。它不是迁移脚手架，而是有真实消费者的功能合同；
-要缩减它是另一个独立课题（需逐键确认下游读法）。因此可删量从"≈1,300"修正为
-**≈1,190**（1,353 − 51 owner 冻结 − ≈108 worker 总线）。
+要缩减它是另一个独立课题（需逐键确认下游读法）。因此可删量按实测重新核算：
+**owner 面 1,058 − 51 = 1,007，gateway 面 365，合计 ≈1,372 个键**（trace.cc 7、
+promise.cc 14、`vm_worker.cc` 58 不动）。
 
 ### 5.6 零消费者的 LPC efun
 
@@ -347,23 +349,24 @@ LPC 编译链：`compile_file()` → `LexStream`/`lex.cc` → `grammar.y`（Biso
 
 ### 6.1 计划与报告文档堆在 docs 根目录
 
-`docs/` 根目录下共有 **19 份**计划/报告/设计文档（不计本次新建的两份），其中 18 份
+`docs/` 根目录下曾有 **19 份**计划/报告/设计文档（不计本次新建的两份），其中 18 份
 是历史计划或一次性证据，1 份（`recompile-object-v2-design-2026-08.md`）是仍在生效的
-设计权威。下表列出其中 9 份有代表性的文档：
+设计权威。U2a 已把下表 18 份整体移入 `docs/archive/plans/`（路径已按归档后位置书写）。
+下表列出其中 9 份有代表性的文档：
 
 | 文档 | 体量 | 自述状态 | 基线 | 问题 |
 | --- | --- | --- | --- | --- |
-| `docs/project-modernization-plan-2026-10.md` | 308 KB | "已进入实施阶段" + 实施记录 | `fe163d67` | 计划与实施日志混写，正文与 §11 记录重复 |
-| `docs/upstream-absorption-plan-2026-10.md` | 217 KB | "已进入实施阶段" | 上游 `795eb371` | 目标已过期 40 提交；同一表格既当设计又当记录 |
-| `docs/optimization-master-plan-2026-08-18.md` | 35 KB | `DRAFT v0.3`，要求 A-S0 证据闭合后实施 | `2785c8a6` | 依赖 `/tmp/pr1247.diff`（临时路径，违反项目自己的持久化规则） |
-| `docs/upstream-sync-optimization-plan-2026-08.md` | 52 KB | `DRAFT v2.4 - 仅供审计` | `80b0f329` | 永远不会执行的草案，仍在 docs 根目录 |
-| `docs/upstream-sync-evidence-2026-08.md` | 54 KB | "随方案执行更新" | `80b0f329` | 证据与方案互相引用，两处都要读 |
-| `docs/backlog-plan-2026-09.md` | 6 KB | "已执行" | — | 已完成记录占据 docs 根目录 |
-| `docs/backlog-full-plan-2026-09.md` | 21 KB | "只含方案；执行按批次另行授权" | — | 33 项 NEEDS-PORT，无后续状态 |
-| `AUDIT_FINDINGS.md`（仓库根） | 11,547 行 | "69 项均未实施修复" | `55c7360b` | 与 `REMEDIATION_PLAN.md` 成对，唯一引用者是主计划 |
-| `REMEDIATION_PLAN.md`（仓库根） | 4,182 行 | "已获准连续实施；external-required" | 同上 | 同上 |
+| `docs/archive/plans/project-modernization-plan-2026-10.md` | 308 KB | "已进入实施阶段" + 实施记录 | `fe163d67` | 计划与实施日志混写，正文与 §11 记录重复 |
+| `docs/archive/plans/upstream-absorption-plan-2026-10.md` | 217 KB | "已进入实施阶段" | 上游 `795eb371` | 目标已过期 40 提交；同一表格既当设计又当记录 |
+| `docs/archive/plans/optimization-master-plan-2026-08-18.md` | 35 KB | `DRAFT v0.3`，要求 A-S0 证据闭合后实施 | `2785c8a6` | 依赖 `/tmp/pr1247.diff`（临时路径，违反项目自己的持久化规则） |
+| `docs/archive/plans/upstream-sync-optimization-plan-2026-08.md` | 52 KB | `DRAFT v2.4 - 仅供审计` | `80b0f329` | 永远不会执行的草案，仍在 docs 根目录 |
+| `docs/archive/plans/upstream-sync-evidence-2026-08.md` | 54 KB | "随方案执行更新" | `80b0f329` | 证据与方案互相引用，两处都要读 |
+| `docs/archive/plans/backlog-plan-2026-09.md` | 6 KB | "已执行" | — | 已完成记录占据 docs 根目录 |
+| `docs/archive/plans/backlog-full-plan-2026-09.md` | 21 KB | "只含方案；执行按批次另行授权" | — | 33 项 NEEDS-PORT，无后续状态 |
+| `docs/archive/plans/AUDIT_FINDINGS-2026-10.md`（原仓库根） | 11,547 行 | "69 项均未实施修复" | `55c7360b` | 与 `REMEDIATION_PLAN-2026-10.md` 成对，唯一引用者是主计划 |
+| `docs/archive/plans/REMEDIATION_PLAN-2026-10.md`（原仓库根） | 4,182 行 | "已获准连续实施；external-required" | 同上 | 同上 |
 
-另外 9 份同类文档同样占据根目录：`branch-evidence-archive-20261019.md`（本身就是
+另外 9 份同类文档同样曾占据根目录：`branch-evidence-archive-20261019.md`（本身就是
 一份归档）、`external-required-readiness-2026-09.md`（时效快照）、
 `e4-read-source-line-port-eval-2026-08.md`、`lpcshell-prerequisite-plan-2026-08.md`、
 `recompile-followup-plan-2026-08.md`、`recompile-object-special-design-2026-08.md`、
@@ -377,7 +380,7 @@ LPC 编译链：`compile_file()` → `LexStream`/`lex.cc` → `grammar.y`（Biso
 
 ### 6.2 叙事型知识文档
 
-`docs/project-knowledge-map.md`（46 KB）包含若干段 1,500–3,000 字的单段落文本，逐条
+`docs/archive/plans/project-knowledge-map-2026-08.md`（46 KB）包含若干段 1,500–3,000 字的单段落文本，逐条
 枚举 migration bridge 的字段名（`owner_local_global_record_scan_bridge_used/found/
 source/skipped/reason` …）。信息密度低、无法检索、随代码漂移。它应当被替换为
 "状态 + 契约 + 指向代码的表"，而不是重述实现。
@@ -475,13 +478,14 @@ source/skipped/reason` …）。信息密度低、无法检索、随代码漂移
 
 1. **能力不缺。** owner 多核执行、Promise/async、重编译事务、编码边界都已成型，
    并有真实门禁。问题不在功能面。
-2. **复杂度增长只有一个方向：证明自己。** ≥1,353 个 status key（其中 245 处写入的
-   值是常量 1）、≈390 个原子计数器、19 份并行计划文档、397 个证据目录，全部是"向自己
-   证明"的产物。它们不提高运行时正确性，但持续消耗每个后续会话的上下文。
-3. **契约边界已实测清楚。** 下游 `main` 读两套面：owner 状态 51 个键，Worker 总线
-   ≈17 个键（`vm_worker.cc` 共 ≈108 个）；`rewrite` 一个也不读；
-   `vm_object_store_status()` 在两个分支都是零消费者。因此本轮可删
-   **≈1,190 个 key**（owner 面除 51 外全删，Worker 总线不动）。
+2. **复杂度增长只有一个方向：证明自己。** 全仓 1,504 个 `add_mapping_*` 字面键
+   （其中 owner 可观测面 1,058、gateway 状态面 365，下游只读 51）、≈245 处写入恒为
+   常量 1、≈390 个原子计数器、19 份并行计划文档、397 个证据目录，全部是"向自己证明"
+   的产物。它们不提高运行时正确性，但持续消耗每个后续会话的上下文。
+3. **契约边界已实测清楚。** 下游 `main` 读两套面：owner 状态 51 个键、Worker 总线
+   ≈58 个键；`rewrite` 一个也不读；`vm_object_store_status()` 在两个分支都是零消费者。
+   因此本轮可删 **≈1,372 个键**（owner 面除 51 外全删 + gateway 状态面全删；
+   Worker 总线与 trace/promise 不动）。
 4. **因此"删"的对象是明确的**：迁移脚手架（retirement/readiness/bridge 键）、
    伪能力（`--owner-audit`、零消费者的 bench efun）、无消费者配置、并行计划文档、
    重复实现、仓库噪声。功能与既有 LPC 契约不动。
