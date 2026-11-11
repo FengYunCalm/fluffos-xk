@@ -1,48 +1,6 @@
 #include "test_lpc_support.h"
 
 #ifdef PACKAGE_ASYNC
-namespace {
-void verify_async_callback_drain(const char* method, LPC_INT expected_callbacks) {
-  auto* object = load_object_for_test("single/tests/efuns/async_nested_callbacks");
-  ASSERT_NE(object, nullptr);
-  struct DrainGuard {
-    object_t* object;
-    ~DrainGuard() {
-      complete_all_asyncio();
-      destruct_object_for_test(object);
-    }
-  } guard{object};
-  const auto refs_before = object->ref;
-  auto* stack_before = sp;
-  ASSERT_NE(safe_apply(method, object, 0, ORIGIN_DRIVER), nullptr);
-  vm_apply_return_clear();
-
-  // This is the shutdown drain, not a single callback pass: callbacks enqueue
-  // more real file work, including after an earlier callback throws.
-  complete_all_asyncio();
-  EXPECT_EQ(sp, stack_before);
-  EXPECT_EQ(object->ref, refs_before);
-#ifdef DEBUGMALLOC_EXTENSIONS
-  EXPECT_EQ(object->owner_runtime_refs, 0u);
-#endif
-  EXPECT_EQ(vm_owner_main_queue_total_depth(), 0u);
-  auto* result = safe_apply("query_result", object, 0, ORIGIN_DRIVER);
-  ASSERT_NE(result, nullptr);
-  ASSERT_EQ(result->type, T_ARRAY);
-  ASSERT_EQ(result->u.arr->size, 3);
-  EXPECT_EQ(result->u.arr->item[0].u.number, expected_callbacks);
-  EXPECT_EQ(result->u.arr->item[1].u.number, 1);
-#if defined(DEBUGMALLOC) && defined(DEBUGMALLOC_EXTENSIONS)
-  EXPECT_EQ(result->u.arr->item[2].u.number, expected_callbacks);
-#endif
-  vm_apply_return_clear();
-  result = safe_apply("verify_cleanup", object, 0, ORIGIN_DRIVER);
-  ASSERT_NE(result, nullptr);
-  ASSERT_EQ(result->type, T_NUMBER);
-  EXPECT_EQ(result->u.number, 1);
-  vm_apply_return_clear();
-}
-}  // namespace
 
 TEST_F(DriverTest, TestVmOwnerMainMessageMarksAcquiredReference) {
   auto* object = load_object_for_test("single/tests/efuns/async_nested_callbacks");
@@ -732,10 +690,6 @@ TEST_F(DriverTest, TestLpcVmProfileRecordingIsThreadLocal) {
   ASSERT_TRUE(worker_enabled);
   ASSERT_TRUE(lpc_vm_profile_recording_enabled());
   lpc_vm_profile_set_recording(false);
-}
-
-namespace {
-SourceText read_source_file_for_test(const char* path);
 }
 
 TEST_F(DriverTest, TestOwnerFuturePendingCountUsesTransitionCounter) {
