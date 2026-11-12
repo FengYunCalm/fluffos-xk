@@ -1798,7 +1798,6 @@ TEST_F(DriverTest, TestGatewayReceiveRunsThroughOwnerMainQueue) {
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
 
-
   ASSERT_TRUE(gateway_dispatch_message_for_test(
       -1, R"({"type":"data","cid":"gw-test-receive","data":{"cmd":"look","seq":7}})"));
   ASSERT_EQ(vm_owner_main_queue_total_depth(), 1);
@@ -1861,7 +1860,6 @@ TEST_F(DriverTest, TestGatewayReceiveDefersMainDrainWhenEventBaseIsAvailable) {
   ASSERT_NE(ob->interactive, nullptr);
   ASSERT_TRUE(gateway_is_session(ob));
   auto owner_epoch = vm_owner_epoch(ob);
-
 
   auto* before_status = gateway_status_internal();
   ASSERT_NE(before_status, nullptr);
@@ -1996,7 +1994,6 @@ TEST_F(DriverTest, TestGatewayReadBatchDrainServicesAdmittedReceiveTask) {
       create_gateway_session_for_test("gw-test-read-batch-drain", "/clone/gateway_login_example");
   ASSERT_NE(ob, nullptr);
   ASSERT_NE(ob->interactive, nullptr);
-
 
   auto* before = gateway_status_internal();
   ASSERT_NE(before, nullptr);
@@ -2320,7 +2317,6 @@ TEST_F(DriverTest, TestGatewayCommandMxpTagFilterFrame) {
   auto owner_epoch = vm_owner_epoch(ob);
   ob->interactive->iflags |= USING_MXP;
 
-
   ASSERT_EQ(gateway_inject_input_internal(ob, " [xz"), 1);
   ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
 
@@ -2386,7 +2382,6 @@ TEST_F(DriverTest, TestGatewayCommandEdCommandFrame) {
   ASSERT_EQ(enabled->type, T_NUMBER);
   ASSERT_EQ(enabled->u.number, 1);
   ASSERT_NE(ob->interactive->ed_buffer, nullptr);
-
 
   ASSERT_EQ(gateway_inject_input_internal(ob, "Q"), 1);
   ASSERT_EQ(gateway_process_pending_command_internal(ob), 1);
@@ -3094,7 +3089,6 @@ TEST_F(DriverTest, TestGatewayCommandMainQueueStaleTraceIncludesFrameMetadata) {
   vm_owner_set_id(ob, "owner/test/gateway-command-main-stale");
   const std::string owner_id = vm_owner_id(ob);
   auto stale_epoch = vm_owner_epoch(ob);
-
 
   ASSERT_EQ(gateway_inject_input_internal(ob, "look"), 1);
   auto task_id = gateway_enqueue_pending_command_internal(ob);

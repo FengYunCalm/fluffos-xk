@@ -123,9 +123,8 @@ static void handle_tls_handshake_role(int fd, TlsHandshakeRole role) {
   if (ret == 1) {
     lpc_socks[fd].state = STATE_DATA_XFER;
     lpc_socks[fd].flags |= S_BLOCKED;
-    debug(sockets,
-          (server ? "handle_tls_server_handshake: TLS: handshake successful\n"
-                  : "handle_tls_handshake: TLS: handshake successful\n"));
+    debug(sockets, (server ? "handle_tls_server_handshake: TLS: handshake successful\n"
+                           : "handle_tls_handshake: TLS: handshake successful\n"));
     event_add(lpc_socks[fd].ev_write, nullptr);
     // Drive the write handler once to clear S_BLOCKED and fire the write callback.
     socket_write_select_handler(fd);

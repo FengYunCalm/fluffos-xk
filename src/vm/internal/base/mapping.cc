@@ -949,7 +949,6 @@ static void unique_add_to_mapping(mapping_t* m1, mapping_t* m2, int free_flag) {
   merge_mapping_into(m1, m2, free_flag, MergeExistingValue::kKeep);
 }
 
-
 void absorb_mapping(mapping_t* m1, mapping_t* m2) {
   if (MAP_COUNT(m2)) {
     if (m1 != m2) {

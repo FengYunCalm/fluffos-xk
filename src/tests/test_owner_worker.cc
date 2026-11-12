@@ -218,7 +218,6 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskRejectsTargetOwnerMismatchAtSubmit) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-
   auto* before_runtime = vm_owner_runtime_status();
   auto before_pending_futures = mapping_number(before_runtime, "pending_futures");
   free_mapping(before_runtime);
@@ -270,7 +269,6 @@ TEST_F(DriverTest, TestOwnerSubmissionRejectsAtomicallyWhenFutureStoreFull) {
   object_t* probe = load_object_for_test("single/void");
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
-
 
   // Fill the future store to the terminal cap with payload-bearing records
   // (payload-bearing terminal records are never auto-reaped).
@@ -758,7 +756,6 @@ TEST_F(DriverTest, TestVmOwnerLpcTaskMainDrainAndScheduleFailPendingFuture) {
   vm_owner_set_id(drain_probe, drain_owner);
   vm_owner_set_id(schedule_probe, schedule_owner);
 
-
   auto* before_runtime = vm_owner_runtime_status();
   auto before_pending_futures = mapping_number(before_runtime, "pending_futures");
   auto before_future_failures = mapping_number(before_runtime, "futures_failed");
@@ -858,7 +855,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnsafeLpcCanaryRequestsDeltas) {
   vm_owner_set_id(probe, owner);
   auto stale_epoch = vm_owner_epoch(probe);
 
-
   auto* before = vm_owner_thread_status();
   auto before_succeeded = mapping_number(before, "thread_lpc_canary_succeeded");
   auto before_rejected = mapping_number(before, "thread_lpc_canary_rejected");
@@ -905,7 +901,6 @@ TEST_F(DriverTest, TestVmOwnerThreadRejectsUnsafeLpcCanaryRequestsDeltas) {
 TEST_F(DriverTest, TestVmOwnerMessageAndCommitTracesAreSpecOnly) {
   const char* source_owner = "owner/test/message/source";
   const char* target_owner = "owner/test/message/target";
-
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted = vm_owner_submit_message(source_owner, target_owner, "room_snapshot", "room/v1");
@@ -1025,7 +1020,6 @@ TEST_F(DriverTest, TestVmOwnerFuturePollTracksMessageCompletion) {
   const char* source_owner = "owner/test/future/source";
   const char* target_owner = "owner/test/future/target";
 
-
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
       vm_owner_submit_message(source_owner, target_owner, "future_method", "future/payload");
@@ -1059,7 +1053,6 @@ TEST_F(DriverTest, TestVmOwnerFuturePollTracksMessageCompletion) {
 TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesOnlyCompletedFuture) {
   const char* source_owner = "owner/test/future/take-source";
   const char* target_owner = "owner/test/future/take-target";
-
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -1096,7 +1089,6 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesFailedFutureOnce) {
   const char* source_owner = "owner/test/future/take-failed-source";
   const char* target_owner = "owner/test/future/take-failed-target";
 
-
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
       vm_owner_submit_message(source_owner, target_owner, "future_take", "future/take-failed");
@@ -1122,7 +1114,6 @@ TEST_F(DriverTest, TestVmOwnerFutureTakeConsumesFailedFutureOnce) {
 TEST_F(DriverTest, TestVmOwnerPurgeFailsPendingFuture) {
   const char* source_owner = "owner/test/future/purge-source";
   const char* target_owner = "owner/test/future/purge-target";
-
 
   free_mapping(vm_owner_purge_mailbox(target_owner));
   auto* submitted =
@@ -1165,7 +1156,6 @@ TEST_F(DriverTest, TestVmOwnerPurgeFailsPendingFuture) {
 TEST_F(DriverTest, TestVmOwnerObjectMessageFailsStaleTargetHandle) {
   const char* old_owner = "owner/test/future/object-old";
   const char* new_owner = "owner/test/future/object-new";
-
 
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
@@ -1252,7 +1242,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsStaleTargetHandleAtSubmit) {
   const char* old_owner = "owner/test/future/object-stale-submit-old";
   const char* new_owner = "owner/test/future/object-stale-submit-new";
 
-
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
   vm_owner_set_id(obj, old_owner);
@@ -1323,7 +1312,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsStaleTargetHandleAtSubmit) {
 
 TEST_F(DriverTest, TestVmOwnerObjectMessageReportsDestructedTargetHandle) {
   const char* owner = "owner/test/future/object-destructed";
-
 
   object_t* obj = load_object_for_test("single/on_destruct_good");
   ASSERT_NE(obj, nullptr);
@@ -1403,7 +1391,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageReportsDestructedTargetHandle) {
 }
 
 TEST_F(DriverTest, TestVmOwnerFuturePollReportsUnknownFuture) {
-
   auto* result = vm_owner_future_poll(999999999u);
   ASSERT_EQ(mapping_number(result, "success"), 0);
   ASSERT_EQ(mapping_number(result, "requires_owner_message_completion"), 0);
@@ -1437,7 +1424,6 @@ TEST_F(DriverTest, TestVmObjectHandleRejectsStaleOwnerEpoch) {
 }
 
 TEST_F(DriverTest, TestVmObjectHandleReportsCapabilityMetadata) {
-
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
 
@@ -1491,7 +1477,6 @@ TEST_F(DriverTest, TestVmOwnerWorkerNeverMutatesObjectRefcounts) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
   auto handle = vm_object_handle(probe);
-
 
   vm_owner_thread_start(1);
   // Drive handle + message workloads on the worker: submit messages with a
@@ -1861,7 +1846,6 @@ TEST_F(DriverTest, TestVmObjectHandleReportsBasicResolveFailures) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreReportsPointerBridgeSkippedWhenRecordBridgeRetired) {
-
   object_t* obj = load_object_for_test("single/void");
   ASSERT_NE(obj, nullptr);
   vm_owner_set_id(obj, "owner/test/pointer-bridge/record-ready");
@@ -2968,7 +2952,6 @@ TEST_F(DriverTest, TestVmWorkerAsyncCombatDamagePollsResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughQueue) {
-
   VMWorkerActorScoreInput input;
   input.hp = 100;
   input.max_hp = 100;
@@ -3038,7 +3021,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughQueue) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughOwnerExecutor) {
-
   const char* owner = "actor/owner-future-thread";
   vm_owner_thread_stop();
   free_mapping(vm_owner_drain_mailbox(owner, 0));
@@ -3162,7 +3144,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultCompletesOwnerFutureThroughOwnerExec
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultRejectsCompletedWithoutFrozenFields) {
-
   const char* owner = "actor/owner-future-empty-result";
   const uint64_t worker_task_id = 987654321u;
   vm_owner_thread_stop();
@@ -3238,7 +3219,6 @@ TEST_F(DriverTest, TestVmWorkerV2EnvelopeKeepsResultUntilTtl) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesBenchmarkResult) {
-
   free_mapping(vm_owner_drain_mailbox("global", 0));
   auto task_id = vm_worker_submit_benchmark_v2(2, 10, 1000, 5000);
   ASSERT_GT(task_id, 0u);
@@ -3295,7 +3275,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesBenchmarkResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerV2TimeoutFailsPendingTask) {
-
   free_mapping(vm_owner_drain_mailbox("global", 0));
   auto task_id = vm_worker_submit_benchmark_v2(64, 80, 1, 5000);
   ASSERT_GT(task_id, 0u);
@@ -3340,7 +3319,6 @@ TEST_F(DriverTest, TestVmWorkerV2TimeoutFailsPendingTask) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesSnapshotDigestResult) {
-
   const char* owner = "actor/future-snapshot";
   free_mapping(vm_owner_drain_mailbox(owner, 0));
   auto task_id = vm_worker_submit_snapshot_digest_v2(owner, "{\"hp\":100}", 8, 1000, 5000);
@@ -3375,7 +3353,6 @@ TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesSnapshotDigestResult) {
 }
 
 TEST_F(DriverTest, TestVmWorkerComputeResultFutureCarriesCombatDamageResult) {
-
   const char* owner = "combat/future-damage";
   free_mapping(vm_owner_drain_mailbox(owner, 0));
   VMWorkerCombatDamageInput input;

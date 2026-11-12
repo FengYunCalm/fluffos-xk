@@ -241,10 +241,9 @@ static void compress_file_efun(CompressDirection direction) {
   }
 
   const std::string source_path(real_input_file);
-  const bool succeeded =
-      direction == CompressDirection::kCompress
-          ? compress_file_contents(source_path.c_str(), output_path.c_str())
-          : uncompress_file_contents(source_path.c_str(), output_path.c_str());
+  const bool succeeded = direction == CompressDirection::kCompress
+                             ? compress_file_contents(source_path.c_str(), output_path.c_str())
+                             : uncompress_file_contents(source_path.c_str(), output_path.c_str());
   pop_n_elems(num_arg);
   push_number(succeeded);
 }

@@ -346,36 +346,35 @@ void gateway_add_latency_fields(mapping_t* map, const char* prefix,
 // member come from the single `name` token, so the two cannot drift apart -- the
 // hand-written form repeated them and produced a silent always-zero key when
 // they disagreed.
-#define GATEWAY_COUNTER(map, name)                                                          \
-  add_mapping_pair((map), "gateway_" #name,                                                 \
-                   static_cast<LPC_INT>(g_gateway_runtime_counters.name.load(                \
-                       std::memory_order_relaxed)))
+#define GATEWAY_COUNTER(map, name) \
+  add_mapping_pair(                \
+      (map), "gateway_" #name,     \
+      static_cast<LPC_INT>(g_gateway_runtime_counters.name.load(std::memory_order_relaxed)))
 
 // Emit the <samples, total_us, max_us> triple of one latency counter set. The
 // counter family name appears once: the hand-written form repeated it four times
 // per key, and copying the wrong family's member compiles fine but reports
 // another subsystem's latency.
-#define GATEWAY_LATENCY_US(map, name)                                                       \
-  gateway_add_latency_fields((map), "gateway_" #name,                                        \
-                             g_gateway_runtime_counters.name##_ns_total,                      \
-                             g_gateway_runtime_counters.name##_ns_max,                        \
+#define GATEWAY_LATENCY_US(map, name)                                                             \
+  gateway_add_latency_fields((map), "gateway_" #name, g_gateway_runtime_counters.name##_ns_total, \
+                             g_gateway_runtime_counters.name##_ns_max,                            \
                              g_gateway_runtime_counters.name##_samples)
 
 // Standalone <name>_avg_us / <name>_max_us for counter sets emitted individually.
-#define GATEWAY_AVG_US(map, name)                                                           \
-  add_mapping_pair((map), "gateway_" #name "_avg_us",                                        \
-                   gateway_avg_us(g_gateway_runtime_counters.name##_ns_total,                 \
+#define GATEWAY_AVG_US(map, name)                                             \
+  add_mapping_pair((map), "gateway_" #name "_avg_us",                         \
+                   gateway_avg_us(g_gateway_runtime_counters.name##_ns_total, \
                                   g_gateway_runtime_counters.name##_samples))
 
-#define GATEWAY_MAX_US(map, name)                                                           \
-  add_mapping_pair((map), "gateway_" #name "_max_us",                                        \
+#define GATEWAY_MAX_US(map, name)                     \
+  add_mapping_pair((map), "gateway_" #name "_max_us", \
                    gateway_max_us(g_gateway_runtime_counters.name##_ns_max))
 
-#define GATEWAY_TOTAL_US(map, name)                                                         \
-  add_mapping_pair((map), "gateway_" #name "_total_us",                                      \
-                   static_cast<LPC_INT>(g_gateway_runtime_counters.name##_ns_total.load(      \
-                                            std::memory_order_relaxed) /                     \
-                                        1000))
+#define GATEWAY_TOTAL_US(map, name)        \
+  add_mapping_pair(                        \
+      (map), "gateway_" #name "_total_us", \
+      static_cast<LPC_INT>(                \
+          g_gateway_runtime_counters.name##_ns_total.load(std::memory_order_relaxed) / 1000))
 
 void gateway_record_main_drain(const VMOwnerMainDrainResult& result, int budget) {
   g_gateway_runtime_counters.main_drain_runs.fetch_add(1, std::memory_order_relaxed);

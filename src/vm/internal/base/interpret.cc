@@ -191,7 +191,8 @@ static FLUFFOS_VM_THREAD_LOCAL control_stack_t _control_stack[5 + CFG_MAX_CALL_D
 
 control_stack_t* control_stack_base() {
   return &_control_stack[0];
-}FLUFFOS_VM_THREAD_LOCAL control_stack_t* control_stack = nullptr;
+}
+FLUFFOS_VM_THREAD_LOCAL control_stack_t* control_stack = nullptr;
 FLUFFOS_VM_THREAD_LOCAL control_stack_t* csp; /* Points to last element pushed */
 
 FLUFFOS_VM_THREAD_LOCAL int too_deep_error = 0, max_eval_error = 0;

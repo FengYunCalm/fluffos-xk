@@ -2405,9 +2405,9 @@ TEST_F(DriverTest, TestGatewayReceiveApplyExposesMainThreadCpuCounter) {
   // written through add_gateway_counter() with the prefix and name as separate
   // arguments, so a source grep would pin formatting instead of the contract.
   auto* status = gateway_status_internal();
-  for (const char* key : {"gateway_receive_apply_total_us",
-                          "gateway_receive_apply_thread_cpu_total_us",
-                          "gateway_receive_apply_thread_cpu_unavailable"}) {
+  for (const char* key :
+       {"gateway_receive_apply_total_us", "gateway_receive_apply_thread_cpu_total_us",
+        "gateway_receive_apply_thread_cpu_unavailable"}) {
     ASSERT_NE(find_string_in_mapping(status, key), nullptr) << key;
   }
   free_mapping(status);
@@ -3345,4 +3345,3 @@ TEST_F(DriverTest, TestGatewayOwnerOutputQuiesceRejectsOffMainBeforeContainerAcc
   ASSERT_LT(main_guard_pos, room_wave_read_pos);
   ASSERT_LT(main_guard_pos, room_pending_read_pos);
 }
-

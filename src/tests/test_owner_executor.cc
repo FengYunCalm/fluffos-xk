@@ -156,7 +156,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorCallbackTaskBoundaryDispatchesAndDropsStal
   runtime_guard.probe = probe;
   vm_owner_set_id(probe, owner);
 
-
   ASSERT_FALSE(vm_owner_executor_available());
   ASSERT_EQ(vm_owner_enqueue_executor_task(probe, "ordinary_lpc", "rejected", [] {}), 0u);
 
@@ -611,7 +610,6 @@ TEST_F(DriverTest, TestOwnerSubmissionBackpressureClosesRegisteredFutures) {
       free_mapping(vm_owner_purge_mailbox(owner));
     }
   } runtime_guard{owner, &release_blocker, &runtime_cleanup_needed};
-
 
   vm_owner_thread_start(1);
   ASSERT_GT(vm_owner_enqueue_executor_task(
@@ -2521,7 +2519,6 @@ TEST_F(DriverTest, TestVmOwnerExecutorExceptionTerminalizesPendingFuture) {
     }
   } probe_guard{probe};
 
-
   auto* before = vm_owner_thread_status();
   auto before_std = mapping_number(before, "executor_task_exceptions");
   auto before_unknown = mapping_number(before, "executor_task_unknown_exceptions");
@@ -3098,7 +3095,6 @@ TEST_F(DriverTest, TestVmOwnerThreadGuardsControlledLpcProbeOffMain) {
   ASSERT_NE(probe, nullptr);
   vm_owner_set_id(probe, owner);
 
-
   auto* submitted = vm_owner_lpc_probe(probe, owner, "owner_lpc_probe");
   auto task_id = mapping_number(submitted, "task_id");
   ASSERT_EQ(mapping_number(submitted, "success"), 1);
@@ -3262,4 +3258,3 @@ TEST_F(DriverTest, TestVmOwnerThreadRunsRestrictedLpcCanaryOffMainDeferredReleas
   ASSERT_TRUE(vm_context_is_main_thread());
   destruct_object(probe);
 }
-

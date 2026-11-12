@@ -3242,4 +3242,3 @@ TEST_F(DriverTest, TestGatewayBufferedInputPressureRequiresACompleteFrame) {
 
   bufferevent_free(pair[1]);
 }
-

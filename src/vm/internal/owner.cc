@@ -1313,8 +1313,7 @@ struct OwnerTaskFailureRule {
 };
 
 constexpr OwnerTaskFailureRule kOwnerTaskBackpressure{
-    "owner_scheduler_backpressure",
-    "owner queue depth reached the scheduler backpressure limit"};
+    "owner_scheduler_backpressure", "owner queue depth reached the scheduler backpressure limit"};
 constexpr OwnerTaskFailureRule kOwnerTaskCallbackNotAllowlisted{
     "callback_not_allowlisted",
     "callback task kind is not registered in the owner executor allowlist"};
@@ -1322,8 +1321,7 @@ constexpr OwnerTaskFailureRule kOwnerTaskCallbackInvalidTarget{
     "callback_invalid_target",
     "callback target handle could not be resolved before executor admission"};
 constexpr OwnerTaskFailureRule kOwnerTaskEpochMismatch{
-    "owner_epoch_mismatch",
-    "target owner epoch no longer matches the captured callback handle"};
+    "owner_epoch_mismatch", "target owner epoch no longer matches the captured callback handle"};
 constexpr OwnerTaskFailureRule kOwnerTaskTargetDestructed{
     "target_destructed", "target object was destructed before callback dispatch"};
 constexpr OwnerTaskFailureRule kOwnerTaskTargetStale{
@@ -1334,7 +1332,7 @@ constexpr OwnerTaskFailureRule kOwnerTaskDropped{
     "task_dropped", "owner executor dropped the task before callback dispatch"};
 
 const OwnerTaskFailureRule* owner_task_failure_rule(const std::string& state,
-                                                   OwnerAdmissionState admission_state) {
+                                                    OwnerAdmissionState admission_state) {
   switch (admission_state) {
     case OwnerAdmissionState::kRejectedBackpressure:
       return &kOwnerTaskBackpressure;
@@ -2294,8 +2292,7 @@ mapping_t* owner_task_trace_mapping(const OwnerTaskTrace& trace) {
   add_mapping_string(map, "cleanup_policy", trace.cleanup_policy.c_str());
   add_mapping_string(map, "reply_future_policy", trace.reply_future_policy.c_str());
   add_mapping_string(map, "admission_policy", trace.admission_policy.c_str());
-  add_mapping_string(map, "admission_state",
-                     owner_admission_state_name(trace.admission_state));
+  add_mapping_string(map, "admission_state", owner_admission_state_name(trace.admission_state));
   add_mapping_string(map, "trace_schema", trace.trace_schema.c_str());
   add_mapping_string(map, "tick_group", trace.tick_group.c_str());
   add_mapping_pair(map, "scheduler_priority", trace.scheduler_priority);
@@ -2849,7 +2846,7 @@ uint64_t append_owner_task_trace(const OwnerMainTask& task, const char* state) {
     trace.reply_future_policy = owner_manifest_reply_future_policy(descriptor.dispatch_kind);
     trace.admission_policy = kOwnerTaskAdmissionPolicyV2;
     trace.admission_state = descriptor.rejected ? OwnerAdmissionState::kAcceptedDispatchRejected
-                                               : OwnerAdmissionState::kAccepted;
+                                                : OwnerAdmissionState::kAccepted;
     trace.trace_schema = kOwnerExecutorTraceSchemaV2;
     const auto& tick_group = owner_tick_group_for_executor_task(task.task_type.c_str());
     trace.tick_group = tick_group.name;
@@ -3010,8 +3007,7 @@ mapping_t* mark_owner_future_failed_terminal(uint64_t future_id, const char* rea
   if (result.changed) {
     update_owner_message_trace_state_for_task_locked(
         result.record.target_task_id, owner_future_state_name(result.record.state),
-        result.record.result_key.c_str(),
-        result.record.error.c_str(), false, result.target_status);
+        result.record.result_key.c_str(), result.record.error.c_str(), false, result.target_status);
     if (cancelled) {
       owner_executor_future_cancelled.fetch_add(1, std::memory_order_relaxed);
     }

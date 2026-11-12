@@ -13,7 +13,6 @@ namespace {
 
 #include <unicode/ucnv.h>
 
-
 svalue_t* call_lpc_method(object_t* ob, const char* method, int num_args = 0) {
   save_command_giver(ob);
   set_eval(max_eval_cost);
@@ -262,16 +261,13 @@ void check_ascii_chunks(const std::string& input, const std::vector<std::string>
 }
 #endif
 
-
 // F10: with budget + N ready sessions, exactly one continuation is recorded
 // per flush and the FIFO drains fully in order across scheduled flushes.
-
 
 // R2-F10: schedule/coalesce/callback counters each map to one deterministic
 // event: a request while a continuation is already scheduled is a coalesced
 // request (never a new schedule), and the callback itself is counted
 // separately when it actually runs.
-
 
 LPC_INT gateway_test_mapping_number(mapping_t* map, const char* key) {
   auto* value = find_string_in_mapping(map, key);

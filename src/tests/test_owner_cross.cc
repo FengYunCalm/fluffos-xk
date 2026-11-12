@@ -575,7 +575,6 @@ TEST_F(DriverTest, TestVmOwnerQueryObjectSnapshotOnlyForCrossOwnerTargets) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-
   current_object = source;
   vm_owner_set_id(source, "owner/test/snapshot/source");
   vm_owner_set_id(target, "owner/test/snapshot/source");
@@ -761,7 +760,6 @@ TEST_F(DriverTest, TestVirtualObjectUsesDefaultOwnerAndUpdatesStorePath) {
   if (auto* source = find_object2("single/void.c")) {
     destruct_object_for_test(source);
   }
-
 
   ScopedCurrentObjectAsMaster master_scope;
   auto* player = clone_object_for_test("single/owner_singleton");
@@ -1002,7 +1000,6 @@ TEST_F(DriverTest, TestVmOwnerMailboxDrainsOwnerFifo) {
   auto second_id = vm_owner_enqueue_task(owner_id, "command", "second");
   ASSERT_LT(first_id, second_id);
 
-
   auto* status = vm_owner_mailbox_status(owner_id);
   ASSERT_EQ(mapping_number(status, "owner_queue_depth"), 2);
   free_mapping(status);
@@ -1080,7 +1077,6 @@ TEST_F(DriverTest, TestVmOwnerPurgeRemovesOwnerQueueBeforeSchedule) {
   vm_owner_enqueue_task(owner, "command", "second");
   auto other_task = vm_owner_enqueue_task(other, "command", "other");
 
-
   auto* purged = vm_owner_purge_mailbox(owner);
   ASSERT_EQ(mapping_number(purged, "purged"), 2);
   ASSERT_EQ(mapping_number(purged, "remaining"), 0);
@@ -1109,7 +1105,6 @@ TEST_F(DriverTest, TestVmOwnerTaskTraceRecordsObservedAndDispatchedEvents) {
 
   auto* scheduled = vm_owner_schedule(1);
   free_mapping(scheduled);
-
 
   auto* trace = vm_owner_task_trace(8);
   ASSERT_STREQ(mapping_string(trace, "trace_kind"), "owner_task_trace");
@@ -1387,7 +1382,6 @@ TEST_F(DriverTest, TestVmOwnerHeartbeatTraceRecordsScheduledEvent) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreTracksPendingCallouts) {
-
   object_t* obj = find_object("single/master.c");
   ASSERT_NE(obj, nullptr);
   vm_owner_set_id(obj, "owner/test/callout-store");
@@ -1407,7 +1401,6 @@ TEST_F(DriverTest, TestVmObjectStoreTracksPendingCallouts) {
 }
 
 TEST_F(DriverTest, TestVmObjectStoreTracksPendingOwnerMessages) {
-
   auto assert_pending_messages = [&](const char* owner_id, long expected) {
     auto* owner_status = vm_object_store_owner_status(owner_id);
     ASSERT_EQ(mapping_number(owner_status, "pending_messages"), expected);
@@ -2262,7 +2255,6 @@ TEST_F(DriverTest, TestVmOwnerCrossOwnerAccessTraceSkipsSameOwner) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
   free_mapping(before);
@@ -2302,7 +2294,6 @@ TEST_F(DriverTest, TestVmOwnerCrossOwnerAccessTraceClassifiesPolicyModes) {
   object_t* target = find_object("single/simul_efun.c");
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
-
 
   vm_owner_set_id(source, "owner/test/access-policy/source");
   vm_owner_set_id(target, "owner/test/access-policy/target");
@@ -2392,7 +2383,6 @@ TEST_F(DriverTest, TestVmOwnerAccessFastBypassOnlySkipsDefaultModeDiagnostics) {
   vm_owner_set_id(source, "owner/test/fast-bypass/source");
   vm_owner_set_id(target, "owner/test/fast-bypass/target");
 
-
   auto saved_mode = CONFIG_INT(__RC_MULTICORE_MODE__);
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -2443,7 +2433,6 @@ TEST_F(DriverTest, TestCurrentOwnerScopeControlsCrossOwnerBlocking) {
 
   vm_owner_set_id(source, "owner/test/scope/source-object");
   vm_owner_set_id(target, "owner/test/scope/target");
-
 
   ASSERT_TRUE(vm_owner_cross_owner_access_blocked(source, target, "call_other"));
   {
@@ -2519,7 +2508,6 @@ TEST_F(DriverTest, TestAllInventoryRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
   free_mapping(before);
@@ -2558,7 +2546,6 @@ TEST_F(DriverTest, TestPresentRecordsCrossOwnerAccessTrace) {
   object_t* target = find_object("single/simul_efun.c");
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
-
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -2668,7 +2655,6 @@ TEST_F(DriverTest, TestMoveObjectRecordsCrossOwnerAccessTrace) {
   ASSERT_NE(item, nullptr);
   ASSERT_NE(dest, nullptr);
 
-
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
   free_mapping(before);
@@ -2708,7 +2694,6 @@ TEST_F(DriverTest, TestMoveObjectEnforcedModeBlocksCrossOwnerMove) {
   ASSERT_NE(item, nullptr);
   ASSERT_NE(dest, nullptr);
 
-
   vm_owner_set_id(item, "owner/test/move/enforced/source");
   vm_owner_set_id(dest, "owner/test/move/enforced/dest");
   auto saved_mode = CONFIG_INT(__RC_MULTICORE_MODE__);
@@ -2745,7 +2730,6 @@ TEST_F(DriverTest, TestDestructRecordsCrossOwnerAccessTrace) {
   object_t* target = load_object_for_test("single/on_destruct_good");
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
-
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -2785,7 +2769,6 @@ TEST_F(DriverTest, TestDestructEnforcedModeBlocksCrossOwnerDestruct) {
   ASSERT_NE(source, nullptr);
   ASSERT_NE(target, nullptr);
 
-
   current_object = source;
   vm_owner_set_id(source, "owner/test/destruct/enforced/source");
   vm_owner_set_id(target, "owner/test/destruct/enforced/target");
@@ -2824,7 +2807,6 @@ TEST_F(DriverTest, TestCallOtherRecordsCrossOwnerAccessTrace) {
   object_t* target = load_object_for_test("single/on_destruct_good");
   ASSERT_NE(caller, nullptr);
   ASSERT_NE(target, nullptr);
-
 
   auto* before = vm_owner_access_trace(0);
   auto before_total = mapping_number(before, "total_traced");
@@ -2870,7 +2852,6 @@ TEST_F(DriverTest, TestCallOtherEnforcedModeBlocksCrossOwnerCall) {
 
   vm_owner_set_id(caller, "owner/test/call/enforced/source");
   vm_owner_set_id(target, "owner/test/call/enforced/target");
-
 
   auto saved_mode = CONFIG_INT(__RC_MULTICORE_MODE__);
   CONFIG_INT(__RC_MULTICORE_MODE__) = VM_MULTICORE_MODE_ENFORCED;
@@ -3006,7 +2987,6 @@ TEST_F(DriverTest, TestVmOwnerObjectMessageRejectsNonFrozenResult) {
   vm_owner_set_id(target, target_owner);
   auto handle = vm_object_handle(target);
 
-
   auto* submitted = vm_owner_submit_object_message(
       source_owner, handle, "owner_async_non_frozen_result", "cross-owner/non-frozen/v1");
   auto future_id = mapping_number(submitted, "future_id");
@@ -3095,7 +3075,6 @@ TEST_F(DriverTest, TestVmOwnerScheduleRoundsOwnersAndKeepsOwnerFifo) {
   auto a_first = vm_owner_enqueue_task(owner_a, "command", "a-first");
   auto a_second = vm_owner_enqueue_task(owner_a, "command", "a-second");
   auto b_first = vm_owner_enqueue_task(owner_b, "executor_probe", "b-first");
-
 
   auto* result = vm_owner_schedule(3);
   ASSERT_EQ(mapping_number(result, "dispatched"), 3);
@@ -3223,4 +3202,3 @@ TEST_F(DriverTest, TestVmOwnerExecutorCommandConsumeEntryDispatchesWithoutLpc) {
 
   vm_owner_thread_stop();
 }
-

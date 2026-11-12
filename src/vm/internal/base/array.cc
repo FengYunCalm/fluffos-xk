@@ -1403,7 +1403,8 @@ array_t* deep_inventory(object_t* ob, int take_top, funptr_t* fp) {
   root.type = T_OBJECT;
   root.subtype = 0;
   root.u.ob = ob;
-  return deep_inventory_build(deep_inventory_count(ob) + (take_top ? 1 : 0), take_top, fp, &root, 1);
+  return deep_inventory_build(deep_inventory_count(ob) + (take_top ? 1 : 0), take_top, fp, &root,
+                              1);
 }
 
 array_t* deep_inventory_array(array_t* arr, int take_top, funptr_t* fp) {
