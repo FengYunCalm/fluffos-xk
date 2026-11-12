@@ -13,17 +13,20 @@
 [2026-11 整理方案](refactor-plan-2026-11.md)，问题依据见
 [2026-11 问题清单](refactor-findings-2026-11.md)。
 
+> **二次审计状态（以当前 HEAD 为准）**：owner 状态契约保留 51 个下游键；当前源码另有 865 个未纳入契约的源码键，不能仅凭未列入契约就判定为内部键或安全删除；契约检查只保证 51 个键没有消失。U5d 已完成真实登录链路和私有副本 `ownercheck full` 尝试，但删键前后结果受下游数据状态影响，不能作为驱动回归门禁。U9c 已接入 CI 报告模式，不是阻断门禁；LPC 测试 ≤1000 行目标仍未完成。本次审计已重新构建并运行 Debug/ASan CTest 和 LPC testsuite。
+
 | 项 | 状态 | 证据 / 说明 |
 | --- | --- | --- |
-| Debug 构建（driver/lpcc/lpcshell/lpc_tests/ofile_tests 等） | verified | `cmake --preset dev-debug -B build-refactor-2026-11` + `cmake --build ... --parallel 2` |
-| CTest | verified | 598/598 通过（60s），基线记录见 `audit-evidence/refactor-2026-11/U0-ctest.log` |
-| LPC testsuite（`-ftest`） | verified | 退出码 0，"Checks succeeded"，433 个测试文件 |
+| Debug 构建（driver/lpcc/lpcshell/lpc_tests/ofile_tests 等） | verified | `cmake --build --preset dev-debug --parallel 4`，退出码 0 |
+| CTest | verified | `ctest --test-dir build-dev-debug --output-on-failure`，596/596 通过，50.96s |
+| LPC testsuite（`-ftest`） | verified | `cd testsuite && ../build-dev-debug/bin/driver etc/config.test -ftest`，退出码 0，输出 `Checks succeeded.` |
 | 格式门禁（clang-format 18.1.8） | external-required | 本机未安装该版本；`tools/style/check-format.py` 明确报错退出，不用其他版本替代 |
-| clang-tidy 门禁 | unverified | `src/.clang-tidy` 尚未接入 CI（本轮 U9c 处理） |
-| ASan / UBSan | unverified | 本轮整理未运行；改动涉及 VM 热路径时按方案 U6/U7 验证矩阵执行 |
+| clang-tidy | verified（advisory） | CI 已执行 diff-scoped 报告模式；不阻断合并，原因见方案 U9c |
+| ASan | verified | `ctest --test-dir build-asan --output-on-failure`，596/596 通过，110.49s |
+| UBSan | unverified | 本轮未运行；改动涉及 VM 热路径时按方案 U6/U7 验证矩阵执行 |
 | TSan | external-required | 历史记录为本机工具链 `unexpected memory mapping` |
 | Windows / macOS 构建 | external-required | 由 CI 矩阵覆盖，本机无平台 |
-| 真实下游 mudlib（xiakexing） | unverified（每次发版前必验） | 本轮 U5d 用 `ownercheck full` 对比删键前后 |
+| 真实下游 mudlib（xiakexing） | unverified（external-required） | 已启动驱动、网关并走真实登录；`ownercheck full` 结果随数据状态变化，未形成可归因的删键前后门禁 |
 | 上游位置 | `upstream/master` = `38a718f4`；merge-base `277d0b1c`（2026-01-18） | 落后 390 / 领先 796 |
 
 ## 2 待办
@@ -49,7 +52,7 @@
 | R-10 | 编译器前端把折叠后的 64 位常量写进 int32 操作数 | 复现：`int big = 1 << 32;`（正确）vs `a[0 .. 1 << 32]`（边界被截断成 1）。VM 侧已修，前端常量发射路径未查 | 复现用例 + 常量发射路径定位（`icode`/`generate`）；上游 #1441 也未覆盖此路径 |
 | R-11 | 上游 #1441 的 efun 参数批次与 `terminal_colour()` 崩溃修复 | **已完成**：allocate/allocate_buffer/test_bit/next_bit/member_array/replace_string/read_file/read_buffer/write_buffer/strsrch/fetch_class_member/store_class_member 均已改（`b3ab58ae` `4ee32b1d` `4cf22dc6` `e202a3d5`）；`terminal_colour` 崩溃本身未复现，未改 | 继续扫同类：任何 `int x = ...u.number` 都是可疑点 |
 | R-12 | 新增“浮点截断为 int”编译警告（上游 #1426） | 这是新增的用户可见诊断，会改 mudlib 编译输出，不属 bug 修复 | 先确认下游是否接受新警告，再实施 |
-| R-13 | owner 状态面收口（`vm/internal/owner.cc` 875 个键 → 契约内的实算字段） | 已完成生产门禁清单 / 代码自述 / 重构计划三类（50 键，含删除 `audit_owner_evidence.lpc`）；剩余 875 键中大半是 readiness gate 表与真实计数器。2026-11 又删了对象存储 record/shard 两处脚手架（`228eaa51`，18 键） | 按 mapping 构建函数逐组判定；gate 表保留（它们是真实准入条件）。**边界**：`gateway_session.cc` 命令帧负载里的 `*_ready` / `*_executor_ready` 字段是交给下游 owner executor 判断“这部分能不能在 owner 线程跑”的契约数据，不是自述状态；它们没有 C++ 消费者，但下游会读，不能按“零消费者”删除 |
+| R-13 | owner 状态面收口（51 个下游契约键 + 865 个未纳入契约的源码键） | **部分完成**：51 个键已冻结并由 `status-contract.py --check` 保护；865 个额外源码键仍只报告，不能仅凭未列入契约就判定为内部键或安全删除，尚未完成生产面全面收口 | 先按 mapping 构建函数逐组判定；worker 总线等已有下游消费者的键不在本轮删除范围。`gateway_session.cc` 中交给下游 owner executor 判断线程能力的 `*_ready` / `*_executor_ready` 字段属于下游契约，不能按“零 C++ 消费者”删除 |
 | R-14 | gateway 状态面收口（`gateway_status_internal()`） | **已完成**（`243cb784`）：987 → 421 行后，421 行又拆成 6 个命名 builder（sessions / queues / drains / latency / config + 原有 backend、room projection），主体回到 14 行调度函数。输出键集合与宏使用次数逐项比对不变 | 没有按原计划搬到新文件：装配体直接引用 8 个文件内全局量（`g_gateway_listener/listen_port/masters/ingress_sequence/heartbeat_timer/started_at`）、私有类型 `GatewayIngressSequenceState` 与 `kGatewayDeferred*` 常量，搬出去就需要为了缩减文件长度而公开这些内部量，得不偿失 |
 | R-15 | `deep_inventory` 与 `deep_inventory_array` 共享 55 行计数→分配→收集→收缩尾巴，只差计数循环 | **已完成**（`288bd809`）：抽出 `deep_inventory_build()`，两个入口只剩各自的计数循环 | — |
 | R-16 | `copy_lvalue_range` / `assign_lvalue_range` 两份区间赋值（152 + 129 行） | **已完成**（`a90b1fb4` 合并 + `aee32345` 补所有权契约测试） | — |
@@ -58,7 +61,7 @@
 | R-19 | SM-05 owner 任务准入/失败状态仍是字符串 + `strcmp` 与子串匹配 | **已完成**（`50fa7e0b`）：准入结果改存 `OwnerAdmissionState` 枚举（`owner_admission_state.h`），任务与 trace 共用；失败规则先按枚举 switch，再回落到调用方传入的 trace 标签文本；字符串只在 LPC 输出边界出现 | trace 标签本身是调用方自由文本，仍按关键词优先级匹配——这是它的语义，不是遗漏 |
 | R-20 | 已完成的两组重复合并 | `socket_efuns.cc` TLS 握手（`7398e170`）、`compress.cc` 两个 efun（`96ad487c`） | — |
 | R-21 | 剩余重复 | `interpret.cc` 帧解码：**已完成**（`9f88ce89`）；三个 benchmark 的环境装配：**已完成**（`82f89903`，含三份已漂移的写报告逻辑） | — |
-| R-25 | 重构后的 sanitizer 复核 | **已完成**（`72605bde` 起）：ASan C++ 全量 565 项无泄漏无报错；ASan `-ftest` 连跑 3 次无泄漏；同机 `be7cb6ad` 基线 ASan `-ftest` 对照无泄漏，确认本系列引入的唯一泄漏已在 R-22 修掉 | 证据见本地 `evidence/`（`head-asan-*`、`baseline-asan-*`）；PCRE2 开发包缺失，ASan/Debug 构建统一用 `-DCMAKE_PREFIX_PATH=~/projects/deps/pcre/root/usr` |
+| R-25 | 重构后的 sanitizer 复核 | **已完成（历史执行记录）**：执行记录报告 ASan C++ 全量通过、`-ftest` 连跑无泄漏，并以基线对照确认 R-22 泄漏已修复 | 本次二次审计未重跑 sanitizer；若要重新验收，必须使用持久证据目录并保留原始日志，不能以本行历史记录替代新证据 |
 | R-26 | 被丢弃任务的 `failure_code` 为空 | **核销：不是缺陷** | `owner_mailbox_task_mapping()` 只在两个 drain 路径输出（`owner.cc:5422`、`:5547`），而 `drop_owner_executor_callback()` 会把任务从 mailbox 移除并交给 main 清理，被丢弃的任务从此不再经过该映射。丢弃原因只出现在 trace 事件里，那里的 `failure_code` 已经正确（测试 `test_lpc_owner.cc:10545` 断言 `target_stale`）。下游 main/rewrite 均不读这两个键 |
 | R-22 | `array.cc` 三份排序临时表 | **已完成**（`7e4add49`，泄漏修补 `72605bde`）：`&`/`|` 改调 `alist_sort()`，两份内联循环删除；`alist_sort()` 取走第二操作数后，合并代码只减 `ref` 不释放结构，ref==1 时整块 array 泄漏（ASan `-ftest` 报 12×112 字节）。现改为与第一操作数相同的 `free_empty_array()` | `TestArraySetOperationsDistinguishExtremeIntegers` 增加 `num_arrays` 基线断言，退回旧写法即失败 |
 | R-23 | `intersect_array`/`union_array` 零 LPC 覆盖 | **已补**（同一提交）：27 断言，含多重集语义与 ref>1 不被原改 | `&` 取较小重数、`|` 取较大重数且保留左操作数顺序——旧代码如此，现在有测试锁住 |

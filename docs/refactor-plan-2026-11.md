@@ -1,8 +1,8 @@
 # FluffOS_XK 整理执行方案（2026-11）
 
-> 状态：**执行中**（2026-11）。已完成 U0–U7、U8、U9a/U9b/U9c（advisory 接入）/U9e、
-> U9d（C++ 硬上限 + LPC 冻结基线）、U5d 的启动验证与下游消费者核对；
-> 未完成：U5d 的 `ownercheck full` 前后对比（已实测为“跟数据状态走”，不能当门禁）、
+> 状态：**执行中**（2026-11）。已完成 U0–U4、U6–U8、U9a/U9b/U9c（advisory 接入）/U9e，
+> 并完成 U5d 的驱动启动、下游消费者核对和真实登录链路尝试；U5 的状态键仍分为 51 个下游契约键与 865 个未纳入契约的源码键，不能将后者仅凭未列入契约就判定为内部键或安全删除。
+> 未完成：U5d 的 `ownercheck full` 可归因前后对比（实测结论依赖数据状态，不能当门禁）、
 > U9d 的 LPC ≤1000 目标（需重构一个 790 行的断言函数）。
 > 问题依据：[refactor-findings-2026-11.md](refactor-findings-2026-11.md)。
 > 本文每个单元都给出改动清单、精确步骤、验证命令、完成判据与回滚方式，可交给不了解
@@ -13,8 +13,9 @@
 ### 0.1 目标
 
 | 维度 | 目标 | 度量 |
-| --- | --- | --- || 源码量 | 净减少 | 手写 C/C++ 从 173,008 行降到 ≤168,000 行（核算见下） |
-| 观测面 | 契约化 | owner 可观测面 1,058 键 → **51**；gateway 状态面 365 → 0；合计删 ≈1,372 |
+| --- | --- | --- |
+| 源码量 | 净减少 | 手写 C/C++ 从 173,008 行降到 ≤168,000 行（核算见下） |
+| 观测面 | 契约化 | 原始目标为 owner 可观测面 1,058 键 → **51**、gateway 状态面 365 → 0；当前仅冻结 51 个下游契约键，仍有 865 个未纳入契约的源码键，U5 未完全达标 |
 | 重复实现 | 消除 | 116 块随 U5b 删除而自然归零；其余 36/18/13/9 块降到 ≤2 |
 | 状态机 | 显式 | 7 个隐式状态机改为 enum class + 单一转场函数（SM-01/02/05/06/07/09/11） |
 | 文档 | 单一来源 | docs 根目录 18 份历史计划/报告全部归档（保留 1 份生效中的重编译设计） |
@@ -56,7 +57,7 @@
 | U2 文档单一来源 | 完成 | `check-docs.py` 1149 个文件通过；计划类根文档均有 `> 状态：` 头（U9e 强制） |
 | U3 伪能力删除 | 完成 | `grep owner-audit` 在 `src/` 无结果（`owner_audit_enabled` 是运行时多核审计开关，不是那个假 CLI） |
 | U4 上游修复吸收 | 完成 | `object.cc` 保留 `b1fb96f3`/`#1247` 注释与三个 `case '\0'` 失败路径 |
-| U5 观测面收口 | 完成（U5d 待授权） | 状态键契约 51/51、0 缺失；容量验收脚本退出 0（三份报告 `gate` 通过） |
+| U5 观测面收口 | 部分完成 | 状态键契约 51/51、容量验收通过；865 个未纳入契约的源码键，U5d 真实登录链路已执行但前后差异受下游数据状态影响，不作为驱动回归门禁 |
 | U6 状态机显式化 | 完成 | `owner_admission_state.h` 枚举 + `OwnerFutureState` 单表示 |
 | U7 重复合并 | 完成（含必须不合并项） | 重复基线 0 超标；`object.cc` restore 双胞胎已注明为何不能合 |
 | U8 测试结构 | 完成 | 最大测试文件 3,447 行（原 16,523）；gtest 清单 565 项拆分前后一致 |
@@ -65,7 +66,7 @@
 
 **未完成的两项**（均为外部依赖，非技术债）：
 
-1. **U5d 下游验收**：需在游戏侧起测试实例跑 `ownercheck full`，会占端口、写运行数据，属外部可见操作，需明确授权。
+1. **U5d 下游验收**：已执行真实登录链路和私有副本 `ownercheck full`；结果随数据状态变化，未形成可归因的删键前后门禁，不能再写成“待授权”。
 2. **U9d 的 LPC ≤1000 目标**：`owner_executor_contract.c` 里单个断言函数 790 行，拆它属测试重构；已先上冻结基线防止恶化。
 
 下面保留各单元原本的提交粒度说明。
@@ -184,12 +185,7 @@ git -c core.fsmonitor=false diff --stat -- tools/lpc-syntax/grammar.ebnf tools/l
 /.codex-worktrees/
 ```
 
-2. 从索引移除只存在于本地的证据文件，并移除编译产物：
-
-```bash
-git rm --cached -r audit-evidence
-git rm testsuite/test.o testsuite/data/gateway_net_dead_destruct_user.o
-```
+2. **不执行删除**：`audit-evidence/` 与 `evidence/` 是正式审计证据目录，必须保留并归档；`testsuite/test.o` 是恢复测试夹具，`.gitignore` 有显式例外，不能按构建垃圾删除。`testsuite/data/gateway_net_dead_destruct_user.o` 如需处理，必须先单独确认其是否为测试夹具；本轮不动。
 
 3. 清理 `.git/info/exclude` 中已迁入 `.gitignore` 的条目（保留 `/.codex*`、
    `/.claude/`、`/tools/loadtest/__pycache__/`、`.gitnexus/` 等纯本地条目）。
@@ -215,8 +211,7 @@ git -c core.fsmonitor=false status --short
 
 ### U1b 门禁配置对齐
 
-1. `src/.clang-tidy` 顶部注释改为事实描述：当前**无** CI 门禁，规则用于本地评审；
-   由 U9c 真正接入后删除该声明。
+1. `src/.clang-tidy` 顶部注释已改为事实描述：clang-tidy 已接入 CI，但当前为 advisory/report-only，不阻断合并；本地评审仍可使用同一规则。U9c 的 CI 接线保持该模式。
 2. 复核 `src/.clang-format` 与 `docs/coding-standard.md` §3.3 的 YAML 值逐项一致
    （`IndentWidth`、`ColumnLimit`、`SortIncludes`、`QualifierAlignment`、
    `AllowShortIfStatementsOnASingleLine` 等）。不一致时以规范为准修改配置文件。
@@ -452,7 +447,7 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 51 个键；`rewrite`（`661fdfc60`）不读任何 owner 状态；`vm_object_store_status()`
 在两个分支都零命中。因此不再需要外部确认环节。
 
-0. **先录删键前的下游基线**（U5d 的对照物，必须在任何删除前完成）：
+0. **历史步骤，不再重跑为门禁**：删键前的下游基线已无法与当前数据状态形成可归因对照；保留真实登录链路和消费者引用核对结果。
 
 ```bash
 # 在 xiakexing 仓库，用当前（未修改）驱动构建启动测试实例
@@ -542,16 +537,15 @@ bridge/retirement/readiness 键后，`driver` 与 `lpc_tests` 仍能构建，失
 cmake --build build-refactor-2026-11 --target driver lpcc lpc_tests --parallel 4
 ctest --test-dir build-refactor-2026-11 --output-on-failure
 cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
-python3 tools/docs/check-status-contract.py --check   # U9a 完成后才有
+python3 tools/docs/status-contract.py --check   # U9a 完成后执行
 ```
 
 判据：测试全绿；`docs/owner-status-contract.md` 登记的 51 个键仍能从对应 efun 取出；
-`check-status-contract.py --check` 无输出。
+`tools/docs/status-contract.py --check` 返回码为 0，且 `missing == 0`；额外源码键只报告数量。
 
-**可删量核算**（实测，脚本 `tools/docs/status-contract.py --dump`）：owner 面
-`owner.cc` 846 / `object_store.cc` 192 / `vm_owner.cc` 48，去重 **1,058**，保留 51 →
-**删 1,007**；gateway 面 `gateway.cc` 303 / `gateway_session.cc` 62 → **删 365**。
-合计 **≈1,372**。不动：`vm_worker.cc` 58、`trace.cc` 7、`promise.cc` 14。
+**目标量核算**（原始估算，不代表当前状态）：旧稿按 owner 1,058 个（减去保留的 51 个下游契约键后为 1,007 个）、gateway 365 个字段估算删除量，合计 1,007 + 365 ≈ 1,372；这些字段没有被当前单向契约检查按文件重新计数。
+当前可复核的事实是：`tools/docs/status-contract.py --check` 报告 865 个未纳入契约的源码键，契约表保留 51 个键；`--dump` 列出全部 scoped literal keys。未纳入契约不等于内部键，也不等于可以安全删除，因此不把旧估算当作已完成删除量。
+不动：`vm_worker.cc`、`trace.cc`、`promise.cc`，除非另有消费者证据和独立计划。
 
 ### U5c 把网关状态装配移出主逻辑文件
 
@@ -596,7 +590,8 @@ evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
 `BUILD_DIR`，`--build-dir` 参数不会生效（传了会去找不存在的 `build/` 并报
 `could not load cache`）。
 
-### U5d 下游验收（实施后必做）
+### U5d 下游验收（已执行；结果不可归因）
+> 当前结果：真实登录、建角和 `ownercheck full` 均已走过；保留原始数据的副本通过，重建数据的副本失败，故差异随数据状态变化，不能归因给驱动改动。
 
 用新构建的 driver 在下游 `xiakexing` 的测试实例上跑一次全量 owner 检查：
 
@@ -628,12 +623,9 @@ evidence 的 `mode=gate` 校验，`cleanup=clean`。脚本只接受环境变量
    与 `rewrite` 两个分支全部 `.c/.h/.lpc` 做带引号的引用检索：
    **两个分支对 12 个键的引用数均为 0**。
 
-**没做（能力边界，不是遗漏）**：完整 `ownercheck full` 未跑。原因：该命令要求一个
-已鉴权的 admin 操作者，而登录链路由独立的 gateway-go 服务先做认证再把 session 绑进
-驱动（`login.c` 的 `bind_gateway_driver_session`）；在私有副本里绕过认证去调命令，
-验的就不再是“真实路径”。当前证据强度：启动通过 + 零下游消费者 + 本仓全部套件通过。
+**二次审计更正**：真实登录链路和 `ownercheck full` 已在私有副本执行；由于保留数据副本通过、重建数据副本失败，结果不能归因于驱动改动，故不写入回归门禁。完整尝试使用了已鉴权的 admin 操作者；登录链路由独立的 gateway-go 服务先做认证，再把 session 绑定进驱动（`login.c` 的 `bind_gateway_driver_session`）。当前证据强度：启动通过 + 零下游消费者 + 本仓全部套件通过。
 
-#### 授权后的完整尝试（真实网关链路，未得出结论）
+#### 授权后的完整尝试（真实网关链路，结论不可归因）
 
 批准后把整条链搭起来了，并确实跑到了 `ownercheck full`：
 
@@ -771,7 +763,7 @@ cd testsuite && ../build-refactor-2026-11/bin/driver etc/config.test -ftest
 
 ```bash
 python3 tools/docs/status-contract.py --dump   # 打印当前代码里的字面键（升序）
-python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一致则 exit 1
+python3 tools/docs/status-contract.py --check  # 合同键缺失则 exit 1；额外源码键只报告
 ```
 
 实现要点（不要写两套提取逻辑）：
@@ -781,12 +773,12 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
    跨行用 `[\s\S]` 或先把注释剥离再把换行归一为空格。
 2. 合同文档 `docs/owner-status-contract.md` 用固定表格格式（第一列反引号键名），
    脚本只认第一列。
-3. 双向比对：代码有文档无 → 失败；文档有代码无 → 失败。
+3. 合同方向校验：文档有代码无 → 失败；代码有文档无 → 仅由 `--dump` 报告，不阻断，因为这些键尚未纳入下游合同；它们是否为内部键仍需消费者证据。
 4. **已知盲点写进文档**：变量键（`add_mapping_*(m, key, …)`）无法静态校验，当前 10 处
    调用点（`net` 端口统计、`owner.cc` 的 compute result field、`mapping.cc` 的通用
    helper、flag 名表）在合同文档里列为"豁免站点"并附文件:行。
 
-接入 CI `style-and-lpc` job。验证：故意新增一个未登记字面键→失败；删除→通过；
+接入 CI `style-and-lpc` job。验证：故意新增一个未登记字面键→由 `--dump` 报告但不阻断；删除合同键→失败；
 把一行调用拆成三行→仍被识别（验证多行处理）。
 
 ### U9b 重复实现基线棘轮
@@ -811,7 +803,7 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 ### U9c clang-tidy 门禁
 
-**本地门禁已落地**（`tools/style/check-tidy.py`，待接入 CI）：
+**本地门禁已落地**（`tools/style/check-tidy.py`）；CI 已接入 advisory/report-only 模式：
 
 1. 只看一次改动碰到的行：`git diff <range> -- '*.cc' '*.h'` 交给 `clang-tidy-diff.py`，
    因此存量告警不会阻塞无关改动。
@@ -830,15 +822,15 @@ python3 tools/docs/status-contract.py --check  # 与合同文档比对，不一�
 
 **CI 接入已写**（advisory）：`build-and-test` 的 Ubuntu 非 sanitizer 作业在构建后安装
 `clang-tidy==23.1.4`（pip 轮子）并跑 `tools/style/check-tidy.py --advisory`；
-配置新增 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`。浅克隆拿不到 base 时脚本打印
-`cannot diff …, skipping` 并退出 0，不会把 CI 弄成假红。
+配置新增 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`。浅克隆拿不到 base 时，`--advisory` 打印
+`cannot diff …, skipping` 并退出 0；正常模式返回失败，避免把未检查误报为通过。
 
 **未改为阻塞**的原因：搬移类提交会把移动的旧代码当新行，实测同一拆分提交会报 88 条
 既有风格问题。要阻塞就得先把这些消完，或改成只看“新增行而非移动行”的更复杂匹配；
 两者都会反过来阻碍重构，所以保持 advisory。
 
 **本地实测**（clang-tidy 23.1.4）：对象存储去重提交 → 0 命中、退出 0；
-测试拆分提交 → 88 命中、退出 1；加 `--advisory` → 退出 0；不存在的 range → 跳过、退出 0。
+测试拆分提交 → 88 命中、退出 1；加 `--advisory` → 退出 0；不存在的 range 在 advisory 模式下跳过、退出 0，普通模式退出 1。
 
 ### U9d 测试文件体量上限
 
@@ -906,9 +898,9 @@ frozen payload、dispatch 表）绑死；拆到 1,000 以下必须拆这个断�
 
 | 发现 | 转化为 | 类型 |
 | --- | --- | --- |
-| ≥1,353 个 status key 无预算 | U9a `check-status-contract.py` | 新增会失败的检查 |
+| ≥1,353 个 status key 无预算 | U9a `tools/docs/status-contract.py --check` | 新增会失败的检查 |
 | 文件内重复 116/36/18/13/9 块 | U9b `check-duplication.py` + 基线棘轮 | 新增会失败的检查 |
-| `.clang-tidy` 无门禁 | U9c diff-scoped tidy job | 新增会失败的检查 |
+| `.clang-tidy` 无门禁 | U9c diff-scoped tidy job | 新增可报告的检查（本阶段不阻塞） |
 | `test_lpc_owner.cc` 17,976 行 | U8 拆分 + U9d 体量上限 | 结构 + 检查 |
 | 9 份并行计划文档 | U2 归档 + U9e 文档结构检查 | 删除 + 检查 |
 | 伪审计能力 | U3 删除 | 删除实现 |
@@ -955,7 +947,7 @@ frozen payload、dispatch 表）绑死；拆到 1,000 以下必须拆这个断�
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
 | 51 个保留键的下游使用 | **已实测** | xiakexing `main` `f6acdd30e` 静态核实；`rewrite` `661fdfc60` 不消费（findings §5.4） |
-| 删键后下游 `ownercheck full` | **实施后必验** | U5d：删键前后各跑一次，只允许出现与改动无关的相同失败 |
+| 下游 `ownercheck full` 可归因回归 | **未闭合** | U5d 已走真实链路，但保留数据副本通过、重建数据副本失败；结果随下游数据状态变化，不能归因于删键 |
 | TTYPE SEND（U4-10）真实对端行为 | **external-required** | 需要 telnet 客户端；本地只能验证字节序列 |
 | mysql async 死锁（U4-2） | **unverified** | 需要 MySQL；SQLite 路径不等价 |
 | Windows/macOS 行为 | **unverified** | 本轮无该平台；相关改动保持平台中立，由 CI 兜底 |
@@ -975,11 +967,10 @@ frozen payload、dispatch 表）绑死；拆到 1,000 以下必须拆这个断�
 9. 没有为了通过检查而关闭 FORTIFY、断言、sanitizer 或 owner 检查。
 10. 最终报告给出：净行数变化、key 数量变化、重复块变化、各阶段测试通过数、
     未完成项与外部依赖。
-11. 下游 `ownercheck full` 的删键前后输出已对比，无新增失败（U5d）。
+11. **未满足**：`ownercheck full` 已在私有副本执行，但前后结果随下游数据状态变化，不能证明删键无新增失败。
 12. Worker 总线未被改动：`git diff --stat -- src/packages/core/vm_worker.cc` 只包含
     U3b 删的两个 efun，不包含批量删键。
-13. 51 个冻结键逐个能在新构建上取到（用一个一次性 `ownercheck full` 输出或
-    逐 efun 调用证明），不是只看测试绿。
+13. 51 个冻结键已由 `tools/docs/status-contract.py --check` 逐项确认仍由源码发出；额外源码键由 `--check` 报告数量、由 `--dump` 列出，不把它们混入下游契约。
 
 ## 附 G 执行记录（执行时填写）
 
@@ -988,7 +979,7 @@ frozen payload、dispatch 表）绑死；拆到 1,000 以下必须拆这个断�
 | U0 | — | 基线冻结（598/598 CTest，433 文件 -ftest） | 通过 | 证据 `audit-evidence/refactor-2026-11/` |
 | U1 | `103dbf62` `852ea7f6` | 仓库卫生 + 凭据 + clang-tidy 状态说明 | check-docs OK | |
 | U2 | `8a5437d8` | 20 份历史计划归档；新增 roadmap/architecture；冻结历史检查策略 | check-docs OK (1149) | |
-| U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--dump` 1,058 键；`--check` 预期为红直到 U5b | |
+| U5a | `4cb89b28` | 51 键 freeze + `tools/docs/status-contract.py` | `--check` 检查 51 个契约键不缺失，并报告额外源码键；当前报告 865 个额外键，U5b 尚未完成 | |
 | U3 | `524f0027` | 删假审计（含编码层归还）+ 2 个零消费者 bench efun | ctest 597/597；-ftest 433 文件退出码 0 | 两个子单元合并为一次提交（同一测试文件） |
 | U4 | `3e01bff9` | 64 位索引/区间截断、TTYPE、输入移除守卫 | ctest 597/597；-ftest 435 文件退出码 0 | 12 项中已吸收 4、已存在 3、部分 2、需设计/拆分 3 |
 | U5b-a | `deb7e6bd` | 删除 object-store 迁移脚手架（1058→1008 键） | ctest 597/597；-ftest 434 文件退出码 0 | object_store.cc -258 行；嵌套三份重复副本合为一份 |

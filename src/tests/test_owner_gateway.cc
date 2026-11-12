@@ -1380,7 +1380,7 @@ TEST_F(DriverTest, TestGatewayStatusMappingsUseLpcIntegerWidth) {
   const auto helper_name = gateway_source.find("gateway_avg_us(");
   const auto helper_start = gateway_source.rfind("LPC_INT", helper_name);
   const auto helper_end = gateway_source.find("void gateway_record_main_drain(", helper_name);
-  const auto status_start = gateway_source.find("mapping_t *gateway_status_internal()");
+  const auto status_start = gateway_source.find("mapping_t* gateway_status_internal()");
   const auto status_end = gateway_source.find("void f_is_gateway_user()", status_start);
 
   ASSERT_NE(helper_name, std::string::npos);

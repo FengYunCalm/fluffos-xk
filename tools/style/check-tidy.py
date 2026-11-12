@@ -38,22 +38,36 @@ def main() -> int:
     diff = subprocess.run(["git", "diff", args.range, "--", "*.cc", "*.h"],
                           capture_output=True, text=True, check=False)
     if diff.returncode != 0:
-        # Shallow CI checkouts may not have the base commit; report instead of failing.
+        # Shallow CI checkouts may not have the base commit. Advisory mode
+        # reports and continues; normal mode fails closed.
         print(f"check-tidy: cannot diff {args.range} in this checkout, skipping")
-        return 0
+        return 0 if args.advisory else 1
     if not diff.stdout.strip():
         print(f"check-tidy: no C++ changes in {args.range}")
         return 0
 
-    run = subprocess.run(["clang-tidy-diff.py", "-p1", "-path", args.build_dir, "-quiet",
-                          f"-checks={CHECKS}"],
-                         input=diff.stdout, capture_output=True, text=True, check=False)
-    findings = [line for line in run.stdout.splitlines() if ": warning:" in line]
+    try:
+        run = subprocess.run(["clang-tidy-diff.py", "-p1", "-path", args.build_dir, "-quiet",
+                              f"-checks={CHECKS}"],
+                             input=diff.stdout, capture_output=True, text=True, check=False)
+    except OSError as error:
+        print(f"check-tidy: cannot execute clang-tidy-diff.py: {error}", file=sys.stderr)
+        return 0 if args.advisory else 1
+    output = run.stdout + run.stderr
+    findings = [line for line in output.splitlines() if ": warning:" in line]
     for line in findings:
         print(line)
     print(f"check-tidy: {len(findings)} finding(s) in {args.range}")
-    if findings and not args.advisory:
-        return 1
+    if findings:
+        return 0 if args.advisory else 1
+    if run.returncode != 0:
+        print(
+            f"check-tidy: clang-tidy-diff.py failed with exit code {run.returncode}",
+            file=sys.stderr,
+        )
+        if output.strip():
+            print(output.rstrip(), file=sys.stderr)
+        return 0 if args.advisory else 1
     return 0
 
 

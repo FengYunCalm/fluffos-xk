@@ -298,9 +298,6 @@ def check_root_plan_status(docs_dir: str, repo: str) -> list[str]:
 
 
 _MAX_TEST_LINES = 3500
-
-
-_MAX_TEST_LINES = 3500
 # Mudlib test files above the 1000-line goal, frozen at their current size. Splitting
 # them needs the same helper extraction the C++ tests needed; until then the gate
 # keeps them from growing. Lower each entry as its file gets split.

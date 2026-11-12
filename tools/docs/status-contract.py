@@ -7,14 +7,15 @@ script keeps the code and `docs/owner-status-contract.md` in sync.
 
 Modes:
   --dump    print every literal key the code writes, sorted (for review)
-  --check   compare code against the contract; exit 1 on any difference
+  --check   require every documented key to be emitted; report extra source keys
 
 Only literal keys are covered. The handful of sites that compute a key at
 runtime are listed as known blind spots in the contract document.
 
-Until the owner-observability deletion (plan unit U5b) lands, `--check` is
-expected to fail: the code still emits the migration scaffolding that the
-contract no longer lists. CI wiring is plan unit U9a.
+`--check` verifies that every documented contract key is still emitted and
+reports the count of extra literal source keys. `--dump` lists those scoped
+literal keys for separate cleanup; extra keys are not a contract failure. CI
+wiring is plan unit U9a.
 """
 
 from __future__ import annotations
@@ -27,7 +28,9 @@ import sys
 CONTRACT_PATH = os.path.join("docs", "owner-status-contract.md")
 # The contract covers the owner-observability surface only. Other add_mapping_*
 # call sites in the tree build unrelated results (socket_status, variables dump,
-# efun return values) and are deliberately out of scope.
+# efun return values) and are deliberately out of scope. Extra keys in these two
+# files are still outside the frozen downstream contract; --check intentionally
+# does not treat them as contract keys.
 SCOPED_FILES = (
     "src/vm/internal/owner.cc",
     "src/vm/internal/object_store.cc",
@@ -73,7 +76,7 @@ def main() -> int:
     parser.add_argument("--repo", default=".", help="repository root")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dump", action="store_true", help="print emitted keys")
-    mode.add_argument("--check", action="store_true", help="compare with the contract")
+    mode.add_argument("--check", action="store_true", help="check contracted keys and report extras")
     args = parser.parse_args()
 
     code = emitted_keys(args.repo)
@@ -86,8 +89,8 @@ def main() -> int:
     undocumented = sorted(code - contract)
     missing = sorted(contract - code)
     # The contract freezes the keys downstream may rely on. A key that is emitted
-    # but not documented is not a failure -- most emitted keys are internal
-    # counters and are reported as a count. A documented key that is no longer
+    # but not documented is not a failure -- these extra source keys are
+    # reported as a count. A documented key that is no longer
     # emitted IS a failure: downstream code may still read it.
     for key in missing:
         print(f"FAIL: listed in {CONTRACT_PATH} but never emitted: {key}")

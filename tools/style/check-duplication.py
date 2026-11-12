@@ -2,9 +2,9 @@
 """Duplicate-window ratchet.
 
 Every window of WINDOW normalized lines is hashed; a file's count is how many of
-its windows also appear elsewhere. Only per-file counts are compared, so splitting
-a file is fine and copying a block is not. Refresh the baseline by hand:
-`python3 tools/style/check-duplication.py --print-baseline`.
+its windows also appear within that same file. Only per-file counts are compared,
+so splitting a file is fine and copying a block within a file is not. Refresh the
+baseline by hand: `python3 tools/style/check-duplication.py --print-baseline`.
 """
 
 import hashlib
@@ -25,7 +25,7 @@ def normalized(path):
 
 
 def counts():
-    seen = {}
+    per_file, first = {}, {}
     for root, dirs, names in os.walk(os.path.join(ROOT, "src")):
         dirs[:] = [d for d in dirs if d != "thirdparty"]
         for name in names:
@@ -34,14 +34,16 @@ def counts():
             path = os.path.join(root, name)
             rel = os.path.relpath(path, ROOT)
             lines = normalized(path)
+            seen = {}
             for start in range(len(lines) - WINDOW + 1):
                 body = "\n".join(flat for _, flat in lines[start:start + WINDOW])
-                seen.setdefault(hashlib.md5(body.encode()).hexdigest(), []).append((rel, lines[start][0]))
-    per_file, first = {}, {}
-    for locations in seen.values():
-        for rel, line in locations if len(locations) > 1 else ():
-            per_file[rel] = per_file.get(rel, 0) + 1
-            first[rel] = min(line, first.get(rel, line))
+                digest = hashlib.md5(body.encode()).hexdigest()
+                seen.setdefault(digest, []).append(lines[start][0])
+            for locations in seen.values():
+                if len(locations) < 2:
+                    continue
+                per_file[rel] = per_file.get(rel, 0) + len(locations)
+                first[rel] = min(locations + [first.get(rel, locations[0])])
     return per_file, first
 
 

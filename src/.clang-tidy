@@ -1,10 +1,10 @@
 ---
-# Analyzer: clang-tidy 18.1.8
+# Analyzer: clang-tidy 23.1.4 (CI advisory job)
 # Configure clang-tidy for this project.
 #
-# STATUS: this file is not wired into CI yet, so it only governs local review
-# runs. The 2026-11 refactor plan unit U9c adds a diff-scoped job; remove this
-# note when that job lands, and keep the check list below in sync with it.
+# STATUS: CI runs a diff-scoped advisory scan with this list. Findings do not
+# block the build yet because moved legacy code needs a separate cleanup pass;
+# keep the check list synchronized with tools/style/check-tidy.py.
 
 # The initial required trial checks are:
 # readability-identifier-naming, readability-braces-around-statements,

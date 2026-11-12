@@ -1,10 +1,11 @@
 # LPC 可观测状态契约
 
 > 本文是驱动对外暴露的 status mapping 键的**冻结清单**。
-> 只有本表登记的键可以被 `add_mapping_*` 写入 owner 可观测面；新增键必须先改本表。
+> 本表登记的键是下游 owner 状态合同；新增下游合同键必须先改本表。
 > 校验：`tools/docs/status-contract.py`（以 `--check` 模式运行；`--dump` 打印当前键）。
 > 门禁口径：本表登记的键**必须仍由代码发出**（`missing == 0` 才算通过）；代码发出的
-> 未登记键只报数量，不阻断——它们大多是内部计数器。CI 已接入（ci.yml 的文档作业）。
+> 未登记键只报数量，不阻断——当前扫描为 865 个未纳入冻结清单的源码键。它们不能仅凭
+> 未列入本表就被推断为“内部”或可安全删除。CI 已接入（ci.yml 的文档作业）。
 > 依据：下游 `xiakexing` `main`（`f6acdd30e`）逐键实测读取，`rewrite`（`661fdfc60`）
 > 不消费任何 owner 状态。详见 [2026-11 问题清单](refactor-findings-2026-11.md) §5.4。
 
@@ -158,8 +159,8 @@ gateway 状态面（`gateway_status_internal()`，单函数 303 键）尚未收�
 
 ## 5 已知盲点
 
-以下站点用变量作键，静态检查无法验证，属人工审查范围（检查器只扫 `owner.cc`、
-`object_store.cc`、`vm_owner.cc` 三个文件）；
+以下站点用变量作键，静态检查无法验证，属人工审查范围（当前检查器只扫 `owner.cc`、
+`object_store.cc`；`vm_owner.cc` 的公开 efun mapping 不在本契约范围内）；
 
 - `src/packages/gateway/gateway.cc` 端口统计（`add_mapping_pair(m, buf, …)`）
 - `src/vm/internal/owner.cc` compute result 字段（`field.key.c_str()`）
@@ -170,5 +171,6 @@ gateway 状态面（`gateway_status_internal()`，单函数 303 键）尚未收�
 
 用 `ownercheck full` 记录删键前后的通过/失败集合，写入本节：
 
-- 删键前（baseline）：待记录（U5d）
-- 删键后：待记录（U5d）
+- 前后对比：已在私有副本走真实登录链路并执行 `ownercheck full`；保留原始数据副本通过，重建数据副本失败。
+- 归因结论：结果随下游数据状态变化，未形成可归因的删键前后回归证据，不纳入驱动门禁。
+- 已确认的独立证据：下游 `main` 与 `rewrite` 对实际删除的 12 个键均无引用；启动、鉴权、建角和命令链路均完成。
