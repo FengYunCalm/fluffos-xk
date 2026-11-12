@@ -154,7 +154,7 @@ TEST_F(DriverTest, TestLpcVmRepresentativeWorkloadProbe) {
 #ifdef _WIN32
   // GetThreadTimes has coarse resolution; keep the workload above it without
   // overflowing the LPC integer returned by thread_cpu_time_ns().
-  constexpr LPC_INT kIterations = 32;
+  constexpr LPC_INT kIterations = 128;
 #else
   constexpr LPC_INT kIterations = 2;
 #endif
