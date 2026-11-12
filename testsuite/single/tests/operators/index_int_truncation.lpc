@@ -6,8 +6,8 @@
 // The bounds are now computed and checked in LPC_INT (and the string helpers
 // clamp to +-(len+1) before narrowing), so an out-of-range index either errors
 // or reports absent. This test asserts the invariant that matters -- a
-// past-32-bit index never addresses a real element -- without pinning which of
-// the two a given read path picks.
+// past-32-bit index never addresses a real element -- without pinning which
+// of the two a given read path picks.
 //
 // The bound is stored in a variable on purpose: a constant bound written
 // directly in the range (e.g. `a[0 .. 1 << 32]`) is folded into an immediate
@@ -61,26 +61,26 @@ void do_tests() {
   // rvalue ranges: absent, never a real subrange.
   e = 0;
   v = 0;
-  e = catch(v = ({ 1, 2, 3 })[big1 ..]);
+  e = catch(v = ({ 1, 2, 3 })[big1..]);
   ASSERT(absent(e, v));
   e = 0;
   v = 0;
-  e = catch(v = ({ 1, 2, 3 })[big1 .. 2]);
+  e = catch(v = ({ 1, 2, 3 })[big1..2]);
   ASSERT(absent(e, v));
   e = 0;
   v = 0;
-  e = catch(v = "abc"[big1 ..]);
+  e = catch(v = "abc"[big1..]);
   ASSERT(absent(e, v));
 
   // A range lvalue with a past-32-bit bound must not truncate the bound and
   // delete a real prefix.
-  ASSERT(catch(a[0 .. big] = ({})));
+  ASSERT(catch(a[0 ..big] = ({})));
   ASSERT_EQ(({ 1, 2, 3 }), a);
 
   // In-range behaviour is untouched.
   a[1] = 20;
   ASSERT_EQ(({ 1, 20, 3 }), a);
-  ASSERT_EQ("b", s[1 .. 1]);
+  ASSERT_EQ("b", s[1 ..1]);
   ASSERT_EQ(({ 2, 3 }), ({ 1, 2, 3 })[1 ..]);
-  ASSERT_EQ(({ 1, 2 }), ({ 1, 2, 3 })[0 .. 1]);
+  ASSERT_EQ(({ 1, 2 }), ({ 1, 2, 3 })[0 ..1]);
 }

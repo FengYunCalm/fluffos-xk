@@ -271,7 +271,7 @@ jobs:
 
           # macOS
           - platform: macOS
-            os: macos-14
+            os: macos-15
             build: Debug
             check_name: macOS Debug
             cmake_flags: -DMARCH_NATIVE=OFF -DENABLE_LTO=OFF
@@ -279,7 +279,7 @@ jobs:
             openssl_root: /usr/local/opt/openssl
             icu_root: /opt/homebrew/opt/icu4c
           - platform: macOS
-            os: macos-14
+            os: macos-15
             build: RelWithDebInfo
             check_name: macOS RelWithDebInfo
             cmake_flags: -DMARCH_NATIVE=OFF -DENABLE_LTO=OFF
